@@ -44,6 +44,11 @@ Follow [Conventional Commits](https://www.conventionalcommits.org/):
 | `chore`    | Maintenance tasks                   |
 | `revert`   | Reverting a previous commit         |
 
+Additional constraints enforced by commitlint:
+
+- **Header** must not exceed **100 characters**
+- **Subject** must use lowercase only
+
 Commit messages are linted automatically on commit via Husky + commitlint.
 
 ## Code Quality

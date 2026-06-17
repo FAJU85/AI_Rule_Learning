@@ -2,6 +2,7 @@
   "types": [
     { "type": "feat", "section": "Features" },
     { "type": "fix", "section": "Bug Fixes" },
+    { "type": "revert", "section": "Reverts" },
     { "type": "docs", "section": "Documentation" },
     { "type": "style", "hidden": true },
     { "type": "refactor", "section": "Refactoring" },
