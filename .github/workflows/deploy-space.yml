@@ -1,0 +1,46 @@
+name: Deploy to Hugging Face Space
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'space/**'
+      - '.github/workflows/deploy-space.yml'
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy to vooom/AI_Rule_Learning
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install huggingface_hub
+        run: pip install "huggingface_hub>=0.24.0"
+
+      - name: Deploy space/ to Hugging Face Space
+        run: |
+          python - <<'EOF'
+          from huggingface_hub import HfApi
+          import os
+
+          api = HfApi()
+          api.upload_folder(
+              folder_path="space",
+              repo_id="vooom/AI_Rule_Learning",
+              repo_type="space",
+              commit_message="Deploy from GitHub Actions (${{ github.sha }})",
+          )
+          print("Space deployed successfully.")
+          EOF
