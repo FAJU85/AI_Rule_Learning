@@ -721,7 +721,8 @@ def _detect_gaps_in_conversation(conv: dict) -> list[dict]:
                 "severity": 5,
                 "turn": turn_n,
                 "description": f"User correction signal: '{matched_phrase}'",
-                "user_input": user_input[:120],
+                "user_input": user_input[:150],
+                "agent_response": agent_response[:150],
             })
 
         # 2. User frustration (separate from correction — broader emotional signal)
@@ -732,7 +733,8 @@ def _detect_gaps_in_conversation(conv: dict) -> list[dict]:
                 "severity": 4,
                 "turn": turn_n,
                 "description": f"Frustration signal: '{matched_frustration}'",
-                "user_input": user_input[:120],
+                "user_input": user_input[:150],
+                "agent_response": agent_response[:150],
             })
 
         # 3. Repeated / unanswered question (word overlap with prior turns)
@@ -743,7 +745,8 @@ def _detect_gaps_in_conversation(conv: dict) -> list[dict]:
                     "severity": 3,
                     "turn": turn_n,
                     "description": "User repeated a similar question — possibly unanswered",
-                    "user_input": user_input[:120],
+                    "user_input": user_input[:150],
+                    "agent_response": agent_response[:150],
                 })
                 break
 
@@ -758,7 +761,8 @@ def _detect_gaps_in_conversation(conv: dict) -> list[dict]:
                 "severity": 4,
                 "turn": turn_n,
                 "description": f"Question received a very short response ({len(agent_response)} chars)",
-                "user_input": user_input[:120],
+                "user_input": user_input[:150],
+                "agent_response": agent_response[:150],
             })
 
         # 5. Code anti-pattern in response
@@ -769,7 +773,8 @@ def _detect_gaps_in_conversation(conv: dict) -> list[dict]:
                 "severity": 4,
                 "turn": turn_n,
                 "description": f"Potentially problematic pattern in response: '{matched_pattern}'",
-                "user_input": user_input[:120],
+                "user_input": user_input[:150],
+                "agent_response": agent_response[:150],
             })
 
         # 6. Sentiment drop (numeric fields if present)
@@ -783,7 +788,8 @@ def _detect_gaps_in_conversation(conv: dict) -> list[dict]:
                         "severity": 4,
                         "turn": turn_n,
                         "description": f"Sentiment dropped {float(sb):.2f}→{float(sa):.2f}",
-                        "user_input": user_input[:120],
+                        "user_input": user_input[:150],
+                        "agent_response": agent_response[:150],
                     })
             except (ValueError, TypeError):
                 pass
@@ -796,7 +802,8 @@ def _detect_gaps_in_conversation(conv: dict) -> list[dict]:
                 "severity": 3,
                 "turn": turn_n,
                 "description": f"Multiple negative signals detected ({neg_count})",
-                "user_input": user_input[:120],
+                "user_input": user_input[:150],
+                "agent_response": agent_response[:150],
             })
 
         seen_inputs.append(ui_lower)
@@ -1029,49 +1036,67 @@ def _save_checkpoint(state: dict) -> None:
         pass
 
 
-def _generate_rule_hf(gap_type: str, examples: list[dict]) -> dict | None:
+def _generate_rule_hf(gap_type: str, examples: list[dict], total_conversations: int = 0) -> dict | None:
     try:
         import re
         from huggingface_hub import InferenceClient
 
         client = InferenceClient(token=HF_TOKEN)
-        examples_text = "\n".join(
-            f"- Turn {e.get('turn', '?')}: {e.get('description', '')} | user said: \"{e.get('user_input', '')[:80]}\""
-            for e in examples[:4]
-        )
 
-        prompt = f"""You are an AI guardrail rule generator. Analyze these conversation gaps and create a guardrail rule.
+        example_parts = []
+        for e in examples[:5]:
+            user = e.get("user_input", "")[:150]
+            agent = e.get("agent_response", "")[:150]
+            desc = e.get("description", "")
+            turn = e.get("turn", "?")
+            example_parts.append(
+                f"  Turn {turn}: {desc}\n"
+                f"    User said: \"{user}\"\n"
+                f"    AI responded: \"{agent}\""
+            )
+        examples_text = "\n".join(example_parts)
 
-Gap type: {gap_type}
-Observed examples:
+        freq_note = f"{len(examples)} occurrence(s)"
+        if total_conversations:
+            freq_note += f" found across {total_conversations} conversations scanned"
+
+        prompt = f"""You are an expert at learning from AI conversation failures and converting them into actionable guardrail rules.
+
+Gap pattern: {gap_type}
+Frequency: {freq_note}
+
+Real failure examples (each shows what the user said and what the AI responded that caused the gap):
 {examples_text}
+
+Based only on these real observed failures, write a precise guardrail rule that prevents this pattern.
+The rule must be grounded in the specific behaviors above — not generic advice.
 
 Return ONLY a valid JSON object with exactly these fields:
 {{
-  "name": "Short descriptive rule name (max 8 words)",
-  "description": "What behaviour this rule prevents or encourages",
+  "name": "Action-oriented rule name (max 8 words)",
+  "description": "What specific AI failure this rule prevents, referencing the observed pattern",
   "rule_type": "guardrail",
-  "priority": 4,
+  "priority": <integer 1-5, where 5=critical based on severity of observed failures>,
+  "severity": <same integer as priority>,
+  "empirical_basis": "One sentence describing what was actually observed, e.g. 'N occurrences where AI did X instead of Y'",
   "action": {{
     "type": "modify_response",
-    "instruction": "Specific, actionable instruction for the AI assistant"
+    "instruction": "Concrete imperative instruction. Start with a strong verb. Be specific about what to do differently based on the observed failures."
   }},
   "trigger": {{
-    "keywords": ["keyword1", "keyword2", "keyword3"]
+    "keywords": ["keyword1", "keyword2", "keyword3", "keyword4"]
   }}
 }}
 
-Only output the JSON. No explanation, no markdown fences."""
+Only output the JSON. No markdown fences, no explanation."""
 
         response = client.chat.completions.create(
             model=_HF_MODEL,
             messages=[{"role": "user", "content": prompt}],
-            max_tokens=400,
-            temperature=0.3,
+            max_tokens=500,
+            temperature=0.2,
         )
         text = response.choices[0].message.content.strip()
-
-        # Strip markdown fences if present
         text = re.sub(r"^```[a-z]*\n?", "", text).rstrip("`").strip()
 
         match = re.search(r"\{.*\}", text, re.DOTALL)
@@ -1088,10 +1113,12 @@ Only output the JSON. No explanation, no markdown fences."""
         rule_data["created_at"] = datetime.utcnow().isoformat()
         rule_data.setdefault("rule_type", "guardrail")
         rule_data.setdefault("priority", 3)
+        rule_data.setdefault("severity", rule_data.get("priority", 3))
+        rule_data.setdefault("empirical_basis", f"{len(examples)} observed {gap_type} instance(s)")
 
         return rule_data
 
-    except Exception as exc:
+    except Exception:
         return None
 
 
@@ -1215,7 +1242,7 @@ def run_analysis():
 
     for gtype, gap_examples in eligible.items():
         yield emit(f"\n   ⚙️ `{gtype}` ({len(gap_examples)} examples) — calling HF Inference API…")
-        rule = _generate_rule_hf(gtype, gap_examples)
+        rule = _generate_rule_hf(gtype, gap_examples, total_conversations=len(conversations))
         if rule:
             new_rules.append(rule)
             generated_rule_types.add(gtype)
@@ -1250,6 +1277,85 @@ def run_analysis():
         "all_gaps_by_type": all_gaps_by_type,
         "generated_rule_types": list(generated_rule_types),
     })
+
+
+# ---------------------------------------------------------------------------
+# Force re-analyze: clear checkpoint and reprocess all conversations
+# ---------------------------------------------------------------------------
+
+def run_force_reanalyze():
+    """Clear the Ralph Loop checkpoint so every conversation is reprocessed."""
+    log: list[str] = []
+
+    def emit(msg: str):
+        log.append(msg)
+        return "\n".join(log)
+
+    if not HF_TOKEN:
+        yield emit("❌ HF_TOKEN not set.")
+        return
+
+    yield emit("🗑️  Clearing checkpoint — all conversations will be reprocessed from scratch…")
+    try:
+        _save_checkpoint({
+            "processed_ids": [],
+            "all_gaps_by_type": {},
+            "generated_rule_types": [],
+        })
+        yield emit("✅ Checkpoint cleared.\n")
+    except Exception as exc:
+        yield emit(f"⚠️  Could not clear checkpoint: {exc} — continuing anyway…\n")
+
+    yield from run_analysis()
+
+
+# ---------------------------------------------------------------------------
+# Export active rules as a copy-pasteable system prompt
+# ---------------------------------------------------------------------------
+
+def export_system_prompt() -> str:
+    """Format active rules as a system prompt usable with any AI."""
+    rules = load_rules()
+    if not rules:
+        return "No rules found. Run Analysis first or click 🌱 Seed Work Rules."
+
+    active = [r for r in rules if r.get("is_active", True)]
+    if not active:
+        return "No active rules found."
+
+    active.sort(key=lambda r: -r.get("priority", 3))
+
+    _priority_label = {5: "CRITICAL", 4: "HIGH", 3: "MEDIUM", 2: "LOW", 1: "INFO"}
+
+    lines = [
+        "You are operating under the following empirical guardrail rules derived from",
+        "real AI conversation failures. Apply them in every response.",
+        "",
+    ]
+
+    for i, rule in enumerate(active, 1):
+        label = _priority_label.get(rule.get("priority", 3), "MEDIUM")
+        lines.append(f"## Rule {i}: {rule.get('name', rule.get('rule_id', 'Unnamed'))}")
+        lines.append(f"Priority: {label} | Type: {rule.get('rule_type', 'guardrail')}")
+        if rule.get("description"):
+            lines.append(f"What it prevents: {rule['description']}")
+        if rule.get("empirical_basis"):
+            lines.append(f"Evidence: {rule['empirical_basis']}")
+        inst = rule.get("action", {}).get("instruction", "")
+        if inst:
+            lines.append(f"Instruction: {inst}")
+        kws = rule.get("trigger", {}).get("keywords", [])
+        if kws:
+            lines.append(f"Triggers on: {', '.join(kws[:6])}")
+        lines.append("")
+
+    lines += [
+        "---",
+        f"Source: {DATASET_ID} | Generated: {datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}",
+        f"Total active rules: {len(active)}",
+    ]
+
+    return "\n".join(lines)
 
 
 # ---------------------------------------------------------------------------
@@ -1541,9 +1647,27 @@ def run_import_sessions(jsonl_files):
         all_convs = existing + new_conversations
         _upload_jsonl("conversations.jsonl", all_convs)
         yield emit(f"🎉 Done! Dataset now has **{len(all_convs)}** conversation(s).")
-        yield emit("   Run **▶ Run Analysis** to detect gaps and generate rules.")
     except Exception as exc:
         yield emit(f"❌ Upload failed: {exc}")
+        return
+
+    # Auto gap scan on newly imported conversations (fast — no LLM call)
+    yield emit("\n🔎 Auto-scanning new conversations for gaps…")
+    gap_summary: dict[str, int] = {}
+    for conv in new_conversations:
+        gaps = _detect_gaps_in_conversation(conv)
+        for g in gaps:
+            gap_summary[g["type"]] = gap_summary.get(g["type"], 0) + 1
+
+    total_gaps = sum(gap_summary.values())
+    if total_gaps == 0:
+        yield emit("   ℹ️ No gaps detected in new sessions (keyword detection may not trigger for "
+                   "short or non-English conversations).")
+    else:
+        yield emit(f"   Found **{total_gaps}** gap(s) in the new sessions:")
+        for gtype, count in sorted(gap_summary.items(), key=lambda x: -x[1]):
+            yield emit(f"   • `{gtype}`: {count}")
+        yield emit("\n   Click **▶ Run Analysis** in the Analysis tab to generate rules from these gaps.")
 
 
 # ---------------------------------------------------------------------------
@@ -1661,6 +1785,17 @@ with gr.Blocks(title="AI Rule Learning System", theme=gr.themes.Soft()) as demo:
             demo.load(refresh_rules, outputs=[rules_table, rule_selector])
             rule_selector.change(get_rule_detail, inputs=rule_selector, outputs=rule_detail)
 
+            gr.Markdown("---\n### 📤 Export as System Prompt\nCopy this block into any AI system prompt to apply your active rules immediately.")
+            export_btn = gr.Button("Generate System Prompt", variant="primary", size="sm")
+            system_prompt_output = gr.Textbox(
+                label="System prompt — copy and paste into any AI",
+                lines=20,
+                interactive=True,
+                show_copy_button=True,
+            )
+            export_btn.click(export_system_prompt, outputs=system_prompt_output)
+            demo.load(export_system_prompt, outputs=system_prompt_output)
+
         # --- Conversations ---
         with gr.Tab("💬 Conversations"):
             conversations_table = gr.Dataframe(interactive=False, wrap=True)
@@ -1777,8 +1912,15 @@ AI model so they improve rather than disappear.
             )
             with gr.Row():
                 analysis_btn = gr.Button("▶ Run Analysis", variant="primary", size="lg")
+                reanalyze_btn = gr.Button("🔁 Force Re-analyze All", variant="primary", size="lg")
+            with gr.Row():
                 evolve_btn = gr.Button("🔄 Validate & Evolve", variant="secondary", size="lg")
                 seed_btn = gr.Button("🌱 Seed Work Rules", variant="secondary", size="lg")
+            gr.Markdown(
+                "_**▶ Run Analysis** processes only new conversations. "
+                "**🔁 Force Re-analyze All** clears the checkpoint and reprocesses every "
+                "conversation — use this after the gap detection was improved._"
+            )
             analysis_log = gr.Textbox(
                 label="Analysis log",
                 lines=20,
@@ -1786,6 +1928,7 @@ AI model so they improve rather than disappear.
                 autoscroll=True,
             )
             analysis_btn.click(run_analysis, outputs=analysis_log)
+            reanalyze_btn.click(run_force_reanalyze, outputs=analysis_log)
             evolve_btn.click(run_validate_and_evolve, outputs=analysis_log)
             seed_btn.click(run_seed_rules, outputs=analysis_log)
 
@@ -1869,34 +2012,44 @@ AI model so they improve rather than disappear.
         with gr.Tab("🚀 Quick Start"):
             gr.Markdown(
                 """
-## Run Locally
+## How to Use These Rules with Any AI
+
+### Step 1 — Generate rules from your conversations
+
+1. Upload your Claude Code session files in the **📥 Import Sessions** tab
+2. Click **🔁 Force Re-analyze All** in the **🔍 Analysis** tab to scan all conversations
+3. The system detects gaps and calls `Qwen/Qwen2.5-72B-Instruct` to generate guardrail rules
+
+### Step 2 — Export the system prompt
+
+Go to **📋 Rules** → click **Generate System Prompt** → copy the output.
+
+### Step 3 — Apply to any AI
+
+Paste the system prompt into:
+- **Claude** — Project instructions or system prompt in Claude.ai
+- **ChatGPT / OpenAI API** — `system` message in the messages array
+- **Any API** — `{"role": "system", "content": "<paste here>"}`
+- **Claude Code** — Add to `CLAUDE.md` in your project root
+
+### Auto-export from Claude Code sessions
+
+The Stop hook auto-exports sessions when a session ends. Set `HF_TOKEN` in your shell:
 
 ```bash
-git clone https://github.com/FAJU85/AI_Rule_Learning.git
-cd AI_Rule_Learning
-pip install -r requirements.txt
-cp .env.example .env
-# Add your API keys to .env
-python -m src.cli.main chat
+export HF_TOKEN=your_hf_token
+# Now every Claude Code session auto-uploads to the dataset on exit
 ```
 
-## CLI Commands
+### Fetch rules programmatically
 
-| Command | Description |
-|---------|-------------|
-| `python -m src.cli.main chat` | Interactive conversation with rule injection |
-| `python -m src.cli.main analyze --days 7` | Analyse last 7 days, generate rules |
-| `python -m src.cli.main validate` | Score and prune ineffective rules |
-| `python -m src.cli.main list-rules` | Show all active rules |
-| `python scripts/upload_historical.py --file data.json` | Bulk upload conversations via CLI |
+```python
+from huggingface_hub import hf_hub_download
+import json
 
-## Environment Variables
-
-```env
-HF_TOKEN=your_hf_token
-HF_DATASET_NAME=vooom/AI_Rule_Learning
-OPENAI_API_KEY=your_openai_key        # or
-ANTHROPIC_API_KEY=your_anthropic_key
+path = hf_hub_download("vooom/AI_Rule_Learning", "rules.jsonl", repo_type="dataset", token="your_token")
+rules = [json.loads(l) for l in open(path) if l.strip()]
+active = [r for r in rules if r.get("is_active")]
 ```
 
 ## Source
