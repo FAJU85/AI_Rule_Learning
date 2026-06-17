@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd /home/user/AI_Rule_Learning && python scripts/export_sessions.py 2>&1 | tail -5 || true"
+          }
+        ]
+      }
+    ]
+  }
+}

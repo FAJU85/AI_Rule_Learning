@@ -1308,6 +1308,157 @@ def run_validate_and_evolve():
 
 
 # ---------------------------------------------------------------------------
+# Live session import — reads Claude Code ~/.claude/projects/ files
+# ---------------------------------------------------------------------------
+
+def _extract_text_from_content(content) -> str:
+    if isinstance(content, str):
+        return content.strip()
+    if isinstance(content, list):
+        parts = [b.get("text", "") for b in content if isinstance(b, dict) and b.get("type") == "text"]
+        return " ".join(parts).strip()
+    return ""
+
+
+_SKIP_TAGS = ["<github-webhook-activity>", "<system-reminder>", "<task-notification>", "<untrusted_external_data"]
+
+
+def _parse_session_jsonl(lines: list[str]) -> dict | None:
+    messages = []
+    session_meta: dict = {}
+
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            obj = json.loads(line)
+        except Exception:
+            continue
+
+        msg = obj.get("message", {})
+        role = msg.get("role")
+
+        if not session_meta:
+            session_meta = {
+                "session_id": obj.get("sessionId", str(uuid.uuid4())),
+                "slug": obj.get("slug", ""),
+                "cwd": obj.get("cwd", ""),
+                "git_branch": obj.get("gitBranch", ""),
+                "started_at": obj.get("timestamp", datetime.utcnow().isoformat()),
+            }
+
+        if role not in ("user", "assistant"):
+            continue
+
+        text = _extract_text_from_content(msg.get("content", ""))
+        if not text:
+            continue
+
+        if role == "user" and any(tag in text for tag in _SKIP_TAGS):
+            continue
+
+        messages.append({"role": role, "text": text, "timestamp": obj.get("timestamp", "")})
+
+    if not session_meta or len(messages) < 4:
+        return None
+
+    turns = []
+    i = 0
+    while i < len(messages):
+        if messages[i]["role"] == "user":
+            j = i + 1
+            while j < len(messages) and messages[j]["role"] != "assistant":
+                j += 1
+            if j < len(messages):
+                turns.append({
+                    "turn_number": len(turns) + 1,
+                    "user_input": messages[i]["text"][:4000],
+                    "agent_response": messages[j]["text"][:4000],
+                    "timestamp": messages[i]["timestamp"],
+                    "gaps_detected": [],
+                    "rules_applied": [],
+                    "sensor_reading": None,
+                })
+                i = j + 1
+                continue
+        i += 1
+
+    if len(turns) < 2:
+        return None
+
+    return {
+        "conversation_id": f"claude_code_{session_meta['session_id']}",
+        "session_id": session_meta["session_id"],
+        "slug": session_meta["slug"],
+        "project_context": session_meta.get("cwd", ""),
+        "git_branch": session_meta.get("git_branch", ""),
+        "source": "claude_code_local",
+        "turns": turns,
+        "escalation_occurred": False,
+        "human_intervention": False,
+        "started_at": session_meta["started_at"],
+        "ended_at": datetime.utcnow().isoformat(),
+        "exported_at": datetime.utcnow().isoformat(),
+    }
+
+
+def run_import_sessions(jsonl_files):
+    """Accept uploaded JSONL files (Claude Code session exports) and merge into dataset."""
+    log: list[str] = []
+
+    def emit(msg: str):
+        log.append(msg)
+        return "\n".join(log)
+
+    if not HF_TOKEN:
+        yield emit("❌ HF_TOKEN not set in Space secrets.")
+        return
+
+    if not jsonl_files:
+        yield emit("❌ No files uploaded. Export sessions first using:\n"
+                   "   `python scripts/export_sessions.py --dry-run`\n"
+                   "then upload the resulting JSONL files here.")
+        return
+
+    yield emit(f"📂 Processing **{len(jsonl_files)}** uploaded file(s)…")
+
+    existing = load_conversations()
+    existing_ids = {c.get("conversation_id") for c in existing}
+    new_conversations = []
+
+    for f in jsonl_files:
+        try:
+            with open(f.name, encoding="utf-8") as fh:
+                lines = fh.readlines()
+            conv = _parse_session_jsonl(lines)
+            if conv is None:
+                yield emit(f"   ⚠️ {os.path.basename(f.name)} — too short or unreadable, skipped")
+                continue
+            if conv["conversation_id"] in existing_ids:
+                yield emit(f"   ↩️  Already in dataset: {conv.get('slug') or conv['session_id'][:12]}")
+                continue
+            turns = len(conv["turns"])
+            yield emit(f"   ✅ {conv.get('slug') or conv['session_id'][:12]} — {turns} turn(s)")
+            new_conversations.append(conv)
+        except Exception as exc:
+            yield emit(f"   ❌ {os.path.basename(f.name)}: {exc}")
+
+    if not new_conversations:
+        yield emit("\nℹ️ No new conversations to add.")
+        return
+
+    yield emit(f"\n⬆️ Uploading **{len(new_conversations)}** new conversation(s)…")
+    try:
+        all_convs = existing + new_conversations
+        _upload_jsonl("conversations.jsonl", all_convs)
+        yield emit(f"🎉 Done! Dataset now has **{len(all_convs)}** conversation(s).")
+        yield emit("   Run **▶ Run Analysis** to detect gaps and generate rules.")
+    except Exception as exc:
+        yield emit(f"❌ Upload failed: {exc}")
+
+
+# ---------------------------------------------------------------------------
 # Architecture
 # ---------------------------------------------------------------------------
 
@@ -1467,6 +1618,52 @@ Optional columns: `session_id, user_id, sentiment_before, sentiment_after`
             upload_status = gr.Markdown()
 
             upload_btn.click(upload_history, inputs=upload_file, outputs=upload_status)
+
+        # --- Import Live Sessions ---
+        with gr.Tab("📥 Import Sessions"):
+            gr.Markdown(
+                """
+## Import Claude Code Live Sessions
+
+Upload session JSONL files exported directly from Claude Code's local storage —
+**no Anthropic API key required**.
+
+### How to export sessions from your machine
+
+```bash
+# Export all sessions from this project
+python scripts/export_sessions.py --dry-run   # preview
+python scripts/export_sessions.py             # upload directly to dataset
+
+# Or export a specific session
+python scripts/export_sessions.py --session <session-id>
+```
+
+The script reads `~/.claude/projects/` on your local machine and uploads
+conversations to the HF dataset. The Space then picks them up automatically.
+
+### Or: upload JSONL files manually here
+
+If you have the raw Claude Code session JSONL files, upload them directly below.
+Each file is one session (e.g. `be6d062b-eb09-5398-b69a-1cdfa8f3c5b7.jsonl`).
+
+The importer extracts user↔assistant turn pairs, strips internal tool calls
+and webhook notifications, and merges into the conversation dataset.
+"""
+            )
+            session_files_input = gr.File(
+                label="Upload Claude Code session JSONL file(s)",
+                file_types=[".jsonl"],
+                file_count="multiple",
+            )
+            import_btn = gr.Button("📥 Import Sessions", variant="primary", size="lg")
+            import_log = gr.Textbox(
+                label="Import log",
+                lines=12,
+                interactive=False,
+                autoscroll=True,
+            )
+            import_btn.click(run_import_sessions, inputs=session_files_input, outputs=import_log)
 
         # --- Analysis ---
         with gr.Tab("🔍 Analysis"):
