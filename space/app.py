@@ -641,6 +641,249 @@ def upload_history(file_obj: Any) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Analysis engine — gap detection + HF-powered rule generation
+# ---------------------------------------------------------------------------
+
+_CORRECTION_PHRASES = [
+    "wrong", "incorrect", "that's not", "no,", "actually,", "instead,",
+    "you're wrong", "not right", "fix this", "that is wrong", "no that",
+    "you missed", "you forgot", "not what i", "not what I",
+]
+_CODE_ANTIPATTERNS = ["eval(", "exec(", "password =", "secret =", "hardcoded", "bare except", "except:"]
+_HF_MODEL = "Qwen/Qwen2.5-72B-Instruct"
+
+
+def _word_overlap(a: str, b: str) -> float:
+    wa, wb = set(a.lower().split()), set(b.lower().split())
+    if not wa or not wb:
+        return 0.0
+    return len(wa & wb) / max(len(wa), len(wb))
+
+
+def _detect_gaps_in_conversation(conv: dict) -> list[dict]:
+    gaps = []
+    turns = conv.get("turns", [])
+    seen_inputs: list[str] = []
+
+    for turn in turns:
+        user_input = turn.get("user_input", "")
+        agent_response = turn.get("agent_response", "")
+        turn_n = turn.get("turn_number", len(seen_inputs) + 1)
+        ui_lower = user_input.lower()
+        ar_lower = agent_response.lower()
+
+        # Explicit correction
+        if any(p in ui_lower for p in _CORRECTION_PHRASES):
+            gaps.append({
+                "type": "explicit_correction",
+                "severity": 5,
+                "turn": turn_n,
+                "description": "User explicitly corrected the AI",
+                "user_input": user_input[:120],
+            })
+
+        # Repeated question (word overlap with any prior turn)
+        for prev in seen_inputs[-5:]:
+            if _word_overlap(ui_lower, prev) > 0.65 and len(user_input.split()) > 3:
+                gaps.append({
+                    "type": "repeated_question",
+                    "severity": 3,
+                    "turn": turn_n,
+                    "description": "User repeated a similar question",
+                    "user_input": user_input[:120],
+                })
+                break
+
+        # Code anti-pattern in response
+        if any(p in ar_lower for p in _CODE_ANTIPATTERNS):
+            gaps.append({
+                "type": "code_anti_pattern",
+                "severity": 5,
+                "turn": turn_n,
+                "description": "Potentially unsafe pattern in AI response",
+                "user_input": user_input[:120],
+            })
+
+        # Sentiment drop (if fields present)
+        sb = turn.get("sentiment_before")
+        sa = turn.get("sentiment_after")
+        if sb is not None and sa is not None:
+            try:
+                if float(sb) - float(sa) > 0.3:
+                    gaps.append({
+                        "type": "sentiment_drop",
+                        "severity": 4,
+                        "turn": turn_n,
+                        "description": f"Sentiment dropped {float(sb):.2f}→{float(sa):.2f}",
+                        "user_input": user_input[:120],
+                    })
+            except (ValueError, TypeError):
+                pass
+
+        seen_inputs.append(ui_lower)
+
+    return gaps
+
+
+def _generate_rule_hf(gap_type: str, examples: list[dict]) -> dict | None:
+    try:
+        import re
+        from huggingface_hub import InferenceClient
+
+        client = InferenceClient(token=HF_TOKEN)
+        examples_text = "\n".join(
+            f"- Turn {e.get('turn', '?')}: {e.get('description', '')} | user said: \"{e.get('user_input', '')[:80]}\""
+            for e in examples[:4]
+        )
+
+        prompt = f"""You are an AI guardrail rule generator. Analyze these conversation gaps and create a guardrail rule.
+
+Gap type: {gap_type}
+Observed examples:
+{examples_text}
+
+Return ONLY a valid JSON object with exactly these fields:
+{{
+  "name": "Short descriptive rule name (max 8 words)",
+  "description": "What behaviour this rule prevents or encourages",
+  "rule_type": "guardrail",
+  "priority": 4,
+  "action": {{
+    "type": "modify_response",
+    "instruction": "Specific, actionable instruction for the AI assistant"
+  }},
+  "trigger": {{
+    "keywords": ["keyword1", "keyword2", "keyword3"]
+  }}
+}}
+
+Only output the JSON. No explanation, no markdown fences."""
+
+        response = client.chat.completions.create(
+            model=_HF_MODEL,
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=400,
+            temperature=0.3,
+        )
+        text = response.choices[0].message.content.strip()
+
+        # Strip markdown fences if present
+        text = re.sub(r"^```[a-z]*\n?", "", text).rstrip("`").strip()
+
+        match = re.search(r"\{.*\}", text, re.DOTALL)
+        if not match:
+            return None
+
+        rule_data = json.loads(match.group())
+
+        rule_data["rule_id"] = f"rule_{gap_type}_{uuid.uuid4().hex[:8]}"
+        rule_data["is_active"] = True
+        rule_data["effectiveness_score"] = 0.5
+        rule_data["times_triggered"] = 0
+        rule_data["success_count"] = 0
+        rule_data["created_at"] = datetime.utcnow().isoformat()
+        rule_data.setdefault("rule_type", "guardrail")
+        rule_data.setdefault("priority", 3)
+
+        return rule_data
+
+    except Exception as exc:
+        return None
+
+
+def run_analysis():
+    """Generator — yields the growing log string so Gradio streams it live."""
+    log: list[str] = []
+
+    def emit(msg: str):
+        log.append(msg)
+        return "\n".join(log)
+
+    if not HF_TOKEN:
+        yield emit("❌ HF_TOKEN not set in Space secrets. Add it in Space Settings → Variables and secrets.")
+        return
+
+    yield emit("🔍 Loading conversations from dataset…")
+    conversations = load_conversations()
+    if not conversations:
+        yield emit("❌ No conversations found. Upload some first via the Upload History tab.")
+        return
+    yield emit(f"📂 Loaded **{len(conversations)}** conversations")
+
+    # --- Gap detection ---
+    yield emit("\n🔎 Detecting gaps (rule-based scan)…")
+    all_gaps_by_type: dict[str, list[dict]] = {}
+    conv_gap_map: dict[str, list[dict]] = {}
+
+    for conv in conversations:
+        gaps = _detect_gaps_in_conversation(conv)
+        if gaps:
+            cid = conv.get("conversation_id", "?")
+            conv_gap_map[cid] = gaps
+            for g in gaps:
+                all_gaps_by_type.setdefault(g["type"], []).append(g)
+
+    total_gaps = sum(len(v) for v in all_gaps_by_type.values())
+    yield emit(f"✅ Found **{total_gaps}** gaps across **{len(conv_gap_map)}** conversations:")
+    for gtype, gaps in sorted(all_gaps_by_type.items(), key=lambda x: -len(x[1])):
+        yield emit(f"   • `{gtype}`: {len(gaps)} occurrence{'s' if len(gaps) != 1 else ''}")
+
+    # --- Annotate conversations with detected gaps and save ---
+    yield emit("\n💾 Annotating conversations with gap data…")
+    for conv in conversations:
+        cid = conv.get("conversation_id", "?")
+        if cid in conv_gap_map:
+            gaps_by_turn = {}
+            for g in conv_gap_map[cid]:
+                gaps_by_turn.setdefault(g["turn"], []).append(g)
+            for turn in conv.get("turns", []):
+                tn = turn.get("turn_number")
+                if tn in gaps_by_turn:
+                    turn["gaps_detected"] = gaps_by_turn[tn]
+    try:
+        _upload_jsonl("conversations.jsonl", conversations)
+        yield emit("✅ Conversations updated in dataset")
+    except Exception as exc:
+        yield emit(f"⚠️ Could not save gap annotations: {exc}")
+
+    # --- Rule generation ---
+    eligible = {k: v for k, v in all_gaps_by_type.items() if len(v) >= 2}
+    if not eligible:
+        yield emit("\nℹ️ No gap type has ≥2 occurrences — rules require at least 2 examples to generate. Done.")
+        return
+
+    yield emit(f"\n🤖 Generating rules for **{len(eligible)}** gap type(s) using `{_HF_MODEL}`…")
+
+    existing_rules = load_rules()
+    existing_rule_types = {r.get("rule_id", "").split("_")[1] for r in existing_rules if "_" in r.get("rule_id", "")}
+    new_rules: list[dict] = []
+
+    for gtype, gap_examples in eligible.items():
+        yield emit(f"\n   ⚙️ `{gtype}` ({len(gap_examples)} examples) — calling HF Inference API…")
+        rule = _generate_rule_hf(gtype, gap_examples)
+        if rule:
+            new_rules.append(rule)
+            yield emit(f"   ✅ Rule created: **{rule.get('name', gtype)}**")
+            yield emit(f"      → {rule.get('description', '')}")
+        else:
+            yield emit(f"   ⚠️ Failed to generate rule for `{gtype}` — skipping")
+
+    # --- Save rules ---
+    if new_rules:
+        try:
+            all_rules = existing_rules + new_rules
+            _upload_jsonl("rules.jsonl", all_rules)
+            yield emit(f"\n🎉 **Analysis complete!**")
+            yield emit(f"   • {len(new_rules)} new rule(s) generated and saved")
+            yield emit(f"   • {len(all_rules)} total rules in dataset")
+            yield emit(f"\nRefresh the **Rules** and **Overview** tabs to see them.")
+        except Exception as exc:
+            yield emit(f"\n❌ Failed to save rules: {exc}")
+    else:
+        yield emit("\nℹ️ Analysis complete — no rules could be generated from the HF model response.")
+
+
+# ---------------------------------------------------------------------------
 # Architecture
 # ---------------------------------------------------------------------------
 
@@ -800,6 +1043,30 @@ Optional columns: `session_id, user_id, sentiment_before, sentiment_after`
             upload_status = gr.Markdown()
 
             upload_btn.click(upload_history, inputs=upload_file, outputs=upload_status)
+
+        # --- Analysis ---
+        with gr.Tab("🔍 Analysis"):
+            gr.Markdown(
+                """
+## Run Analysis
+
+Scans all uploaded conversations for behavioural gaps, then uses
+**`Qwen/Qwen2.5-72B-Instruct`** via the HF Inference API to generate
+guardrail rules automatically.
+
+- Detects: explicit corrections, repeated questions, code anti-patterns, sentiment drops
+- Requires ≥2 occurrences of a gap type before generating a rule
+- Rules are saved directly to the dataset and appear in the **Rules** tab
+"""
+            )
+            analysis_btn = gr.Button("▶ Run Analysis", variant="primary", size="lg")
+            analysis_log = gr.Textbox(
+                label="Analysis log",
+                lines=20,
+                interactive=False,
+                autoscroll=True,
+            )
+            analysis_btn.click(run_analysis, outputs=analysis_log)
 
         # --- Project Compass ---
         with gr.Tab("🧭 Project Compass"):
