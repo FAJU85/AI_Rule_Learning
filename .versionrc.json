@@ -1,0 +1,16 @@
+{
+  "types": [
+    { "type": "feat", "section": "Features" },
+    { "type": "fix", "section": "Bug Fixes" },
+    { "type": "revert", "section": "Reverts" },
+    { "type": "docs", "section": "Documentation" },
+    { "type": "style", "hidden": true },
+    { "type": "refactor", "section": "Refactoring" },
+    { "type": "perf", "section": "Performance" },
+    { "type": "test", "hidden": true },
+    { "type": "build", "section": "Build System" },
+    { "type": "ci", "hidden": true },
+    { "type": "chore", "hidden": true }
+  ],
+  "tagPrefix": "v"
+}

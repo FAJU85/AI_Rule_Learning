@@ -107,35 +107,35 @@ class Settings(BaseSettings):
     HF_TOKEN: Optional[str] = None
     HF_DATASET_NAME: str = "your-org/conversation-memory"
     HF_RULES_DATASET: str = "your-org/active-rules"
-    
+
     # Redis
     REDIS_URL: str = "redis://localhost:6379"
     REDIS_RULE_TTL: int = 604800  # 7 days
-    
+
     # AI Providers
     OPENAI_API_KEY: Optional[str] = None
     OPENAI_MODEL: str = "gpt-4-turbo-preview"
     ANTHROPIC_API_KEY: Optional[str] = None
     ANTHROPIC_MODEL: str = "claude-3-opus-20240229"
-    
+
     # Default provider
     DEFAULT_AI_PROVIDER: str = "openai"  # or "anthropic"
-    
+
     # Embedding
     EMBEDDING_MODEL: str = "all-MiniLM-L6-v2"
-    
+
     # Analysis
     MIN_SESSION_LENGTH: int = 3  # Minimum turns to analyze
     GAP_THRESHOLD: float = 0.3  # Sentiment drop threshold
     MIN_GAPS_FOR_RULE: int = 2  # Minimum occurrences to generate rule
-    
+
     # Validation
     VALIDATION_SAMPLE_SIZE: int = 100
     EFFECTIVENESS_THRESHOLD: float = 0.15  # 15% improvement needed
-    
+
     # Logging
     LOG_LEVEL: str = "INFO"
-    
+
     class Config:
         env_file = ".env"
 
@@ -186,14 +186,14 @@ class Conversation(BaseModel):
     human_intervention: bool = False
     started_at: datetime = Field(default_factory=datetime.now)
     ended_at: Optional[datetime] = None
-    
+
     def add_turn(self, turn: Turn):
         self.turns.append(turn)
-    
+
     @property
     def is_complete(self) -> bool:
         return self.ended_at is not None
-    
+
     def get_full_transcript(self) -> str:
         transcript = []
         for turn in self.turns:
@@ -255,7 +255,7 @@ class Rule(BaseModel):
     updated_at: datetime = Field(default_factory=datetime.now)
     source_conversation: Optional[str] = None
     metadata: Dict[str, Any] = {}
-    
+
     @property
     def success_rate(self) -> float:
         if self.times_triggered == 0:
@@ -279,21 +279,21 @@ logger = logging.getLogger(__name__)
 
 class DatasetManager:
     """Manages Hugging Face datasets for conversations and rules."""
-    
+
     def __init__(self, dataset_name: str, rules_dataset: str = None, token: str = None):
         self.dataset_name = dataset_name
         self.rules_dataset = rules_dataset or f"{dataset_name}-rules"
         self.token = token
         self._authenticate()
-        
+
     def _authenticate(self):
         """Authenticate with Hugging Face."""
         if self.token:
             login(self.token)
             logger.info("Authenticated with Hugging Face")
-    
+
     # --- Conversation Methods ---
-    
+
     def append_conversation(self, conversation: Dict) -> bool:
         """Append a single conversation to the dataset."""
         try:
@@ -302,7 +302,7 @@ class DatasetManager:
                 ds = load_dataset(self.dataset_name, split="train")
             except:
                 ds = None
-            
+
             # Create new row
             new_row = {
                 "conversation_id": conversation.get("conversation_id"),
@@ -315,47 +315,47 @@ class DatasetManager:
                 "started_at": conversation.get("started_at", datetime.now().isoformat()),
                 "ended_at": conversation.get("ended_at", datetime.now().isoformat()),
             }
-            
+
             new_ds = Dataset.from_list([new_row])
-            
+
             if ds is None:
                 new_ds.push_to_hub(self.dataset_name, split="train")
             else:
                 merged = concatenate_datasets([ds, new_ds])
                 merged.push_to_hub(self.dataset_name, split="train")
-            
+
             logger.info(f"Appended conversation {conversation.get('conversation_id')}")
             return True
-            
+
         except Exception as e:
             logger.error(f"Failed to append conversation: {e}")
             return False
-    
+
     def get_conversations(self, limit: Optional[int] = None) -> List[Dict]:
         """Retrieve conversations from the dataset."""
         try:
             ds = load_dataset(self.dataset_name, split="train")
             if limit:
                 ds = ds.select(range(min(limit, len(ds))))
-            
+
             conversations = []
             for row in ds:
                 conv = dict(row)
                 if "turns" in conv and isinstance(conv["turns"], str):
                     conv["turns"] = json.loads(conv["turns"])
                 conversations.append(conv)
-            
+
             return conversations
-            
+
         except Exception as e:
             logger.error(f"Failed to load conversations: {e}")
             return []
-    
+
     def get_recent_conversations(self, days: int = 30) -> List[Dict]:
         """Get conversations from the last N days."""
         all_convos = self.get_conversations()
         cutoff = datetime.now().timestamp() - (days * 86400)
-        
+
         recent = []
         for conv in all_convos:
             try:
@@ -364,11 +364,11 @@ class DatasetManager:
                     recent.append(conv)
             except:
                 continue
-        
+
         return recent
-    
+
     # --- Rules Methods ---
-    
+
     def deploy_rules(self, rules: List[Rule]) -> bool:
         """Deploy new rules to the rules dataset."""
         try:
@@ -392,18 +392,18 @@ class DatasetManager:
                     "source_conversation": rule.source_conversation,
                     "metadata": json.dumps(rule.metadata),
                 })
-            
+
             # Store as dataset
             new_ds = Dataset.from_list(rules_data)
             new_ds.push_to_hub(self.rules_dataset, split="rules")
-            
+
             logger.info(f"Deployed {len(rules)} rules to {self.rules_dataset}")
             return True
-            
+
         except Exception as e:
             logger.error(f"Failed to deploy rules: {e}")
             return False
-    
+
     def get_rules(self, active_only: bool = True) -> List[Dict]:
         """Get all rules from the dataset."""
         try:
@@ -422,7 +422,7 @@ class DatasetManager:
                             pass
                 rules.append(rule)
             return rules
-            
+
         except Exception as e:
             logger.error(f"Failed to load rules: {e}")
             return []
@@ -432,7 +432,7 @@ class DatasetManager:
 
 6. Real-Time Interceptor (src/core/interceptor.py)
 
-```python
+````python
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 import uuid
@@ -450,14 +450,14 @@ class ConversationInterceptor:
     Real-time interceptor for live conversations.
     Handles pre-hook (rule injection) and post-hook (logging + gap detection).
     """
-    
+
     def __init__(self, dataset_manager: DatasetManager):
         self.dataset = dataset_manager
         self.sentiment = SentimentAnalyzer()
         self.embeddings = EmbeddingService()
         self.current_conversation: Optional[Conversation] = None
         self.pending_gaps = []
-        
+
     def start_session(self, user_id: Optional[str] = None, project_context: Optional[str] = None):
         """Start a new conversation session."""
         self.current_conversation = Conversation(
@@ -467,7 +467,7 @@ class ConversationInterceptor:
         )
         logger.info(f"Started session: {self.current_conversation.conversation_id}")
         return self.current_conversation.conversation_id
-    
+
     def get_relevant_rules(self, user_input: str, history: List[Dict]) -> List[Rule]:
         """Retrieve relevant rules for the current context."""
         try:
@@ -475,18 +475,18 @@ class ConversationInterceptor:
             rules_data = self.dataset.get_rules(active_only=True)
             if not rules_data:
                 return []
-            
+
             # Create embedding for current input
             context = user_input + "\n" + "\n".join([h.get("user_input", "") for h in history[-3:]])
             context_embedding = self.embeddings.embed(context)
-            
+
             # Score rules by similarity
             scored_rules = []
             for rule_data in rules_data:
                 trigger = rule_data.get("trigger", {})
                 if "embedding" in trigger and trigger["embedding"]:
                     similarity = self.embeddings.similarity(
-                        context_embedding, 
+                        context_embedding,
                         trigger["embedding"]
                     )
                     scored_rules.append((rule_data, similarity))
@@ -494,21 +494,21 @@ class ConversationInterceptor:
                     # Keyword matching fallback
                     if any(kw in user_input.lower() for kw in trigger.get("keywords", [])):
                         scored_rules.append((rule_data, 0.8))
-            
+
             # Sort by similarity and priority
             scored_rules.sort(key=lambda x: (x[1], x[0].get("priority", 0)), reverse=True)
-            
+
             # Return top 5 most relevant
             return [self._parse_rule_data(rule_data) for rule_data, _ in scored_rules[:5]]
-            
+
         except Exception as e:
             logger.error(f"Error retrieving rules: {e}")
             return []
-    
+
     def _parse_rule_data(self, rule_data: Dict) -> Rule:
         """Convert dict to Rule object."""
         from ..models.rules import Rule, RuleTrigger, RuleAction, RulePriority, RuleType
-        
+
         trigger = RuleTrigger(
             sentiment_threshold=rule_data.get("trigger", {}).get("sentiment_threshold"),
             keywords=rule_data.get("trigger", {}).get("keywords", []),
@@ -516,13 +516,13 @@ class ConversationInterceptor:
             embedding=rule_data.get("trigger", {}).get("embedding"),
             pattern=rule_data.get("trigger", {}).get("pattern"),
         )
-        
+
         action = RuleAction(
             type=rule_data.get("action", {}).get("type", "modify_response"),
             instruction=rule_data.get("action", {}).get("instruction", ""),
             template=rule_data.get("action", {}).get("template"),
         )
-        
+
         return Rule(
             rule_id=rule_data.get("rule_id", ""),
             version=rule_data.get("version", 1),
@@ -536,14 +536,14 @@ class ConversationInterceptor:
             is_active=rule_data.get("is_active", True),
             effectiveness_score=rule_data.get("effectiveness_score", 0.0),
         )
-    
+
     def build_system_prompt(self, rules: List[Rule], base_prompt: Optional[str] = None) -> str:
         """Build system prompt with injected rules."""
         base = base_prompt or "You are an AI assistant. Follow these rules:"
-        
+
         if not rules:
             return base
-        
+
         rules_text = []
         for rule in rules:
             if rule.action.type == "add_prefix":
@@ -556,20 +556,20 @@ class ConversationInterceptor:
                 rules_text.append(f"RULE: {rule.action.instruction}")
             elif rule.action.type == "escalate":
                 rules_text.append(f"RULE: If user repeats question >2 times, offer human transfer")
-        
+
         return f"{base}\n\n## ACTIVE RULES\n" + "\n".join(rules_text)
-    
+
     def process_turn(self, user_input: str, ai_response: str, rules_applied: List[Rule]) -> Turn:
         """Process a single turn and detect gaps."""
         # Analyze sentiment
         sentiment_before = self.sentiment.analyze(user_input)
         sentiment_after = self.sentiment.analyze(ai_response)
-        
+
         # Detect mistakes
         mistake_type, severity, root_cause = self._detect_mistakes(
             user_input, ai_response, sentiment_before, sentiment_after
         )
-        
+
         # Create turn
         turn = Turn(
             turn_number=len(self.current_conversation.turns) + 1,
@@ -583,46 +583,46 @@ class ConversationInterceptor:
             rules_applied=[r.rule_id for r in rules_applied],
             timestamp=datetime.now()
         )
-        
+
         # Add to conversation
         self.current_conversation.add_turn(turn)
-        
+
         # Detect gaps
         gaps = self._detect_gaps(turn, rules_applied)
         if gaps:
             self.pending_gaps.extend(gaps)
-        
+
         return turn
-    
-    def _detect_mistakes(self, user_input: str, response: str, 
+
+    def _detect_mistakes(self, user_input: str, response: str,
                          sentiment_before: float, sentiment_after: float):
         """Detect mistake types in the response."""
         # Sentiment drop indicates potential mistake
         if sentiment_after < sentiment_before - settings.GAP_THRESHOLD:
             return MistakeType.DISMISSIVE_TONE, 4, "User sentiment dropped after response"
-        
+
         # Code-related mistakes
         if "```" in response or "def " in response or "function" in response:
             if "try" not in response and "except" not in response:
                 if "database" in user_input.lower() or "api" in user_input.lower():
                     return MistakeType.MISSING_ERROR_HANDLING, 4, "Error handling missing"
-        
+
         # Insecure code patterns
         insecure_patterns = ["f\"SELECT", ".execute(", "password ="]
         if any(pattern in response.lower() for pattern in insecure_patterns):
             return MistakeType.INSECURE_CODE, 5, "Potential security issue detected"
-        
+
         # Hallucination (check for unsupported claims)
         if "always" in response or "never" in response or "guarantee" in response:
             if "our policy" in response or "our system" in response:
                 return MistakeType.OVERPROMISING, 3, "Overpromising language detected"
-        
+
         return None, None, None
-    
+
     def _detect_gaps(self, turn: Turn, rules_applied: List[Rule]) -> List[Dict]:
         """Detect gaps that need new rules."""
         gaps = []
-        
+
         # Gap 1: Sentiment drop
         if turn.sentiment_after is not None and turn.sentiment_before is not None:
             if turn.sentiment_after < turn.sentiment_before - settings.GAP_THRESHOLD:
@@ -632,9 +632,9 @@ class ConversationInterceptor:
                     "evidence": turn.dict(),
                     "description": f"Sentiment dropped from {turn.sentiment_before:.2f} to {turn.sentiment_after:.2f}"
                 })
-        
+
         # Gap 2: User correction detected
-        correction_phrases = ["no", "wrong", "incorrect", "fix", "not what", 
+        correction_phrases = ["no", "wrong", "incorrect", "fix", "not what",
                             "that's not", "you missed", "you forgot", "actually",
                             "should be", "instead of"]
         if any(phrase in turn.user_input.lower() for phrase in correction_phrases):
@@ -644,7 +644,7 @@ class ConversationInterceptor:
                 "evidence": turn.dict(),
                 "description": f"User corrected the AI: '{turn.user_input[:100]}...'"
             })
-        
+
         # Gap 3: Code anti-pattern
         if turn.mistake_type in [MistakeType.INSECURE_CODE, MistakeType.MISSING_ERROR_HANDLING]:
             gaps.append({
@@ -653,42 +653,42 @@ class ConversationInterceptor:
                 "evidence": turn.dict(),
                 "description": turn.root_cause or "Code anti-pattern detected"
             })
-        
+
         return gaps
-    
+
     def end_session(self, generate_rules: bool = True) -> List[Dict]:
         """End the conversation and optionally generate rules."""
         if not self.current_conversation:
             return []
-        
+
         # Mark as complete
         self.current_conversation.ended_at = datetime.now()
-        
+
         # Save conversation to dataset
         self.dataset.append_conversation(self.current_conversation.dict())
-        
+
         # Generate rules from gaps
         new_rules = []
         if generate_rules and self.pending_gaps:
             new_rules = self._generate_rules_from_gaps()
-        
+
         logger.info(f"Session ended. Gaps detected: {len(self.pending_gaps)}, New rules: {len(new_rules)}")
-        
+
         # Reset state
         session_gaps = self.pending_gaps.copy()
         self.current_conversation = None
         self.pending_gaps = []
-        
+
         return new_rules
-    
+
     def _generate_rules_from_gaps(self) -> List[Dict]:
         """Generate rules from detected gaps."""
         if not self.pending_gaps:
             return []
-        
+
         # Group similar gaps
         groups = self._group_gaps(self.pending_gaps)
-        
+
         # Generate rules for each group
         new_rules = []
         for group in groups:
@@ -696,9 +696,9 @@ class ConversationInterceptor:
                 rule = self._create_rule_from_gap_group(group)
                 if rule:
                     new_rules.append(rule)
-        
+
         return new_rules
-    
+
     def _group_gaps(self, gaps: List[Dict]) -> List[List[Dict]]:
         """Group similar gaps together."""
         # Simple grouping by type
@@ -708,18 +708,18 @@ class ConversationInterceptor:
             if gap_type not in groups:
                 groups[gap_type] = []
             groups[gap_type].append(gap)
-        
+
         return [group for group in groups.values()]
-    
+
     def _create_rule_from_gap_group(self, group: List[Dict]) -> Optional[Rule]:
         """Create a rule from a group of gaps."""
         from ..models.rules import Rule, RuleTrigger, RuleAction, RulePriority, RuleType
         import uuid
-        
+
         # Determine rule type based on gap type
         gap_type = group[0].get("type", "unknown")
         severity = max([g.get("severity", 3) for g in group])
-        
+
         # Build rule
         if gap_type == "explicit_correction":
             # Extract the correction
@@ -727,7 +727,7 @@ class ConversationInterceptor:
             keywords = []
             for example in examples:
                 keywords.extend([w.lower() for w in example.split() if len(w) > 4][:3])
-            
+
             return Rule(
                 rule_id=f"rule_correction_{uuid.uuid4().hex[:8]}",
                 name="Auto-generated: Correction Prevention",
@@ -747,7 +747,7 @@ class ConversationInterceptor:
                 source_conversation=group[0].get("evidence", {}).get("conversation_id"),
                 metadata={"gap_count": len(group), "examples": examples}
             )
-        
+
         elif gap_type == "sentiment_drop":
             return Rule(
                 rule_id=f"rule_sentiment_{uuid.uuid4().hex[:8]}",
@@ -769,7 +769,7 @@ class ConversationInterceptor:
                 source_conversation=group[0].get("evidence", {}).get("conversation_id"),
                 metadata={"gap_count": len(group)}
             )
-        
+
         elif gap_type == "code_anti_pattern":
             return Rule(
                 rule_id=f"rule_code_{uuid.uuid4().hex[:8]}",
@@ -791,9 +791,9 @@ class ConversationInterceptor:
                 source_conversation=group[0].get("evidence", {}).get("conversation_id"),
                 metadata={"gap_count": len(group)}
             )
-        
+
         return None
-```
+````
 
 ---
 
@@ -808,15 +808,15 @@ logger = logging.getLogger(__name__)
 
 class SentimentAnalyzer:
     """Sentiment analysis using Hugging Face models."""
-    
+
     _instance = None
-    
+
     def __new__(cls):
         if cls._instance is None:
             cls._instance = super().__new__(cls)
             cls._instance._initialize()
         return cls._instance
-    
+
     def _initialize(self):
         """Initialize the sentiment model."""
         try:
@@ -829,17 +829,17 @@ class SentimentAnalyzer:
         except Exception as e:
             logger.error(f"Failed to initialize sentiment analyzer: {e}")
             self.model = None
-    
+
     def analyze(self, text: str) -> Optional[float]:
         """Analyze sentiment of text. Returns score from -1 (negative) to 1 (positive)."""
         if not self.model or not text:
             return 0.0
-        
+
         try:
             result = self.model(text[:512])[0]  # Truncate to 512 tokens
             label = result['label']
             score = result['score']
-            
+
             # Convert to -1 to 1 range
             if label == 'NEGATIVE':
                 return -score
@@ -864,15 +864,15 @@ logger = logging.getLogger(__name__)
 
 class EmbeddingService:
     """Embedding service for semantic similarity."""
-    
+
     _instance = None
-    
+
     def __new__(cls):
         if cls._instance is None:
             cls._instance = super().__new__(cls)
             cls._instance._initialize()
         return cls._instance
-    
+
     def _initialize(self):
         """Initialize the embedding model."""
         try:
@@ -881,24 +881,24 @@ class EmbeddingService:
         except Exception as e:
             logger.error(f"Failed to initialize embedding model: {e}")
             self.model = None
-    
+
     def embed(self, text: str) -> List[float]:
         """Embed text into vector."""
         if not self.model or not text:
             return []
-        
+
         try:
             embedding = self.model.encode(text)
             return embedding.tolist()
         except Exception as e:
             logger.error(f"Embedding failed: {e}")
             return []
-    
+
     def similarity(self, vec1: List[float], vec2: List[float]) -> float:
         """Calculate cosine similarity between two vectors."""
         if not vec1 or not vec2:
             return 0.0
-        
+
         try:
             v1 = np.array(vec1)
             v2 = np.array(vec2)
@@ -922,32 +922,32 @@ logger = logging.getLogger(__name__)
 
 class OpenAIAdapter(BaseAIAdapter):
     """OpenAI API adapter."""
-    
+
     def __init__(self, api_key: str, model: str = "gpt-4-turbo-preview"):
         self.client = OpenAI(api_key=api_key)
         self.model = model
-    
-    def generate_response(self, user_input: str, history: List[Dict], 
+
+    def generate_response(self, user_input: str, history: List[Dict],
                          system_prompt: str, **kwargs) -> str:
         """Generate response using OpenAI."""
         try:
             messages = [{"role": "system", "content": system_prompt}]
             messages.extend(history)
             messages.append({"role": "user", "content": user_input})
-            
+
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=messages,
                 temperature=kwargs.get("temperature", 0.7),
                 max_tokens=kwargs.get("max_tokens", 2000),
             )
-            
+
             return response.choices[0].message.content
-            
+
         except Exception as e:
             logger.error(f"OpenAI API error: {e}")
             return f"Error generating response: {e}"
-    
+
     def name(self) -> str:
         return "openai"
 ```
@@ -982,31 +982,31 @@ logger = logging.getLogger(__name__)
 def main():
     parser = argparse.ArgumentParser(description="AI Rule Learning System")
     subparsers = parser.add_subparsers(dest="command", help="Commands")
-    
+
     # Upload command
     upload_parser = subparsers.add_parser("upload", help="Upload historical conversations")
     upload_parser.add_argument("--file", required=True, help="Path to JSON/CSV file")
     upload_parser.add_argument("--dataset", help="Dataset name")
-    
+
     # Intercept command (live mode)
     intercept_parser = subparsers.add_parser("intercept", help="Run live interceptor")
     intercept_parser.add_argument("--user", help="User ID")
     intercept_parser.add_argument("--project", help="Project context")
-    
+
     # Analyze command
     analyze_parser = subparsers.add_parser("analyze", help="Analyze conversations and generate rules")
     analyze_parser.add_argument("--days", type=int, default=7, help="Analyze last N days")
-    
+
     # Rules command
     rules_parser = subparsers.add_parser("rules", help="List active rules")
     rules_parser.add_argument("--active-only", action="store_true", default=True)
-    
+
     # Validate command
     validate_parser = subparsers.add_parser("validate", help="Validate rules")
     validate_parser.add_argument("--rule-id", help="Specific rule to validate")
-    
+
     args = parser.parse_args()
-    
+
     # Initialize
     dataset = DatasetManager(
         dataset_name=settings.HF_DATASET_NAME,
@@ -1014,7 +1014,7 @@ def main():
         token=settings.HF_TOKEN
     )
     interceptor = ConversationInterceptor(dataset)
-    
+
     if args.command == "upload":
         # Upload historical data
         import json
@@ -1024,19 +1024,19 @@ def main():
             else:
                 import pandas as pd
                 data = pd.read_csv(args.file).to_dict('records')
-        
+
         for conv_data in data:
             dataset.append_conversation(conv_data)
         logger.info(f"Uploaded {len(data)} conversations")
-    
+
     elif args.command == "intercept":
         # Start interactive session
         session_id = interceptor.start_session(args.user, args.project)
         print(f"Session: {session_id}")
         print("Type 'exit' to end, 'rules' to see active rules")
-        
+
         history = []
-        
+
         while True:
             user_input = input("\nYou: ").strip()
             if user_input.lower() == 'exit':
@@ -1047,45 +1047,45 @@ def main():
                 for r in rules[:5]:
                     print(f"  - {r.get('name')} (priority {r.get('priority')})")
                 continue
-            
+
             # Get relevant rules
             relevant_rules = interceptor.get_relevant_rules(user_input, history)
-            
+
             # Build prompt with rules
             system_prompt = interceptor.build_system_prompt(relevant_rules)
-            
+
             # Get AI response
             from src.adapters.openai_adapter import OpenAIAdapter
             ai = OpenAIAdapter(api_key=settings.OPENAI_API_KEY, model=settings.OPENAI_MODEL)
             response = ai.generate_response(
-                user_input, 
-                history, 
+                user_input,
+                history,
                 system_prompt
             )
-            
+
             # Process turn
             turn = interceptor.process_turn(user_input, response, relevant_rules)
-            
+
             print(f"\nAI: {response}")
-            
+
             # Show if rules were applied
             if relevant_rules:
                 print(f"\n[Rules applied: {len(relevant_rules)}]")
-            
+
             # Show if gap detected
             if interceptor.pending_gaps:
                 latest_gap = interceptor.pending_gaps[-1]
                 print(f"\n[⚠️ Gap detected: {latest_gap.get('type')}]")
-            
+
             # Update history
             history.append({"role": "user", "content": user_input})
             history.append({"role": "assistant", "content": response})
-        
+
         # End session and generate rules
         new_rules = interceptor.end_session()
         if new_rules:
             print(f"\n✅ Generated {len(new_rules)} new rules from this session!")
-    
+
     elif args.command == "analyze":
         # Analyze recent conversations
         from src.services.analysis_service import AnalysisService
@@ -1093,7 +1093,7 @@ def main():
         rules = service.analyze_recent(days=args.days)
         if rules:
             print(f"Generated {len(rules)} rules from analysis")
-    
+
     elif args.command == "rules":
         rules = dataset.get_rules(active_only=args.active_only)
         print(f"\n{'Active' if args.active_only else 'All'} Rules: {len(rules)}")
@@ -1102,7 +1102,7 @@ def main():
             print(f"Name: {rule.get('name')}")
             print(f"Priority: {rule.get('priority')}")
             print(f"Effectiveness: {rule.get('effectiveness_score', 0):.2f}")
-    
+
     elif args.command == "validate":
         from src.services.validation_service import ValidationService
         service = ValidationService(dataset)
@@ -1112,7 +1112,7 @@ def main():
         else:
             results = service.validate_all_rules()
             print(f"Validated {len(results)} rules")
-    
+
     else:
         parser.print_help()
 
@@ -1131,7 +1131,7 @@ services:
   redis:
     image: redis:7-alpine
     ports:
-      - "6379:6379"
+      - '6379:6379'
     volumes:
       - redis_data:/data
     command: redis-server --appendonly yes
@@ -1139,7 +1139,7 @@ services:
   app:
     build: .
     ports:
-      - "8000:8000"
+      - '8000:8000'
     environment:
       - REDIS_URL=redis://redis:6379
       - HF_TOKEN=${HF_TOKEN}
@@ -1159,7 +1159,7 @@ volumes:
 
 12. Quick Start Guide (README.md)
 
-```markdown
+````markdown
 # AI Rule Learning System
 
 Autonomous system that learns from conversations and generates rules.
@@ -1167,9 +1167,11 @@ Autonomous system that learns from conversations and generates rules.
 ## Quick Start
 
 ### 1. Install Dependencies
+
 ```bash
 pip install -r requirements.txt
 ```
+````
 
 2. Configure Environment
 
@@ -1224,10 +1226,10 @@ Add New Rule Types
 
 Add New Gap Types
 
-1. Add detection logic in interceptor._detect_gaps()
-2. Add rule generation logic in interceptor._create_rule_from_gap_group()
+1. Add detection logic in interceptor.\_detect_gaps()
+2. Add rule generation logic in interceptor.\_create_rule_from_gap_group()
 
-```
+````
 
 ---
 
@@ -1253,7 +1255,7 @@ ANTHROPIC_MODEL=claude-3-opus-20240229
 # Settings
 DEFAULT_AI_PROVIDER=openai
 LOG_LEVEL=INFO
-```
+````
 
 ---
 

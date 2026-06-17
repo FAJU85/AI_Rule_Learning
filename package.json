@@ -1,0 +1,42 @@
+{
+  "name": "ai-rule-learning",
+  "version": "0.1.0",
+  "description": "Universal development environment setup reference and tooling guide",
+  "private": true,
+  "scripts": {
+    "lint": "markdownlint-cli2 '**/*.md' '#node_modules' '#README-DEVELOPMENT-1.md' '#MVP.md'",
+    "lint:fix": "markdownlint-cli2 --fix '**/*.md' '#node_modules' '#README-DEVELOPMENT-1.md' '#MVP.md'",
+    "format": "prettier --write '**/*.md' '**/*.json' '**/*.yml'",
+    "format:check": "prettier --check '**/*.md' '**/*.json' '**/*.yml'",
+    "validate": "npm run lint && npm run format:check",
+    "prepare": "husky",
+    "release": "standard-version",
+    "release:patch": "standard-version --release-as patch",
+    "release:minor": "standard-version --release-as minor",
+    "release:major": "standard-version --release-as major"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^19.0.0",
+    "@commitlint/config-conventional": "^19.0.0",
+    "husky": "^9.0.0",
+    "lint-staged": "^15.0.0",
+    "markdownlint-cli2": "^0.22.1",
+    "prettier": "^3.0.0",
+    "standard-version": "^9.5.0"
+  },
+  "lint-staged": {
+    "!(README-DEVELOPMENT-1|MVP).md": [
+      "markdownlint-cli2 --fix",
+      "prettier --write"
+    ],
+    "README-DEVELOPMENT-1.md": [
+      "prettier --write"
+    ],
+    "MVP.md": [
+      "prettier --write"
+    ],
+    "*.{json,yml,yaml}": [
+      "prettier --write"
+    ]
+  }
+}
