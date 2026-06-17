@@ -725,6 +725,199 @@ def _detect_gaps_in_conversation(conv: dict) -> list[dict]:
     return gaps
 
 
+def _backfill_sensor_reading(conv: dict) -> None:
+    """Compute and inject sensor_reading for every turn that lacks one.
+
+    Uses word-overlap (no sentence_transformers required) so it works in
+    any environment. Updates the dict in place.
+    """
+    turns = conv.get("turns", [])
+    if not turns:
+        return
+
+    anchor = turns[0].get("user_input", "")
+    prev_composite: float | None = None
+
+    for turn in turns:
+        if turn.get("sensor_reading"):
+            # already has a reading — just track composite for heading
+            r = turn["sensor_reading"]
+            ta = r.get("task_alignment_score", 0.5)
+            rc = r.get("rule_compliance_score", 1.0)
+            dr = r.get("drift_score", 0.0)
+            prev_composite = (ta + rc + (1.0 - dr)) / 3.0
+            continue
+
+        user_input = turn.get("user_input", "")
+        agent_response = turn.get("agent_response", "")
+
+        # Task alignment: overlap between response and original goal
+        task_alignment = _word_overlap(agent_response, anchor) if anchor else 0.5
+        task_alignment = max(0.1, min(1.0, task_alignment + 0.3))  # floor/ceiling
+
+        # Rule compliance: degrade if gaps detected
+        gaps = turn.get("gaps_detected", [])
+        if not gaps:
+            rule_compliance = 1.0
+        else:
+            max_sev = max(g.get("severity", 1) for g in gaps)
+            rule_compliance = max(0.0, 1.0 - (max_sev / 5.0) * 0.6)
+
+        # Drift: semantic distance from anchor
+        if not user_input.strip() or user_input.strip() == anchor.strip():
+            drift = 0.0
+        else:
+            overlap = _word_overlap(user_input, anchor)
+            drift = max(0.0, min(1.0, 1.0 - overlap))
+
+        composite = (task_alignment + rule_compliance + (1.0 - drift)) / 3.0
+        heading = (composite - prev_composite) if prev_composite is not None else 0.0
+
+        if composite >= 0.7:
+            direction = "on_track"
+        elif composite >= 0.4:
+            direction = "drifting"
+        else:
+            direction = "off_course"
+
+        turn["sensor_reading"] = {
+            "task_alignment_score": round(task_alignment, 3),
+            "rule_compliance_score": round(rule_compliance, 3),
+            "drift_score": round(drift, 3),
+            "direction": direction,
+            "heading": round(heading, 3),
+        }
+        prev_composite = composite
+
+
+# ---------------------------------------------------------------------------
+# Seed rules — empirical rules derived from this project's session gap analysis
+# ---------------------------------------------------------------------------
+
+_SEED_RULES: list[dict] = [
+    {
+        "rule_id": "rule_verify_before_report",
+        "name": "Verify live state before reporting",
+        "description": "Before stating any system's status, query it live. Never report from memory or assumption.",
+        "rule_type": "guardrail", "priority": 5,
+        "trigger": {"keywords": ["status", "is it set", "do we have", "is there", "is the dataset", "is the token", "is running"]},
+        "action": {"type": "modify_response", "instruction": "STOP. Query the live system before answering. Do not rely on memory or assumptions."},
+        "is_active": True, "effectiveness_score": 1.0, "times_triggered": 0, "success_count": 0,
+        "empirical_basis": "2 explicit user corrections — stale dataset and token status reports",
+        "created_at": "2026-06-17T19:49:25.330561",
+    },
+    {
+        "rule_id": "rule_confirm_scope_before_building",
+        "name": "Confirm exact scope before implementing",
+        "description": "Restate the interpreted scope (level, data source, target) in one sentence before writing any code.",
+        "rule_type": "guardrail", "priority": 5,
+        "trigger": {"keywords": ["add", "implement", "build", "create", "sensor", "dashboard", "monitor", "feature", "compass"]},
+        "action": {"type": "modify_response", "instruction": "State in ONE sentence what you will build, at what level, using which data source. Ask if ambiguous."},
+        "is_active": True, "effectiveness_score": 1.0, "times_triggered": 0, "success_count": 0,
+        "empirical_basis": "2 explicit scope corrections — sensor level and demo-vs-real data",
+        "created_at": "2026-06-17T19:49:25.330576",
+    },
+    {
+        "rule_id": "rule_pre_validate_before_push",
+        "name": "Run local validation before every push",
+        "description": "Before git push: verify commit subject is lowercase ≤100 chars; run prettier --check; confirm staged files.",
+        "rule_type": "guardrail", "priority": 4,
+        "trigger": {"keywords": ["git push", "push", "commit", "pull request"]},
+        "action": {"type": "modify_response", "instruction": "Verify commit subject is lowercase ≤100 chars; run prettier --check on changed YAML/JSON/MD; confirm staged files. Fix locally."},
+        "is_active": True, "effectiveness_score": 1.0, "times_triggered": 0, "success_count": 0,
+        "empirical_basis": "3 avoidable CI failures — uppercase TDD, Fix:, semgrep.yml",
+        "created_at": "2026-06-17T19:49:25.330578",
+    },
+    {
+        "rule_id": "rule_rebase_before_pr",
+        "name": "Rebase on main before every PR",
+        "description": "Always `git fetch origin main && git rebase origin/main` before pushing a PR branch.",
+        "rule_type": "guardrail", "priority": 4,
+        "trigger": {"keywords": ["pull request", "pr", "create pr", "merge", "push branch"]},
+        "action": {"type": "modify_response", "instruction": "Before creating a PR: git fetch origin main && git rebase origin/main. Never open a PR from an unrebased branch."},
+        "is_active": True, "effectiveness_score": 1.0, "times_triggered": 0, "success_count": 0,
+        "empirical_basis": "3 merge-conflict failures on PRs #14, #15, #16",
+        "created_at": "2026-06-17T19:49:25.330579",
+    },
+    {
+        "rule_id": "rule_merge_immediately_no_wait",
+        "name": "Merge within one minute — never wait for external services",
+        "description": "Merge PRs immediately. Do not wait for CI or external services. Max wait: 60 seconds.",
+        "rule_type": "guardrail", "priority": 5,
+        "trigger": {"keywords": ["waiting", "wait for", "ci", "checks", "passing", "pending", "once ci"]},
+        "action": {"type": "modify_response", "instruction": "Do NOT wait for CI or external services. Merge the PR immediately. If CI fails post-merge, diagnose and fix. Max wait: 60 seconds."},
+        "is_active": True, "effectiveness_score": 1.0, "times_triggered": 0, "success_count": 0,
+        "empirical_basis": "Explicit user rule: NEVER WAIT MORE THAN ONE MINUTE — MERGE THE PR IMMEDIATELY",
+        "created_at": "2026-06-17T19:49:25.330582",
+    },
+    {
+        "rule_id": "rule_rearm_monitors_on_timeout",
+        "name": "Re-arm persistent monitors immediately on timeout",
+        "description": "When any persistent monitor times out, re-arm it in the same turn before anything else.",
+        "rule_type": "guardrail", "priority": 4,
+        "trigger": {"keywords": ["monitor timed out", "timeout", "re-arm", "monitor expired"]},
+        "action": {"type": "modify_response", "instruction": "Re-arm the monitor immediately — before responding about anything else. A dead monitor is a silent failure."},
+        "is_active": True, "effectiveness_score": 1.0, "times_triggered": 0, "success_count": 0,
+        "empirical_basis": "2 monitor timeout events that required user prompting to re-arm",
+        "created_at": "2026-06-17T19:49:25.330583",
+    },
+    {
+        "rule_id": "rule_fix_root_cause",
+        "name": "Fix root cause — never patch symptoms",
+        "description": "When CI fails, read the actual log, find the specific file and line, fix that file. No --no-verify, no ignore flags.",
+        "rule_type": "guardrail", "priority": 3,
+        "trigger": {"keywords": ["ci failed", "check failed", "lint failed", "error", "failure", "broken"]},
+        "action": {"type": "modify_response", "instruction": "Read the full error log. Find the exact file and line. Fix that file. Never add --no-verify or ignore comments."},
+        "is_active": True, "effectiveness_score": 1.0, "times_triggered": 0, "success_count": 0,
+        "empirical_basis": "Pattern across 4 CI failures in this session",
+        "created_at": "2026-06-17T19:49:25.330585",
+    },
+    {
+        "rule_id": "rule_real_data_only",
+        "name": "Connect to real data — never use placeholders in production",
+        "description": "All dashboards and displays must connect to real data sources. No hardcoded samples.",
+        "rule_type": "guardrail", "priority": 4,
+        "trigger": {"keywords": ["dashboard", "chart", "graph", "display", "table", "visualization", "demo data", "sample data"]},
+        "action": {"type": "modify_response", "instruction": "Connect every display to the real data source. If empty, show an empty-state message. Never hardcode sample rows."},
+        "is_active": True, "effectiveness_score": 1.0, "times_triggered": 0, "success_count": 0,
+        "empirical_basis": "Explicit user correction: 'i want real data not demo data'",
+        "created_at": "2026-06-17T19:49:25.330586",
+    },
+]
+
+
+def run_seed_rules():
+    """Upload the 8 empirical work rules to the HF dataset."""
+    log: list[str] = []
+
+    def emit(msg: str):
+        log.append(msg)
+        return "\n".join(log)
+
+    if not HF_TOKEN:
+        yield emit("❌ HF_TOKEN not set.")
+        return
+
+    yield emit("🌱 Seeding empirical work rules into dataset…")
+    existing = load_rules()
+    existing_ids = {r.get("rule_id") for r in existing}
+    new_rules = [r for r in _SEED_RULES if r["rule_id"] not in existing_ids]
+
+    if not new_rules:
+        yield emit(f"✅ All {len(_SEED_RULES)} seed rules already present — nothing to add.")
+        return
+
+    all_rules = existing + new_rules
+    try:
+        _upload_jsonl("rules.jsonl", all_rules)
+        yield emit(f"✅ Seeded **{len(new_rules)}** rule(s) into dataset ({len(all_rules)} total)")
+        for r in new_rules:
+            yield emit(f"   • [P{r['priority']}] **{r['name']}**")
+        yield emit("\nRefresh **Rules** and **Overview** tabs to see them.")
+    except Exception as exc:
+        yield emit(f"❌ Failed to upload rules: {exc}")
+
+
 CHECKPOINT_FILE = "analysis_checkpoint.json"
 
 
@@ -890,11 +1083,12 @@ def run_analysis():
     for gtype, gaps in sorted(all_gaps_by_type.items(), key=lambda x: -len(x[1])):
         yield emit(f"   • `{gtype}`: {len(gaps)} occurrence{'s' if len(gaps) != 1 else ''}")
 
-    # --- Annotate conversations with detected gaps and save ---
-    if conv_gap_map:
-        yield emit("\n💾 Annotating conversations with gap data…")
+    # --- Annotate conversations with gaps + backfill sensor readings ---
+    if conv_gap_map or pending:
+        yield emit("\n💾 Annotating conversations with gap data and sensor readings…")
         for conv in conversations:
             cid = conv.get("conversation_id", "?")
+            # Inject gap annotations
             if cid in conv_gap_map:
                 gaps_by_turn = {}
                 for g in conv_gap_map[cid]:
@@ -903,11 +1097,13 @@ def run_analysis():
                     tn = turn.get("turn_number")
                     if tn in gaps_by_turn:
                         turn["gaps_detected"] = gaps_by_turn[tn]
+            # Backfill sensor readings for turns that lack them
+            _backfill_sensor_reading(conv)
         try:
             _upload_jsonl("conversations.jsonl", conversations)
-            yield emit("✅ Conversations updated in dataset")
+            yield emit("✅ Conversations annotated with gaps and sensor readings")
         except Exception as exc:
-            yield emit(f"⚠️ Could not save gap annotations: {exc}")
+            yield emit(f"⚠️ Could not save annotations: {exc}")
 
     # --- Rule generation ---
     eligible = {
@@ -1049,6 +1245,11 @@ def run_validate_and_evolve():
     rules = load_rules()
     if not rules:
         yield emit("❌ No rules found. Run Analysis first to generate rules.")
+        return
+
+    if not rules:
+        yield emit("❌ No rules found. Click **🌱 Seed Work Rules** to load the empirical rules, "
+                   "or run **▶ Run Analysis** first to generate rules from conversations.")
         return
 
     yield emit(f"📂 Loaded **{len(rules)}** rule(s)")
@@ -1292,6 +1493,7 @@ AI model so they improve rather than disappear.
             with gr.Row():
                 analysis_btn = gr.Button("▶ Run Analysis", variant="primary", size="lg")
                 evolve_btn = gr.Button("🔄 Validate & Evolve", variant="secondary", size="lg")
+                seed_btn = gr.Button("🌱 Seed Work Rules", variant="secondary", size="lg")
             analysis_log = gr.Textbox(
                 label="Analysis log",
                 lines=20,
@@ -1300,6 +1502,7 @@ AI model so they improve rather than disappear.
             )
             analysis_btn.click(run_analysis, outputs=analysis_log)
             evolve_btn.click(run_validate_and_evolve, outputs=analysis_log)
+            seed_btn.click(run_seed_rules, outputs=analysis_log)
 
         # --- Project Compass ---
         with gr.Tab("🧭 Project Compass"):
