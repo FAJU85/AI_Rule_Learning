@@ -645,11 +645,41 @@ def upload_history(file_obj: Any) -> str:
 # ---------------------------------------------------------------------------
 
 _CORRECTION_PHRASES = [
-    "wrong", "incorrect", "that's not", "no,", "actually,", "instead,",
-    "you're wrong", "not right", "fix this", "that is wrong", "no that",
-    "you missed", "you forgot", "not what i", "not what I",
+    # Direct contradictions
+    "wrong", "incorrect", "that's not", "that is not", "no,", "no that",
+    "actually,", "actually ", "instead,", "not right", "not correct",
+    "you're wrong", "you are wrong", "that is wrong", "that's wrong",
+    # Explicit fix requests
+    "fix this", "fix it", "please fix", "please correct", "try again",
+    "redo this", "do it again", "start over", "not what i asked", "not what I asked",
+    "you missed", "you forgot", "you didn't", "you did not",
+    # Confusion / clarification signals
+    "i don't understand", "I don't understand", "what do you mean",
+    "that makes no sense", "that doesn't make sense", "confusing",
+    "you misunderstood", "not my question", "not what i meant", "not what I meant",
+    # Frustration signals
+    "still wrong", "still not right", "again wrong", "same mistake",
+    "you keep", "i already told you", "I already told you",
+    "as i said", "as I said", "like i said", "like I said",
 ]
-_CODE_ANTIPATTERNS = ["eval(", "exec(", "password =", "secret =", "hardcoded", "bare except", "except:"]
+
+_FRUSTRATION_PHRASES = [
+    "frustrated", "annoying", "useless", "terrible", "awful", "horrible",
+    "not helpful", "unhelpful", "waste of time", "doesn't work",
+    "ridiculous", "nonsense", "garbage", "pathetic",
+    "disappointed", "disappointing", "so bad", "this is bad",
+    "can't you", "why can't you", "why don't you",
+]
+
+_CODE_ANTIPATTERNS = [
+    "eval(", "exec(", "password =", "secret =", "api_key =",
+    "hardcoded", "bare except", "except:", "except Exception:",
+    "print(",  # debug output left in
+    "TODO", "FIXME", "HACK",
+]
+
+_SHORT_RESPONSE_CHARS = 40   # responses shorter than this are likely non-answers
+_REPEAT_OVERLAP_THRESHOLD = 0.55  # lowered from 0.65
 _HF_MODEL = "Qwen/Qwen2.5-72B-Instruct"
 
 
@@ -658,6 +688,17 @@ def _word_overlap(a: str, b: str) -> float:
     if not wa or not wb:
         return 0.0
     return len(wa & wb) / max(len(wa), len(wb))
+
+
+def _is_question(text: str) -> bool:
+    t = text.strip()
+    if t.endswith("?"):
+        return True
+    lower = t.lower()
+    return any(lower.startswith(w) for w in [
+        "what ", "why ", "how ", "when ", "where ", "who ", "which ",
+        "can you", "could you", "would you", "is there", "do you", "does it",
+    ])
 
 
 def _detect_gaps_in_conversation(conv: dict) -> list[dict]:
@@ -672,39 +713,66 @@ def _detect_gaps_in_conversation(conv: dict) -> list[dict]:
         ui_lower = user_input.lower()
         ar_lower = agent_response.lower()
 
-        # Explicit correction
-        if any(p in ui_lower for p in _CORRECTION_PHRASES):
+        # 1. Explicit correction
+        matched_phrase = next((p for p in _CORRECTION_PHRASES if p in ui_lower), None)
+        if matched_phrase:
             gaps.append({
                 "type": "explicit_correction",
                 "severity": 5,
                 "turn": turn_n,
-                "description": "User explicitly corrected the AI",
+                "description": f"User correction signal: '{matched_phrase}'",
                 "user_input": user_input[:120],
             })
 
-        # Repeated question (word overlap with any prior turn)
+        # 2. User frustration (separate from correction — broader emotional signal)
+        matched_frustration = next((p for p in _FRUSTRATION_PHRASES if p in ui_lower), None)
+        if matched_frustration:
+            gaps.append({
+                "type": "user_frustration",
+                "severity": 4,
+                "turn": turn_n,
+                "description": f"Frustration signal: '{matched_frustration}'",
+                "user_input": user_input[:120],
+            })
+
+        # 3. Repeated / unanswered question (word overlap with prior turns)
         for prev in seen_inputs[-5:]:
-            if _word_overlap(ui_lower, prev) > 0.65 and len(user_input.split()) > 3:
+            if _word_overlap(ui_lower, prev) > _REPEAT_OVERLAP_THRESHOLD and len(user_input.split()) > 3:
                 gaps.append({
                     "type": "repeated_question",
                     "severity": 3,
                     "turn": turn_n,
-                    "description": "User repeated a similar question",
+                    "description": "User repeated a similar question — possibly unanswered",
                     "user_input": user_input[:120],
                 })
                 break
 
-        # Code anti-pattern in response
-        if any(p in ar_lower for p in _CODE_ANTIPATTERNS):
+        # 4. Unanswered question — user asks something, AI gives a very short response
+        if (
+            _is_question(user_input)
+            and len(user_input.split()) >= 5
+            and len(agent_response.strip()) < _SHORT_RESPONSE_CHARS
+        ):
             gaps.append({
-                "type": "code_anti_pattern",
-                "severity": 5,
+                "type": "unanswered_question",
+                "severity": 4,
                 "turn": turn_n,
-                "description": "Potentially unsafe pattern in AI response",
+                "description": f"Question received a very short response ({len(agent_response)} chars)",
                 "user_input": user_input[:120],
             })
 
-        # Sentiment drop (if fields present)
+        # 5. Code anti-pattern in response
+        matched_pattern = next((p for p in _CODE_ANTIPATTERNS if p in agent_response), None)
+        if matched_pattern:
+            gaps.append({
+                "type": "code_anti_pattern",
+                "severity": 4,
+                "turn": turn_n,
+                "description": f"Potentially problematic pattern in response: '{matched_pattern}'",
+                "user_input": user_input[:120],
+            })
+
+        # 6. Sentiment drop (numeric fields if present)
         sb = turn.get("sentiment_before")
         sa = turn.get("sentiment_after")
         if sb is not None and sa is not None:
@@ -719,6 +787,17 @@ def _detect_gaps_in_conversation(conv: dict) -> list[dict]:
                     })
             except (ValueError, TypeError):
                 pass
+
+        # 7. Negative sentiment in user input (keyword-based, no numeric fields needed)
+        neg_count = sum(1 for w in _FRUSTRATION_PHRASES if w in ui_lower)
+        if neg_count >= 2 and not matched_frustration:  # 2+ signals = likely negative
+            gaps.append({
+                "type": "negative_sentiment",
+                "severity": 3,
+                "turn": turn_n,
+                "description": f"Multiple negative signals detected ({neg_count})",
+                "user_input": user_input[:120],
+            })
 
         seen_inputs.append(ui_lower)
 
@@ -1079,9 +1158,18 @@ def run_analysis():
             yield emit(f"   💾 Checkpoint saved ({i + 1}/{len(pending)})")
 
     total_gaps = sum(len(v) for v in all_gaps_by_type.values())
-    yield emit(f"✅ Found **{total_gaps}** gaps across **{len(conv_gap_map)}** new conversations:")
-    for gtype, gaps in sorted(all_gaps_by_type.items(), key=lambda x: -len(x[1])):
-        yield emit(f"   • `{gtype}`: {len(gaps)} occurrence{'s' if len(gaps) != 1 else ''}")
+    total_turns = sum(len(c.get("turns", [])) for c in conversations)
+    yield emit(f"\n📊 Scan complete — **{total_turns}** turns scanned across **{len(conversations)}** conversations")
+    if total_gaps == 0:
+        yield emit("   ℹ️ No gaps detected in new conversations.")
+        yield emit("   Tip: gaps are detected from user correction phrases, frustration signals,")
+        yield emit("   repeated questions, unanswered questions, and code anti-patterns.")
+        yield emit("   If conversations are very short or in languages other than English,")
+        yield emit("   keyword detection may not trigger.")
+    else:
+        yield emit(f"✅ Found **{total_gaps}** gaps across **{len(conv_gap_map)}** conversation(s):")
+        for gtype, gaps in sorted(all_gaps_by_type.items(), key=lambda x: -len(x[1])):
+            yield emit(f"   • `{gtype}`: {len(gaps)} occurrence{'s' if len(gaps) != 1 else ''}")
 
     # --- Annotate conversations with gaps + backfill sensor readings ---
     if conv_gap_map or pending:
