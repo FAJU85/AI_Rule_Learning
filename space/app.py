@@ -417,8 +417,8 @@ with gr.Blocks(title="AI Rule Learning System", theme=gr.themes.Soft()) as demo:
                 )
             sim_btn = gr.Button("Simulate", variant="primary")
             with gr.Row():
-                gap_output = gr.Markdown(label="Detected gaps")
-                prompt_output = gr.Markdown(label="Injected system prompt")
+                gap_output = gr.Markdown()
+                prompt_output = gr.Markdown()
 
             sim_btn.click(simulate_gap, inputs=sim_input, outputs=[gap_output, prompt_output])
             sim_input.submit(simulate_gap, inputs=sim_input, outputs=[gap_output, prompt_output])
