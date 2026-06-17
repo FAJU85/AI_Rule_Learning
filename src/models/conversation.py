@@ -1,5 +1,7 @@
 from pydantic import BaseModel
 from pydantic import Field
+from typing import Any
+from typing import Dict
 from typing import List
 from typing import Optional
 from datetime import datetime
@@ -19,6 +21,16 @@ class MistakeType(str, Enum):
     UNCLEAR_RESPONSE = "unclear_response"
 
 
+class SensorReading(BaseModel):
+    """Per-turn alignment measurement from the AlignmentSensor."""
+
+    task_alignment_score: float = Field(0.0, ge=0.0, le=1.0)
+    rule_compliance_score: float = Field(1.0, ge=0.0, le=1.0)
+    drift_score: float = Field(0.0, ge=0.0, le=1.0)
+    direction: str = "on_track"  # "on_track" | "drifting" | "off_course"
+    heading: float = 0.0          # delta composite vs previous turn; + = improving
+
+
 class Turn(BaseModel):
     turn_number: int
     user_input: str
@@ -29,6 +41,8 @@ class Turn(BaseModel):
     severity: Optional[int] = Field(None, ge=1, le=5)
     root_cause: Optional[str] = None
     rules_applied: List[str] = []
+    gaps_detected: List[Dict[str, Any]] = []
+    sensor_reading: Optional[SensorReading] = None
     timestamp: datetime = Field(default_factory=datetime.now)
 
 

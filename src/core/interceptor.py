@@ -15,6 +15,7 @@ from typing import List
 from typing import Optional
 
 from config.settings import settings
+from src.core.alignment_sensor import AlignmentSensor
 from src.core.gap_detector import GapDetector
 from src.core.rule_engine import RuleEngine
 from src.models.conversation import Conversation
@@ -34,10 +35,12 @@ class ConversationInterceptor:
         rule_engine: Optional[RuleEngine] = None,
         gap_detector: Optional[GapDetector] = None,
         dataset_manager: Optional[Any] = None,
+        alignment_sensor: Optional[AlignmentSensor] = None,
     ) -> None:
         self._adapter = adapter
         self._rule_engine: RuleEngine = rule_engine or RuleEngine()
         self._gap_detector: GapDetector = gap_detector or GapDetector()
+        self._alignment_sensor: AlignmentSensor = alignment_sensor or AlignmentSensor()
         self._dataset_manager = dataset_manager
         self._active_conversations: Dict[str, Conversation] = {}
 
@@ -186,6 +189,7 @@ class ConversationInterceptor:
             sentiment_before=sentiment_before,
             sentiment_after=sentiment_after,
             rules_applied=applied_rule_ids,
+            gaps_detected=gaps,
         )
 
         # If a gap was detected and it implies a specific mistake, annotate
@@ -202,6 +206,18 @@ class ConversationInterceptor:
                 turn.mistake_type = MistakeType.UNCLEAR_RESPONSE
             turn.severity = most_severe.get("severity")
             turn.root_cause = most_severe.get("description")
+
+        # Alignment sensor — compute direction/heading before appending the turn
+        try:
+            active_rule_keywords = [
+                (r.trigger.keywords if r.trigger and r.trigger.keywords else [])
+                for r in matched_rules
+            ]
+            turn.sensor_reading = self._alignment_sensor.measure(
+                turn, conversation, active_rule_keywords
+            )
+        except Exception as exc:
+            logger.warning("Alignment sensor error", extra={"error": str(exc)})
 
         conversation.add_turn(turn)
 
