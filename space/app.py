@@ -248,7 +248,131 @@ def build_conversations_table() -> pd.DataFrame:
 
 
 # ---------------------------------------------------------------------------
-# Tab 4 — Alignment Sensor (Compass)
+# Tab 4 — Project Compass (project-level health sensor)
+# ---------------------------------------------------------------------------
+
+SPACE_ID = "vooom/AI_Rule_Learning"
+
+
+def build_project_compass() -> tuple[Any, Any, str]:
+    """Check Space runtime, dataset growth, rule system health, deployment recency."""
+    api = HfApi(token=HF_TOKEN)
+
+    # --- Space runtime status ---
+    space_status = "UNKNOWN"
+    space_pts = 0
+    try:
+        runtime = api.get_space_runtime(SPACE_ID)
+        space_status = str(runtime.stage.value) if hasattr(runtime.stage, "value") else str(runtime.stage)
+        space_pts = 40 if space_status == "RUNNING" else 0
+    except Exception:
+        space_status = "UNAVAILABLE"
+
+    # --- Dataset metrics ---
+    conversations = load_conversations()
+    rules = load_rules()
+    active_rules = [r for r in rules if r.get("is_active")]
+    total_gaps = sum(
+        len(t.get("gaps_detected", []))
+        for c in conversations
+        for t in c.get("turns", [])
+    )
+    avg_effectiveness = (
+        sum(r.get("effectiveness_score", 0) for r in active_rules) / max(len(active_rules), 1)
+    ) if active_rules else 0.0
+    active_ratio = len(active_rules) / max(len(rules), 1) if rules else 0.0
+
+    data_pts = 20 if conversations else 0
+    rules_pts = int(active_ratio * 20) if rules else 0
+
+    # --- Deployment recency (Space commits) ---
+    deploy_pts = 0
+    last_deploy = "Unknown"
+    try:
+        commits = list(api.list_repo_commits(SPACE_ID, repo_type="space"))
+        if commits:
+            latest = commits[0]
+            last_deploy = str(latest.created_at)[:16] if hasattr(latest, "created_at") else "Recent"
+            deploy_pts = 20
+    except Exception:
+        last_deploy = "Unknown"
+
+    # --- Overall health score ---
+    health_score = space_pts + data_pts + rules_pts + deploy_pts
+
+    # Direction
+    if health_score >= 70:
+        direction = ("on_track", "🟢", "#22c55e")
+    elif health_score >= 40:
+        direction = ("needs_attention", "🟡", "#f59e0b")
+    else:
+        direction = ("off_course", "🔴", "#ef4444")
+
+    # --- Gauge ---
+    fig_gauge = go.Figure(go.Indicator(
+        mode="gauge+number",
+        value=health_score,
+        gauge={
+            "axis": {"range": [0, 100]},
+            "bar": {"color": direction[2]},
+            "steps": [
+                {"range": [0, 40], "color": "#fee2e2"},
+                {"range": [40, 70], "color": "#fef9c3"},
+                {"range": [70, 100], "color": "#dcfce7"},
+            ],
+            "threshold": {"line": {"color": "#1d4ed8", "width": 4}, "value": 70},
+        },
+        title={"text": f"Project Health<br><span style='font-size:0.9em'>"
+                       f"{direction[1]} {direction[0].replace('_', ' ').title()}</span>"},
+        number={"suffix": " / 100"},
+    ))
+    fig_gauge.update_layout(height=320, paper_bgcolor="rgba(0,0,0,0)")
+
+    # --- Metrics bar chart ---
+    categories = ["Space Running", "Has Data", "Active Rules", "Recent Deploy"]
+    scores = [space_pts, data_pts, rules_pts, deploy_pts]
+    max_scores = [40, 20, 20, 20]
+    colors = ["#22c55e" if s == m else "#f59e0b" if s > 0 else "#ef4444"
+              for s, m in zip(scores, max_scores)]
+
+    fig_metrics = go.Figure(go.Bar(
+        x=categories,
+        y=scores,
+        marker_color=colors,
+        text=[f"{s}/{m}" for s, m in zip(scores, max_scores)],
+        textposition="outside",
+    ))
+    fig_metrics.update_layout(
+        title="Health Score Breakdown",
+        yaxis_range=[0, 45],
+        yaxis_title="Points",
+        plot_bgcolor="rgba(0,0,0,0)",
+        paper_bgcolor="rgba(0,0,0,0)",
+        height=320,
+    )
+
+    # --- Status summary ---
+    space_icon = "🟢" if space_status == "RUNNING" else "🔴"
+    data_icon = "🟢" if conversations else "🔴"
+    rules_icon = "🟢" if active_ratio >= 0.5 else ("🟡" if active_rules else "🔴")
+    deploy_icon = "🟢" if deploy_pts > 0 else "🔴"
+
+    summary = f"""### Project Status Summary
+
+| Component | Status | Detail |
+|-----------|--------|--------|
+| {space_icon} Space Runtime | `{space_status}` | `{SPACE_ID}` |
+| {data_icon} Dataset | `{len(conversations)} conversations` | `{total_gaps} gaps recorded` |
+| {rules_icon} Rule System | `{len(active_rules)} active / {len(rules)} total` | avg effectiveness `{avg_effectiveness:.0%}` |
+| {deploy_icon} Last Deployment | `{last_deploy}` | Space commit history |
+
+**Overall: {direction[1]} {direction[0].replace('_', ' ').title()} — {health_score}/100**
+"""
+    return fig_gauge, fig_metrics, summary
+
+
+# ---------------------------------------------------------------------------
+# Tab 5 — Alignment Sensor (per-conversation)
 # ---------------------------------------------------------------------------
 
 DIRECTION_EMOJI = {"on_track": "🟢", "drifting": "🟡", "off_course": "🔴"}
@@ -677,11 +801,31 @@ Optional columns: `session_id, user_id, sentiment_before, sentiment_after`
 
             upload_btn.click(upload_history, inputs=upload_file, outputs=upload_status)
 
-        # --- Compass ---
-        with gr.Tab("🧭 Compass"):
+        # --- Project Compass ---
+        with gr.Tab("🧭 Project Compass"):
             gr.Markdown(
-                "Select a conversation to see its alignment trajectory — "
-                "task focus, rule compliance, and drift over time."
+                "**Project-level health sensor** — tracks whether the deployed Space, "
+                "dataset, rule system, and workflow are all moving in the right direction."
+            )
+            with gr.Row():
+                proj_gauge = gr.Plot(label="Health Score")
+                proj_metrics = gr.Plot(label="Score Breakdown")
+            proj_summary = gr.Markdown()
+            proj_refresh_btn = gr.Button("🔄 Refresh", variant="secondary", size="sm")
+
+            def refresh_project_compass():
+                return build_project_compass()
+
+            proj_refresh_btn.click(refresh_project_compass,
+                                   outputs=[proj_gauge, proj_metrics, proj_summary])
+            demo.load(refresh_project_compass,
+                      outputs=[proj_gauge, proj_metrics, proj_summary])
+
+        # --- Alignment Sensor ---
+        with gr.Tab("📐 Alignment"):
+            gr.Markdown(
+                "Per-conversation alignment sensor — task focus, rule compliance, "
+                "and semantic drift across turns."
             )
             with gr.Row():
                 conv_selector = gr.Dropdown(label="Conversation", choices=[], scale=3)
