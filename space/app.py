@@ -248,7 +248,136 @@ def build_conversations_table() -> pd.DataFrame:
 
 
 # ---------------------------------------------------------------------------
-# Tab 4 — Gap Simulator
+# Tab 4 — Alignment Sensor (Compass)
+# ---------------------------------------------------------------------------
+
+DIRECTION_EMOJI = {"on_track": "🟢", "drifting": "🟡", "off_course": "🔴"}
+
+
+def get_conversation_ids() -> list[str]:
+    convs = load_conversations()
+    return [c.get("conversation_id", "?")[:16] for c in convs] if convs else []
+
+
+def build_compass(conv_id: str) -> tuple[Any, Any, str]:
+    if not conv_id:
+        empty = go.Figure()
+        empty.update_layout(title="Select a conversation", height=300,
+                            plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)")
+        return empty, empty, "Select a conversation from the dropdown."
+
+    convs = load_conversations()
+    conv = next((c for c in convs if c.get("conversation_id", "").startswith(conv_id)), None)
+    if conv is None:
+        empty = go.Figure()
+        empty.update_layout(title="Conversation not found", height=300,
+                            plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)")
+        return empty, empty, "Conversation not found."
+
+    turns = conv.get("turns", [])
+    readings = [t.get("sensor_reading") for t in turns]
+
+    # If no sensor readings exist, show a notice
+    if not any(readings):
+        empty = go.Figure()
+        empty.update_layout(
+            title="No sensor data — readings are generated during live conversations",
+            height=300, plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)"
+        )
+        return empty, empty, (
+            "**No sensor readings in this conversation.**\n\n"
+            "Sensor readings are generated automatically when conversations are "
+            "processed via the `ConversationInterceptor`. Upload conversations "
+            "that were recorded through the system to see compass data."
+        )
+
+    # Latest reading for the gauge
+    latest = next((r for r in reversed(readings) if r), None)
+    latest_composite = 0.5
+    latest_direction = "drifting"
+    latest_heading = 0.0
+    if latest:
+        ta = latest.get("task_alignment_score", 0)
+        rc = latest.get("rule_compliance_score", 1)
+        dr = latest.get("drift_score", 0)
+        latest_composite = (ta + rc + (1 - dr)) / 3
+        latest_direction = latest.get("direction", "drifting")
+        latest_heading = latest.get("heading", 0.0)
+
+    # --- Gauge ---
+    fig_gauge = go.Figure(go.Indicator(
+        mode="gauge+number+delta",
+        value=round(latest_composite * 100, 1),
+        delta={"reference": round((latest_composite - latest_heading) * 100, 1),
+               "increasing": {"color": "#22c55e"}, "decreasing": {"color": "#ef4444"}},
+        gauge={
+            "axis": {"range": [0, 100]},
+            "bar": {"color": "#3b82f6"},
+            "steps": [
+                {"range": [0, 40], "color": "#fee2e2"},
+                {"range": [40, 70], "color": "#fef9c3"},
+                {"range": [70, 100], "color": "#dcfce7"},
+            ],
+            "threshold": {"line": {"color": "#1d4ed8", "width": 4}, "value": 70},
+        },
+        title={"text": f"Alignment Score<br><span style='font-size:0.8em'>"
+                       f"{DIRECTION_EMOJI.get(latest_direction, '🟡')} {latest_direction.replace('_', ' ').title()}</span>"},
+        number={"suffix": "%"},
+    ))
+    fig_gauge.update_layout(height=300, paper_bgcolor="rgba(0,0,0,0)")
+
+    # --- Timeline ---
+    turn_nums, task_scores, rule_scores, focus_scores = [], [], [], []
+    for t, r in zip(turns, readings):
+        if r:
+            turn_nums.append(t.get("turn_number", 0))
+            task_scores.append(r.get("task_alignment_score", 0))
+            rule_scores.append(r.get("rule_compliance_score", 1))
+            focus_scores.append(1 - r.get("drift_score", 0))
+
+    fig_timeline = go.Figure()
+    if turn_nums:
+        fig_timeline.add_trace(go.Scatter(x=turn_nums, y=task_scores, name="Task Alignment",
+                                          mode="lines+markers", line={"color": "#3b82f6"}))
+        fig_timeline.add_trace(go.Scatter(x=turn_nums, y=rule_scores, name="Rule Compliance",
+                                          mode="lines+markers", line={"color": "#22c55e"}))
+        fig_timeline.add_trace(go.Scatter(x=turn_nums, y=focus_scores, name="Focus (1-drift)",
+                                          mode="lines+markers", line={"color": "#f59e0b"}))
+        fig_timeline.add_hline(y=0.7, line_dash="dash", line_color="#22c55e",
+                               annotation_text="On-track threshold")
+        fig_timeline.add_hline(y=0.4, line_dash="dash", line_color="#ef4444",
+                               annotation_text="Off-course threshold")
+
+    fig_timeline.update_layout(
+        title="Alignment Timeline per Turn",
+        xaxis_title="Turn", yaxis_title="Score", yaxis_range=[0, 1.05],
+        plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)", height=350,
+        legend={"orientation": "h", "y": -0.2},
+    )
+
+    # --- Alert strip ---
+    alerts = []
+    for t, r in zip(turns, readings):
+        if not r:
+            continue
+        direction = r.get("direction", "on_track")
+        heading = r.get("heading", 0.0)
+        turn_n = t.get("turn_number", "?")
+        if direction == "off_course":
+            alerts.append(f"🔴 **Turn {turn_n}** — OFF COURSE (composite < 40%)")
+        elif direction == "drifting" and heading < -0.15:
+            alerts.append(f"🟡 **Turn {turn_n}** — DRIFTING and declining (Δ {heading:+.2f})")
+
+    if alerts:
+        alert_md = "### ⚠️ Alerts\n\n" + "\n\n".join(alerts)
+    else:
+        alert_md = "### ✅ No alerts — conversation stayed on track throughout."
+
+    return fig_gauge, fig_timeline, alert_md
+
+
+# ---------------------------------------------------------------------------
+# Tab 5 — Gap Simulator
 # ---------------------------------------------------------------------------
 
 def simulate_gap(user_message: str) -> tuple[str, str]:
@@ -547,6 +676,30 @@ Optional columns: `session_id, user_id, sentiment_before, sentiment_after`
             upload_status = gr.Markdown()
 
             upload_btn.click(upload_history, inputs=upload_file, outputs=upload_status)
+
+        # --- Compass ---
+        with gr.Tab("🧭 Compass"):
+            gr.Markdown(
+                "Select a conversation to see its alignment trajectory — "
+                "task focus, rule compliance, and drift over time."
+            )
+            with gr.Row():
+                conv_selector = gr.Dropdown(label="Conversation", choices=[], scale=3)
+                refresh_compass_btn = gr.Button("🔄 Refresh list", variant="secondary", size="sm", scale=1)
+
+            with gr.Row():
+                compass_gauge = gr.Plot(label="Alignment Score")
+                compass_timeline = gr.Plot(label="Timeline")
+
+            compass_alerts = gr.Markdown()
+
+            def refresh_compass_list():
+                return gr.Dropdown(choices=get_conversation_ids())
+
+            refresh_compass_btn.click(refresh_compass_list, outputs=[conv_selector])
+            demo.load(refresh_compass_list, outputs=[conv_selector])
+            conv_selector.change(build_compass, inputs=conv_selector,
+                                 outputs=[compass_gauge, compass_timeline, compass_alerts])
 
         # --- Gap Simulator ---
         with gr.Tab("🔬 Gap Simulator"):
