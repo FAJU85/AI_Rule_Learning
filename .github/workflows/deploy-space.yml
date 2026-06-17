@@ -16,6 +16,8 @@ jobs:
   deploy:
     name: Deploy to vooom/AI_Rule_Learning
     runs-on: ubuntu-latest
+    env:
+      HF_OIDC_RESOURCE: vooom/AI_Rule_Learning
     steps:
       - uses: actions/checkout@v4
         with:
