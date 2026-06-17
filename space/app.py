@@ -725,6 +725,38 @@ def _detect_gaps_in_conversation(conv: dict) -> list[dict]:
     return gaps
 
 
+CHECKPOINT_FILE = "analysis_checkpoint.json"
+
+
+def _load_checkpoint() -> dict:
+    try:
+        path = hf_hub_download(
+            repo_id=DATASET_ID,
+            filename=CHECKPOINT_FILE,
+            repo_type="dataset",
+            token=HF_TOKEN,
+            force_download=True,
+        )
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def _save_checkpoint(state: dict) -> None:
+    try:
+        api = HfApi(token=HF_TOKEN)
+        api.upload_file(
+            path_or_fileobj=json.dumps(state, ensure_ascii=False).encode("utf-8"),
+            path_in_repo=CHECKPOINT_FILE,
+            repo_id=DATASET_ID,
+            repo_type="dataset",
+            commit_message="Update analysis checkpoint",
+        )
+    except Exception:
+        pass
+
+
 def _generate_rule_hf(gap_type: str, examples: list[dict]) -> dict | None:
     try:
         import re
@@ -792,7 +824,12 @@ Only output the JSON. No explanation, no markdown fences."""
 
 
 def run_analysis():
-    """Generator — yields the growing log string so Gradio streams it live."""
+    """Generator — yields the growing log string so Gradio streams it live.
+
+    Ralph Loop pattern: saves a checkpoint after every 10 conversations and
+    after each rule is generated so the analysis is fully resumable if the
+    Space times out mid-run.
+    """
     log: list[str] = []
 
     def emit(msg: str):
@@ -803,59 +840,93 @@ def run_analysis():
         yield emit("❌ HF_TOKEN not set in Space secrets. Add it in Space Settings → Variables and secrets.")
         return
 
-    yield emit("🔍 Loading conversations from dataset…")
+    # --- Ralph Loop: load checkpoint ---
+    yield emit("📌 Loading checkpoint (Ralph Loop)…")
+    ckpt = _load_checkpoint()
+    processed_ids: set[str] = set(ckpt.get("processed_ids", []))
+    all_gaps_by_type: dict[str, list[dict]] = ckpt.get("all_gaps_by_type", {})
+    generated_rule_types: set[str] = set(ckpt.get("generated_rule_types", []))
+    if processed_ids:
+        yield emit(f"   ↩️ Resuming — {len(processed_ids)} conversations already processed, "
+                   f"{len(all_gaps_by_type)} gap type(s) cached")
+
+    yield emit("\n🔍 Loading conversations from dataset…")
     conversations = load_conversations()
     if not conversations:
         yield emit("❌ No conversations found. Upload some first via the Upload History tab.")
         return
     yield emit(f"📂 Loaded **{len(conversations)}** conversations")
 
-    # --- Gap detection ---
-    yield emit("\n🔎 Detecting gaps (rule-based scan)…")
-    all_gaps_by_type: dict[str, list[dict]] = {}
+    # --- Gap detection (skip already-processed ones) ---
+    pending = [c for c in conversations if c.get("conversation_id") not in processed_ids]
+    if pending:
+        yield emit(f"\n🔎 Detecting gaps in **{len(pending)}** new conversation(s)…")
+    else:
+        yield emit("\n✅ All conversations already processed — using cached gap data")
+
     conv_gap_map: dict[str, list[dict]] = {}
 
-    for conv in conversations:
+    for i, conv in enumerate(pending):
         gaps = _detect_gaps_in_conversation(conv)
+        cid = conv.get("conversation_id", f"_idx_{i}")
         if gaps:
-            cid = conv.get("conversation_id", "?")
             conv_gap_map[cid] = gaps
             for g in gaps:
-                all_gaps_by_type.setdefault(g["type"], []).append(g)
+                bucket = all_gaps_by_type.setdefault(g["type"], [])
+                bucket.append(g)
+        processed_ids.add(cid)
+
+        # Checkpoint every 10 conversations (Ralph Loop)
+        if (i + 1) % 10 == 0:
+            _save_checkpoint({
+                "processed_ids": list(processed_ids),
+                "all_gaps_by_type": all_gaps_by_type,
+                "generated_rule_types": list(generated_rule_types),
+            })
+            yield emit(f"   💾 Checkpoint saved ({i + 1}/{len(pending)})")
 
     total_gaps = sum(len(v) for v in all_gaps_by_type.values())
-    yield emit(f"✅ Found **{total_gaps}** gaps across **{len(conv_gap_map)}** conversations:")
+    yield emit(f"✅ Found **{total_gaps}** gaps across **{len(conv_gap_map)}** new conversations:")
     for gtype, gaps in sorted(all_gaps_by_type.items(), key=lambda x: -len(x[1])):
         yield emit(f"   • `{gtype}`: {len(gaps)} occurrence{'s' if len(gaps) != 1 else ''}")
 
     # --- Annotate conversations with detected gaps and save ---
-    yield emit("\n💾 Annotating conversations with gap data…")
-    for conv in conversations:
-        cid = conv.get("conversation_id", "?")
-        if cid in conv_gap_map:
-            gaps_by_turn = {}
-            for g in conv_gap_map[cid]:
-                gaps_by_turn.setdefault(g["turn"], []).append(g)
-            for turn in conv.get("turns", []):
-                tn = turn.get("turn_number")
-                if tn in gaps_by_turn:
-                    turn["gaps_detected"] = gaps_by_turn[tn]
-    try:
-        _upload_jsonl("conversations.jsonl", conversations)
-        yield emit("✅ Conversations updated in dataset")
-    except Exception as exc:
-        yield emit(f"⚠️ Could not save gap annotations: {exc}")
+    if conv_gap_map:
+        yield emit("\n💾 Annotating conversations with gap data…")
+        for conv in conversations:
+            cid = conv.get("conversation_id", "?")
+            if cid in conv_gap_map:
+                gaps_by_turn = {}
+                for g in conv_gap_map[cid]:
+                    gaps_by_turn.setdefault(g["turn"], []).append(g)
+                for turn in conv.get("turns", []):
+                    tn = turn.get("turn_number")
+                    if tn in gaps_by_turn:
+                        turn["gaps_detected"] = gaps_by_turn[tn]
+        try:
+            _upload_jsonl("conversations.jsonl", conversations)
+            yield emit("✅ Conversations updated in dataset")
+        except Exception as exc:
+            yield emit(f"⚠️ Could not save gap annotations: {exc}")
 
     # --- Rule generation ---
-    eligible = {k: v for k, v in all_gaps_by_type.items() if len(v) >= 2}
+    eligible = {
+        k: v for k, v in all_gaps_by_type.items()
+        if len(v) >= 2 and k not in generated_rule_types
+    }
     if not eligible:
-        yield emit("\nℹ️ No gap type has ≥2 occurrences — rules require at least 2 examples to generate. Done.")
+        yield emit("\nℹ️ No new gap types to generate rules for. Done.")
+        # Save final checkpoint so resume is instant next time
+        _save_checkpoint({
+            "processed_ids": list(processed_ids),
+            "all_gaps_by_type": all_gaps_by_type,
+            "generated_rule_types": list(generated_rule_types),
+        })
         return
 
     yield emit(f"\n🤖 Generating rules for **{len(eligible)}** gap type(s) using `{_HF_MODEL}`…")
 
     existing_rules = load_rules()
-    existing_rule_types = {r.get("rule_id", "").split("_")[1] for r in existing_rules if "_" in r.get("rule_id", "")}
     new_rules: list[dict] = []
 
     for gtype, gap_examples in eligible.items():
@@ -863,8 +934,15 @@ def run_analysis():
         rule = _generate_rule_hf(gtype, gap_examples)
         if rule:
             new_rules.append(rule)
+            generated_rule_types.add(gtype)
             yield emit(f"   ✅ Rule created: **{rule.get('name', gtype)}**")
             yield emit(f"      → {rule.get('description', '')}")
+            # Ralph Loop: checkpoint after each rule is generated
+            _save_checkpoint({
+                "processed_ids": list(processed_ids),
+                "all_gaps_by_type": all_gaps_by_type,
+                "generated_rule_types": list(generated_rule_types),
+            })
         else:
             yield emit(f"   ⚠️ Failed to generate rule for `{gtype}` — skipping")
 
@@ -881,6 +959,151 @@ def run_analysis():
             yield emit(f"\n❌ Failed to save rules: {exc}")
     else:
         yield emit("\nℹ️ Analysis complete — no rules could be generated from the HF model response.")
+
+    # Final checkpoint
+    _save_checkpoint({
+        "processed_ids": list(processed_ids),
+        "all_gaps_by_type": all_gaps_by_type,
+        "generated_rule_types": list(generated_rule_types),
+    })
+
+
+# ---------------------------------------------------------------------------
+# Mengram-style rule evolution
+# ---------------------------------------------------------------------------
+
+_EVOLUTION_THRESHOLD = 0.30   # evolve if effectiveness below this
+_DEACTIVATION_THRESHOLD = 0.15  # deactivate if still below this after evolution
+
+
+def _evolve_rule_hf(rule: dict, failures: list[str]) -> dict | None:
+    """Ask the HF model to rewrite a low-performing rule (Mengram procedure_feedback pattern)."""
+    try:
+        import re
+        from huggingface_hub import InferenceClient
+
+        client = InferenceClient(token=HF_TOKEN)
+        failure_text = "\n".join(f"- {f}" for f in failures[:5])
+        prompt = f"""You are an AI guardrail engineer. A guardrail rule is underperforming.
+
+Current rule:
+  Name: {rule.get('name', '?')}
+  Description: {rule.get('description', '?')}
+  Trigger keywords: {rule.get('trigger', {}).get('keywords', [])}
+  Instruction: {rule.get('action', {}).get('instruction', '?')}
+  Effectiveness score: {rule.get('effectiveness_score', 0):.0%}
+
+Failure patterns (contexts where the rule did NOT prevent the bad behaviour):
+{failure_text}
+
+Rewrite the rule to be more effective. Return ONLY a valid JSON object with these fields:
+{{
+  "name": "Improved rule name (max 8 words)",
+  "description": "What the evolved rule prevents",
+  "trigger": {{"keywords": ["keyword1", "keyword2", "keyword3", "keyword4"]}},
+  "action": {{"type": "modify_response", "instruction": "Clearer, stronger AI instruction"}}
+}}
+
+Only output the JSON. No markdown fences."""
+
+        response = client.chat.completions.create(
+            model=_HF_MODEL,
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=350,
+            temperature=0.2,
+        )
+        text = response.choices[0].message.content.strip()
+        text = re.sub(r"^```[a-z]*\n?", "", text).rstrip("`").strip()
+        match = re.search(r"\{.*\}", text, re.DOTALL)
+        if not match:
+            return None
+        evolved = json.loads(match.group())
+        # Merge with existing rule metadata, reset score for fresh measurement
+        evolved["rule_id"] = rule.get("rule_id", f"rule_evolved_{uuid.uuid4().hex[:8]}")
+        evolved["rule_type"] = rule.get("rule_type", "guardrail")
+        evolved["priority"] = rule.get("priority", 3)
+        evolved["is_active"] = True
+        evolved["effectiveness_score"] = 0.5
+        evolved["times_triggered"] = 0
+        evolved["success_count"] = 0
+        evolved["evolved_from"] = rule.get("rule_id")
+        evolved["evolved_at"] = datetime.utcnow().isoformat()
+        return evolved
+    except Exception:
+        return None
+
+
+def run_validate_and_evolve():
+    """Mengram evolve loop — evolves low-performing rules instead of just deactivating them."""
+    log: list[str] = []
+
+    def emit(msg: str):
+        log.append(msg)
+        return "\n".join(log)
+
+    if not HF_TOKEN:
+        yield emit("❌ HF_TOKEN not set.")
+        return
+
+    yield emit("📋 Loading rules from dataset…")
+    rules = load_rules()
+    if not rules:
+        yield emit("❌ No rules found. Run Analysis first to generate rules.")
+        return
+
+    yield emit(f"📂 Loaded **{len(rules)}** rule(s)")
+
+    evolved_rules: list[dict] = []
+    deactivated: list[str] = []
+    healthy: list[str] = []
+
+    for rule in rules:
+        score = rule.get("effectiveness_score", 1.0)
+        name = rule.get("name", rule.get("rule_id", "?"))
+        triggered = rule.get("times_triggered", 0)
+
+        if score >= _EVOLUTION_THRESHOLD or triggered < 5:
+            healthy.append(name)
+            continue
+
+        yield emit(f"\n🔬 Rule **{name}** — score {score:.0%} (below {_EVOLUTION_THRESHOLD:.0%} threshold)")
+
+        if score < _DEACTIVATION_THRESHOLD and triggered >= 20:
+            rule["is_active"] = False
+            deactivated.append(name)
+            yield emit(f"   🚫 Deactivated (score {score:.0%} < {_DEACTIVATION_THRESHOLD:.0%} with {triggered} triggers)")
+            evolved_rules.append(rule)
+            continue
+
+        yield emit(f"   🔄 Evolving via `{_HF_MODEL}`…")
+        # Collect simple failure context (keywords that should have triggered but didn't)
+        failures = [
+            f"Rule triggered {triggered} time(s) but effectiveness only {score:.0%}",
+            f"Current keywords: {rule.get('trigger', {}).get('keywords', [])}",
+        ]
+        evolved = _evolve_rule_hf(rule, failures)
+        if evolved:
+            evolved_rules.append(evolved)
+            yield emit(f"   ✅ Evolved to: **{evolved.get('name', name)}**")
+            yield emit(f"      New keywords: {evolved.get('trigger', {}).get('keywords', [])}")
+            yield emit(f"      New instruction: {evolved.get('action', {}).get('instruction', '')[:100]}")
+        else:
+            yield emit(f"   ⚠️ Evolution failed — keeping original")
+            evolved_rules.append(rule)
+
+    # Rebuild full rules list (unchanged healthy + evolved/deactivated)
+    healthy_rules = [r for r in rules if r.get("name", r.get("rule_id")) in healthy]
+    final_rules = healthy_rules + evolved_rules
+
+    try:
+        _upload_jsonl("rules.jsonl", final_rules)
+        yield emit(f"\n🎉 **Evolution complete!**")
+        yield emit(f"   • {len(healthy)} rule(s) healthy (unchanged)")
+        yield emit(f"   • {len([r for r in evolved_rules if r.get('evolved_from')])} rule(s) evolved")
+        yield emit(f"   • {len(deactivated)} rule(s) deactivated")
+        yield emit(f"\nRefresh **Rules** and **Overview** tabs to see the updated ruleset.")
+    except Exception as exc:
+        yield emit(f"\n❌ Failed to save evolved rules: {exc}")
 
 
 # ---------------------------------------------------------------------------
@@ -1054,12 +1277,21 @@ Scans all uploaded conversations for behavioural gaps, then uses
 **`Qwen/Qwen2.5-72B-Instruct`** via the HF Inference API to generate
 guardrail rules automatically.
 
+- **Ralph Loop** checkpointing: analysis is resumable if the Space times out mid-run
 - Detects: explicit corrections, repeated questions, code anti-patterns, sentiment drops
 - Requires ≥2 occurrences of a gap type before generating a rule
 - Rules are saved directly to the dataset and appear in the **Rules** tab
+
+---
+
+**🔄 Validate & Evolve** uses the Mengram feedback pattern: instead of just
+deactivating low-performing rules (< 30% effectiveness), it rewrites them with the
+AI model so they improve rather than disappear.
 """
             )
-            analysis_btn = gr.Button("▶ Run Analysis", variant="primary", size="lg")
+            with gr.Row():
+                analysis_btn = gr.Button("▶ Run Analysis", variant="primary", size="lg")
+                evolve_btn = gr.Button("🔄 Validate & Evolve", variant="secondary", size="lg")
             analysis_log = gr.Textbox(
                 label="Analysis log",
                 lines=20,
@@ -1067,6 +1299,7 @@ guardrail rules automatically.
                 autoscroll=True,
             )
             analysis_btn.click(run_analysis, outputs=analysis_log)
+            evolve_btn.click(run_validate_and_evolve, outputs=analysis_log)
 
         # --- Project Compass ---
         with gr.Tab("🧭 Project Compass"):
