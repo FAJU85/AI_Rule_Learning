@@ -701,9 +701,101 @@ def _is_question(text: str) -> bool:
     ])
 
 
+def _normalize_turns(conv: dict) -> list[dict]:
+    """Return a list of {user_input, agent_response} dicts regardless of source format.
+
+    Handles:
+    - Our format: conv["turns"] with user_input / agent_response keys
+    - Claude export: conv["chat_messages"] with sender "human"/"assistant" + text
+    - Generic messages: conv["messages"] with role "user"/"assistant" + content
+    - Gradio history: conv["history"] as [[user, assistant], ...]
+    """
+    # Already in our format
+    turns = conv.get("turns", [])
+    if turns and isinstance(turns[0], dict) and (
+        "user_input" in turns[0] or "agent_response" in turns[0]
+    ):
+        return turns
+
+    # Claude.ai export: chat_messages with sender/text
+    chat_messages = conv.get("chat_messages", [])
+    if chat_messages:
+        normalized: list[dict] = []
+        pending_user: str | None = None
+        for msg in chat_messages:
+            sender = msg.get("sender", msg.get("role", ""))
+            text = msg.get("text", msg.get("content", ""))
+            if isinstance(text, list):
+                text = " ".join(
+                    b.get("text", "") for b in text if isinstance(b, dict) and b.get("type") == "text"
+                )
+            text = str(text).strip()
+            if sender in ("human", "user"):
+                pending_user = text
+            elif sender in ("assistant", "ai") and pending_user is not None:
+                normalized.append({
+                    "turn_number": len(normalized) + 1,
+                    "user_input": pending_user,
+                    "agent_response": text,
+                    "gaps_detected": [],
+                    "rules_applied": [],
+                    "sensor_reading": None,
+                })
+                pending_user = None
+        if normalized:
+            return normalized
+
+    # Generic messages array: role/content
+    messages = conv.get("messages", [])
+    if messages:
+        normalized = []
+        pending_user = None
+        for msg in messages:
+            role = msg.get("role", "")
+            content = msg.get("content", "")
+            if isinstance(content, list):
+                content = " ".join(
+                    b.get("text", "") for b in content if isinstance(b, dict) and b.get("type") == "text"
+                )
+            content = str(content).strip()
+            if role in ("user", "human"):
+                pending_user = content
+            elif role in ("assistant", "ai") and pending_user is not None:
+                normalized.append({
+                    "turn_number": len(normalized) + 1,
+                    "user_input": pending_user,
+                    "agent_response": content,
+                    "gaps_detected": [],
+                    "rules_applied": [],
+                    "sensor_reading": None,
+                })
+                pending_user = None
+        if normalized:
+            return normalized
+
+    # Gradio-style history: [[user, assistant], ...]
+    history = conv.get("history", [])
+    if history and isinstance(history[0], (list, tuple)):
+        normalized = []
+        for i, pair in enumerate(history):
+            if len(pair) >= 2:
+                normalized.append({
+                    "turn_number": i + 1,
+                    "user_input": str(pair[0] or ""),
+                    "agent_response": str(pair[1] or ""),
+                    "gaps_detected": [],
+                    "rules_applied": [],
+                    "sensor_reading": None,
+                })
+        if normalized:
+            return normalized
+
+    return turns  # return original (possibly empty) as fallback
+
+
 def _detect_gaps_in_conversation(conv: dict) -> list[dict]:
     gaps = []
-    turns = conv.get("turns", [])
+    turns = _normalize_turns(conv)
     seen_inputs: list[str] = []
 
     for turn in turns:
@@ -817,7 +909,7 @@ def _backfill_sensor_reading(conv: dict) -> None:
     Uses word-overlap (no sentence_transformers required) so it works in
     any environment. Updates the dict in place.
     """
-    turns = conv.get("turns", [])
+    turns = _normalize_turns(conv)
     if not turns:
         return
 
@@ -1156,6 +1248,13 @@ def run_analysis():
         return
     yield emit(f"📂 Loaded **{len(conversations)}** conversations")
 
+    # Diagnostic: show the data shape of the first conversation
+    if conversations:
+        sample = conversations[0]
+        sample_keys = list(sample.keys())[:8]
+        sample_turns = _normalize_turns(sample)
+        yield emit(f"   🔬 Sample fields: `{sample_keys}` | turns (normalized): {len(sample_turns)}")
+
     # --- Gap detection (skip already-processed ones) ---
     pending = [c for c in conversations if c.get("conversation_id") not in processed_ids]
     if pending:
@@ -1185,7 +1284,7 @@ def run_analysis():
             yield emit(f"   💾 Checkpoint saved ({i + 1}/{len(pending)})")
 
     total_gaps = sum(len(v) for v in all_gaps_by_type.values())
-    total_turns = sum(len(c.get("turns", [])) for c in conversations)
+    total_turns = sum(len(_normalize_turns(c)) for c in conversations)
     yield emit(f"\n📊 Scan complete — **{total_turns}** turns scanned across **{len(conversations)}** conversations")
     if total_gaps == 0:
         yield emit("   ℹ️ No gaps detected in new conversations.")
