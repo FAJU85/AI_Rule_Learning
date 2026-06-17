@@ -34,15 +34,26 @@ jobs:
       - name: Deploy space/ to Hugging Face Space
         run: |
           python - <<'EOF'
+          import time
           from huggingface_hub import HfApi
-          import os
+          from huggingface_hub.errors import HfHubHTTPError
 
           api = HfApi()
-          api.upload_folder(
-              folder_path="space",
-              repo_id="vooom/AI_Rule_Learning",
-              repo_type="space",
-              commit_message="Deploy from GitHub Actions (${{ github.sha }})",
-          )
-          print("Space deployed successfully.")
+          for attempt in range(1, 6):
+              try:
+                  api.upload_folder(
+                      folder_path="space",
+                      repo_id="vooom/AI_Rule_Learning",
+                      repo_type="space",
+                      commit_message="Deploy from GitHub Actions (${{ github.sha }})",
+                  )
+                  print("Space deployed successfully.")
+                  break
+              except HfHubHTTPError as e:
+                  if e.response is not None and e.response.status_code == 429 and attempt < 5:
+                      wait = 2 ** attempt
+                      print(f"Rate limited (429). Retrying in {wait}s (attempt {attempt}/5)...")
+                      time.sleep(wait)
+                  else:
+                      raise
           EOF
