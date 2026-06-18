@@ -1,8 +1,53 @@
 # AI Rule Learning
 
-Universal development environment setup reference and tooling guide for production-ready projects.
+A platform that learns guardrail rules from real AI conversation failures and
+delivers them automatically via an MCP server — so your AI improves with every
+session.
 
-## Overview
+**Free for individuals. Commercial/government use requires written permission.**
+See [LICENSE](LICENSE) · [TERMS](TERMS.md) · [PRIVACY](PRIVACY.md)
+
+---
+
+## What it does
+
+1. Exports your Claude Code sessions (PII-scrubbed) to a private HF dataset
+2. Analyses 7 gap types across all conversations (corrections, frustration, unanswered questions…)
+3. Calls `Qwen/Qwen2.5-72B-Instruct` to generate grounded guardrail rules
+4. Delivers the rules back via an MCP server that injects them into future sessions automatically
+
+## Quick start — MCP (personal use)
+
+```bash
+pip install ai-rule-learning-mcp          # coming soon — build from mcp/ for now
+```
+
+Add to your Claude config:
+
+```json
+{
+  "mcpServers": {
+    "ai-rule-learning": {
+      "command": "ai-rule-learning-mcp",
+      "env": {
+        "HF_TOKEN": "hf_your_write_token",
+        "ARL_DATASET": "yourname/AI_Rule_Learning"
+      }
+    }
+  }
+}
+```
+
+Then in Claude: _"Sync my sessions"_ / _"Load my guardrail rules"_.
+See [mcp/README.md](mcp/README.md) for full setup.
+
+## Gradio Dashboard (Space)
+
+Live at: <https://huggingface.co/spaces/vooom/AI_Rule_Learning>
+
+Tabs: Overview · Upload History · Import Sessions · Analysis · Rules · How It Works
+
+## Repository overview
 
 This repository provides a project-agnostic development environment template covering:
 

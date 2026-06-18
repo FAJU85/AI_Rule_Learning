@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "ai-rule-learning-mcp"
+version = "0.1.0"
+description = "MCP server that learns guardrail rules from your AI conversations and injects them automatically"
+readme = "README.md"
+license = { file = "../LICENSE" }
+requires-python = ">=3.10"
+keywords = ["mcp", "claude", "guardrails", "ai", "rules"]
+dependencies = [
+    "mcp>=1.0.0",
+    "huggingface-hub>=0.23.0",
+    "httpx>=0.27.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "pytest-asyncio>=0.23"]
+
+[project.scripts]
+ai-rule-learning-mcp = "ai_rule_learning_mcp.server:main"
+
+[project.urls]
+Homepage = "https://github.com/faju85/ai_rule_learning"
+Repository = "https://github.com/faju85/ai_rule_learning"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["ai_rule_learning_mcp*"]
