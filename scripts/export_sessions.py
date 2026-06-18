@@ -256,12 +256,46 @@ def _upload(filename: str, records: list[dict]) -> None:
 # Main
 # ---------------------------------------------------------------------------
 
+RULES_CACHE = Path.home() / ".claude" / "ai_rule_learning_rules.md"
+
+
+def _save_rules_locally(rules: list[dict]) -> None:
+    """Save active rules to a local markdown cache for SessionStart hook injection."""
+    if not rules:
+        return
+    lines = [
+        "## Your AI Guardrail Rules\n",
+        f"*{len(rules)} active rule(s) — auto-synced from AI Rule Learning*\n",
+    ]
+    for i, rule in enumerate(rules, 1):
+        priority = rule.get("priority_label", "MEDIUM")
+        name = rule.get("name", rule.get("rule_id", f"Rule {i}"))
+        instruction = (
+            rule.get("action", {}).get("instruction")
+            or rule.get("instruction", "")
+        )
+        triggers = (
+            rule.get("trigger", {}).get("keywords")
+            or rule.get("triggers", [])
+        )
+        lines.append(f"**Rule {i}: {name}** [{priority}]")
+        if instruction:
+            lines.append(f"→ {instruction}")
+        if triggers:
+            lines.append(f"   Triggers on: {', '.join(str(t) for t in triggers[:6])}")
+        lines.append("")
+    RULES_CACHE.parent.mkdir(parents=True, exist_ok=True)
+    RULES_CACHE.write_text("\n".join(lines), encoding="utf-8")
+    print(f"💾 Rules saved to {RULES_CACHE}")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Export Claude Code sessions to HF dataset")
     parser.add_argument("--session", help="Export only this session ID")
     parser.add_argument("--project", help="Path to .claude/projects dir", default=str(DEFAULT_CLAUDE_DIR))
     parser.add_argument("--dry-run", action="store_true", help="Parse only, do not upload")
     parser.add_argument("--force", action="store_true", help="Re-upload even if session already exists")
+    parser.add_argument("--sync-rules", action="store_true", help="After upload, pull latest rules and save locally")
     args = parser.parse_args()
 
     projects_dir = Path(args.project)
@@ -317,6 +351,20 @@ def main() -> None:
     _upload("conversations.jsonl", all_conversations)
     print(f"🎉 Done! Dataset now has {len(all_conversations)} conversation(s).")
     print("   Open the Space → Overview tab to see the updated metrics.")
+
+    if args.sync_rules:
+        print("\n📥 Pulling latest rules from dataset …")
+        rules = _download_existing("rules.jsonl")
+        active = sorted(
+            [r for r in rules if r.get("is_active", True)],
+            key=lambda r: r.get("priority", 0),
+            reverse=True,
+        )
+        if active:
+            _save_rules_locally(active)
+            print(f"   {len(active)} active rule(s) cached locally.")
+        else:
+            print("   No active rules found in dataset yet.")
 
 
 if __name__ == "__main__":

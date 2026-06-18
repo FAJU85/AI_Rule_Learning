@@ -6,7 +6,18 @@
         "hooks": [
           {
             "type": "command",
-            "command": "cd /home/user/AI_Rule_Learning && python scripts/export_sessions.py 2>&1 | tail -5 || true"
+            "command": "cd /home/user/AI_Rule_Learning && python scripts/export_sessions.py --sync-rules 2>&1 | tail -8 || true"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "test -f ~/.claude/ai_rule_learning_rules.md && cat ~/.claude/ai_rule_learning_rules.md || true"
           }
         ]
       }
