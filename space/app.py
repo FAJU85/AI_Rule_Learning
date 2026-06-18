@@ -974,92 +974,115 @@ def _backfill_sensor_reading(conv: dict) -> None:
 
 _SEED_RULES: list[dict] = [
     {
-        "rule_id": "rule_verify_before_report",
-        "name": "Verify live state before reporting",
+        "rule_id": "R1", "name": "Verify live state before reporting",
         "description": "Before stating any system's status, query it live. Never report from memory or assumption.",
-        "rule_type": "guardrail", "priority": 5,
-        "trigger": {"keywords": ["status", "is it set", "do we have", "is there", "is the dataset", "is the token", "is running"]},
-        "action": {"type": "modify_response", "instruction": "STOP. Query the live system before answering. Do not rely on memory or assumptions."},
-        "is_active": True, "effectiveness_score": 1.0, "times_triggered": 0, "success_count": 0,
+        "rule_type": "guardrail", "priority": 5, "severity": 5,
+        "trigger": {"keywords": ["status", "is it set", "do we have", "is there", "is the dataset", "is the token", "currently", "running"]},
+        "action": {"type": "modify_response", "instruction": "STOP. Query the live system before answering. Do not rely on memory or assumptions. If you cannot query live, state that clearly."},
+        "conflicts_with": ["R7"],
         "empirical_basis": "2 explicit user corrections — stale dataset and token status reports",
+        "is_active": True, "effectiveness_score": 1.0, "times_triggered": 0, "success_count": 0,
         "created_at": "2026-06-17T19:49:25.330561",
     },
     {
-        "rule_id": "rule_confirm_scope_before_building",
-        "name": "Confirm exact scope before implementing",
+        "rule_id": "R2", "name": "Confirm exact scope before implementing",
         "description": "Restate the interpreted scope (level, data source, target) in one sentence before writing any code.",
-        "rule_type": "guardrail", "priority": 5,
-        "trigger": {"keywords": ["add", "implement", "build", "create", "sensor", "dashboard", "monitor", "feature", "compass"]},
+        "rule_type": "guardrail", "priority": 5, "severity": 5,
+        "trigger": {"keywords": ["add", "implement", "build", "create", "sensor", "dashboard", "write", "code"]},
         "action": {"type": "modify_response", "instruction": "State in ONE sentence what you will build, at what level, using which data source. Ask if ambiguous."},
-        "is_active": True, "effectiveness_score": 1.0, "times_triggered": 0, "success_count": 0,
         "empirical_basis": "2 explicit scope corrections — sensor level and demo-vs-real data",
+        "is_active": True, "effectiveness_score": 1.0, "times_triggered": 0, "success_count": 0,
         "created_at": "2026-06-17T19:49:25.330576",
     },
     {
-        "rule_id": "rule_pre_validate_before_push",
-        "name": "Run local validation before every push",
-        "description": "Before git push: verify commit subject is lowercase ≤100 chars; run prettier --check; confirm staged files.",
-        "rule_type": "guardrail", "priority": 4,
-        "trigger": {"keywords": ["git push", "push", "commit", "pull request"]},
-        "action": {"type": "modify_response", "instruction": "Verify commit subject is lowercase ≤100 chars; run prettier --check on changed YAML/JSON/MD; confirm staged files. Fix locally."},
+        "rule_id": "R3", "name": "Merge within one minute — never wait for external services",
+        "description": "Merge PRs immediately after local validation passes. Max wait: 60 seconds. Exception: production/main requires CI pass.",
+        "rule_type": "guardrail", "priority": 4, "severity": 4,
+        "trigger": {"keywords": ["waiting", "wait for", "ci", "checks", "passing", "pending", "merge"]},
+        "action": {"type": "modify_response", "instruction": "If local validation passed, merge immediately. Max wait: 60 seconds. EXCEPTION: production/main requires CI pass."},
+        "empirical_basis": "Explicit user rule — NEVER WAIT MORE THAN ONE MINUTE — MERGE THE PR IMMEDIATELY",
         "is_active": True, "effectiveness_score": 1.0, "times_triggered": 0, "success_count": 0,
-        "empirical_basis": "3 avoidable CI failures — uppercase TDD, Fix:, semgrep.yml",
-        "created_at": "2026-06-17T19:49:25.330578",
-    },
-    {
-        "rule_id": "rule_rebase_before_pr",
-        "name": "Rebase on main before every PR",
-        "description": "Always `git fetch origin main && git rebase origin/main` before pushing a PR branch.",
-        "rule_type": "guardrail", "priority": 4,
-        "trigger": {"keywords": ["pull request", "pr", "create pr", "merge", "push branch"]},
-        "action": {"type": "modify_response", "instruction": "Before creating a PR: git fetch origin main && git rebase origin/main. Never open a PR from an unrebased branch."},
-        "is_active": True, "effectiveness_score": 1.0, "times_triggered": 0, "success_count": 0,
-        "empirical_basis": "3 merge-conflict failures on PRs #14, #15, #16",
-        "created_at": "2026-06-17T19:49:25.330579",
-    },
-    {
-        "rule_id": "rule_merge_immediately_no_wait",
-        "name": "Merge within one minute — never wait for external services",
-        "description": "Merge PRs immediately. Do not wait for CI or external services. Max wait: 60 seconds.",
-        "rule_type": "guardrail", "priority": 5,
-        "trigger": {"keywords": ["waiting", "wait for", "ci", "checks", "passing", "pending", "once ci"]},
-        "action": {"type": "modify_response", "instruction": "Do NOT wait for CI or external services. Merge the PR immediately. If CI fails post-merge, diagnose and fix. Max wait: 60 seconds."},
-        "is_active": True, "effectiveness_score": 1.0, "times_triggered": 0, "success_count": 0,
-        "empirical_basis": "Explicit user rule: NEVER WAIT MORE THAN ONE MINUTE — MERGE THE PR IMMEDIATELY",
         "created_at": "2026-06-17T19:49:25.330582",
     },
     {
-        "rule_id": "rule_rearm_monitors_on_timeout",
-        "name": "Re-arm persistent monitors immediately on timeout",
-        "description": "When any persistent monitor times out, re-arm it in the same turn before anything else.",
-        "rule_type": "guardrail", "priority": 4,
-        "trigger": {"keywords": ["monitor timed out", "timeout", "re-arm", "monitor expired"]},
-        "action": {"type": "modify_response", "instruction": "Re-arm the monitor immediately — before responding about anything else. A dead monitor is a silent failure."},
+        "rule_id": "R4", "name": "Run local validation before every push",
+        "description": "Before git push: verify commit subject lowercase ≤100 chars; run prettier; confirm staged files.",
+        "rule_type": "guardrail", "priority": 4, "severity": 4,
+        "trigger": {"keywords": ["git push", "push", "commit", "pull request", "pr"]},
+        "action": {"type": "modify_response", "instruction": "Verify commit subject is lowercase ≤100 chars; run prettier --check on YAML/JSON/MD; confirm staged files. Never use --no-verify."},
+        "empirical_basis": "3 avoidable CI failures — uppercase TDD, Fix:, semgrep.yml",
         "is_active": True, "effectiveness_score": 1.0, "times_triggered": 0, "success_count": 0,
+        "created_at": "2026-06-17T19:49:25.330578",
+    },
+    {
+        "rule_id": "R5", "name": "Rebase on main before every PR",
+        "description": "Always git fetch origin main && git rebase origin/main before pushing a PR branch.",
+        "rule_type": "guardrail", "priority": 4, "severity": 4,
+        "trigger": {"keywords": ["pull request", "pr", "create pr", "merge", "push branch"]},
+        "action": {"type": "modify_response", "instruction": "Before creating a PR: git fetch origin main && git rebase origin/main. Never open a PR from an unrebased branch."},
+        "empirical_basis": "3 merge-conflict failures on PRs #14, #15, #16",
+        "is_active": True, "effectiveness_score": 1.0, "times_triggered": 0, "success_count": 0,
+        "created_at": "2026-06-17T19:49:25.330579",
+    },
+    {
+        "rule_id": "R6", "name": "Re-arm persistent monitors immediately on timeout",
+        "description": "When any persistent monitor times out, re-arm it in the same turn before anything else.",
+        "rule_type": "guardrail", "priority": 4, "severity": 4,
+        "trigger": {"keywords": ["monitor timed out", "timeout", "re-arm", "monitor expired", "dead monitor"]},
+        "action": {"type": "modify_response", "instruction": "Re-arm the monitor immediately — before responding about anything else. A dead monitor is a silent failure."},
         "empirical_basis": "2 monitor timeout events that required user prompting to re-arm",
+        "is_active": True, "effectiveness_score": 1.0, "times_triggered": 0, "success_count": 0,
         "created_at": "2026-06-17T19:49:25.330583",
     },
     {
-        "rule_id": "rule_fix_root_cause",
-        "name": "Fix root cause — never patch symptoms",
-        "description": "When CI fails, read the actual log, find the specific file and line, fix that file. No --no-verify, no ignore flags.",
-        "rule_type": "guardrail", "priority": 3,
-        "trigger": {"keywords": ["ci failed", "check failed", "lint failed", "error", "failure", "broken"]},
-        "action": {"type": "modify_response", "instruction": "Read the full error log. Find the exact file and line. Fix that file. Never add --no-verify or ignore comments."},
+        "rule_id": "R7", "name": "Connect to real data — never use placeholders in production",
+        "description": "All dashboards and data displays must connect to real sources. No hardcoded samples.",
+        "rule_type": "guardrail", "priority": 4, "severity": 4,
+        "trigger": {"keywords": ["dashboard", "chart", "graph", "display", "table", "visualization", "data"]},
+        "action": {"type": "modify_response", "instruction": "Connect every display to the real data source. If empty, show an empty-state message. Never hardcode sample rows."},
+        "empirical_basis": "Explicit user correction — I want real data, not demo data",
         "is_active": True, "effectiveness_score": 1.0, "times_triggered": 0, "success_count": 0,
+        "created_at": "2026-06-17T19:49:25.330586",
+    },
+    {
+        "rule_id": "R8", "name": "Fix root cause — never patch symptoms",
+        "description": "When CI fails, read the actual log, find the specific file and line, fix that file.",
+        "rule_type": "guardrail", "priority": 3, "severity": 3,
+        "trigger": {"keywords": ["ci failed", "check failed", "lint failed", "error", "failure", "broken", "failing"]},
+        "action": {"type": "modify_response", "instruction": "Read the full error log. Find the exact file and line. Fix that file. Never add --no-verify or ignore comments."},
         "empirical_basis": "Pattern across 4 CI failures in this session",
+        "is_active": True, "effectiveness_score": 1.0, "times_triggered": 0, "success_count": 0,
         "created_at": "2026-06-17T19:49:25.330585",
     },
     {
-        "rule_id": "rule_real_data_only",
-        "name": "Connect to real data — never use placeholders in production",
-        "description": "All dashboards and displays must connect to real data sources. No hardcoded samples.",
-        "rule_type": "guardrail", "priority": 4,
-        "trigger": {"keywords": ["dashboard", "chart", "graph", "display", "table", "visualization", "demo data", "sample data"]},
-        "action": {"type": "modify_response", "instruction": "Connect every display to the real data source. If empty, show an empty-state message. Never hardcode sample rows."},
-        "is_active": True, "effectiveness_score": 1.0, "times_triggered": 0, "success_count": 0,
-        "empirical_basis": "Explicit user correction: 'i want real data not demo data'",
-        "created_at": "2026-06-17T19:49:25.330586",
+        "rule_id": "R9", "name": "Dynamic responses — no hardcoded phrases",
+        "description": "Generate dynamic, complete responses that directly address the user's specific request.",
+        "rule_type": "guardrail", "priority": 4, "severity": 4,
+        "trigger": {"keywords": ["hardcoded", "user wants", "let me", "think through", "incomplete", "cut-off", "doesn't work", "garbage"]},
+        "action": {"type": "modify_response", "instruction": "Generate responses that directly address the user's specific request. Never use hardcoded phrases. Never truncate mid-sentence."},
+        "empirical_basis": "245 occurrences of hardcoded phrases + 32 incomplete responses (consolidated from duplicate rules 8 & 13, 11 & 16)",
+        "is_active": True, "effectiveness_score": 0.5, "times_triggered": 0, "success_count": 0,
+        "created_at": "2026-06-18T00:00:00.000000",
+    },
+    {
+        "rule_id": "R10", "name": "Handle user corrections accurately",
+        "description": "Re-evaluate and adjust response when user corrects you. Never ignore or misinterpret corrections.",
+        "rule_type": "guardrail", "priority": 4, "severity": 4,
+        "trigger": {"keywords": ["actually", "no,", "you didn't", "correction", "not that", "that's wrong"]},
+        "action": {"type": "modify_response", "instruction": "Stop. Re-evaluate the user's correction. Adjust your response to accurately reflect their intended meaning. Acknowledge the correction explicitly."},
+        "empirical_basis": "253 occurrences where AI ignored or misinterpreted user corrections (consolidated from duplicate rules 9 & 14)",
+        "is_active": True, "effectiveness_score": 0.5, "times_triggered": 0, "success_count": 0,
+        "created_at": "2026-06-18T00:00:00.000000",
+    },
+    {
+        "rule_id": "R11", "name": "Answer unanswered questions — never repeat without responding",
+        "description": "Always respond to user questions with substance. Never repeat the question. Never respond with 0 characters.",
+        "rule_type": "guardrail", "priority": 4, "severity": 4,
+        "trigger": {"keywords": ["repeat", "unanswered", "question", "clarification", "what", "how", "can", "thinking", "idea", "ways"]},
+        "action": {"type": "modify_response", "instruction": "Provide a substantive answer. If unclear, acknowledge and ask for clarification. Never repeat the question back without answering."},
+        "empirical_basis": "421 occurrences of repeating unanswered questions + 8 zero-character responses (consolidated from duplicate rules 10 & 15, 12 & 17)",
+        "is_active": True, "effectiveness_score": 0.5, "times_triggered": 0, "success_count": 0,
+        "created_at": "2026-06-18T00:00:00.000000",
     },
 ]
 
@@ -1523,6 +1546,67 @@ def export_system_prompt() -> str:
     return "\n".join(lines)
 
 
+def export_rules_as_yaml() -> str:
+    """Format active rules as MCP-compatible YAML (claude-learner / mengram / mcp-standards)."""
+    rules = load_rules()
+    if not rules:
+        return "# No rules found. Run Analysis first or click 🌱 Seed Work Rules."
+
+    active = [r for r in rules if r.get("is_active", True)]
+    if not active:
+        return "# No active rules found."
+
+    active.sort(key=lambda r: -r.get("priority", 3))
+    _priority_label = {5: "critical", 4: "high", 3: "medium", 2: "low", 1: "info"}
+
+    lines = [
+        "# AI Guardrail Rules — MCP-Ready YAML",
+        f"# Source: {DATASET_ID}",
+        f"# Generated: {datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}",
+        f"# Total active rules: {len(active)}",
+        f"# Compatible with: claude-learner, mengram, mcp-standards",
+        "",
+        "rules:",
+    ]
+
+    for rule in active:
+        rid = rule.get("rule_id", "rule_unknown")
+        prio = _priority_label.get(rule.get("priority", 3), "medium")
+        lines.append(f"  - id: {rid}")
+        lines.append(f"    name: {rule.get('name', rid)}")
+        lines.append(f"    priority: {prio}")
+        desc = rule.get("description", "")
+        if desc:
+            lines.append(f"    description: {desc}")
+        inst = rule.get("action", {}).get("instruction", "")
+        if inst:
+            inst_lines = inst.replace("\n", "\n      ")
+            lines.append(f"    instruction: |")
+            for il in inst.split("\n"):
+                lines.append(f"      {il}")
+        kws = rule.get("trigger", {}).get("keywords", [])
+        if kws:
+            lines.append("    triggers:")
+            for kw in kws:
+                lines.append(f"      - {kw!r}")
+        basis = rule.get("empirical_basis", "")
+        if basis:
+            lines.append(f"    evidence: {basis}")
+        lines.append("")
+
+    lines += [
+        "metadata:",
+        f"  version: '2.0'",
+        f"  conversations_analyzed: 289",
+        f"  compatible_with:",
+        "    - claude-learner",
+        "    - mengram",
+        "    - mcp-standards",
+    ]
+
+    return "\n".join(lines)
+
+
 # ---------------------------------------------------------------------------
 # Mengram-style rule evolution
 # ---------------------------------------------------------------------------
@@ -1960,6 +2044,17 @@ with gr.Blocks(title="AI Rule Learning System", theme=gr.themes.Soft()) as demo:
             )
             export_btn.click(export_system_prompt, outputs=system_prompt_output)
             demo.load(export_system_prompt, outputs=system_prompt_output)
+
+            gr.Markdown("---\n### 📄 Export as YAML (MCP-Ready)\nFor use with claude-learner, mengram, or mcp-standards.")
+            yaml_export_btn = gr.Button("Generate YAML", variant="secondary", size="sm")
+            yaml_output = gr.Textbox(
+                label="YAML — save as guardrails.yaml",
+                lines=20,
+                interactive=True,
+                show_copy_button=True,
+            )
+            yaml_export_btn.click(export_rules_as_yaml, outputs=yaml_output)
+            demo.load(export_rules_as_yaml, outputs=yaml_output)
 
         # --- Conversations ---
         with gr.Tab("💬 Conversations"):
