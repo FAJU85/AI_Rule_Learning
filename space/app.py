@@ -1064,6 +1064,61 @@ _SEED_RULES: list[dict] = [
 ]
 
 
+def run_deduplicate_rules():
+    """Remove duplicate rules: keep the one with the best empirical_basis or highest priority."""
+    log: list[str] = []
+
+    def emit(msg: str):
+        log.append(msg)
+        return "\n".join(log)
+
+    if not HF_TOKEN:
+        yield emit("❌ HF_TOKEN not set.")
+        return
+
+    yield emit("📋 Loading rules from dataset…")
+    rules = load_rules()
+    if not rules:
+        yield emit("ℹ️ No rules found.")
+        return
+    yield emit(f"   Loaded {len(rules)} rule(s)")
+
+    # Deduplicate by name (case-insensitive) — keep highest priority / most evidence
+    seen_names: dict[str, dict] = {}
+    duplicates = 0
+    for rule in rules:
+        name_key = rule.get("name", "").strip().lower()
+        if not name_key:
+            name_key = rule.get("rule_id", str(id(rule)))
+        if name_key not in seen_names:
+            seen_names[name_key] = rule
+        else:
+            existing = seen_names[name_key]
+            # Keep whichever has more empirical_basis text or higher priority
+            new_basis_len = len(rule.get("empirical_basis", ""))
+            old_basis_len = len(existing.get("empirical_basis", ""))
+            new_prio = rule.get("priority", 0)
+            old_prio = existing.get("priority", 0)
+            if new_basis_len > old_basis_len or (new_basis_len == old_basis_len and new_prio > old_prio):
+                seen_names[name_key] = rule
+            duplicates += 1
+
+    deduped = list(seen_names.values())
+    removed = len(rules) - len(deduped)
+
+    if removed == 0:
+        yield emit("✅ No duplicates found — rules are already clean.")
+        return
+
+    yield emit(f"🗑️  Removing **{removed}** duplicate(s) — keeping {len(deduped)} unique rule(s)…")
+    try:
+        _upload_jsonl("rules.jsonl", deduped)
+        yield emit(f"✅ Done. Dataset now has **{len(deduped)}** rule(s).")
+        yield emit("   Refresh the **Rules** tab to see the cleaned list.")
+    except Exception as exc:
+        yield emit(f"❌ Upload failed: {exc}")
+
+
 def run_seed_rules():
     """Upload the 8 empirical work rules to the HF dataset."""
     log: list[str] = []
@@ -1320,23 +1375,34 @@ def run_analysis():
             yield emit(f"⚠️ Could not save annotations: {exc}")
 
     # --- Rule generation ---
+    existing_rules = load_rules()
+
+    # Find which gap types already have rules in the dataset (prevents duplicates
+    # when force re-analyze clears the checkpoint but keeps existing rules)
+    existing_rule_types: set[str] = set()
+    for r in existing_rules:
+        rid = r.get("rule_id", "")
+        for gtype in all_gaps_by_type:
+            if gtype in rid:
+                existing_rule_types.add(gtype)
+
     eligible = {
         k: v for k, v in all_gaps_by_type.items()
-        if len(v) >= 2 and k not in generated_rule_types
+        if len(v) >= 2
+        and k not in generated_rule_types
+        and k not in existing_rule_types
     }
     if not eligible:
-        yield emit("\nℹ️ No new gap types to generate rules for. Done.")
-        # Save final checkpoint so resume is instant next time
+        yield emit(f"\nℹ️ No new gap types to generate rules for "
+                   f"({len(existing_rule_types)} type(s) already have rules). Done.")
         _save_checkpoint({
             "processed_ids": list(processed_ids),
             "all_gaps_by_type": all_gaps_by_type,
-            "generated_rule_types": list(generated_rule_types),
+            "generated_rule_types": list(generated_rule_types | existing_rule_types),
         })
         return
 
     yield emit(f"\n🤖 Generating rules for **{len(eligible)}** gap type(s) using `{_HF_MODEL}`…")
-
-    existing_rules = load_rules()
     new_rules: list[dict] = []
 
     for gtype, gap_examples in eligible.items():
@@ -2015,6 +2081,7 @@ AI model so they improve rather than disappear.
             with gr.Row():
                 evolve_btn = gr.Button("🔄 Validate & Evolve", variant="secondary", size="lg")
                 seed_btn = gr.Button("🌱 Seed Work Rules", variant="secondary", size="lg")
+                dedup_btn = gr.Button("🧹 Deduplicate Rules", variant="secondary", size="lg")
             gr.Markdown(
                 "_**▶ Run Analysis** processes only new conversations. "
                 "**🔁 Force Re-analyze All** clears the checkpoint and reprocesses every "
@@ -2030,6 +2097,7 @@ AI model so they improve rather than disappear.
             reanalyze_btn.click(run_force_reanalyze, outputs=analysis_log)
             evolve_btn.click(run_validate_and_evolve, outputs=analysis_log)
             seed_btn.click(run_seed_rules, outputs=analysis_log)
+            dedup_btn.click(run_deduplicate_rules, outputs=analysis_log)
 
         # --- Project Compass ---
         with gr.Tab("🧭 Project Compass"):
