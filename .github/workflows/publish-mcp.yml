@@ -1,0 +1,51 @@
+name: Publish MCP to PyPI
+
+on:
+  push:
+    tags:
+      - 'mcp-v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to publish (e.g. 0.1.0)'
+        required: true
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  build-and-publish:
+    name: Build and publish ai-rule-learning-mcp
+    runs-on: ubuntu-latest
+    environment: pypi
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install build tools
+        run: pip install build twine
+
+      - name: Bump version if workflow_dispatch
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          sed -i 's/^version = .*/version = "${{ github.event.inputs.version }}"/' mcp/pyproject.toml
+          sed -i 's/__version__ = .*/__version__ = "${{ github.event.inputs.version }}"/' mcp/ai_rule_learning_mcp/__init__.py
+
+      - name: Build package
+        run: python -m build mcp/
+
+      - name: Check distribution
+        run: twine check mcp/dist/*
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: mcp/dist/
