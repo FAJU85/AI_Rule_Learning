@@ -1,0 +1,240 @@
+# ============================================
+# AI Guardrail Rules — Deduplicated & MCP-Ready
+# ============================================
+# Generated from empirical conversation failures (289 conversations)
+# Priority: CRITICAL > HIGH > MEDIUM
+# Format: Compatible with claude-learner, mengram, MCP Standards
+# ============================================
+
+rules:
+  # ---------- CRITICAL (System Integrity) ----------
+
+  - id: R1
+    name: verify-live-state
+    priority: critical
+    description: Query live system before reporting any status — never from memory
+    instruction: |
+      STOP. Query the live system before answering. Do not rely on memory or assumptions.
+      If you cannot query live, state that clearly and ask the user to verify.
+    triggers:
+      - status
+      - is it set
+      - do we have
+      - is there
+      - is the dataset
+      - is the token
+      - currently
+      - running
+    evidence: 2 explicit user corrections — stale dataset and token status reports
+    conflicts_with: [R7]
+  - id: R2
+    name: confirm-scope-before-code
+    priority: critical
+    description: Restate interpreted scope before writing any code
+    instruction: |
+      State in ONE sentence what you will build, at what level, using which data source.
+      If ambiguous, ask for clarification before writing a single line.
+    triggers:
+      - add
+      - implement
+      - build
+      - create
+      - sensor
+      - dashboard
+      - write
+      - code
+    evidence: 2 explicit scope corrections — sensor level and demo-vs-real data
+  # ---------- HIGH (Quality & Process) ----------
+
+  - id: R3
+    name: merge-within-one-minute
+    priority: high
+    description: Merge PRs immediately, but only if local validation passed
+    instruction: |
+      If local validation (R4) passed, merge the PR immediately. Max wait: 60 seconds.
+      Do NOT wait for CI or external services. If CI fails post-merge, diagnose and fix.
+      EXCEPTION: If this is production/main branch, wait for CI.
+    triggers:
+      - waiting
+      - wait for
+      - ci
+      - checks
+      - passing
+      - pending
+      - merge
+    evidence: Explicit user rule — NEVER WAIT MORE THAN ONE MINUTE — MERGE THE PR IMMEDIATELY
+    exceptions:
+      - production/main branch requires CI pass
+
+  - id: R4
+    name: validate-before-push
+    priority: high
+    description: Run local validation before every git push
+    instruction: |
+      Before git push:
+      1. Verify commit subject is lowercase <=100 chars
+      2. Run prettier --check on changed YAML/JSON/MD files
+      3. Confirm all relevant files are staged
+      4. Fix any issues locally — never use --no-verify
+    triggers:
+      - git push
+      - push
+      - commit
+      - pull request
+      - pr
+    evidence: 3 avoidable CI failures — uppercase TDD, "Fix:", semgrep.yml
+
+  - id: R5
+    name: rebase-before-pr
+    priority: high
+    description: Always rebase on main before opening a PR
+    instruction: |
+      Before creating a PR:
+      git fetch origin main && git rebase origin/main
+      Never open a PR from an unrebased branch.
+    triggers:
+      - pull request
+      - pr
+      - create pr
+      - merge
+      - push branch
+    evidence: 3 merge-conflict failures on PRs #14, #15, #16
+
+  - id: R6
+    name: rearm-monitors-on-timeout
+    priority: high
+    description: Re-arm persistent monitors immediately on timeout
+    instruction: |
+      When any persistent monitor times out, re-arm it in the same turn — before responding about anything else.
+      A dead monitor is a silent failure. Silence != healthy.
+    triggers:
+      - monitor timed out
+      - timeout
+      - re-arm
+      - monitor expired
+      - dead monitor
+    evidence: 2 monitor timeout events that required user prompting to re-arm
+
+  - id: R7
+    name: connect-to-real-data
+    priority: high
+    description: Never use placeholder/demo data in production dashboards
+    instruction: |
+      Connect every display to the real data source. If empty, show an empty-state message.
+      Never hardcode sample rows. Never use demo data in production contexts.
+    triggers:
+      - dashboard
+      - chart
+      - graph
+      - display
+      - table
+      - visualization
+      - data
+    evidence: Explicit user correction — I want real data, not demo data
+
+  - id: R8
+    name: fix-root-cause
+    priority: medium
+    description: Fix root cause of failures — never patch symptoms
+    instruction: |
+      When CI fails or an error occurs:
+      1. Read the full error log
+      2. Find the exact file and line
+      3. Fix that file
+      4. Never add --no-verify or ignore flags
+    triggers:
+      - ci failed
+      - check failed
+      - lint failed
+      - error
+      - failure
+      - broken
+      - failing
+    evidence: Pattern across 4 CI failures in this session
+
+  - id: R9
+    name: dynamic-responses-no-hardcoding
+    priority: high
+    description: Generate dynamic, complete responses — never hardcoded phrases
+    instruction: |
+      Generate responses that directly address the user's specific request.
+      Never use hardcoded phrases that don't match the actual query.
+      Never truncate or cut off mid-sentence.
+    triggers:
+      - hardcoded
+      - user wants
+      - let me
+      - think through
+      - incomplete
+      - cut-off
+      - doesn't work
+      - garbage
+    evidence: 245 occurrences of hardcoded phrases + 32 incomplete responses (consolidated)
+
+  - id: R10
+    name: handle-corrections-accurately
+    priority: high
+    description: Re-evaluate and adjust when user corrects you
+    instruction: |
+      When user says "actually", "no", "you didn't", or similar corrections:
+      1. Stop your current response
+      2. Re-evaluate what they corrected
+      3. Adjust your response to match their intended meaning
+      4. Acknowledge the correction explicitly
+    triggers:
+      - actually
+      - 'no,'
+      - you didn't
+      - correction
+      - not that
+    evidence: 253 occurrences where AI ignored or misinterpreted user corrections
+
+  - id: R11
+    name: answer-unanswered-questions
+    priority: high
+    description: Always respond to user questions — never repeat without answering
+    instruction: |
+      If a user asks a question:
+      1. Provide a substantive response that directly answers it
+      2. If unclear, acknowledge and ask for clarification
+      3. Never repeat the question back without answering it
+      4. Never respond with 0 characters
+    triggers:
+      - repeat
+      - unanswered
+      - question
+      - clarification
+      - what
+      - how
+      - can
+      - thinking
+      - idea
+      - ways
+    evidence: 421 occurrences of repeating unanswered questions + 8 zero-character responses (consolidated)
+
+# ---------- Override ----------
+
+override:
+  description: |
+    If the user explicitly says "ignore rules" or "bypass" followed by a specific instruction,
+    follow their instruction directly.
+  triggers:
+    - ignore rules
+    - bypass
+    - skip guardrails
+  instruction: Follow the user's explicit instruction directly, bypassing all rules above.
+
+# ---------- Metadata ----------
+
+metadata:
+  version: '2.0'
+  generated_from: empirical AI conversation failures
+  conversations_analyzed: 289
+  total_rules: 11
+  previous_version_rules: 18
+  duplicates_removed: 7
+  token_savings: ~40%
+  compatible_with:
+    - claude-learner
+    - mengram
+    - mcp-standards
