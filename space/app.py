@@ -4,9 +4,41 @@ import csv
 import io
 import json
 import os
+import re
 import uuid
 from datetime import datetime
+from pathlib import Path
 from typing import Any
+
+# ---------------------------------------------------------------------------
+# PII scrubbing helpers
+# ---------------------------------------------------------------------------
+
+_EMAIL_RE = re.compile(r"[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}", re.IGNORECASE)
+_HOME_RE = re.compile(r"(?:/home/[^/\s]+|/Users/[^/\s]+|C:\\Users\\[^\\\s]+)", re.IGNORECASE)
+_IP_RE = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
+_PHONE_RE = re.compile(r"\b(?:\+?\d[\d\s\-().]{7,}\d)\b")
+_TOKEN_RE = re.compile(r"\b(hf_|sk-|ghp_|gho_|ghs_|github_pat_)[A-Za-z0-9_\-]{10,}\b")
+
+
+def _scrub_pii(text: str) -> str:
+    """Replace common PII patterns with safe placeholders."""
+    text = _EMAIL_RE.sub("[EMAIL]", text)
+    text = _HOME_RE.sub("[HOME]", text)
+    text = _IP_RE.sub("[IP]", text)
+    text = _PHONE_RE.sub("[PHONE]", text)
+    text = _TOKEN_RE.sub("[TOKEN]", text)
+    return text
+
+
+def _sanitize_path(cwd: str) -> str:
+    """Return only the project-relative path, stripping the home prefix."""
+    if not cwd:
+        return ""
+    try:
+        return str(Path(cwd).relative_to(Path.home()))
+    except ValueError:
+        return _HOME_RE.sub("[HOME]", cwd)
 
 import gradio as gr
 import pandas as pd
@@ -1816,8 +1848,8 @@ def _parse_session_jsonl(lines: list[str]) -> dict | None:
             if j < len(messages):
                 turns.append({
                     "turn_number": len(turns) + 1,
-                    "user_input": messages[i]["text"][:4000],
-                    "agent_response": messages[j]["text"][:4000],
+                    "user_input": _scrub_pii(messages[i]["text"][:4000]),
+                    "agent_response": _scrub_pii(messages[j]["text"][:4000]),
                     "timestamp": messages[i]["timestamp"],
                     "gaps_detected": [],
                     "rules_applied": [],
@@ -1834,7 +1866,7 @@ def _parse_session_jsonl(lines: list[str]) -> dict | None:
         "conversation_id": f"claude_code_{session_meta['session_id']}",
         "session_id": session_meta["session_id"],
         "slug": session_meta["slug"],
-        "project_context": session_meta.get("cwd", ""),
+        "project_context": _sanitize_path(session_meta.get("cwd", "")),
         "git_branch": session_meta.get("git_branch", ""),
         "source": "claude_code_local",
         "turns": turns,

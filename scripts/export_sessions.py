@@ -33,6 +33,39 @@ DATASET_ID = "vooom/AI_Rule_Learning"
 HF_TOKEN = os.environ.get("HF_TOKEN")
 DEFAULT_CLAUDE_DIR = Path.home() / ".claude" / "projects"
 
+# Regex patterns for PII detection
+_EMAIL_RE = re.compile(r"[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}", re.IGNORECASE)
+_HOME_RE = re.compile(r"(?:/home/[^/\s]+|/Users/[^/\s]+|C:\\Users\\[^\\\s]+)", re.IGNORECASE)
+_IP_RE = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
+_PHONE_RE = re.compile(r"\b(?:\+?\d[\d\s\-().]{7,}\d)\b")
+_TOKEN_RE = re.compile(r"\b(hf_|sk-|ghp_|gho_|ghs_|github_pat_)[A-Za-z0-9_\-]{10,}\b")
+
+
+def _scrub_pii(text: str) -> str:
+    """Replace common PII patterns with safe placeholders."""
+    text = _EMAIL_RE.sub("[EMAIL]", text)
+    text = _HOME_RE.sub("[HOME]", text)
+    text = _IP_RE.sub("[IP]", text)
+    text = _PHONE_RE.sub("[PHONE]", text)
+    text = _TOKEN_RE.sub("[TOKEN]", text)
+    return text
+
+
+def _sanitize_path(cwd: str) -> str:
+    """Return only the project folder name, stripping the home prefix."""
+    if not cwd:
+        return ""
+    path = Path(cwd)
+    # Drop everything up to and including the home directory
+    try:
+        rel = path.relative_to(Path.home())
+        return str(rel)
+    except ValueError:
+        pass
+    # Fallback: strip leading /home/<user> or /Users/<user>
+    sanitized = _HOME_RE.sub("[HOME]", str(path))
+    return sanitized
+
 
 # ---------------------------------------------------------------------------
 # Parse a single session JSONL file → Conversation dict
@@ -129,8 +162,8 @@ def parse_session(path: Path) -> dict | None:
                 turn_number += 1
                 turns.append({
                     "turn_number": turn_number,
-                    "user_input": user_text[:4000],   # cap length
-                    "agent_response": assistant_text[:4000],
+                    "user_input": _scrub_pii(user_text[:4000]),
+                    "agent_response": _scrub_pii(assistant_text[:4000]),
                     "timestamp": messages[i]["timestamp"],
                     "gaps_detected": [],
                     "rules_applied": [],
@@ -148,7 +181,7 @@ def parse_session(path: Path) -> dict | None:
         "conversation_id": conversation_id,
         "session_id": session_meta["session_id"],
         "slug": session_meta["slug"],
-        "project_context": session_meta.get("cwd", ""),
+        "project_context": _sanitize_path(session_meta.get("cwd", "")),
         "git_branch": session_meta.get("git_branch", ""),
         "source": "claude_code_local",
         "turns": turns,
