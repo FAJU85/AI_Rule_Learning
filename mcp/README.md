@@ -23,20 +23,14 @@ Your sessions (any AI tool)
 | **Cursor / Windsurf** | Generic JSONL with `{role, content}` messages            |
 | **Any tool**          | Generic JSONL — `{role, content}` or `{user, assistant}` |
 
-## Two tiers
-
-### Personal (free, open source)
+## Personal tier (this package — free)
 
 - Analyses **your** sessions → generates **your** personalised rules
 - Data stays in your own private HF dataset — you are the data controller
 - Opt in to contribute anonymised gap patterns to the community pool
 
-### Business / Government (licence required)
-
-- Everything in personal PLUS access to aggregated community rules
-- Broader ruleset built from collective patterns across all opted-in users
-- Higher privacy guarantees for your organisation's own data
-- Contact: <info@tococolors.com>
+> **Organisations and governments:** a separate business version is available
+> by pre-order. Contact <info@tococolors.com> to request access.
 
 ## Installation
 
@@ -62,7 +56,6 @@ Add to your Claude Desktop / Claude Code MCP config:
       "env": {
         "HF_TOKEN": "hf_your_write_token",
         "ARL_DATASET": "yourname/AI_Rule_Learning",
-        "ARL_TIER": "personal",
         "ARL_SESSIONS": "/path/to/sessions,/another/path",
         "ARL_CONTRIBUTE": "false"
       }
@@ -77,7 +70,6 @@ Add to your Claude Desktop / Claude Code MCP config:
 | ---------------- | -------------------- | -------------------------------- |
 | `HF_TOKEN`       | —                    | HF write token (required)        |
 | `ARL_DATASET`    | —                    | Your HF dataset repo ID          |
-| `ARL_TIER`       | `personal`           | `personal` or `business`         |
 | `ARL_SESSIONS`   | `~/.claude/projects` | Comma-separated session paths    |
 | `ARL_CONTRIBUTE` | `false`              | Opt in to community contribution |
 
@@ -100,10 +92,6 @@ back the latest rules.
 ### `list_providers`
 
 Shows which session paths are configured and how many files were found.
-
-### `get_community_rules` (business tier only)
-
-Fetches aggregated rules from the community dataset.
 
 ## Full automatic loop
 

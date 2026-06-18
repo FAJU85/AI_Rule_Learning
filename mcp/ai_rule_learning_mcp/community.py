@@ -3,7 +3,7 @@
 Only anonymised gap patterns (type, count, severity) are sent to the
 community pool. Raw conversation text NEVER leaves the user's machine.
 
-Community dataset: vooom/AI_Rule_Learning_Community (public, read-only for users)
+Community dataset: vooom/AI_Rule_Learning_Community (public, opt-in only)
 """
 
 from __future__ import annotations
@@ -17,7 +17,6 @@ HF_TOKEN = os.environ.get("HF_TOKEN", "")
 
 
 def _gap_pattern(gap: dict) -> dict:
-    """Strip all personal content from a gap — keep only type/severity/turn metadata."""
     return {
         "type": gap.get("type", "unknown"),
         "severity": gap.get("severity", 1),
@@ -28,11 +27,8 @@ def _gap_pattern(gap: dict) -> dict:
 def contribute_gaps(gaps_by_type: dict[str, list[dict]], source_hash: str) -> bool:
     """Submit anonymised gap pattern counts to the community dataset.
 
-    Args:
-        gaps_by_type: {gap_type: [gap_dict, ...]} — from local analysis
-        source_hash:  SHA256 of session_id — used to deduplicate, not reversible
-    Returns:
-        True if contribution succeeded
+    Only gap type/severity/turn metadata is sent — no conversation text.
+    source_hash is SHA-256 of session_id and is used for deduplication only.
     """
     if not HF_TOKEN:
         return False
@@ -58,21 +54,22 @@ def contribute_gaps(gaps_by_type: dict[str, list[dict]], source_hash: str) -> bo
 
         api = HfApi(token=HF_TOKEN)
 
-        # Load existing contributions to deduplicate
         existing: list[dict] = []
         try:
             path = hf_hub_download(
-                repo_id=COMMUNITY_DATASET, filename="contributions.jsonl",
-                repo_type="dataset", token=HF_TOKEN, force_download=True,
+                repo_id=COMMUNITY_DATASET,
+                filename="contributions.jsonl",
+                repo_type="dataset",
+                token=HF_TOKEN,
+                force_download=True,
             )
             with open(path, encoding="utf-8") as f:
                 existing = [json.loads(l) for l in f if l.strip()]
         except (EntryNotFoundError, Exception):
             pass
 
-        existing_hashes = {r.get("source_hash") for r in existing}
-        if record["source_hash"] in existing_hashes:
-            return False  # already contributed
+        if record["source_hash"] in {r.get("source_hash") for r in existing}:
+            return False
 
         updated = existing + [record]
         content = "\n".join(json.dumps(r, ensure_ascii=False) for r in updated) + "\n"
@@ -81,23 +78,8 @@ def contribute_gaps(gaps_by_type: dict[str, list[dict]], source_hash: str) -> bo
             path_in_repo="contributions.jsonl",
             repo_id=COMMUNITY_DATASET,
             repo_type="dataset",
-            commit_message=f"mcp: anonymised gap contribution",
+            commit_message="mcp: anonymised gap contribution",
         )
         return True
     except Exception:
         return False
-
-
-def fetch_community_rules() -> list[dict]:
-    """Download rules from the community dataset (read-only for personal tier)."""
-    try:
-        from huggingface_hub import hf_hub_download
-        path = hf_hub_download(
-            repo_id=COMMUNITY_DATASET, filename="rules.jsonl",
-            repo_type="dataset", token=HF_TOKEN, force_download=True,
-        )
-        with open(path, encoding="utf-8") as f:
-            rules = [json.loads(l) for l in f if l.strip()]
-        return [r for r in rules if r.get("is_active", True)]
-    except Exception:
-        return []
