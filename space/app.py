@@ -8381,7 +8381,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
             version_history_table = gr.Dataframe(interactive=False, wrap=True)
 
             def refresh_rules():
-                return build_rules_table(), gr.Dropdown(choices=get_rule_names())
+                return build_rules_table(), gr.update(choices=get_rule_names())
 
             refresh_rules_btn.click(refresh_rules, outputs=[rules_table, rule_selector])
             rules_tab.select(refresh_rules, outputs=[rules_table, rule_selector])
@@ -8401,7 +8401,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
             review_status = gr.Markdown()
 
             def refresh_pending():
-                return build_pending_rules_table(), gr.Dropdown(choices=get_pending_rule_ids())
+                return build_pending_rules_table(), gr.update(choices=get_pending_rule_ids())
 
             refresh_pending_btn.click(refresh_pending, outputs=[pending_table, pending_selector])
             rules_tab.select(refresh_pending, outputs=[pending_table, pending_selector])
@@ -8424,7 +8424,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
             ab_comparison = gr.Markdown()
 
             def _refresh_ab_rules():
-                return gr.Dropdown(choices=get_rule_names())
+                return gr.update(choices=get_rule_names())
 
             ab_refresh_btn.click(_refresh_ab_rules, outputs=ab_rule_selector)
             rules_tab.select(_refresh_ab_rules, outputs=ab_rule_selector)
@@ -8444,7 +8444,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
             owner_status = gr.Markdown()
 
             def _refresh_owner_rules():
-                return gr.Dropdown(choices=get_rule_names())
+                return gr.update(choices=get_rule_names())
 
             owner_refresh_btn.click(_refresh_owner_rules, outputs=owner_rule_selector)
             rules_tab.select(_refresh_owner_rules, outputs=owner_rule_selector)
@@ -8470,7 +8470,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
             lc_status = gr.Markdown()
 
             def _refresh_lc():
-                return build_lifecycle_table(), gr.Dropdown(choices=get_rule_names())
+                return build_lifecycle_table(), gr.update(choices=get_rule_names())
 
             lifecycle_refresh_btn.click(_refresh_lc, outputs=[lifecycle_table, lc_rule_selector])
             rules_tab.select(_refresh_lc, outputs=[lifecycle_table, lc_rule_selector])
@@ -8496,7 +8496,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
             exc_status = gr.Markdown()
 
             def _refresh_exc():
-                return build_exceptions_table(), gr.Dropdown(choices=get_rule_names())
+                return build_exceptions_table(), gr.update(choices=get_rule_names())
 
             exc_refresh_btn.click(_refresh_exc, outputs=[exceptions_table, exc_rule_selector])
             rules_tab.select(_refresh_exc, outputs=[exceptions_table, exc_rule_selector])
@@ -8526,7 +8526,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
             dep_status = gr.Markdown()
 
             def _refresh_dep_sel():
-                return gr.Dropdown(choices=get_rule_ids())
+                return gr.update(choices=get_rule_ids())
 
             dep_refresh_sel_btn.click(_refresh_dep_sel, outputs=dep_rule_sel)
             rules_tab.select(_refresh_dep_sel, outputs=dep_rule_sel)
@@ -8706,11 +8706,11 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
             audit_log = gr.Textbox(label="Audit log", lines=8, interactive=False, autoscroll=True)
 
             def _refresh_audit_sel():
-                return gr.Dropdown(choices=[""] + get_conversation_ids())
+                return gr.update(choices=[""] + get_conversation_ids())
 
             audit_refresh_sel.click(_refresh_audit_sel, outputs=audit_conv_sel)
             audit_refresh_btn.click(lambda: build_audit_table(), outputs=audit_table)
-            monitoring_tab.select(lambda: (build_audit_table(), gr.Dropdown(choices=[""] + get_conversation_ids())),
+            monitoring_tab.select(lambda: (build_audit_table(), gr.update(choices=[""] + get_conversation_ids())),
                       outputs=[audit_table, audit_conv_sel])
             audit_run_btn.click(run_ai_audit, inputs=audit_conv_sel, outputs=audit_log)
 
@@ -8791,7 +8791,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
             prov_status = gr.Markdown()
 
             def _refresh_prov_sel():
-                return gr.Dropdown(choices=get_conversation_ids())
+                return gr.update(choices=get_conversation_ids())
 
             prov_refresh_sel.click(_refresh_prov_sel, outputs=prov_conv_sel)
             prov_refresh_btn.click(lambda cid: build_provenance_table(cid),
@@ -8799,7 +8799,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
             prov_auto_btn.click(auto_record_provenance, inputs=prov_conv_sel, outputs=prov_status)
             prov_conv_sel.change(lambda cid: build_provenance_table(cid),
                                  inputs=prov_conv_sel, outputs=prov_table)
-            monitoring_tab.select(lambda: (build_provenance_table(), gr.Dropdown(choices=get_conversation_ids())),
+            monitoring_tab.select(lambda: (build_provenance_table(), gr.update(choices=get_conversation_ids())),
                       outputs=[prov_table, prov_conv_sel])
 
             gr.HTML('<div class="section-title">Data Provenance</div>')
@@ -8921,7 +8921,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
             compass_alerts = gr.Markdown()
 
             def refresh_compass_list():
-                return gr.Dropdown(choices=get_conversation_ids())
+                return gr.update(choices=get_conversation_ids())
 
             refresh_compass_btn.click(refresh_compass_list, outputs=[conv_selector])
             analytics_tab.select(refresh_compass_list, outputs=[conv_selector])
@@ -9029,7 +9029,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
             bench_add_status = gr.Markdown()
 
             def _refresh_bench():
-                return build_benchmark_table(), gr.Dropdown(choices=get_rule_ids())
+                return build_benchmark_table(), gr.update(choices=get_rule_ids())
 
             def _run_and_refresh():
                 result = run_benchmark()
@@ -9076,7 +9076,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
             rca_status = gr.Markdown()
 
             def _refresh_rca():
-                return build_rca_summary(), build_rca_table(), gr.Dropdown(choices=get_rule_ids())
+                return build_rca_summary(), build_rca_table(), gr.update(choices=get_rule_ids())
 
             rca_refresh_btn.click(_refresh_rca, outputs=[rca_summary_md, rca_table, rca_rule_sel])
             analytics_tab.select(_refresh_rca, outputs=[rca_summary_md, rca_table, rca_rule_sel])
@@ -9115,7 +9115,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
             inc_update_status = gr.Markdown()
 
             def _refresh_inc():
-                return build_incident_summary(), build_incident_chart(), build_incidents_table(), gr.Dropdown(choices=get_rule_ids())
+                return build_incident_summary(), build_incident_chart(), build_incidents_table(), gr.update(choices=get_rule_ids())
 
             inc_refresh_btn.click(_refresh_inc, outputs=[inc_summary_md, inc_chart, inc_table, inc_rule_sel])
             analytics_tab.select(_refresh_inc, outputs=[inc_summary_md, inc_chart, inc_table, inc_rule_sel])
@@ -9141,7 +9141,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
             trace_status = gr.Markdown()
 
             def _refresh_traces():
-                return build_trace_heatmap(), build_trace_table(), gr.Dropdown(choices=get_conversation_ids())
+                return build_trace_heatmap(), build_trace_table(), gr.update(choices=get_conversation_ids())
 
             trace_refresh_btn.click(_refresh_traces, outputs=[trace_heatmap, trace_table, trace_conv_sel])
             analytics_tab.select(_refresh_traces, outputs=[trace_heatmap, trace_table, trace_conv_sel])
@@ -9166,7 +9166,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
             exp_hist_refresh = gr.Button("↻ Refresh history", variant="secondary", size="sm")
 
             def _refresh_exp_sel():
-                return gr.Dropdown(choices=get_rule_ids())
+                return gr.update(choices=get_rule_ids())
 
             def _refresh_exp_table():
                 return build_explanations_table()
@@ -9213,7 +9213,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
             slo_status = gr.Markdown()
 
             def _refresh_slo():
-                return build_slo_chart(), build_slo_table(), gr.Dropdown(choices=get_rule_ids())
+                return build_slo_chart(), build_slo_table(), gr.update(choices=get_rule_ids())
 
             slo_refresh_btn.click(_refresh_slo, outputs=[slo_chart, slo_table, slo_rule_sel])
             gov_tab.select(_refresh_slo, outputs=[slo_chart, slo_table, slo_rule_sel])
@@ -9242,7 +9242,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
             imp_status = gr.Markdown()
 
             def _refresh_imp():
-                return build_improvement_funnel(), build_improvement_table(), gr.Dropdown(choices=get_rule_ids())
+                return build_improvement_funnel(), build_improvement_table(), gr.update(choices=get_rule_ids())
 
             imp_refresh_btn.click(_refresh_imp, outputs=[imp_funnel, imp_table, imp_rule_sel])
             gov_tab.select(_refresh_imp, outputs=[imp_funnel, imp_table, imp_rule_sel])
@@ -9723,4 +9723,4 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
 
 
 if __name__ == "__main__":
-    demo.launch()
+    demo.launch(share=False, show_api=False)
