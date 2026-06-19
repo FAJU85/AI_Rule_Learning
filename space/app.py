@@ -5890,10 +5890,36 @@ body, .gradio-container { background: #f8fafc !important; color: #0f172a; }
 .tab-nav button { color: #64748b !important; font-weight: 500; }
 .tab-nav button.selected { color: #4f46e5 !important; border-bottom-color: #4f46e5 !important; font-weight: 600; }
 
-/* ── Inputs ─────────────────────────────────────────────────────────── */
+/* ── Inputs / selects ───────────────────────────────────────────────── */
 .gr-textbox textarea, .gr-textbox input { background: #ffffff !important;
     border-color: #e2e8f0 !important; color: #0f172a !important; }
 label.gr-form { color: #64748b !important; }
+
+/* ── Gradio native component overrides for light theme ─────────────── */
+/* Panels / blocks */
+.gr-panel, .gr-box, .block { background: #ffffff !important;
+    border-color: #e2e8f0 !important; }
+/* Accordion */
+.gr-accordion > .label-wrap { background: #f8fafc !important;
+    border-color: #e2e8f0 !important; color: #334155 !important; }
+.gr-accordion > .label-wrap span { color: #334155 !important; }
+/* Dropdown */
+.gr-dropdown, select { background: #ffffff !important;
+    border-color: #e2e8f0 !important; color: #0f172a !important; }
+/* Dataframe / table */
+.gr-dataframe table { border-color: #e2e8f0 !important; }
+.gr-dataframe th { background: #f8fafc !important; color: #64748b !important;
+    font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; }
+.gr-dataframe td { color: #334155 !important; border-color: #f1f5f9 !important; }
+.gr-dataframe tr:hover td { background: #f8fafc !important; }
+/* Buttons */
+button.primary { background: #4f46e5 !important; border-color: #4f46e5 !important; }
+button.primary:hover { background: #4338ca !important; }
+button.secondary { background: #ffffff !important; border-color: #e2e8f0 !important;
+    color: #334155 !important; }
+button.secondary:hover { background: #f8fafc !important; }
+/* Markdown inside components */
+.gr-prose, .prose { color: #334155 !important; }
 
 /* ── Mobile ─────────────────────────────────────────────────────────── */
 .table-wrap { overflow-x: auto !important; -webkit-overflow-scrolling: touch; }
@@ -6046,7 +6072,7 @@ def build_pending_alert_html() -> str:
     return '<div class="pending-alert none">✅ All rules reviewed — no pending decisions.</div>'
 
 
-def build_effectiveness_chart_dark() -> Any:
+def build_effectiveness_chart() -> Any:
     rules = load_rules()
     active = [r for r in rules if r.get("is_active")]
     if not active:
@@ -8240,6 +8266,8 @@ def build_maturity_report() -> str:
         lines += ["", "🏆 **Maximum maturity achieved — Level 6 Autonomous**"]
 
     return "\n".join(lines)
+
+
 with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as demo:
 
     gr.HTML("""
@@ -8255,7 +8283,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
         with gr.Tab("📊 Dashboard"):
             # ── Top bar: title + refresh ──────────────────────────────────────
             with gr.Row():
-                gr.HTML('<div style="flex:1;min-width:0;display:flex;align-items:center"><span style="font-size:0.8rem;color:#8b949e;text-transform:uppercase;letter-spacing:.08em;font-weight:600">Overview</span></div>')
+                gr.HTML('<div style="flex:1;min-width:0;display:flex;align-items:center"><span style="font-size:0.8rem;color:#64748b;text-transform:uppercase;letter-spacing:.08em;font-weight:600">Overview</span></div>')
                 dashboard_refresh = gr.Button("↻ Refresh", variant="secondary", size="sm")
 
             # ── Section 1: Action alert ───────────────────────────────────────
@@ -8285,7 +8313,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 return (
                     build_pending_alert_html(),
                     build_metrics_html(),
-                    build_effectiveness_chart_dark(),
+                    build_effectiveness_chart(),
                     build_maturity_chart(),
                     build_maturity_report(),
                     build_activity_html(),
