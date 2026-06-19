@@ -3464,6 +3464,216 @@ def build_kg_table() -> pd.DataFrame:
 
 
 # ---------------------------------------------------------------------------
+# Rule Conflict Detection (#7)
+# ---------------------------------------------------------------------------
+
+CONFLICT_TYPES = {
+    "contradiction": "Rules give opposing instructions for the same trigger",
+    "overlap":       "Rules cover the same trigger but with different actions",
+    "duplicate":     "Rules are functionally identical",
+    "ambiguity":     "Rule instructions are vague enough to conflict at runtime",
+}
+
+_CONFLICT_PROMPT = """You are an AI governance analyst detecting conflicts between AI rules.
+
+Rule A:
+  Name: {name_a}
+  Instruction: {instr_a}
+  Triggers: {trig_a}
+
+Rule B:
+  Name: {name_b}
+  Instruction: {instr_b}
+  Triggers: {trig_b}
+
+Determine if these two rules conflict. Respond as JSON with keys:
+  conflict_type: one of "contradiction", "overlap", "duplicate", "ambiguity", or "none"
+  severity: "low", "medium", or "high" (omit if conflict_type is "none")
+  explanation: one sentence (omit if conflict_type is "none")
+
+Return ONLY the JSON object."""
+
+
+def _rule_text(rule: dict) -> str:
+    instr = (rule.get("action") or {}).get("instruction", rule.get("description", ""))
+    return f"{rule.get('name', '')} {instr}".lower()
+
+
+def detect_conflicts_heuristic(rules: list[dict]) -> list[dict]:
+    """Fast keyword-based conflict detection without LLM."""
+    conflicts = []
+    active = [r for r in rules if r.get("is_active") or r.get("status") == "active"]
+    for i in range(len(active)):
+        for j in range(i + 1, len(active)):
+            a, b = active[i], active[j]
+            kw_a = set(_gap_keywords_from_rule(a))
+            kw_b = set(_gap_keywords_from_rule(b))
+            shared = kw_a & kw_b
+            if not shared:
+                continue
+            text_a = _rule_text(a)
+            text_b = _rule_text(b)
+            # Duplicate: very similar text
+            words_a = set(text_a.split())
+            words_b = set(text_b.split())
+            overlap_ratio = len(words_a & words_b) / max(len(words_a | words_b), 1)
+            if overlap_ratio > 0.7:
+                ctype = "duplicate"
+            elif shared:
+                # Check for negation contradiction
+                neg_words = {"never", "not", "no", "don't", "refuse", "block", "stop"}
+                has_neg_a = any(w in text_a for w in neg_words)
+                has_neg_b = any(w in text_b for w in neg_words)
+                if has_neg_a != has_neg_b:
+                    ctype = "contradiction"
+                else:
+                    ctype = "overlap"
+            else:
+                continue
+            conflicts.append({
+                "rule_id_a": a.get("rule_id", ""),
+                "rule_name_a": a.get("name", ""),
+                "rule_id_b": b.get("rule_id", ""),
+                "rule_name_b": b.get("name", ""),
+                "shared_keywords": list(shared),
+                "conflict_type": ctype,
+                "severity": "high" if ctype == "contradiction" else "medium" if ctype == "overlap" else "low",
+                "explanation": f"Shared triggers: {list(shared)[:3]}",
+                "detected_by": "heuristic",
+                "detected_at": datetime.utcnow().isoformat(),
+            })
+    return conflicts
+
+
+def run_conflict_detection_llm(max_pairs: int = 10) -> str:
+    """LLM-powered conflict scan across active rule pairs. Generator for streaming."""
+    rules = [r for r in _download_jsonl("rules.jsonl") if r.get("is_active") or r.get("status") == "active"]
+    if len(rules) < 2:
+        yield "Need at least 2 active rules to detect conflicts."
+        return
+
+    # Heuristic pre-filter to promising pairs
+    candidates = detect_conflicts_heuristic(rules)
+    if not candidates:
+        # Fall back to scanning all pairs up to max_pairs
+        import itertools
+        pairs = list(itertools.combinations(rules, 2))[:max_pairs]
+    else:
+        # Only LLM-verify heuristic hits
+        id_map = {r["rule_id"]: r for r in rules if "rule_id" in r}
+        pairs = [(id_map[c["rule_id_a"]], id_map[c["rule_id_b"]])
+                 for c in candidates[:max_pairs]
+                 if c["rule_id_a"] in id_map and c["rule_id_b"] in id_map]
+
+    existing_conflicts = _download_jsonl("conflicts.jsonl")
+    existing_pairs = {(c["rule_id_a"], c["rule_id_b"]) for c in existing_conflicts}
+
+    found = 0
+    try:
+        from huggingface_hub import InferenceClient
+        client = InferenceClient(token=os.environ.get("HF_TOKEN"))
+        for a, b in pairs:
+            pair_key = (a.get("rule_id", ""), b.get("rule_id", ""))
+            if pair_key in existing_pairs:
+                continue
+            prompt = _CONFLICT_PROMPT.format(
+                name_a=a.get("name", ""),
+                instr_a=(a.get("action") or {}).get("instruction", a.get("description", ""))[:200],
+                trig_a=a.get("triggers", []),
+                name_b=b.get("name", ""),
+                instr_b=(b.get("action") or {}).get("instruction", b.get("description", ""))[:200],
+                trig_b=b.get("triggers", []),
+            )
+            try:
+                resp = client.chat_completion(
+                    model="Qwen/Qwen2.5-72B-Instruct",
+                    messages=[{"role": "user", "content": prompt}],
+                    max_tokens=150, temperature=0.1,
+                )
+                raw = resp.choices[0].message.content.strip()
+                raw = re.sub(r"^```(?:json)?\s*", "", raw)
+                raw = re.sub(r"\s*```$", "", raw)
+                parsed = json.loads(raw)
+                if parsed.get("conflict_type", "none") != "none":
+                    entry = {
+                        "conflict_id": str(uuid.uuid4()),
+                        "rule_id_a": a.get("rule_id", ""),
+                        "rule_name_a": a.get("name", ""),
+                        "rule_id_b": b.get("rule_id", ""),
+                        "rule_name_b": b.get("name", ""),
+                        "conflict_type": parsed.get("conflict_type", "overlap"),
+                        "severity": parsed.get("severity", "medium"),
+                        "explanation": parsed.get("explanation", ""),
+                        "detected_by": "llm",
+                        "status": "open",
+                        "detected_at": datetime.utcnow().isoformat(),
+                    }
+                    existing_conflicts.append(entry)
+                    existing_pairs.add(pair_key)
+                    found += 1
+                    yield f"⚠️ [{entry['conflict_type'].upper()}] {a.get('name')} ↔ {b.get('name')}: {entry['explanation']}\n"
+            except Exception as e:
+                yield f"LLM error for pair ({a.get('name')}, {b.get('name')}): {e}\n"
+    except Exception as e:
+        yield f"LLM client error: {e}\n"
+
+    if found:
+        _upload_jsonl("conflicts.jsonl", existing_conflicts)
+    yield f"\n✅ Scan complete — {found} conflict(s) found and saved."
+
+
+def build_conflicts_table() -> pd.DataFrame:
+    conflicts = _download_jsonl("conflicts.jsonl")
+    if not conflicts:
+        return pd.DataFrame(columns=["ID", "Rule A", "Rule B", "Type", "Severity", "Explanation", "Status"])
+    rows = [{
+        "ID": c.get("conflict_id", "")[:8],
+        "Rule A": c.get("rule_name_a", "")[:25],
+        "Rule B": c.get("rule_name_b", "")[:25],
+        "Type": c.get("conflict_type", ""),
+        "Severity": c.get("severity", ""),
+        "Explanation": c.get("explanation", "")[:80],
+        "Status": c.get("status", "open"),
+    } for c in conflicts]
+    return pd.DataFrame(rows)
+
+
+def resolve_conflict(conflict_id: str, resolution: str) -> str:
+    conflicts = _download_jsonl("conflicts.jsonl")
+    target = next((c for c in conflicts if c.get("conflict_id", "").startswith(conflict_id)), None)
+    if not target:
+        return f"Conflict {conflict_id} not found."
+    target["status"] = "resolved"
+    target["resolution"] = resolution
+    target["resolved_at"] = datetime.utcnow().isoformat()
+    _upload_jsonl("conflicts.jsonl", conflicts)
+    return f"Conflict {conflict_id[:8]} resolved."
+
+
+def build_conflict_summary() -> str:
+    conflicts = _download_jsonl("conflicts.jsonl")
+    if not conflicts:
+        return "No conflicts detected yet. Run the conflict scan to check."
+    from collections import Counter
+    open_c = [c for c in conflicts if c.get("status") == "open"]
+    by_type = Counter(c.get("conflict_type") for c in open_c)
+    by_sev = Counter(c.get("severity") for c in open_c)
+    lines = [
+        f"**Conflict Summary** — {len(open_c)} open / {len(conflicts)} total",
+        "",
+        "| Type | Count | | Severity | Count |",
+        "|------|-------|---|---------|-------|",
+    ]
+    types = list(by_type.items())
+    sevs = list(by_sev.items())
+    for i in range(max(len(types), len(sevs))):
+        t = f"{types[i][0]} | {types[i][1]}" if i < len(types) else " | "
+        s = f"{sevs[i][0]} | {sevs[i][1]}" if i < len(sevs) else " | "
+        lines.append(f"| {t} | | {s} |")
+    return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
 # Rule Observability — SLO / SLI / error budget
 # ---------------------------------------------------------------------------
 
@@ -3724,6 +3934,396 @@ def build_governance_dashboard() -> str:
         f"| Open RCAs | {sum(1 for r in rcas if r.get('status') == 'open')} |",
         f"| Total Benchmark Cases | {len(bench_cases)} |",
     ]
+    return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# Trust Score (#43)
+# ---------------------------------------------------------------------------
+
+def compute_trust_score() -> dict:
+    """
+    Composite Trust Score (0–100) combining:
+      - Compliance component:  avg effectiveness_score of active rules  (weight 0.30)
+      - Drift component:       fraction of active rules NOT drifting     (weight 0.20)
+      - Coverage component:    gap coverage %                            (weight 0.15)
+      - Audit component:       benchmark pass rate                       (weight 0.20)
+      - Incident component:    1 - (open_rcas / max(total_rcas,1))       (weight 0.15)
+    Returns dict with component scores and final trust_score.
+    """
+    rules = _download_jsonl("rules.jsonl")
+    active = [r for r in rules if r.get("is_active") or r.get("status") == "active"]
+
+    # Compliance
+    effs = [r.get("effectiveness_score") for r in active if r.get("effectiveness_score") is not None]
+    compliance = (sum(effs) / len(effs)) if effs else 0.5
+
+    # Drift (fraction of rules with slope >= -0.05)
+    non_drifting = 0
+    for r in active:
+        hist = r.get("score_history", [])
+        if len(hist) < 3:
+            non_drifting += 1
+            continue
+        drift = _compute_drift(hist)
+        if not drift.get("is_drifting", False):
+            non_drifting += 1
+    drift_score = non_drifting / max(len(active), 1)
+
+    # Coverage
+    cov = compute_coverage()
+    coverage_score = cov["coverage_pct"] / 100.0
+
+    # Benchmark pass rate
+    bench_cases = _download_jsonl(BENCHMARK_FILE)
+    rule_map = {r["rule_id"]: r for r in rules if "rule_id" in r}
+    bench_passed = bench_total = 0
+    for c in bench_cases:
+        rule = rule_map.get(c.get("rule_id", ""))
+        if not rule:
+            continue
+        fired = bool(_gap_keywords_from_rule(rule)) and any(
+            kw in c.get("input_text", "").lower() for kw in _gap_keywords_from_rule(rule)
+        )
+        bench_total += 1
+        if fired == c.get("should_trigger", True):
+            bench_passed += 1
+    audit_score = (bench_passed / bench_total) if bench_total else 0.5
+
+    # Incident (RCA) health
+    rcas = _download_jsonl(RCA_FILE)
+    open_rcas = sum(1 for r in rcas if r.get("status") == "open")
+    incident_score = 1.0 - (open_rcas / max(len(rcas), 1))
+
+    # Weighted composite
+    trust = round((
+        compliance    * 0.30 +
+        drift_score   * 0.20 +
+        coverage_score * 0.15 +
+        audit_score   * 0.20 +
+        incident_score * 0.15
+    ) * 100, 1)
+
+    return {
+        "trust_score":      trust,
+        "compliance":       round(compliance * 100, 1),
+        "drift_health":     round(drift_score * 100, 1),
+        "coverage":         cov["coverage_pct"],
+        "audit_pass_rate":  round(audit_score * 100, 1),
+        "incident_health":  round(incident_score * 100, 1),
+        "active_rules":     len(active),
+        "open_rcas":        open_rcas,
+    }
+
+
+def build_trust_gauge() -> Any:
+    """Gauge chart for the composite trust score."""
+    ts = compute_trust_score()
+    score = ts["trust_score"]
+    color = "#3fb950" if score >= 80 else "#d29922" if score >= 60 else "#f85149"
+    fig = go.Figure(go.Indicator(
+        mode="gauge+number+delta",
+        value=score,
+        delta={"reference": 80, "increasing": {"color": "#3fb950"}, "decreasing": {"color": "#f85149"}},
+        gauge={
+            "axis": {"range": [0, 100], "tickcolor": "#c9d1d9",
+                     "tickfont": {"color": "#c9d1d9"}},
+            "bar": {"color": color},
+            "bgcolor": "#161b22",
+            "bordercolor": "#30363d",
+            "steps": [
+                {"range": [0, 60],   "color": "#2d1a1a"},
+                {"range": [60, 80],  "color": "#2d2a1a"},
+                {"range": [80, 100], "color": "#1a2d1a"},
+            ],
+            "threshold": {
+                "line": {"color": "#c9d1d9", "width": 2},
+                "thickness": 0.75,
+                "value": 80,
+            },
+        },
+        title={"text": "Trust Score", "font": {"color": "#c9d1d9", "size": 16}},
+        number={"font": {"color": "#c9d1d9", "size": 40}},
+    ))
+    fig.update_layout(
+        paper_bgcolor="#0d1117",
+        margin=dict(l=20, r=20, t=60, b=20),
+        height=250,
+    )
+    return fig
+
+
+def build_trust_breakdown() -> Any:
+    """Radar / bar chart showing each trust component."""
+    ts = compute_trust_score()
+    components = ["Compliance", "Drift Health", "Coverage", "Audit Pass Rate", "Incident Health"]
+    values = [ts["compliance"], ts["drift_health"], ts["coverage"],
+              ts["audit_pass_rate"], ts["incident_health"]]
+    colors = ["#3fb950" if v >= 80 else "#d29922" if v >= 60 else "#f85149" for v in values]
+    fig = go.Figure(go.Bar(
+        x=components, y=values,
+        marker=dict(color=colors),
+        text=[f"{v}%" for v in values],
+        textposition="outside",
+        textfont=dict(color="#c9d1d9"),
+    ))
+    fig.update_layout(
+        paper_bgcolor="#0d1117", plot_bgcolor="#161b22",
+        title=dict(text="Trust Score Components", font=dict(color="#c9d1d9")),
+        xaxis=dict(tickfont=dict(color="#c9d1d9")),
+        yaxis=dict(tickfont=dict(color="#c9d1d9"), range=[0, 110]),
+        margin=dict(l=20, r=20, t=50, b=60),
+        height=260,
+        shapes=[dict(type="line", x0=-0.5, x1=4.5, y0=80, y1=80,
+                     line=dict(color="#d29922", width=1, dash="dash"))],
+    )
+    return fig
+
+
+# ---------------------------------------------------------------------------
+# Incident Management (#51)
+# ---------------------------------------------------------------------------
+
+INCIDENT_FILE = "incidents.jsonl"
+
+INCIDENT_SEVERITIES = ["P0_critical", "P1_high", "P2_medium", "P3_low"]
+INCIDENT_STATUSES   = ["open", "investigating", "mitigating", "resolved", "closed"]
+
+_SEVERITY_COLORS = {
+    "P0_critical": "#ff4444",
+    "P1_high":     "#f85149",
+    "P2_medium":   "#d29922",
+    "P3_low":      "#3fb950",
+}
+
+
+def open_incident(
+    rule_id: str,
+    title: str,
+    severity: str,
+    description: str,
+    detected_by: str = "manual",
+) -> str:
+    """Create a new incident record."""
+    if severity not in INCIDENT_SEVERITIES:
+        severity = "P2_medium"
+    rules = {r.get("rule_id"): r for r in _download_jsonl("rules.jsonl") if "rule_id" in r}
+    rule = rules.get(rule_id, {})
+    incident = {
+        "incident_id": str(uuid.uuid4()),
+        "rule_id":     rule_id,
+        "rule_name":   rule.get("name", rule_id),
+        "title":       title.strip(),
+        "severity":    severity,
+        "description": description.strip(),
+        "detected_by": detected_by,
+        "status":      "open",
+        "timeline":    [{"event": "opened", "at": datetime.utcnow().isoformat()}],
+        "recurrence_count": 0,
+        "opened_at":   datetime.utcnow().isoformat(),
+        "resolved_at": None,
+    }
+    # Check recurrence
+    existing = _download_jsonl(INCIDENT_FILE)
+    prior = [i for i in existing if i.get("rule_id") == rule_id and i.get("status") in ("resolved", "closed")]
+    if prior:
+        incident["recurrence_count"] = len(prior)
+    existing.append(incident)
+    _upload_jsonl(INCIDENT_FILE, existing)
+    return f"Incident opened (id={incident['incident_id'][:8]}…): [{severity}] {title}"
+
+
+def update_incident(incident_id: str, new_status: str, note: str = "") -> str:
+    """Advance incident status and log the transition."""
+    if new_status not in INCIDENT_STATUSES:
+        return f"Invalid status. Choose: {INCIDENT_STATUSES}"
+    incidents = _download_jsonl(INCIDENT_FILE)
+    target = next((i for i in incidents if i.get("incident_id", "").startswith(incident_id)), None)
+    if not target:
+        return f"Incident {incident_id} not found."
+    target["status"] = new_status
+    target.setdefault("timeline", []).append({
+        "event": new_status, "at": datetime.utcnow().isoformat(), "note": note,
+    })
+    if new_status in ("resolved", "closed"):
+        target["resolved_at"] = datetime.utcnow().isoformat()
+    _upload_jsonl(INCIDENT_FILE, incidents)
+    return f"Incident {incident_id[:8]} → [{new_status}]"
+
+
+def build_incidents_table() -> pd.DataFrame:
+    incidents = _download_jsonl(INCIDENT_FILE)
+    if not incidents:
+        return pd.DataFrame(columns=["ID", "Rule", "Title", "Severity", "Status", "Recurrences", "Opened"])
+    rows = [{
+        "ID":          i.get("incident_id", "")[:8],
+        "Rule":        i.get("rule_name", "")[:25],
+        "Title":       i.get("title", "")[:40],
+        "Severity":    i.get("severity", ""),
+        "Status":      i.get("status", ""),
+        "Recurrences": i.get("recurrence_count", 0),
+        "Opened":      i.get("opened_at", "")[:10],
+    } for i in sorted(incidents, key=lambda x: x.get("opened_at", ""), reverse=True)]
+    return pd.DataFrame(rows)
+
+
+def build_incident_summary() -> str:
+    incidents = _download_jsonl(INCIDENT_FILE)
+    if not incidents:
+        return "No incidents recorded."
+    from collections import Counter
+    open_i = [i for i in incidents if i.get("status") not in ("resolved", "closed")]
+    by_sev = Counter(i.get("severity") for i in open_i)
+    recurring = [i for i in incidents if i.get("recurrence_count", 0) > 0]
+
+    # MTTR for resolved
+    resolved = [i for i in incidents if i.get("resolved_at") and i.get("opened_at")]
+    if resolved:
+        def _hrs(i):
+            try:
+                return (datetime.fromisoformat(i["resolved_at"]) -
+                        datetime.fromisoformat(i["opened_at"])).total_seconds() / 3600
+            except Exception:
+                return 0
+        mttr = round(sum(_hrs(i) for i in resolved) / len(resolved), 1)
+    else:
+        mttr = None
+
+    lines = [
+        f"**Incident Summary** — {len(open_i)} open / {len(incidents)} total",
+        f"MTTR: {f'{mttr}h' if mttr is not None else 'n/a'}  |  Recurring: {len(recurring)}",
+        "",
+        "| Severity | Open |",
+        "|----------|------|",
+    ] + [f"| {sev} | {cnt} |" for sev, cnt in sorted(by_sev.items())]
+    return "\n".join(lines)
+
+
+def build_incident_chart() -> Any:
+    """Stacked bar by severity and status."""
+    incidents = _download_jsonl(INCIDENT_FILE)
+    if not incidents:
+        return go.Figure()
+    from collections import Counter
+    counts = Counter((i.get("severity", "P3_low"), i.get("status", "open")) for i in incidents)
+    statuses = list(dict.fromkeys(i.get("status", "open") for i in incidents))
+    fig = go.Figure()
+    for status in statuses:
+        y_vals = [counts.get((sev, status), 0) for sev in INCIDENT_SEVERITIES]
+        fig.add_trace(go.Bar(name=status, x=INCIDENT_SEVERITIES, y=y_vals))
+    fig.update_layout(
+        barmode="stack",
+        paper_bgcolor="#0d1117", plot_bgcolor="#161b22",
+        title=dict(text="Incidents by Severity & Status", font=dict(color="#c9d1d9")),
+        xaxis=dict(tickfont=dict(color="#c9d1d9")),
+        yaxis=dict(tickfont=dict(color="#c9d1d9"), title="Count",
+                   titlefont=dict(color="#c9d1d9")),
+        legend=dict(font=dict(color="#c9d1d9")),
+        margin=dict(l=40, r=20, t=50, b=60),
+    )
+    return fig
+
+
+# ---------------------------------------------------------------------------
+# Predictive Compliance (#52)
+# ---------------------------------------------------------------------------
+
+def _linear_forecast(values: list[float], steps_ahead: int = 3) -> list[float]:
+    """Simple linear extrapolation over the last N values."""
+    n = len(values)
+    if n < 2:
+        return [values[-1]] * steps_ahead if values else [0.5] * steps_ahead
+    xs = list(range(n))
+    x_mean = sum(xs) / n
+    y_mean = sum(values) / n
+    denom = sum((x - x_mean) ** 2 for x in xs)
+    slope = sum((xs[i] - x_mean) * (values[i] - y_mean) for i in range(n)) / denom if denom else 0
+    intercept = y_mean - slope * x_mean
+    return [round(max(0.0, min(1.0, intercept + slope * (n + s))), 3) for s in range(steps_ahead)]
+
+
+def compute_compliance_forecast(horizon: int = 3) -> list[dict]:
+    """
+    For each active rule with score_history, project effectiveness horizon steps forward.
+    Returns list of rule forecasts sorted by predicted decline.
+    """
+    rules = [r for r in _download_jsonl("rules.jsonl")
+             if (r.get("is_active") or r.get("status") == "active") and "rule_id" in r]
+    forecasts = []
+    for rule in rules:
+        hist = rule.get("score_history", [])
+        scores = [h.get("score") for h in hist if h.get("score") is not None]
+        if not scores:
+            scores = [rule.get("effectiveness_score", 0.5)]
+        current = scores[-1]
+        predicted = _linear_forecast(scores, steps_ahead=horizon)
+        delta = predicted[-1] - current
+        forecasts.append({
+            "rule_id":      rule.get("rule_id", ""),
+            "rule_name":    rule.get("name", ""),
+            "current_eff":  round(current * 100, 1),
+            "predicted":    [round(p * 100, 1) for p in predicted],
+            "delta_pct":    round(delta * 100, 1),
+            "at_risk":      delta < -0.05,
+        })
+    return sorted(forecasts, key=lambda x: x["delta_pct"])
+
+
+def build_forecast_chart(horizon: int = 3) -> Any:
+    """Line chart: current effectiveness + projected trend per at-risk rule."""
+    forecasts = compute_compliance_forecast(horizon)
+    at_risk = [f for f in forecasts if f["at_risk"]]
+    if not at_risk:
+        at_risk = forecasts[:5]  # show top 5 anyway
+    fig = go.Figure()
+    x_current = ["Current"]
+    x_future = [f"T+{i+1}" for i in range(horizon)]
+    x_all = x_current + x_future
+    for f in at_risk[:8]:
+        color = "#f85149" if f["at_risk"] else "#3fb950"
+        y_vals = [f["current_eff"]] + f["predicted"]
+        fig.add_trace(go.Scatter(
+            x=x_all, y=y_vals, mode="lines+markers",
+            name=f["rule_name"][:20],
+            line=dict(color=color, dash="dash" if f["at_risk"] else "solid"),
+            marker=dict(size=6),
+        ))
+    fig.add_hline(y=70, line_dash="dot", line_color="#d29922",
+                  annotation_text="70% threshold", annotation_font_color="#d29922")
+    fig.update_layout(
+        paper_bgcolor="#0d1117", plot_bgcolor="#161b22",
+        title=dict(text=f"Compliance Forecast (next {horizon} measurements)", font=dict(color="#c9d1d9")),
+        xaxis=dict(tickfont=dict(color="#c9d1d9")),
+        yaxis=dict(tickfont=dict(color="#c9d1d9"), title="Effectiveness %",
+                   titlefont=dict(color="#c9d1d9"), range=[0, 105]),
+        legend=dict(font=dict(color="#c9d1d9")),
+        margin=dict(l=40, r=20, t=50, b=40),
+    )
+    return fig
+
+
+def build_forecast_report(horizon: int = 3) -> str:
+    forecasts = compute_compliance_forecast(horizon)
+    at_risk = [f for f in forecasts if f["at_risk"]]
+    stable  = [f for f in forecasts if not f["at_risk"]]
+    lines = [
+        f"## Predictive Compliance Forecast (horizon: {horizon} measurements)",
+        "",
+        f"**{len(at_risk)} rules at risk** of dropping below effective threshold.",
+        "",
+    ]
+    if at_risk:
+        lines += ["### At Risk", "| Rule | Current | Predicted | Δ |",
+                  "|------|---------|-----------|---|"]
+        for f in at_risk:
+            lines.append(f"| {f['rule_name'][:30]} | {f['current_eff']}% | "
+                         f"{f['predicted'][-1]}% | {f['delta_pct']:+.1f}% |")
+    if stable:
+        lines += ["", f"### Stable ({len(stable)} rules)", "| Rule | Current | Predicted | Δ |",
+                  "|------|---------|-----------|---|"]
+        for f in stable[:10]:
+            lines.append(f"| {f['rule_name'][:30]} | {f['current_eff']}% | "
+                         f"{f['predicted'][-1]}% | {f['delta_pct']:+.1f}% |")
     return "\n".join(lines)
 
 
@@ -5043,6 +5643,32 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 outputs=dep_status,
             )
 
+            gr.HTML('<div class="section-title">Conflict Detection</div>')
+            gr.Markdown("Detect contradictions, overlaps, and duplicates across active rules.")
+            conflict_summary_md = gr.Markdown()
+            conflicts_table = gr.Dataframe(interactive=False, wrap=True)
+            with gr.Row():
+                conflict_scan_btn = gr.Button("🔍 Run Conflict Scan (LLM)", variant="primary", size="sm")
+                conflict_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
+            conflict_log = gr.Textbox(label="Scan log", lines=6, interactive=False, autoscroll=True)
+            with gr.Row():
+                conflict_resolve_id = gr.Textbox(label="Conflict ID prefix to resolve", scale=2)
+                conflict_resolution = gr.Textbox(label="Resolution note", scale=4)
+            conflict_resolve_btn = gr.Button("✅ Mark Resolved", variant="secondary", size="sm")
+            conflict_resolve_status = gr.Markdown()
+
+            def _refresh_conflicts():
+                return build_conflict_summary(), build_conflicts_table()
+
+            conflict_refresh_btn.click(_refresh_conflicts, outputs=[conflict_summary_md, conflicts_table])
+            demo.load(_refresh_conflicts, outputs=[conflict_summary_md, conflicts_table])
+            conflict_scan_btn.click(run_conflict_detection_llm, outputs=conflict_log)
+            conflict_resolve_btn.click(
+                resolve_conflict,
+                inputs=[conflict_resolve_id, conflict_resolution],
+                outputs=conflict_resolve_status,
+            )
+
             gr.HTML('<div class="section-title">Export</div>')
             with gr.Row():
                 export_btn = gr.Button("Export as System Prompt", variant="secondary", size="sm")
@@ -5192,6 +5818,24 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
             drift_refresh_btn.click(_refresh_drift, outputs=[drift_chart, drift_report])
             demo.load(_refresh_drift, outputs=[drift_chart, drift_report])
 
+            gr.HTML('<div class="section-title">Predictive Compliance</div>')
+            gr.Markdown("Linear forecast of each rule's effectiveness over the next N measurements. Red = at risk.")
+            forecast_chart = gr.Plot()
+            forecast_report_md = gr.Markdown()
+            with gr.Row():
+                forecast_horizon = gr.Slider(label="Horizon (measurements ahead)", minimum=1, maximum=10,
+                                             value=3, step=1, scale=3)
+                forecast_refresh_btn = gr.Button("↻ Refresh Forecast", variant="secondary", size="sm", scale=1)
+
+            def _refresh_forecast(h):
+                return build_forecast_chart(int(h)), build_forecast_report(int(h))
+
+            forecast_refresh_btn.click(_refresh_forecast, inputs=forecast_horizon,
+                                       outputs=[forecast_chart, forecast_report_md])
+            forecast_horizon.change(_refresh_forecast, inputs=forecast_horizon,
+                                    outputs=[forecast_chart, forecast_report_md])
+            demo.load(lambda: _refresh_forecast(3), outputs=[forecast_chart, forecast_report_md])
+
             gr.HTML('<div class="section-title">System Health</div>')
             with gr.Row():
                 proj_gauge = gr.Plot()
@@ -5304,6 +5948,49 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
             )
             rca_close_btn.click(close_rca, inputs=[rca_close_id, rca_resolution], outputs=rca_status)
 
+            gr.HTML('<div class="section-title">Incident Management</div>')
+            gr.Markdown("Track violations by severity (P0–P3), status, MTTR, and recurrence rate.")
+            inc_summary_md = gr.Markdown()
+            with gr.Row():
+                inc_chart = gr.Plot(scale=2)
+            inc_table = gr.Dataframe(interactive=False, wrap=True)
+            inc_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
+
+            gr.Markdown("**Open a new incident**")
+            with gr.Row():
+                inc_rule_sel = gr.Dropdown(label="Rule", choices=[], scale=3)
+                inc_severity = gr.Dropdown(
+                    label="Severity", choices=INCIDENT_SEVERITIES, value="P2_medium", scale=2)
+            inc_title = gr.Textbox(label="Title", placeholder="e.g. bypass_rate spiked to 0.6")
+            inc_desc = gr.Textbox(label="Description", lines=2)
+            inc_open_btn = gr.Button("🚨 Open Incident", variant="stop", size="sm")
+            inc_open_status = gr.Markdown()
+
+            gr.Markdown("**Update incident status**")
+            with gr.Row():
+                inc_update_id = gr.Textbox(label="Incident ID prefix", scale=2)
+                inc_new_status = gr.Dropdown(
+                    label="New status", choices=INCIDENT_STATUSES, value="investigating", scale=2)
+                inc_note = gr.Textbox(label="Note", scale=3)
+            inc_update_btn = gr.Button("→ Update Status", variant="secondary", size="sm")
+            inc_update_status = gr.Markdown()
+
+            def _refresh_inc():
+                return build_incident_summary(), build_incident_chart(), build_incidents_table(), gr.Dropdown(choices=get_rule_ids())
+
+            inc_refresh_btn.click(_refresh_inc, outputs=[inc_summary_md, inc_chart, inc_table, inc_rule_sel])
+            demo.load(_refresh_inc, outputs=[inc_summary_md, inc_chart, inc_table, inc_rule_sel])
+            inc_open_btn.click(
+                open_incident,
+                inputs=[inc_rule_sel, inc_title, inc_severity, inc_desc],
+                outputs=inc_open_status,
+            )
+            inc_update_btn.click(
+                update_incident,
+                inputs=[inc_update_id, inc_new_status, inc_note],
+                outputs=inc_update_status,
+            )
+
             gr.HTML('<div class="section-title">Distributed Tracing</div>')
             gr.Markdown("Correlation IDs and decision paths per conversation turn — see exactly which rules evaluated and fired.")
             trace_heatmap = gr.Plot()
@@ -5355,12 +6042,19 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 outputs=exp_result,
             )
 
-            gr.HTML('<div class="section-title">Governance Dashboard</div>')
-            gr.Markdown("Executive-level metrics: MTTR, SLO health, benchmark pass rate, improvement velocity.")
+            gr.HTML('<div class="section-title">Governance Dashboard & Trust Score</div>')
+            gr.Markdown("Composite Trust Score (0–100) and executive-level governance metrics.")
+            with gr.Row():
+                trust_gauge = gr.Plot(scale=1)
+                trust_breakdown = gr.Plot(scale=2)
             gov_dash_md = gr.Markdown()
             gov_dash_btn = gr.Button("↻ Refresh Dashboard", variant="secondary", size="sm")
-            gov_dash_btn.click(build_governance_dashboard, outputs=gov_dash_md)
-            demo.load(build_governance_dashboard, outputs=gov_dash_md)
+
+            def _refresh_gov_dash():
+                return build_trust_gauge(), build_trust_breakdown(), build_governance_dashboard()
+
+            gov_dash_btn.click(_refresh_gov_dash, outputs=[trust_gauge, trust_breakdown, gov_dash_md])
+            demo.load(_refresh_gov_dash, outputs=[trust_gauge, trust_breakdown, gov_dash_md])
 
             gr.HTML('<div class="section-title">Rule Observability (SLOs)</div>')
             gr.Markdown("Define effectiveness SLOs per rule and track error budgets in real time.")
