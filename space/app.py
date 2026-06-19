@@ -3467,6 +3467,7 @@ def build_kg_table() -> pd.DataFrame:
 # Rule Conflict Detection (#7)
 # ---------------------------------------------------------------------------
 
+CONFLICT_FILE = "conflicts.jsonl"
 CONFLICT_TYPES = {
     "contradiction": "Rules give opposing instructions for the same trigger",
     "overlap":       "Rules cover the same trigger but with different actions",
@@ -6189,1396 +6190,6 @@ def build_ab_comparison(rule_name: str) -> str:
 # Build Gradio app
 # ---------------------------------------------------------------------------
 
-with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as demo:
-
-    gr.HTML("""
-<div class="arl-header">
-  <h1>AI Rule Learning</h1>
-  <p>Your AI gets smarter every session — automatically.</p>
-</div>
-""")
-
-    with gr.Tabs():
-
-        # ── Dashboard ────────────────────────────────────────────────────────
-        with gr.Tab("📊 Dashboard"):
-            metrics_html = gr.HTML()
-            pending_alert = gr.HTML()
-            dashboard_refresh = gr.Button("↻ Refresh", variant="secondary", size="sm")
-
-            gr.HTML('<div class="section-title">Rule Effectiveness</div>')
-            dash_eff_chart = gr.Plot()
-
-            gr.HTML('<div class="section-title">Governance Maturity Model</div>')
-            gr.Markdown("Six-level maturity ladder — auto-assessed from live system data. Shows where you are and exactly what to do next.")
-            maturity_chart = gr.Plot()
-            maturity_report_md = gr.Markdown()
-            maturity_refresh_btn = gr.Button("↻ Assess Maturity", variant="secondary", size="sm")
-
-            gr.HTML('<div class="section-title">Recent Activity</div>')
-            activity_html = gr.HTML()
-
-            def refresh_dashboard():
-                return (
-                    build_metrics_html(),
-                    build_pending_alert_html(),
-                    build_effectiveness_chart_dark(),
-                    build_maturity_chart(),
-                    build_maturity_report(),
-                    build_activity_html(),
-                )
-
-            maturity_refresh_btn.click(
-                lambda: (build_maturity_chart(), build_maturity_report()),
-                outputs=[maturity_chart, maturity_report_md],
-            )
-            dashboard_refresh.click(
-                refresh_dashboard,
-                outputs=[metrics_html, pending_alert, dash_eff_chart, maturity_chart, maturity_report_md, activity_html],
-            )
-            demo.load(
-                refresh_dashboard,
-                outputs=[metrics_html, pending_alert, dash_eff_chart, maturity_chart, maturity_report_md, activity_html],
-            )
-
-        # ── Rules ────────────────────────────────────────────────────────────
-        with gr.Tab("📋 Rules"):
-
-            gr.HTML('<div class="section-title">Active Rules</div>')
-            rules_table = gr.Dataframe(interactive=False, wrap=True)
-            refresh_rules_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
-
-            rule_selector = gr.Dropdown(label="Select rule", choices=[])
-            rule_detail = gr.Markdown()
-
-            gr.HTML('<div class="section-title">Effectiveness Trend</div>')
-            score_trend_chart = gr.Plot()
-
-            gr.HTML('<div class="section-title">Version History</div>')
-            version_history_table = gr.Dataframe(interactive=False, wrap=True)
-
-            def refresh_rules():
-                return build_rules_table(), gr.Dropdown(choices=get_rule_names())
-
-            refresh_rules_btn.click(refresh_rules, outputs=[rules_table, rule_selector])
-            demo.load(refresh_rules, outputs=[rules_table, rule_selector])
-            rule_selector.change(get_rule_detail, inputs=rule_selector, outputs=rule_detail)
-            rule_selector.change(build_rule_score_trend, inputs=rule_selector, outputs=score_trend_chart)
-            rule_selector.change(build_rule_version_history, inputs=rule_selector, outputs=version_history_table)
-
-            gr.HTML('<div class="section-title">Review Queue</div>')
-            pending_table = gr.Dataframe(interactive=False, wrap=True)
-            refresh_pending_btn = gr.Button("↻ Refresh queue", variant="secondary", size="sm")
-            pending_selector = gr.Dropdown(label="Select pending rule", choices=[])
-            pending_detail = gr.Markdown()
-
-            with gr.Row():
-                approve_btn = gr.Button("✅ Approve & Activate", variant="primary")
-                reject_btn = gr.Button("🗑️ Reject", variant="stop")
-            review_status = gr.Markdown()
-
-            def refresh_pending():
-                return build_pending_rules_table(), gr.Dropdown(choices=get_pending_rule_ids())
-
-            refresh_pending_btn.click(refresh_pending, outputs=[pending_table, pending_selector])
-            demo.load(refresh_pending, outputs=[pending_table, pending_selector])
-            pending_selector.change(get_pending_rule_detail, inputs=pending_selector, outputs=pending_detail)
-            approve_btn.click(approve_rule, inputs=pending_selector, outputs=review_status)
-            reject_btn.click(reject_rule, inputs=pending_selector, outputs=review_status)
-
-            gr.HTML('<div class="section-title">A/B Testing</div>')
-            gr.Markdown("Create a keyword variant of a rule to compare effectiveness after real sessions.")
-            ab_rule_selector = gr.Dropdown(label="Select rule to test", choices=[])
-            ab_refresh_btn = gr.Button("↻ Refresh rule list", variant="secondary", size="sm")
-            ab_create_btn = gr.Button("🧪 Create A/B Variant", variant="secondary")
-            ab_status = gr.Markdown()
-            ab_comparison = gr.Markdown()
-
-            def _refresh_ab_rules():
-                return gr.Dropdown(choices=get_rule_names())
-
-            ab_refresh_btn.click(_refresh_ab_rules, outputs=ab_rule_selector)
-            demo.load(_refresh_ab_rules, outputs=ab_rule_selector)
-            ab_rule_selector.change(build_ab_comparison, inputs=ab_rule_selector, outputs=ab_comparison)
-            ab_create_btn.click(create_rule_ab_variant, inputs=ab_rule_selector, outputs=ab_status)
-
-            gr.HTML('<div class="section-title">Ownership</div>')
-            gr.Markdown("Assign accountability to every rule — required for audit trails.")
-            with gr.Row():
-                owner_rule_selector = gr.Dropdown(label="Rule", choices=[], scale=3)
-                owner_refresh_btn = gr.Button("↻", variant="secondary", size="sm", scale=1)
-            with gr.Row():
-                owner_name = gr.Textbox(label="Owner name", placeholder="e.g. Jane Smith", scale=2)
-                owner_team = gr.Textbox(label="Team", placeholder="e.g. Security", scale=2)
-                owner_contact = gr.Textbox(label="Contact", placeholder="e.g. security@company.com", scale=2)
-            owner_save_btn = gr.Button("💾 Save Ownership", variant="primary", size="sm")
-            owner_status = gr.Markdown()
-
-            def _refresh_owner_rules():
-                return gr.Dropdown(choices=get_rule_names())
-
-            owner_refresh_btn.click(_refresh_owner_rules, outputs=owner_rule_selector)
-            demo.load(_refresh_owner_rules, outputs=owner_rule_selector)
-            owner_save_btn.click(
-                set_rule_owner,
-                inputs=[owner_rule_selector, owner_name, owner_team, owner_contact],
-                outputs=owner_status,
-            )
-
-            gr.HTML('<div class="section-title">Lifecycle Management</div>')
-            gr.Markdown("Move rules through: `draft → pending_review → active → deprecated → retired`")
-            lifecycle_table = gr.Dataframe(interactive=False, wrap=True)
-            lifecycle_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
-            with gr.Row():
-                lc_rule_selector = gr.Dropdown(label="Rule", choices=[], scale=3)
-                lc_new_state = gr.Dropdown(
-                    label="New state",
-                    choices=LIFECYCLE_STATES,
-                    scale=2,
-                )
-            lc_reason = gr.Textbox(label="Reason (optional)", placeholder="e.g. Superseded by Rule #22")
-            lc_transition_btn = gr.Button("▶ Apply Transition", variant="primary", size="sm")
-            lc_status = gr.Markdown()
-
-            def _refresh_lc():
-                return build_lifecycle_table(), gr.Dropdown(choices=get_rule_names())
-
-            lifecycle_refresh_btn.click(_refresh_lc, outputs=[lifecycle_table, lc_rule_selector])
-            demo.load(_refresh_lc, outputs=[lifecycle_table, lc_rule_selector])
-            lc_transition_btn.click(
-                transition_rule_lifecycle,
-                inputs=[lc_rule_selector, lc_new_state, lc_reason],
-                outputs=lc_status,
-            )
-
-            gr.HTML('<div class="section-title">Exception Management</div>')
-            gr.Markdown("Temporarily disable a rule with a mandatory reason, approver, and expiry.")
-            exceptions_table = gr.Dataframe(interactive=False, wrap=True)
-            exc_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
-            with gr.Row():
-                exc_rule_selector = gr.Dropdown(label="Rule to disable", choices=[], scale=3)
-                exc_duration = gr.Number(label="Duration (hours)", value=24, minimum=1, maximum=720, scale=1)
-            with gr.Row():
-                exc_reason = gr.Textbox(label="Reason", placeholder="e.g. Emergency incident response", scale=3)
-                exc_approver = gr.Textbox(label="Approved by", placeholder="e.g. CISO", scale=2)
-            with gr.Row():
-                exc_create_btn = gr.Button("⚠️ Create Exception", variant="stop")
-                exc_restore_btn = gr.Button("✅ Restore Rule", variant="primary")
-            exc_status = gr.Markdown()
-
-            def _refresh_exc():
-                return build_exceptions_table(), gr.Dropdown(choices=get_rule_names())
-
-            exc_refresh_btn.click(_refresh_exc, outputs=[exceptions_table, exc_rule_selector])
-            demo.load(_refresh_exc, outputs=[exceptions_table, exc_rule_selector])
-            exc_create_btn.click(
-                create_exception,
-                inputs=[exc_rule_selector, exc_reason, exc_approver, exc_duration],
-                outputs=exc_status,
-            )
-            exc_restore_btn.click(restore_from_exception, inputs=exc_rule_selector, outputs=exc_status)
-
-            gr.HTML('<div class="section-title">Rule Dependencies</div>')
-            gr.Markdown("Define which rules must fire before others, or which rules block each other.")
-            dep_rule_sel = gr.Dropdown(label="Rule to configure", choices=[], scale=3)
-            dep_refresh_sel_btn = gr.Button("↻ Refresh list", variant="secondary", size="sm")
-            with gr.Row():
-                dep_depends_on = gr.Textbox(
-                    label="Depends On (rule IDs, comma-separated)",
-                    placeholder="e.g. abc123, def456",
-                    scale=3,
-                )
-                dep_blocks = gr.Textbox(
-                    label="Blocks (rule IDs, comma-separated)",
-                    placeholder="e.g. ghi789",
-                    scale=3,
-                )
-            dep_save_btn = gr.Button("💾 Save Dependencies", variant="primary", size="sm")
-            dep_status = gr.Markdown()
-
-            def _refresh_dep_sel():
-                return gr.Dropdown(choices=get_rule_ids())
-
-            dep_refresh_sel_btn.click(_refresh_dep_sel, outputs=dep_rule_sel)
-            demo.load(_refresh_dep_sel, outputs=dep_rule_sel)
-
-            def _save_deps(rule_id, depends_str, blocks_str):
-                dep_list = [x.strip() for x in depends_str.split(",") if x.strip()]
-                blk_list = [x.strip() for x in blocks_str.split(",") if x.strip()]
-                return set_rule_dependencies(rule_id, dep_list, blk_list)
-
-            dep_save_btn.click(
-                _save_deps,
-                inputs=[dep_rule_sel, dep_depends_on, dep_blocks],
-                outputs=dep_status,
-            )
-
-            gr.HTML('<div class="section-title">Conflict Detection</div>')
-            gr.Markdown("Detect contradictions, overlaps, and duplicates across active rules.")
-            conflict_summary_md = gr.Markdown()
-            conflicts_table = gr.Dataframe(interactive=False, wrap=True)
-            with gr.Row():
-                conflict_scan_btn = gr.Button("🔍 Run Conflict Scan (LLM)", variant="primary", size="sm")
-                conflict_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
-            conflict_log = gr.Textbox(label="Scan log", lines=6, interactive=False, autoscroll=True)
-            with gr.Row():
-                conflict_resolve_id = gr.Textbox(label="Conflict ID prefix to resolve", scale=2)
-                conflict_resolution = gr.Textbox(label="Resolution note", scale=4)
-            conflict_resolve_btn = gr.Button("✅ Mark Resolved", variant="secondary", size="sm")
-            conflict_resolve_status = gr.Markdown()
-
-            def _refresh_conflicts():
-                return build_conflict_summary(), build_conflicts_table()
-
-            conflict_refresh_btn.click(_refresh_conflicts, outputs=[conflict_summary_md, conflicts_table])
-            demo.load(_refresh_conflicts, outputs=[conflict_summary_md, conflicts_table])
-            conflict_scan_btn.click(run_conflict_detection_llm, outputs=conflict_log)
-            conflict_resolve_btn.click(
-                resolve_conflict,
-                inputs=[conflict_resolve_id, conflict_resolution],
-                outputs=conflict_resolve_status,
-            )
-
-            gr.HTML('<div class="section-title">Export</div>')
-            with gr.Row():
-                export_btn = gr.Button("Export as System Prompt", variant="secondary", size="sm")
-                yaml_export_btn = gr.Button("Export as YAML", variant="secondary", size="sm")
-            system_prompt_output = gr.Textbox(
-                label="System prompt",
-                lines=15, interactive=True, show_copy_button=True,
-            )
-            yaml_output = gr.Textbox(
-                label="YAML",
-                lines=15, interactive=True, show_copy_button=True,
-            )
-            export_btn.click(export_system_prompt, outputs=system_prompt_output)
-            yaml_export_btn.click(export_rules_as_yaml, outputs=yaml_output)
-
-        # ── Sessions ─────────────────────────────────────────────────────────
-        with gr.Tab("🔄 Sessions"):
-
-            gr.HTML('<div class="section-title">Step 1 — Import Sessions</div>')
-            with gr.Row():
-                with gr.Column():
-                    gr.Markdown("**Upload Claude Code session files (.jsonl)**")
-                    session_files_input = gr.File(
-                        label="Session files",
-                        file_types=[".jsonl"],
-                        file_count="multiple",
-                    )
-                    import_btn = gr.Button("Import", variant="primary")
-
-                with gr.Column():
-                    gr.Markdown("**Upload conversation history (JSON or CSV)**")
-                    upload_file = gr.File(
-                        label="Conversation file",
-                        file_types=[".json", ".csv"],
-                    )
-                    upload_btn = gr.Button("Upload", variant="primary")
-
-            import_log = gr.Textbox(label="Import log", lines=8, interactive=False, autoscroll=True)
-            upload_status = gr.Markdown()
-
-            import_btn.click(run_import_sessions, inputs=session_files_input, outputs=import_log)
-            upload_btn.click(upload_history, inputs=upload_file, outputs=upload_status)
-
-            gr.HTML('<div class="section-title">Step 2 — Analyse</div>')
-            with gr.Row():
-                analysis_btn = gr.Button("▶ Run Analysis", variant="primary", size="lg")
-                reanalyze_btn = gr.Button("🔁 Re-analyze All", variant="secondary", size="lg")
-                score_btn = gr.Button("📊 Score Effectiveness", variant="secondary", size="lg")
-
-            with gr.Row():
-                judge_btn = gr.Button("🧑‍⚖️ LLM Judge Score", variant="primary")
-                redteam_btn = gr.Button("🔴 Red Team Rules", variant="primary")
-                evolve_btn = gr.Button("🔄 Evolve Low-Scoring", variant="secondary")
-
-            with gr.Row():
-                seed_btn = gr.Button("🌱 Load Starter Rules", variant="secondary")
-                dedup_btn = gr.Button("🧹 Remove Duplicates", variant="secondary")
-                risk_compute_btn = gr.Button("🔢 Update Risk Scores", variant="secondary")
-
-            community_toggle = gr.Checkbox(
-                label="Contribute anonymous gap patterns to the community (no conversation text)",
-                value=False,
-            )
-            analysis_log = gr.Textbox(
-                label="Analysis log", lines=18, interactive=False, autoscroll=True,
-            )
-
-            analysis_btn.click(run_analysis, inputs=community_toggle, outputs=analysis_log)
-            reanalyze_btn.click(run_force_reanalyze, inputs=community_toggle, outputs=analysis_log)
-            evolve_btn.click(run_validate_and_evolve, outputs=analysis_log)
-            seed_btn.click(run_seed_rules, outputs=analysis_log)
-            dedup_btn.click(run_deduplicate_rules, outputs=analysis_log)
-            score_btn.click(run_score_effectiveness, outputs=analysis_log)
-            judge_btn.click(run_llm_judge_scoring, outputs=analysis_log)
-            redteam_btn.click(run_red_team, outputs=analysis_log)
-            risk_compute_btn.click(run_update_risk_scores, outputs=analysis_log)
-
-            gr.HTML('<div class="section-title">Step 3 — Review New Rules</div>')
-            gr.Markdown("New rules generated by analysis appear in the **Rules** tab → Review Queue. Approve each one to activate it.")
-
-        # ── Insights ─────────────────────────────────────────────────────────
-        with gr.Tab("🔬 Insights"):
-
-            gr.HTML('<div class="section-title">Conversation Clusters</div>')
-            gr.Markdown("Gap frequency grouped by project context — shows where problems concentrate.")
-            cluster_chart = gr.Plot()
-            cluster_summary = gr.Markdown()
-            cluster_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
-
-            def _refresh_clusters():
-                return build_cluster_chart(), build_cluster_summary()
-
-            cluster_refresh_btn.click(_refresh_clusters, outputs=[cluster_chart, cluster_summary])
-            demo.load(_refresh_clusters, outputs=[cluster_chart, cluster_summary])
-
-            gr.HTML('<div class="section-title">Rule Enforcement Validator</div>')
-            gr.Markdown("Validate a user/agent turn against all active rules in real time.")
-            enf_summary_md = gr.Markdown()
-            enf_log_table = gr.Dataframe(interactive=False, wrap=True)
-            enf_refresh_btn = gr.Button("↻ Refresh log", variant="secondary", size="sm")
-            enf_user_input = gr.Textbox(label="User input", lines=2,
-                                        placeholder="What the user said")
-            enf_agent_resp = gr.Textbox(label="Agent response", lines=3,
-                                        placeholder="What the AI responded")
-            enf_context = gr.Textbox(label="Context (optional)", lines=1)
-            enf_run_btn = gr.Button("🛡️ Validate & Log", variant="primary", size="sm")
-            enf_result = gr.Markdown()
-
-            def _refresh_enf():
-                return build_enforcement_summary(), build_enforcement_log_table()
-
-            enf_refresh_btn.click(_refresh_enf, outputs=[enf_summary_md, enf_log_table])
-            demo.load(_refresh_enf, outputs=[enf_summary_md, enf_log_table])
-            enf_run_btn.click(
-                enforce_and_log,
-                inputs=[enf_user_input, enf_agent_resp, enf_context],
-                outputs=enf_result,
-            )
-
-            gr.HTML('<div class="section-title">AI Audit (Worker → Auditor)</div>')
-            gr.Markdown("Worker AI assesses rule compliance; Auditor AI independently reviews. Two-layer AI audit.")
-            audit_table = gr.Dataframe(interactive=False, wrap=True)
-            with gr.Row():
-                audit_conv_sel = gr.Dropdown(label="Conversation to audit (blank = all)", choices=[], scale=3)
-                audit_refresh_sel = gr.Button("↻ Refresh list", variant="secondary", size="sm", scale=1)
-            with gr.Row():
-                audit_run_btn = gr.Button("🤖 Run AI Audit", variant="primary", size="sm")
-                audit_refresh_btn = gr.Button("↻ Refresh table", variant="secondary", size="sm")
-            audit_log = gr.Textbox(label="Audit log", lines=8, interactive=False, autoscroll=True)
-
-            def _refresh_audit_sel():
-                return gr.Dropdown(choices=[""] + get_conversation_ids())
-
-            audit_refresh_sel.click(_refresh_audit_sel, outputs=audit_conv_sel)
-            audit_refresh_btn.click(lambda: build_audit_table(), outputs=audit_table)
-            demo.load(lambda: (build_audit_table(), gr.Dropdown(choices=[""] + get_conversation_ids())),
-                      outputs=[audit_table, audit_conv_sel])
-            audit_run_btn.click(run_ai_audit, inputs=audit_conv_sel, outputs=audit_log)
-
-            gr.HTML('<div class="section-title">Human Override Tracking</div>')
-            gr.Markdown("Record and assess human overrides of AI decisions.")
-            override_summary_md = gr.Markdown()
-            overrides_table = gr.Dataframe(interactive=False, wrap=True)
-            override_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
-
-            with gr.Row():
-                ov_conv_id = gr.Textbox(label="Conversation ID", scale=2)
-                ov_turn_no = gr.Number(label="Turn #", value=1, minimum=1, scale=1)
-            with gr.Row():
-                ov_ai_dec = gr.Textbox(label="AI Decision", scale=3)
-                ov_human_dec = gr.Textbox(label="Human Decision", scale=3)
-            ov_reason = gr.Textbox(label="Override Reason", lines=1)
-            ov_log_btn = gr.Button("📝 Log Override", variant="secondary", size="sm")
-            ov_log_status = gr.Markdown()
-            with gr.Row():
-                ov_rate_id = gr.Textbox(label="Override ID prefix to rate", scale=2)
-                ov_was_correct = gr.Checkbox(label="Was override correct?", value=True, scale=1)
-                ov_rate_btn = gr.Button("⭐ Mark Accuracy", variant="secondary", size="sm", scale=1)
-            ov_rate_status = gr.Markdown()
-
-            def _refresh_overrides():
-                return build_override_summary(), build_overrides_table()
-
-            override_refresh_btn.click(_refresh_overrides, outputs=[override_summary_md, overrides_table])
-            demo.load(_refresh_overrides, outputs=[override_summary_md, overrides_table])
-            ov_log_btn.click(
-                log_human_override,
-                inputs=[ov_conv_id, ov_turn_no, ov_ai_dec, ov_human_dec, ov_reason],
-                outputs=ov_log_status,
-            )
-            ov_rate_btn.click(mark_override_accuracy, inputs=[ov_rate_id, ov_was_correct], outputs=ov_rate_status)
-
-            gr.HTML('<div class="section-title">Escalation Quality</div>')
-            gr.Markdown("Track correct, missed, and false escalations. Compute precision, recall, and F1.")
-            esc_metrics_md = gr.Markdown()
-            esc_table = gr.Dataframe(interactive=False, wrap=True)
-            esc_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
-
-            with gr.Row():
-                esc_conv_id = gr.Textbox(label="Conversation ID", scale=2)
-                esc_turn_no = gr.Number(label="Turn #", value=1, minimum=1, scale=1)
-                esc_type = gr.Textbox(label="Escalation type", placeholder="e.g. safety, compliance", scale=2)
-            with gr.Row():
-                esc_ai_action = gr.Textbox(label="AI action taken", scale=3)
-                esc_expected = gr.Textbox(label="Expected action", scale=3)
-            with gr.Row():
-                esc_outcome = gr.Dropdown(
-                    label="Outcome", choices=ESCALATION_OUTCOMES, value="correct_escalation", scale=2)
-                esc_notes = gr.Textbox(label="Notes", scale=3)
-            esc_log_btn = gr.Button("📋 Log Escalation", variant="secondary", size="sm")
-            esc_log_status = gr.Markdown()
-
-            def _refresh_esc():
-                return build_escalation_metrics(), build_escalations_table()
-
-            esc_refresh_btn.click(_refresh_esc, outputs=[esc_metrics_md, esc_table])
-            demo.load(_refresh_esc, outputs=[esc_metrics_md, esc_table])
-            esc_log_btn.click(
-                log_escalation,
-                inputs=[esc_conv_id, esc_turn_no, esc_type, esc_ai_action, esc_expected,
-                        esc_outcome, esc_notes],
-                outputs=esc_log_status,
-            )
-
-            gr.HTML('<div class="section-title">Decision Provenance</div>')
-            gr.Markdown("Full input → retrieved context → rules applied → reasoning → output lineage per turn.")
-            prov_table = gr.Dataframe(interactive=False, wrap=True)
-            with gr.Row():
-                prov_conv_sel = gr.Dropdown(label="Conversation", choices=[], scale=3)
-                prov_refresh_sel = gr.Button("↻ Refresh list", variant="secondary", size="sm", scale=1)
-            with gr.Row():
-                prov_auto_btn = gr.Button("▶ Auto-Record Provenance", variant="primary", size="sm")
-                prov_refresh_btn = gr.Button("↻ Refresh table", variant="secondary", size="sm")
-            prov_status = gr.Markdown()
-
-            def _refresh_prov_sel():
-                return gr.Dropdown(choices=get_conversation_ids())
-
-            prov_refresh_sel.click(_refresh_prov_sel, outputs=prov_conv_sel)
-            prov_refresh_btn.click(lambda cid: build_provenance_table(cid),
-                                   inputs=prov_conv_sel, outputs=prov_table)
-            prov_auto_btn.click(auto_record_provenance, inputs=prov_conv_sel, outputs=prov_status)
-            prov_conv_sel.change(lambda cid: build_provenance_table(cid),
-                                 inputs=prov_conv_sel, outputs=prov_table)
-            demo.load(lambda: (build_provenance_table(), gr.Dropdown(choices=get_conversation_ids())),
-                      outputs=[prov_table, prov_conv_sel])
-
-            gr.HTML('<div class="section-title">Data Provenance</div>')
-            gr.Markdown("Register data sources with trust levels (high / medium / low / untrusted).")
-            with gr.Row():
-                data_prov_chart = gr.Plot(scale=1)
-                data_prov_table = gr.Dataframe(interactive=False, wrap=True, scale=2)
-            data_prov_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
-
-            with gr.Row():
-                dp_name = gr.Textbox(label="Source name", scale=3)
-                dp_type = gr.Textbox(label="Type (e.g. dataset, api, file)", scale=2)
-            with gr.Row():
-                dp_trust = gr.Dropdown(label="Trust level", choices=DATA_TRUST_LEVELS,
-                                       value="medium", scale=2)
-                dp_owner = gr.Textbox(label="Owner", scale=2)
-            dp_desc = gr.Textbox(label="Description", lines=1)
-            dp_add_btn = gr.Button("+ Register Source", variant="secondary", size="sm")
-            dp_add_status = gr.Markdown()
-
-            def _refresh_data_prov():
-                return build_data_trust_chart(), build_data_provenance_table()
-
-            data_prov_refresh_btn.click(_refresh_data_prov, outputs=[data_prov_chart, data_prov_table])
-            demo.load(_refresh_data_prov, outputs=[data_prov_chart, data_prov_table])
-            dp_add_btn.click(
-                register_data_source,
-                inputs=[dp_name, dp_type, dp_trust, dp_owner, dp_desc],
-                outputs=dp_add_status,
-            )
-
-            gr.HTML('<div class="section-title">Evidence Management</div>')
-            gr.Markdown("Store and retrieve audit evidence: logs, test results, security scans, reports.")
-            ev_table = gr.Dataframe(interactive=False, wrap=True)
-            with gr.Row():
-                ev_type_filter = gr.Dropdown(label="Filter by type", choices=[""] + EVIDENCE_TYPES,
-                                             value="", scale=2)
-                ev_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm", scale=1)
-
-            gr.Markdown("**Store new evidence**")
-            with gr.Row():
-                ev_type = gr.Dropdown(label="Type", choices=EVIDENCE_TYPES, value="log", scale=2)
-                ev_title = gr.Textbox(label="Title", scale=3)
-            ev_content = gr.Textbox(label="Content / body", lines=4)
-            with gr.Row():
-                ev_rule_id = gr.Textbox(label="Related rule ID (optional)", scale=2)
-                ev_incident_id = gr.Textbox(label="Related incident ID (optional)", scale=2)
-            with gr.Row():
-                ev_store_btn = gr.Button("💾 Store Evidence", variant="secondary", size="sm")
-                ev_export_btn = gr.Button("📦 Export Audit Bundle", variant="primary", size="sm")
-                ev_export_rule = gr.Textbox(label="Rule ID (blank=all)", scale=2)
-            ev_store_status = gr.Markdown()
-
-            def _refresh_ev(t):
-                return build_evidence_table(t)
-
-            ev_refresh_btn.click(_refresh_ev, inputs=ev_type_filter, outputs=ev_table)
-            ev_type_filter.change(_refresh_ev, inputs=ev_type_filter, outputs=ev_table)
-            demo.load(lambda: build_evidence_table(), outputs=ev_table)
-            ev_store_btn.click(
-                store_evidence,
-                inputs=[ev_type, ev_title, ev_content, ev_rule_id, ev_incident_id],
-                outputs=ev_store_status,
-            )
-            ev_export_btn.click(export_audit_evidence, inputs=ev_export_rule, outputs=ev_store_status)
-
-            gr.HTML('<div class="section-title">Behavioral Tracking</div>')
-            gr.Markdown("Monitor hallucination rate, accuracy, consistency, refusal quality, tone, and verbosity.")
-            with gr.Row():
-                beh_radar = gr.Plot(scale=1)
-                beh_summary_md = gr.Markdown(scale=2)
-            beh_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
-
-            gr.Markdown("**Record metrics for a turn**")
-            with gr.Row():
-                beh_conv_id = gr.Textbox(label="Conversation ID", scale=2)
-                beh_turn_no = gr.Number(label="Turn #", value=1, minimum=1, scale=1)
-                beh_hallu = gr.Checkbox(label="Hallucination detected?", value=False, scale=1)
-            with gr.Row():
-                beh_accuracy    = gr.Slider(label="Accuracy",         minimum=0, maximum=1, value=0.8, step=0.05, scale=2)
-                beh_consistency = gr.Slider(label="Consistency",       minimum=0, maximum=1, value=0.8, step=0.05, scale=2)
-                beh_refusal     = gr.Slider(label="Refusal Quality",   minimum=0, maximum=1, value=0.8, step=0.05, scale=2)
-            with gr.Row():
-                beh_tone        = gr.Slider(label="Tone",              minimum=0, maximum=1, value=0.8, step=0.05, scale=2)
-                beh_verbosity   = gr.Slider(label="Verbosity",         minimum=0, maximum=1, value=0.8, step=0.05, scale=2)
-                beh_notes       = gr.Textbox(label="Notes",            scale=2)
-            beh_record_btn = gr.Button("📊 Record Metrics", variant="secondary", size="sm")
-            beh_record_status = gr.Markdown()
-
-            def _refresh_beh():
-                return build_behavior_radar(), build_behavior_summary()
-
-            beh_refresh_btn.click(_refresh_beh, outputs=[beh_radar, beh_summary_md])
-            demo.load(_refresh_beh, outputs=[beh_radar, beh_summary_md])
-            beh_record_btn.click(
-                record_behavior_metrics,
-                inputs=[beh_conv_id, beh_turn_no, beh_hallu, beh_accuracy,
-                        beh_consistency, beh_refusal, beh_tone, beh_verbosity, beh_notes],
-                outputs=beh_record_status,
-            )
-
-            gr.HTML('<div class="section-title">Conversations</div>')
-            conversations_table = gr.Dataframe(interactive=False, wrap=True)
-            refresh_convs_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
-            refresh_convs_btn.click(build_conversations_table, outputs=[conversations_table])
-            demo.load(build_conversations_table, outputs=[conversations_table])
-
-            gr.HTML('<div class="section-title">Alignment Sensor</div>')
-            gr.Markdown("Per-conversation task focus, rule compliance, and drift across turns.")
-            with gr.Row():
-                conv_selector = gr.Dropdown(label="Conversation", choices=[], scale=3)
-                refresh_compass_btn = gr.Button("↻ Refresh list", variant="secondary", size="sm", scale=1)
-
-            with gr.Row():
-                compass_gauge = gr.Plot()
-                compass_timeline = gr.Plot()
-            compass_alerts = gr.Markdown()
-
-            def refresh_compass_list():
-                return gr.Dropdown(choices=get_conversation_ids())
-
-            refresh_compass_btn.click(refresh_compass_list, outputs=[conv_selector])
-            demo.load(refresh_compass_list, outputs=[conv_selector])
-            conv_selector.change(
-                build_compass, inputs=conv_selector,
-                outputs=[compass_gauge, compass_timeline, compass_alerts],
-            )
-
-            gr.HTML('<div class="section-title">Risk Scoring</div>')
-            gr.Markdown("Risk = Priority × (1 − Effectiveness) × (1 + Bypass Rate). Higher = more urgent to fix.")
-            risk_table = gr.Dataframe(interactive=False, wrap=True)
-            with gr.Row():
-                risk_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
-                risk_update_btn = gr.Button("🔢 Recompute Risk Scores", variant="primary", size="sm")
-            risk_log = gr.Textbox(label="Risk log", lines=6, interactive=False, autoscroll=True)
-
-            def _refresh_risk():
-                return build_risk_table()
-
-            risk_refresh_btn.click(_refresh_risk, outputs=risk_table)
-            demo.load(_refresh_risk, outputs=risk_table)
-            risk_update_btn.click(run_update_risk_scores, outputs=risk_log)
-
-            gr.HTML('<div class="section-title">Compliance Drift</div>')
-            gr.Markdown("Rules whose effectiveness is declining over time — flag for investigation.")
-            drift_chart = gr.Plot()
-            drift_report = gr.Markdown()
-            drift_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
-
-            def _refresh_drift():
-                return build_drift_chart(), build_drift_report()
-
-            drift_refresh_btn.click(_refresh_drift, outputs=[drift_chart, drift_report])
-            demo.load(_refresh_drift, outputs=[drift_chart, drift_report])
-
-            gr.HTML('<div class="section-title">Predictive Compliance</div>')
-            gr.Markdown("Linear forecast of each rule's effectiveness over the next N measurements. Red = at risk.")
-            forecast_chart = gr.Plot()
-            forecast_report_md = gr.Markdown()
-            with gr.Row():
-                forecast_horizon = gr.Slider(label="Horizon (measurements ahead)", minimum=1, maximum=10,
-                                             value=3, step=1, scale=3)
-                forecast_refresh_btn = gr.Button("↻ Refresh Forecast", variant="secondary", size="sm", scale=1)
-
-            def _refresh_forecast(h):
-                return build_forecast_chart(int(h)), build_forecast_report(int(h))
-
-            forecast_refresh_btn.click(_refresh_forecast, inputs=forecast_horizon,
-                                       outputs=[forecast_chart, forecast_report_md])
-            forecast_horizon.change(_refresh_forecast, inputs=forecast_horizon,
-                                    outputs=[forecast_chart, forecast_report_md])
-            demo.load(lambda: _refresh_forecast(3), outputs=[forecast_chart, forecast_report_md])
-
-            gr.HTML('<div class="section-title">System Health</div>')
-            with gr.Row():
-                proj_gauge = gr.Plot()
-                proj_metrics = gr.Plot()
-            proj_summary = gr.Markdown()
-            proj_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
-            proj_refresh_btn.click(build_project_compass, outputs=[proj_gauge, proj_metrics, proj_summary])
-            demo.load(build_project_compass, outputs=[proj_gauge, proj_metrics, proj_summary])
-
-            gr.HTML('<div class="section-title">Rule Coverage Analysis</div>')
-            gr.Markdown("What percentage of conversation gap turns are covered by at least one active rule?")
-            with gr.Row():
-                coverage_chart = gr.Plot(scale=1)
-                coverage_report_md = gr.Markdown(scale=2)
-            coverage_refresh_btn = gr.Button("↻ Refresh Coverage", variant="secondary", size="sm")
-
-            def _refresh_coverage():
-                return build_coverage_chart(), build_coverage_report()
-
-            coverage_refresh_btn.click(_refresh_coverage, outputs=[coverage_chart, coverage_report_md])
-            demo.load(_refresh_coverage, outputs=[coverage_chart, coverage_report_md])
-
-            gr.HTML('<div class="section-title">Rule Dependency Graph</div>')
-            gr.Markdown("Visual map of which rules depend on or block other rules.")
-            dep_graph = gr.Plot()
-            dep_table = gr.Dataframe(interactive=False, wrap=True)
-            dep_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
-
-            def _refresh_deps():
-                return build_dependency_graph(), build_dependency_table()
-
-            dep_refresh_btn.click(_refresh_deps, outputs=[dep_graph, dep_table])
-            demo.load(_refresh_deps, outputs=[dep_graph, dep_table])
-
-            gr.HTML('<div class="section-title">Benchmark / Golden Dataset</div>')
-            gr.Markdown("Test rules against golden input cases to measure precision and recall.")
-            with gr.Row():
-                bench_run_btn = gr.Button("▶ Run Benchmark", variant="primary", size="sm")
-                bench_refresh_btn = gr.Button("↻ Refresh Cases", variant="secondary", size="sm")
-            bench_result = gr.Markdown()
-            bench_table = gr.Dataframe(interactive=False, wrap=True)
-
-            gr.Markdown("**Add a golden test case**")
-            with gr.Row():
-                bench_rule_sel = gr.Dropdown(label="Rule", choices=[], scale=3)
-                bench_should_trigger = gr.Checkbox(label="Should Trigger", value=True, scale=1)
-            bench_input_text = gr.Textbox(label="Input text", lines=2, placeholder="User message to test")
-            bench_expected = gr.Textbox(label="Expected behaviour", lines=1, placeholder="AI should refuse / apply / respond with…")
-            with gr.Row():
-                bench_add_btn = gr.Button("+ Add Case", variant="secondary", size="sm")
-                bench_gen_btn = gr.Button("🤖 Auto-generate cases (LLM)", variant="secondary", size="sm")
-            bench_add_status = gr.Markdown()
-
-            def _refresh_bench():
-                return build_benchmark_table(), gr.Dropdown(choices=get_rule_ids())
-
-            def _run_and_refresh():
-                result = run_benchmark()
-                table = build_benchmark_table()
-                return result, table
-
-            bench_run_btn.click(_run_and_refresh, outputs=[bench_result, bench_table])
-            bench_refresh_btn.click(_refresh_bench, outputs=[bench_table, bench_rule_sel])
-            demo.load(_refresh_bench, outputs=[bench_table, bench_rule_sel])
-            bench_add_btn.click(
-                add_benchmark_case,
-                inputs=[bench_rule_sel, bench_input_text, bench_expected, bench_should_trigger],
-                outputs=bench_add_status,
-            )
-            bench_gen_btn.click(
-                generate_benchmark_cases_llm,
-                inputs=[bench_rule_sel],
-                outputs=bench_add_status,
-            )
-
-            gr.HTML('<div class="section-title">Root Cause Analysis (RCA)</div>')
-            gr.Markdown("Log and track root causes of rule violations. LLM auto-categorises each entry.")
-            rca_summary_md = gr.Markdown()
-            rca_table = gr.Dataframe(interactive=False, wrap=True)
-            rca_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
-
-            with gr.Row():
-                rca_rule_sel = gr.Dropdown(label="Rule", choices=[], scale=3)
-                rca_cat_sel = gr.Dropdown(
-                    label="Category (leave blank for LLM)",
-                    choices=[""] + _RCA_CATEGORIES,
-                    value="",
-                    scale=2,
-                )
-            rca_violation = gr.Textbox(label="Violation description", lines=2,
-                                       placeholder="Describe what went wrong")
-            rca_user_input = gr.Textbox(label="User input (optional)", lines=1,
-                                        placeholder="The message that triggered the issue")
-            with gr.Row():
-                rca_log_btn = gr.Button("📋 Log RCA", variant="primary", size="sm")
-                rca_close_id = gr.Textbox(label="RCA ID prefix to resolve", scale=2)
-                rca_resolution = gr.Textbox(label="Resolution note", scale=3)
-                rca_close_btn = gr.Button("✅ Mark Resolved", variant="secondary", size="sm")
-            rca_status = gr.Markdown()
-
-            def _refresh_rca():
-                return build_rca_summary(), build_rca_table(), gr.Dropdown(choices=get_rule_ids())
-
-            rca_refresh_btn.click(_refresh_rca, outputs=[rca_summary_md, rca_table, rca_rule_sel])
-            demo.load(_refresh_rca, outputs=[rca_summary_md, rca_table, rca_rule_sel])
-            rca_log_btn.click(
-                log_rca,
-                inputs=[rca_rule_sel, rca_violation, rca_user_input, rca_cat_sel],
-                outputs=rca_status,
-            )
-            rca_close_btn.click(close_rca, inputs=[rca_close_id, rca_resolution], outputs=rca_status)
-
-            gr.HTML('<div class="section-title">Incident Management</div>')
-            gr.Markdown("Track violations by severity (P0–P3), status, MTTR, and recurrence rate.")
-            inc_summary_md = gr.Markdown()
-            with gr.Row():
-                inc_chart = gr.Plot(scale=2)
-            inc_table = gr.Dataframe(interactive=False, wrap=True)
-            inc_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
-
-            gr.Markdown("**Open a new incident**")
-            with gr.Row():
-                inc_rule_sel = gr.Dropdown(label="Rule", choices=[], scale=3)
-                inc_severity = gr.Dropdown(
-                    label="Severity", choices=INCIDENT_SEVERITIES, value="P2_medium", scale=2)
-            inc_title = gr.Textbox(label="Title", placeholder="e.g. bypass_rate spiked to 0.6")
-            inc_desc = gr.Textbox(label="Description", lines=2)
-            inc_open_btn = gr.Button("🚨 Open Incident", variant="stop", size="sm")
-            inc_open_status = gr.Markdown()
-
-            gr.Markdown("**Update incident status**")
-            with gr.Row():
-                inc_update_id = gr.Textbox(label="Incident ID prefix", scale=2)
-                inc_new_status = gr.Dropdown(
-                    label="New status", choices=INCIDENT_STATUSES, value="investigating", scale=2)
-                inc_note = gr.Textbox(label="Note", scale=3)
-            inc_update_btn = gr.Button("→ Update Status", variant="secondary", size="sm")
-            inc_update_status = gr.Markdown()
-
-            def _refresh_inc():
-                return build_incident_summary(), build_incident_chart(), build_incidents_table(), gr.Dropdown(choices=get_rule_ids())
-
-            inc_refresh_btn.click(_refresh_inc, outputs=[inc_summary_md, inc_chart, inc_table, inc_rule_sel])
-            demo.load(_refresh_inc, outputs=[inc_summary_md, inc_chart, inc_table, inc_rule_sel])
-            inc_open_btn.click(
-                open_incident,
-                inputs=[inc_rule_sel, inc_title, inc_severity, inc_desc],
-                outputs=inc_open_status,
-            )
-            inc_update_btn.click(
-                update_incident,
-                inputs=[inc_update_id, inc_new_status, inc_note],
-                outputs=inc_update_status,
-            )
-
-            gr.HTML('<div class="section-title">Distributed Tracing</div>')
-            gr.Markdown("Correlation IDs and decision paths per conversation turn — see exactly which rules evaluated and fired.")
-            trace_heatmap = gr.Plot()
-            trace_table = gr.Dataframe(interactive=False, wrap=True)
-            with gr.Row():
-                trace_conv_sel = gr.Dropdown(label="Conversation", choices=[], scale=3)
-                trace_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
-                trace_run_btn = gr.Button("▶ Trace Conversation", variant="primary", size="sm")
-            trace_status = gr.Markdown()
-
-            def _refresh_traces():
-                return build_trace_heatmap(), build_trace_table(), gr.Dropdown(choices=get_conversation_ids())
-
-            trace_refresh_btn.click(_refresh_traces, outputs=[trace_heatmap, trace_table, trace_conv_sel])
-            demo.load(_refresh_traces, outputs=[trace_heatmap, trace_table, trace_conv_sel])
-            trace_run_btn.click(trace_conversation, inputs=trace_conv_sel, outputs=trace_status)
-            trace_conv_sel.change(
-                lambda cid: build_trace_table(cid),
-                inputs=trace_conv_sel, outputs=trace_table,
-            )
-
-            gr.HTML('<div class="section-title">Explainability</div>')
-            gr.Markdown("Get a natural-language explanation of why a rule fired (or didn't) on specific input.")
-            with gr.Row():
-                exp_rule_sel = gr.Dropdown(label="Rule", choices=[], scale=3)
-                exp_refresh_sel = gr.Button("↻ Refresh list", variant="secondary", size="sm", scale=1)
-            exp_user_input = gr.Textbox(label="User input", lines=2,
-                                        placeholder="The message to explain")
-            exp_agent_response = gr.Textbox(label="Agent response (optional)", lines=2,
-                                            placeholder="What the AI replied")
-            exp_run_btn = gr.Button("🔍 Explain Decision", variant="primary", size="sm")
-            exp_result = gr.Markdown()
-            exp_table = gr.Dataframe(interactive=False, wrap=True, label="Explanation History")
-            exp_hist_refresh = gr.Button("↻ Refresh history", variant="secondary", size="sm")
-
-            def _refresh_exp_sel():
-                return gr.Dropdown(choices=get_rule_ids())
-
-            def _refresh_exp_table():
-                return build_explanations_table()
-
-            exp_refresh_sel.click(_refresh_exp_sel, outputs=exp_rule_sel)
-            exp_hist_refresh.click(_refresh_exp_table, outputs=exp_table)
-            demo.load(_refresh_exp_sel, outputs=exp_rule_sel)
-            demo.load(_refresh_exp_table, outputs=exp_table)
-            exp_run_btn.click(
-                explain_rule_decision,
-                inputs=[exp_rule_sel, exp_user_input, exp_agent_response],
-                outputs=exp_result,
-            )
-
-            gr.HTML('<div class="section-title">Governance Dashboard & Trust Score</div>')
-            gr.Markdown("Composite Trust Score (0–100) and executive-level governance metrics.")
-            with gr.Row():
-                trust_gauge = gr.Plot(scale=1)
-                trust_breakdown = gr.Plot(scale=2)
-            gov_dash_md = gr.Markdown()
-            gov_dash_btn = gr.Button("↻ Refresh Dashboard", variant="secondary", size="sm")
-
-            def _refresh_gov_dash():
-                return build_trust_gauge(), build_trust_breakdown(), build_governance_dashboard()
-
-            gov_dash_btn.click(_refresh_gov_dash, outputs=[trust_gauge, trust_breakdown, gov_dash_md])
-            demo.load(_refresh_gov_dash, outputs=[trust_gauge, trust_breakdown, gov_dash_md])
-
-            gr.HTML('<div class="section-title">Rule Observability (SLOs)</div>')
-            gr.Markdown("Define effectiveness SLOs per rule and track error budgets in real time.")
-            slo_chart = gr.Plot()
-            slo_table = gr.Dataframe(interactive=False, wrap=True)
-            slo_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
-
-            gr.Markdown("**Define a new SLO**")
-            with gr.Row():
-                slo_rule_sel = gr.Dropdown(label="Rule", choices=[], scale=3)
-                slo_target = gr.Number(label="Target %", value=90.0, minimum=50, maximum=100, scale=1)
-                slo_window = gr.Number(label="Window (days)", value=30, minimum=1, maximum=365, scale=1)
-            slo_name_in = gr.Textbox(label="SLO name", placeholder="e.g. Effectiveness ≥ 90%")
-            slo_add_btn = gr.Button("+ Add SLO", variant="secondary", size="sm")
-            slo_status = gr.Markdown()
-
-            def _refresh_slo():
-                return build_slo_chart(), build_slo_table(), gr.Dropdown(choices=get_rule_ids())
-
-            slo_refresh_btn.click(_refresh_slo, outputs=[slo_chart, slo_table, slo_rule_sel])
-            demo.load(_refresh_slo, outputs=[slo_chart, slo_table, slo_rule_sel])
-            slo_add_btn.click(
-                define_slo,
-                inputs=[slo_rule_sel, slo_name_in, slo_target, slo_window],
-                outputs=slo_status,
-            )
-
-            gr.HTML('<div class="section-title">Continuous Improvement Loop</div>')
-            gr.Markdown("Track each violation through violation → RCA → rule update → benchmark → validated.")
-            imp_funnel = gr.Plot()
-            imp_table = gr.Dataframe(interactive=False, wrap=True)
-            imp_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
-
-            gr.Markdown("**Open a new improvement cycle**")
-            with gr.Row():
-                imp_rule_sel = gr.Dropdown(label="Rule", choices=[], scale=3)
-                imp_trigger = gr.Textbox(label="Trigger event", placeholder="e.g. bypass_rate > 0.4", scale=3)
-            imp_desc = gr.Textbox(label="Description", lines=2, placeholder="What went wrong and why")
-            with gr.Row():
-                imp_open_btn = gr.Button("▶ Open Cycle", variant="primary", size="sm")
-                imp_cycle_id = gr.Textbox(label="Cycle ID prefix to advance", scale=2)
-                imp_notes = gr.Textbox(label="Advance notes", scale=3)
-                imp_advance_btn = gr.Button("→ Advance Stage", variant="secondary", size="sm")
-            imp_status = gr.Markdown()
-
-            def _refresh_imp():
-                return build_improvement_funnel(), build_improvement_table(), gr.Dropdown(choices=get_rule_ids())
-
-            imp_refresh_btn.click(_refresh_imp, outputs=[imp_funnel, imp_table, imp_rule_sel])
-            demo.load(_refresh_imp, outputs=[imp_funnel, imp_table, imp_rule_sel])
-            imp_open_btn.click(
-                start_improvement_cycle,
-                inputs=[imp_rule_sel, imp_trigger, imp_desc],
-                outputs=imp_status,
-            )
-            imp_advance_btn.click(
-                advance_improvement_cycle,
-                inputs=[imp_cycle_id, imp_notes],
-                outputs=imp_status,
-            )
-
-            gr.HTML('<div class="section-title">Knowledge Graph</div>')
-            gr.Markdown("Map policies → requirements → controls → KPIs → audit findings → rules.")
-            kg_graph = gr.Plot()
-            kg_table = gr.Dataframe(interactive=False, wrap=True)
-            kg_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
-
-            gr.Markdown("**Add a node**")
-            with gr.Row():
-                kg_node_type = gr.Dropdown(label="Node type", choices=KG_NODE_TYPES, value="policy", scale=2)
-                kg_node_name = gr.Textbox(label="Name", scale=3)
-            kg_node_desc = gr.Textbox(label="Description (optional)", scale=3)
-            kg_node_rule = gr.Textbox(label="Linked Rule ID (optional)", scale=2)
-            kg_add_node_btn = gr.Button("+ Add Node", variant="secondary", size="sm")
-            kg_node_status = gr.Markdown()
-
-            gr.Markdown("**Add an edge**")
-            with gr.Row():
-                kg_from_id = gr.Textbox(label="From node ID prefix", scale=2)
-                kg_edge_type = gr.Dropdown(label="Edge type", choices=KG_EDGE_TYPES, value="implements", scale=2)
-                kg_to_id = gr.Textbox(label="To node ID prefix", scale=2)
-            kg_add_edge_btn = gr.Button("→ Add Edge", variant="secondary", size="sm")
-            kg_edge_status = gr.Markdown()
-
-            def _refresh_kg():
-                return build_kg_graph(), build_kg_table()
-
-            kg_refresh_btn.click(_refresh_kg, outputs=[kg_graph, kg_table])
-            demo.load(_refresh_kg, outputs=[kg_graph, kg_table])
-            kg_add_node_btn.click(
-                add_kg_node,
-                inputs=[kg_node_type, kg_node_name, kg_node_desc, kg_node_rule],
-                outputs=kg_node_status,
-            )
-            kg_add_edge_btn.click(
-                add_kg_edge,
-                inputs=[kg_from_id, kg_edge_type, kg_to_id],
-                outputs=kg_edge_status,
-            )
-
-            gr.HTML('<div class="section-title">Regression Detection</div>')
-            gr.Markdown("Detect when a new benchmark run scores lower than the previous snapshot for a rule (Δ < -5% = regression).")
-            reg_report = gr.Markdown()
-            reg_table = gr.Dataframe(interactive=False, wrap=True)
-            reg_run_btn = gr.Button("Run Regression Check", variant="primary", size="sm")
-            reg_refresh_btn = gr.Button("↻ Refresh History", variant="secondary", size="sm")
-
-            def _refresh_regression():
-                return build_regression_table()
-
-            reg_run_btn.click(run_regression_check, outputs=reg_report)
-            reg_run_btn.click(_refresh_regression, outputs=reg_table)
-            reg_refresh_btn.click(_refresh_regression, outputs=reg_table)
-            demo.load(_refresh_regression, outputs=reg_table)
-
-            gr.HTML('<div class="section-title">Reputation Tracking</div>')
-            gr.Markdown("Track per-rule compliance reputation over 7, 30, and 90 day windows.")
-            rep_chart = gr.Plot()
-            rep_table = gr.Dataframe(interactive=False, wrap=True)
-            rep_snap_btn = gr.Button("Take Snapshot", variant="primary", size="sm")
-            rep_snap_status = gr.Markdown()
-            rep_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
-
-            def _refresh_reputation():
-                return build_reputation_chart(), build_reputation_table()
-
-            rep_snap_btn.click(snapshot_reputation, outputs=rep_snap_status)
-            rep_snap_btn.click(_refresh_reputation, outputs=[rep_chart, rep_table])
-            rep_refresh_btn.click(_refresh_reputation, outputs=[rep_chart, rep_table])
-            demo.load(_refresh_reputation, outputs=[rep_chart, rep_table])
-
-            gr.HTML('<div class="section-title">Goal Alignment Monitoring</div>')
-            gr.Markdown("Map business objectives → rules and monitor alignment vs targets.")
-            goal_chart = gr.Plot()
-            goal_table = gr.Dataframe(interactive=False, wrap=True)
-            goal_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
-
-            gr.Markdown("**Define a Goal**")
-            with gr.Row():
-                goal_name = gr.Textbox(label="Objective name", scale=3)
-                goal_outcome = gr.Textbox(label="Business outcome", scale=3)
-            with gr.Row():
-                goal_rules_csv = gr.Textbox(label="Rule IDs (comma-separated)", scale=4)
-                goal_target = gr.Number(label="Target score %", value=80, scale=1)
-            goal_add_btn = gr.Button("+ Add Goal", variant="secondary", size="sm")
-            goal_status = gr.Markdown()
-
-            def _refresh_goals():
-                return build_goal_chart(), build_goal_table()
-
-            goal_add_btn.click(
-                add_goal,
-                inputs=[goal_name, goal_outcome, goal_rules_csv, goal_target],
-                outputs=goal_status,
-            )
-            goal_add_btn.click(_refresh_goals, outputs=[goal_chart, goal_table])
-            goal_refresh_btn.click(_refresh_goals, outputs=[goal_chart, goal_table])
-            demo.load(_refresh_goals, outputs=[goal_chart, goal_table])
-
-            gr.HTML('<div class="section-title">Control Mapping</div>')
-            gr.Markdown("Map governance controls (technical/operational/managerial) to rules and track their effectiveness.")
-            with gr.Row():
-                ctrl_chart = gr.Plot()
-                ctrl_heatmap = gr.Plot()
-            ctrl_table = gr.Dataframe(interactive=False, wrap=True)
-            ctrl_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
-
-            gr.Markdown("**Add a Control**")
-            with gr.Row():
-                ctrl_name = gr.Textbox(label="Control name", scale=3)
-                ctrl_cat = gr.Dropdown(label="Category", choices=CONTROL_CATEGORIES, value="technical", scale=2)
-                ctrl_risk = gr.Dropdown(label="Risk level", choices=RISK_LEVELS, value="medium", scale=2)
-            ctrl_desc = gr.Textbox(label="Description", scale=4)
-            with gr.Row():
-                ctrl_rule_csv = gr.Textbox(label="Rule IDs (comma-separated)", scale=4)
-                ctrl_audit_ref = gr.Textbox(label="Audit reference (e.g. ISO 27001 A.5.1)", scale=3)
-            ctrl_add_btn = gr.Button("+ Add Control", variant="secondary", size="sm")
-            ctrl_status = gr.Markdown()
-
-            def _refresh_controls():
-                return build_control_chart(), build_control_heatmap(), build_control_table()
-
-            ctrl_add_btn.click(
-                add_control,
-                inputs=[ctrl_name, ctrl_cat, ctrl_risk, ctrl_desc, ctrl_rule_csv, ctrl_audit_ref],
-                outputs=ctrl_status,
-            )
-            ctrl_add_btn.click(_refresh_controls, outputs=[ctrl_chart, ctrl_heatmap, ctrl_table])
-            ctrl_refresh_btn.click(_refresh_controls, outputs=[ctrl_chart, ctrl_heatmap, ctrl_table])
-            demo.load(_refresh_controls, outputs=[ctrl_chart, ctrl_heatmap, ctrl_table])
-
-            gr.HTML('<div class="section-title">Rule Learning Detection</div>')
-            gr.Markdown("Detect whether the AI is learning (improving compliance) or degrading over time using score_history slope analysis.")
-            learning_report = gr.Markdown()
-            learning_table = gr.Dataframe(interactive=False, wrap=True)
-            learning_run_btn = gr.Button("Detect Learning Trends", variant="primary", size="sm")
-            learning_refresh_btn = gr.Button("↻ Refresh History", variant="secondary", size="sm")
-
-            def _refresh_learning():
-                return build_learning_table()
-
-            learning_run_btn.click(detect_rule_learning, outputs=learning_report)
-            learning_run_btn.click(_refresh_learning, outputs=learning_table)
-            learning_refresh_btn.click(_refresh_learning, outputs=learning_table)
-            demo.load(_refresh_learning, outputs=learning_table)
-
-            gr.HTML('<div class="section-title">Rule Gaming Detection</div>')
-            gr.Markdown("Detect adversarial inputs attempting to bypass, jailbreak, or circumvent governance rules.")
-            gaming_summary_md = gr.Markdown()
-            gaming_table = gr.Dataframe(interactive=False, wrap=True)
-
-            gr.Markdown("**Auto-scan a conversation**")
-            with gr.Row():
-                gaming_conv_id = gr.Textbox(label="Conversation ID (leave blank for all)", scale=4)
-                gaming_scan_btn = gr.Button("Scan for Gaming", variant="primary", size="sm", scale=1)
-            gaming_scan_report = gr.Markdown()
-
-            gr.Markdown("**Manual log**")
-            with gr.Row():
-                gaming_log_conv = gr.Textbox(label="Conv ID", scale=2)
-                gaming_log_turn = gr.Number(label="Turn #", value=1, scale=1)
-                gaming_log_confirmed = gr.Checkbox(label="Confirmed?", scale=1)
-            gaming_log_input = gr.Textbox(label="User input", lines=2, scale=4)
-            gaming_log_notes = gr.Textbox(label="Notes", scale=3)
-            gaming_log_btn = gr.Button("Log Gaming Attempt", variant="secondary", size="sm")
-            gaming_log_status = gr.Markdown()
-            gaming_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
-
-            def _refresh_gaming():
-                return build_gaming_summary(), build_gaming_table()
-
-            gaming_scan_btn.click(auto_scan_gaming, inputs=gaming_conv_id, outputs=gaming_scan_report)
-            gaming_log_btn.click(
-                log_gaming_attempt,
-                inputs=[gaming_log_conv, gaming_log_turn, gaming_log_input, gaming_log_confirmed, gaming_log_notes],
-                outputs=gaming_log_status,
-            )
-            gaming_log_btn.click(_refresh_gaming, outputs=[gaming_summary_md, gaming_table])
-            gaming_refresh_btn.click(_refresh_gaming, outputs=[gaming_summary_md, gaming_table])
-            demo.load(_refresh_gaming, outputs=[gaming_summary_md, gaming_table])
-
-            gr.HTML('<div class="section-title">Meta-Governance</div>')
-            gr.Markdown("Define who can create, approve, audit, and manage rules — governance of the governance system.")
-            with gr.Row():
-                meta_role_table = gr.Dataframe(label="Role Assignments", interactive=False, wrap=True, scale=3)
-                meta_audit_table = gr.Dataframe(label="Action Audit Log", interactive=False, wrap=True, scale=3)
-            meta_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
-
-            gr.Markdown("**Assign Role**")
-            with gr.Row():
-                meta_user_id = gr.Textbox(label="User ID", scale=2)
-                meta_role = gr.Dropdown(label="Role", choices=META_ROLES, value="observer", scale=2)
-                meta_granted_by = gr.Textbox(label="Granted by", scale=2)
-            meta_perms = gr.CheckboxGroup(label="Permissions", choices=META_ACTIONS)
-            meta_assign_btn = gr.Button("Assign Role", variant="secondary", size="sm")
-            meta_assign_status = gr.Markdown()
-
-            gr.Markdown("**Log Governance Action**")
-            with gr.Row():
-                meta_log_user = gr.Textbox(label="User ID", scale=2)
-                meta_log_action = gr.Dropdown(label="Action", choices=META_ACTIONS, value="create_rule", scale=2)
-                meta_log_outcome = gr.Dropdown(label="Outcome", choices=["approved", "rejected", "pending"], value="approved", scale=2)
-            with gr.Row():
-                meta_log_target = gr.Textbox(label="Target (rule ID / audit ID)", scale=3)
-                meta_log_notes = gr.Textbox(label="Notes", scale=3)
-            meta_log_btn = gr.Button("Log Action", variant="secondary", size="sm")
-            meta_log_status = gr.Markdown()
-
-            gr.Markdown("**Permission Check**")
-            with gr.Row():
-                meta_check_user = gr.Textbox(label="User ID", scale=2)
-                meta_check_action = gr.Dropdown(label="Action", choices=META_ACTIONS, value="approve_rule", scale=2)
-            meta_check_btn = gr.Button("Check Permission", variant="secondary", size="sm")
-            meta_check_result = gr.Markdown()
-
-            def _perms_csv(perms_list):
-                return ",".join(perms_list) if perms_list else ""
-
-            def _assign_meta_role(uid, role, granted_by, perms_list):
-                return assign_meta_role(uid, role, granted_by, _perms_csv(perms_list))
-
-            def _log_gov_action(uid, action, target, outcome, notes):
-                return log_governance_action(uid, action, target, outcome, notes)
-
-            def _check_perm(uid, action):
-                ok, msg = check_permission(uid, action)
-                icon = "✅" if ok else "❌"
-                return f"{icon} {msg}"
-
-            def _refresh_meta():
-                return build_meta_gov_table(), build_governance_audit_log()
-
-            meta_assign_btn.click(_assign_meta_role, inputs=[meta_user_id, meta_role, meta_granted_by, meta_perms], outputs=meta_assign_status)
-            meta_assign_btn.click(_refresh_meta, outputs=[meta_role_table, meta_audit_table])
-            meta_log_btn.click(_log_gov_action, inputs=[meta_log_user, meta_log_action, meta_log_target, meta_log_outcome, meta_log_notes], outputs=meta_log_status)
-            meta_log_btn.click(_refresh_meta, outputs=[meta_role_table, meta_audit_table])
-            meta_check_btn.click(_check_perm, inputs=[meta_check_user, meta_check_action], outputs=meta_check_result)
-            meta_refresh_btn.click(_refresh_meta, outputs=[meta_role_table, meta_audit_table])
-            demo.load(_refresh_meta, outputs=[meta_role_table, meta_audit_table])
-
-            gr.HTML('<div class="section-title">Formal Policy Export</div>')
-            gr.Markdown("Export rules as structured YAML or JSON policy documents for audit trails and external tooling.")
-            with gr.Row():
-                policy_rule_filter = gr.Textbox(label="Rule IDs to export (comma-separated, leave blank for all)", scale=5)
-            with gr.Row():
-                policy_yaml_btn = gr.Button("Export YAML", variant="primary", size="sm")
-                policy_json_btn = gr.Button("Export JSON", variant="secondary", size="sm")
-            policy_output = gr.Markdown()
-
-            policy_yaml_btn.click(export_policy_yaml, inputs=policy_rule_filter, outputs=policy_output)
-            policy_json_btn.click(export_policy_json, inputs=policy_rule_filter, outputs=policy_output)
-
-            gr.HTML('<div class="section-title">Certification &amp; Accreditation</div>')
-            gr.Markdown("Track certifications (ISO 27001, SOC2, GDPR, etc.) with expiry dates and renewal alerts.")
-            cert_summary_md = gr.Markdown()
-            cert_table = gr.Dataframe(interactive=False, wrap=True)
-            cert_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
-
-            gr.Markdown("**Register Certification**")
-            with gr.Row():
-                cert_name = gr.Textbox(label="Certification name", scale=3)
-                cert_type = gr.Dropdown(label="Type", choices=CERT_TYPES, value="iso_27001", scale=2)
-                cert_issuer = gr.Textbox(label="Issuing body", scale=2)
-            with gr.Row():
-                cert_issue = gr.Textbox(label="Issue date (YYYY-MM-DD)", scale=2)
-                cert_expiry = gr.Textbox(label="Expiry date (YYYY-MM-DD)", scale=2)
-                cert_scope = gr.Textbox(label="Scope", scale=3)
-            cert_rules_csv = gr.Textbox(label="Linked Rule IDs (comma-separated, optional)")
-            cert_add_btn = gr.Button("+ Add Certification", variant="secondary", size="sm")
-            cert_status_md = gr.Markdown()
-
-            def _refresh_certs():
-                return build_cert_summary(), build_cert_table()
-
-            cert_add_btn.click(
-                add_certification,
-                inputs=[cert_name, cert_type, cert_issuer, cert_issue, cert_expiry, cert_scope, cert_rules_csv],
-                outputs=cert_status_md,
-            )
-            cert_add_btn.click(_refresh_certs, outputs=[cert_summary_md, cert_table])
-            cert_refresh_btn.click(_refresh_certs, outputs=[cert_summary_md, cert_table])
-            demo.load(_refresh_certs, outputs=[cert_summary_md, cert_table])
-
-            gr.HTML('<div class="section-title">Stakeholder Report</div>')
-            gr.Markdown("Generate a comprehensive compliance report for stakeholders (CTO, board, auditors).")
-            with gr.Row():
-                report_period = gr.Dropdown(label="Period", choices=["monthly", "quarterly", "annual", "ad-hoc"], value="monthly", scale=2)
-                report_sections = gr.Textbox(label="Sections to include (optional, comma-sep)", scale=4)
-            report_gen_btn = gr.Button("Generate Report", variant="primary", size="sm")
-            report_output = gr.Markdown()
-
-            report_gen_btn.click(
-                generate_stakeholder_report,
-                inputs=[report_period, report_sections],
-                outputs=report_output,
-            )
-
-            gr.HTML('<div class="section-title">Continuous Compliance Monitoring</div>')
-            gr.Markdown("Real-time aggregate compliance health across rules, incidents, SLOs, certifications, and goals.")
-            with gr.Row():
-                health_gauge = gr.Plot(scale=1)
-                health_breakdown = gr.Plot(scale=2)
-            health_report_md = gr.Markdown()
-            health_refresh_btn = gr.Button("↻ Refresh Health", variant="secondary", size="sm")
-
-            def _refresh_health():
-                return build_compliance_health_gauge(), build_compliance_health_breakdown(), build_compliance_health_report()
-
-            health_refresh_btn.click(_refresh_health, outputs=[health_gauge, health_breakdown, health_report_md])
-            demo.load(_refresh_health, outputs=[health_gauge, health_breakdown, health_report_md])
-
-            gr.HTML('<div class="section-title">Compliance Calendar</div>')
-            gr.Markdown("Schedule and track governance tasks: audits, reviews, renewals, training, assessments.")
-            cal_summary_md = gr.Markdown()
-            cal_table = gr.Dataframe(interactive=False, wrap=True)
-            cal_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
-
-            gr.Markdown("**Add Calendar Item**")
-            with gr.Row():
-                cal_title = gr.Textbox(label="Title", scale=3)
-                cal_type = gr.Dropdown(label="Type", choices=CALENDAR_ITEM_TYPES, value="review", scale=2)
-                cal_priority = gr.Dropdown(label="Priority", choices=CALENDAR_PRIORITIES, value="medium", scale=2)
-            with gr.Row():
-                cal_due = gr.Textbox(label="Due date (YYYY-MM-DD)", scale=2)
-                cal_owner = gr.Textbox(label="Owner", scale=2)
-                cal_rule_csv = gr.Textbox(label="Linked Rule IDs (optional)", scale=3)
-            cal_desc = gr.Textbox(label="Description", scale=4)
-            cal_add_btn = gr.Button("+ Add Item", variant="secondary", size="sm")
-            cal_add_status = gr.Markdown()
-
-            gr.Markdown("**Mark Item Complete**")
-            with gr.Row():
-                cal_complete_id = gr.Textbox(label="Item ID prefix", scale=3)
-                cal_complete_notes = gr.Textbox(label="Completion notes", scale=4)
-            cal_complete_btn = gr.Button("Mark Complete", variant="secondary", size="sm")
-            cal_complete_status = gr.Markdown()
-
-            def _refresh_calendar():
-                return build_calendar_summary(), build_calendar_table()
-
-            cal_add_btn.click(
-                add_calendar_item,
-                inputs=[cal_title, cal_type, cal_due, cal_priority, cal_desc, cal_owner, cal_rule_csv],
-                outputs=cal_add_status,
-            )
-            cal_add_btn.click(_refresh_calendar, outputs=[cal_summary_md, cal_table])
-            cal_complete_btn.click(complete_calendar_item, inputs=[cal_complete_id, cal_complete_notes], outputs=cal_complete_status)
-            cal_complete_btn.click(_refresh_calendar, outputs=[cal_summary_md, cal_table])
-            cal_refresh_btn.click(_refresh_calendar, outputs=[cal_summary_md, cal_table])
-            demo.load(_refresh_calendar, outputs=[cal_summary_md, cal_table])
-
-            gr.HTML('<div class="section-title">Adversarial Robustness Testing</div>')
-            gr.Markdown("Run structured adversarial attacks (role-play escape, authority claim, encoding evasion, etc.) against a rule to measure robustness.")
-            rob_report = gr.Markdown()
-            rob_table = gr.Dataframe(interactive=False, wrap=True)
-            with gr.Row():
-                rob_rule_id = gr.Textbox(label="Rule ID", scale=4)
-                rob_run_btn = gr.Button("Run Robustness Test", variant="primary", size="sm", scale=1)
-            rob_refresh_btn = gr.Button("↻ Refresh History", variant="secondary", size="sm")
-
-            def _refresh_robustness():
-                return build_robustness_table()
-
-            rob_run_btn.click(run_robustness_test, inputs=rob_rule_id, outputs=rob_report)
-            rob_run_btn.click(_refresh_robustness, outputs=rob_table)
-            rob_refresh_btn.click(_refresh_robustness, outputs=rob_table)
-            demo.load(_refresh_robustness, outputs=rob_table)
-
-            gr.HTML('<div class="section-title">Fairness &amp; Bias Detection</div>')
-            gr.Markdown("Compare rule trigger rates across demographic groups to detect disparate treatment (>10% disparity = bias).")
-            bias_summary_md = gr.Markdown()
-            bias_table = gr.Dataframe(interactive=False, wrap=True)
-            bias_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
-
-            gr.Markdown("**Run Bias Analysis** (separate multiple inputs with `|`)")
-            with gr.Row():
-                bias_rule_id = gr.Textbox(label="Rule ID", scale=2)
-                bias_group_a = gr.Textbox(label="Group A label", placeholder="e.g. male", scale=2)
-                bias_group_b = gr.Textbox(label="Group B label", placeholder="e.g. female", scale=2)
-            bias_inputs_a = gr.Textbox(label="Group A inputs (| separated)", lines=2, scale=4)
-            bias_inputs_b = gr.Textbox(label="Group B inputs (| separated)", lines=2, scale=4)
-            bias_run_btn = gr.Button("Run Bias Analysis", variant="primary", size="sm")
-            bias_result_md = gr.Markdown()
-
-            def _refresh_bias():
-                return build_bias_summary(), build_bias_table()
-
-            bias_run_btn.click(
-                log_bias_analysis,
-                inputs=[bias_rule_id, bias_group_a, bias_group_b, bias_inputs_a, bias_inputs_b],
-                outputs=bias_result_md,
-            )
-            bias_run_btn.click(_refresh_bias, outputs=[bias_summary_md, bias_table])
-            bias_refresh_btn.click(_refresh_bias, outputs=[bias_summary_md, bias_table])
-            demo.load(_refresh_bias, outputs=[bias_summary_md, bias_table])
-
-            gr.HTML('<div class="section-title">Audit Trail Integrity</div>')
-            gr.Markdown("Tamper-evident hash chain for governance actions. Each entry hashes itself + the previous entry's hash.")
-            audit_chain_report = gr.Markdown()
-            audit_chain_table = gr.Dataframe(interactive=False, wrap=True)
-            audit_verify_btn = gr.Button("Verify Chain Integrity", variant="primary", size="sm")
-            audit_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
-
-            gr.Markdown("**Append Audit Entry**")
-            with gr.Row():
-                audit_action = gr.Dropdown(label="Action", choices=META_ACTIONS + ["system_event", "config_change"], value="create_rule", scale=2)
-                audit_actor = gr.Textbox(label="Actor (user/system)", scale=2)
-                audit_target = gr.Textbox(label="Target (rule ID / entity)", scale=2)
-            audit_details = gr.Textbox(label="Details", scale=4)
-            audit_append_btn = gr.Button("Append to Chain", variant="secondary", size="sm")
-            audit_append_status = gr.Markdown()
-
-            def _refresh_chain():
-                return build_audit_chain_table()
-
-            audit_verify_btn.click(verify_audit_chain, outputs=audit_chain_report)
-            audit_append_btn.click(
-                append_audit_entry,
-                inputs=[audit_action, audit_actor, audit_target, audit_details],
-                outputs=audit_append_status,
-            )
-            audit_append_btn.click(_refresh_chain, outputs=audit_chain_table)
-            audit_refresh_btn.click(_refresh_chain, outputs=audit_chain_table)
-            demo.load(_refresh_chain, outputs=audit_chain_table)
-
-            gr.HTML('<div class="section-title">Compliance Trend Analytics</div>')
-            gr.Markdown("Time-series compliance trends per rule (uses reputation snapshots). Take snapshots regularly to build trend data.")
-            trend_chart = gr.Plot()
-            trend_summary_md = gr.Markdown()
-            with gr.Row():
-                trend_window = gr.Slider(label="Time window (days)", minimum=7, maximum=90, step=7, value=30, scale=4)
-                trend_refresh_btn = gr.Button("↻ Refresh Trends", variant="secondary", size="sm", scale=1)
-
-            def _refresh_trends(window):
-                return build_trend_chart(int(window)), build_trend_summary(int(window))
-
-            trend_refresh_btn.click(_refresh_trends, inputs=trend_window, outputs=[trend_chart, trend_summary_md])
-            trend_window.change(_refresh_trends, inputs=trend_window, outputs=[trend_chart, trend_summary_md])
-            demo.load(lambda: _refresh_trends(30), outputs=[trend_chart, trend_summary_md])
-
-            gr.HTML('<div class="section-title">Gap Simulator</div>')
-            gr.Markdown("Type a message to see which gaps would be detected and which rules would apply.")
-            sim_input = gr.Textbox(
-                label="Message",
-                placeholder="e.g. That's wrong, you forgot error handling",
-                lines=2,
-            )
-            sim_btn = gr.Button("Simulate", variant="primary", size="sm")
-            with gr.Row():
-                gap_output = gr.Markdown()
-                prompt_output = gr.Markdown()
-            sim_btn.click(simulate_gap, inputs=sim_input, outputs=[gap_output, prompt_output])
-            sim_input.submit(simulate_gap, inputs=sim_input, outputs=[gap_output, prompt_output])
-            gr.Examples(
-                examples=[
-                    ["That's wrong, you forgot error handling in the database query"],
-                    ["Actually, I said I wanted Python not JavaScript"],
-                    ["I asked you this already — how do I query the API?"],
-                ],
-                inputs=sim_input,
-            )
-
-
 # ---------------------------------------------------------------------------
 # #29 REGRESSION DETECTION
 # ---------------------------------------------------------------------------
@@ -9512,6 +8123,1401 @@ def build_maturity_report() -> str:
         lines += ["---", "### Maximum maturity achieved (Level 6 — Autonomous)"]
 
     return "\n".join(lines)
+with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as demo:
+
+    gr.HTML("""
+<div class="arl-header">
+  <h1>AI Rule Learning</h1>
+  <p>Your AI gets smarter every session — automatically.</p>
+</div>
+""")
+
+    with gr.Tabs():
+
+        # ── Dashboard ────────────────────────────────────────────────────────
+        with gr.Tab("📊 Dashboard"):
+            metrics_html = gr.HTML()
+            pending_alert = gr.HTML()
+            dashboard_refresh = gr.Button("↻ Refresh", variant="secondary", size="sm")
+
+            gr.HTML('<div class="section-title">Rule Effectiveness</div>')
+            dash_eff_chart = gr.Plot()
+
+            gr.HTML('<div class="section-title">Governance Maturity Model</div>')
+            gr.Markdown("Six-level maturity ladder — auto-assessed from live system data. Shows where you are and exactly what to do next.")
+            maturity_chart = gr.Plot()
+            maturity_report_md = gr.Markdown()
+            maturity_refresh_btn = gr.Button("↻ Assess Maturity", variant="secondary", size="sm")
+
+            gr.HTML('<div class="section-title">Recent Activity</div>')
+            activity_html = gr.HTML()
+
+            def refresh_dashboard():
+                return (
+                    build_metrics_html(),
+                    build_pending_alert_html(),
+                    build_effectiveness_chart_dark(),
+                    build_maturity_chart(),
+                    build_maturity_report(),
+                    build_activity_html(),
+                )
+
+            maturity_refresh_btn.click(
+                lambda: (build_maturity_chart(), build_maturity_report()),
+                outputs=[maturity_chart, maturity_report_md],
+            )
+            dashboard_refresh.click(
+                refresh_dashboard,
+                outputs=[metrics_html, pending_alert, dash_eff_chart, maturity_chart, maturity_report_md, activity_html],
+            )
+            demo.load(
+                refresh_dashboard,
+                outputs=[metrics_html, pending_alert, dash_eff_chart, maturity_chart, maturity_report_md, activity_html],
+            )
+
+        # ── Rules ────────────────────────────────────────────────────────────
+        with gr.Tab("📋 Rules"):
+
+            gr.HTML('<div class="section-title">Active Rules</div>')
+            rules_table = gr.Dataframe(interactive=False, wrap=True)
+            refresh_rules_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
+
+            rule_selector = gr.Dropdown(label="Select rule", choices=[])
+            rule_detail = gr.Markdown()
+
+            gr.HTML('<div class="section-title">Effectiveness Trend</div>')
+            score_trend_chart = gr.Plot()
+
+            gr.HTML('<div class="section-title">Version History</div>')
+            version_history_table = gr.Dataframe(interactive=False, wrap=True)
+
+            def refresh_rules():
+                return build_rules_table(), gr.Dropdown(choices=get_rule_names())
+
+            refresh_rules_btn.click(refresh_rules, outputs=[rules_table, rule_selector])
+            demo.load(refresh_rules, outputs=[rules_table, rule_selector])
+            rule_selector.change(get_rule_detail, inputs=rule_selector, outputs=rule_detail)
+            rule_selector.change(build_rule_score_trend, inputs=rule_selector, outputs=score_trend_chart)
+            rule_selector.change(build_rule_version_history, inputs=rule_selector, outputs=version_history_table)
+
+            gr.HTML('<div class="section-title">Review Queue</div>')
+            pending_table = gr.Dataframe(interactive=False, wrap=True)
+            refresh_pending_btn = gr.Button("↻ Refresh queue", variant="secondary", size="sm")
+            pending_selector = gr.Dropdown(label="Select pending rule", choices=[])
+            pending_detail = gr.Markdown()
+
+            with gr.Row():
+                approve_btn = gr.Button("✅ Approve & Activate", variant="primary")
+                reject_btn = gr.Button("🗑️ Reject", variant="stop")
+            review_status = gr.Markdown()
+
+            def refresh_pending():
+                return build_pending_rules_table(), gr.Dropdown(choices=get_pending_rule_ids())
+
+            refresh_pending_btn.click(refresh_pending, outputs=[pending_table, pending_selector])
+            demo.load(refresh_pending, outputs=[pending_table, pending_selector])
+            pending_selector.change(get_pending_rule_detail, inputs=pending_selector, outputs=pending_detail)
+            approve_btn.click(approve_rule, inputs=pending_selector, outputs=review_status)
+            reject_btn.click(reject_rule, inputs=pending_selector, outputs=review_status)
+
+            gr.HTML('<div class="section-title">A/B Testing</div>')
+            gr.Markdown("Create a keyword variant of a rule to compare effectiveness after real sessions.")
+            ab_rule_selector = gr.Dropdown(label="Select rule to test", choices=[])
+            ab_refresh_btn = gr.Button("↻ Refresh rule list", variant="secondary", size="sm")
+            ab_create_btn = gr.Button("🧪 Create A/B Variant", variant="secondary")
+            ab_status = gr.Markdown()
+            ab_comparison = gr.Markdown()
+
+            def _refresh_ab_rules():
+                return gr.Dropdown(choices=get_rule_names())
+
+            ab_refresh_btn.click(_refresh_ab_rules, outputs=ab_rule_selector)
+            demo.load(_refresh_ab_rules, outputs=ab_rule_selector)
+            ab_rule_selector.change(build_ab_comparison, inputs=ab_rule_selector, outputs=ab_comparison)
+            ab_create_btn.click(create_rule_ab_variant, inputs=ab_rule_selector, outputs=ab_status)
+
+            gr.HTML('<div class="section-title">Ownership</div>')
+            gr.Markdown("Assign accountability to every rule — required for audit trails.")
+            with gr.Row():
+                owner_rule_selector = gr.Dropdown(label="Rule", choices=[], scale=3)
+                owner_refresh_btn = gr.Button("↻", variant="secondary", size="sm", scale=1)
+            with gr.Row():
+                owner_name = gr.Textbox(label="Owner name", placeholder="e.g. Jane Smith", scale=2)
+                owner_team = gr.Textbox(label="Team", placeholder="e.g. Security", scale=2)
+                owner_contact = gr.Textbox(label="Contact", placeholder="e.g. security@company.com", scale=2)
+            owner_save_btn = gr.Button("💾 Save Ownership", variant="primary", size="sm")
+            owner_status = gr.Markdown()
+
+            def _refresh_owner_rules():
+                return gr.Dropdown(choices=get_rule_names())
+
+            owner_refresh_btn.click(_refresh_owner_rules, outputs=owner_rule_selector)
+            demo.load(_refresh_owner_rules, outputs=owner_rule_selector)
+            owner_save_btn.click(
+                set_rule_owner,
+                inputs=[owner_rule_selector, owner_name, owner_team, owner_contact],
+                outputs=owner_status,
+            )
+
+            gr.HTML('<div class="section-title">Lifecycle Management</div>')
+            gr.Markdown("Move rules through: `draft → pending_review → active → deprecated → retired`")
+            lifecycle_table = gr.Dataframe(interactive=False, wrap=True)
+            lifecycle_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
+            with gr.Row():
+                lc_rule_selector = gr.Dropdown(label="Rule", choices=[], scale=3)
+                lc_new_state = gr.Dropdown(
+                    label="New state",
+                    choices=LIFECYCLE_STATES,
+                    scale=2,
+                )
+            lc_reason = gr.Textbox(label="Reason (optional)", placeholder="e.g. Superseded by Rule #22")
+            lc_transition_btn = gr.Button("▶ Apply Transition", variant="primary", size="sm")
+            lc_status = gr.Markdown()
+
+            def _refresh_lc():
+                return build_lifecycle_table(), gr.Dropdown(choices=get_rule_names())
+
+            lifecycle_refresh_btn.click(_refresh_lc, outputs=[lifecycle_table, lc_rule_selector])
+            demo.load(_refresh_lc, outputs=[lifecycle_table, lc_rule_selector])
+            lc_transition_btn.click(
+                transition_rule_lifecycle,
+                inputs=[lc_rule_selector, lc_new_state, lc_reason],
+                outputs=lc_status,
+            )
+
+            gr.HTML('<div class="section-title">Exception Management</div>')
+            gr.Markdown("Temporarily disable a rule with a mandatory reason, approver, and expiry.")
+            exceptions_table = gr.Dataframe(interactive=False, wrap=True)
+            exc_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
+            with gr.Row():
+                exc_rule_selector = gr.Dropdown(label="Rule to disable", choices=[], scale=3)
+                exc_duration = gr.Number(label="Duration (hours)", value=24, minimum=1, maximum=720, scale=1)
+            with gr.Row():
+                exc_reason = gr.Textbox(label="Reason", placeholder="e.g. Emergency incident response", scale=3)
+                exc_approver = gr.Textbox(label="Approved by", placeholder="e.g. CISO", scale=2)
+            with gr.Row():
+                exc_create_btn = gr.Button("⚠️ Create Exception", variant="stop")
+                exc_restore_btn = gr.Button("✅ Restore Rule", variant="primary")
+            exc_status = gr.Markdown()
+
+            def _refresh_exc():
+                return build_exceptions_table(), gr.Dropdown(choices=get_rule_names())
+
+            exc_refresh_btn.click(_refresh_exc, outputs=[exceptions_table, exc_rule_selector])
+            demo.load(_refresh_exc, outputs=[exceptions_table, exc_rule_selector])
+            exc_create_btn.click(
+                create_exception,
+                inputs=[exc_rule_selector, exc_reason, exc_approver, exc_duration],
+                outputs=exc_status,
+            )
+            exc_restore_btn.click(restore_from_exception, inputs=exc_rule_selector, outputs=exc_status)
+
+            gr.HTML('<div class="section-title">Rule Dependencies</div>')
+            gr.Markdown("Define which rules must fire before others, or which rules block each other.")
+            dep_rule_sel = gr.Dropdown(label="Rule to configure", choices=[], scale=3)
+            dep_refresh_sel_btn = gr.Button("↻ Refresh list", variant="secondary", size="sm")
+            with gr.Row():
+                dep_depends_on = gr.Textbox(
+                    label="Depends On (rule IDs, comma-separated)",
+                    placeholder="e.g. abc123, def456",
+                    scale=3,
+                )
+                dep_blocks = gr.Textbox(
+                    label="Blocks (rule IDs, comma-separated)",
+                    placeholder="e.g. ghi789",
+                    scale=3,
+                )
+            dep_save_btn = gr.Button("💾 Save Dependencies", variant="primary", size="sm")
+            dep_status = gr.Markdown()
+
+            def _refresh_dep_sel():
+                return gr.Dropdown(choices=get_rule_ids())
+
+            dep_refresh_sel_btn.click(_refresh_dep_sel, outputs=dep_rule_sel)
+            demo.load(_refresh_dep_sel, outputs=dep_rule_sel)
+
+            def _save_deps(rule_id, depends_str, blocks_str):
+                dep_list = [x.strip() for x in depends_str.split(",") if x.strip()]
+                blk_list = [x.strip() for x in blocks_str.split(",") if x.strip()]
+                return set_rule_dependencies(rule_id, dep_list, blk_list)
+
+            dep_save_btn.click(
+                _save_deps,
+                inputs=[dep_rule_sel, dep_depends_on, dep_blocks],
+                outputs=dep_status,
+            )
+
+            gr.HTML('<div class="section-title">Conflict Detection</div>')
+            gr.Markdown("Detect contradictions, overlaps, and duplicates across active rules.")
+            conflict_summary_md = gr.Markdown()
+            conflicts_table = gr.Dataframe(interactive=False, wrap=True)
+            with gr.Row():
+                conflict_scan_btn = gr.Button("🔍 Run Conflict Scan (LLM)", variant="primary", size="sm")
+                conflict_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
+            conflict_log = gr.Textbox(label="Scan log", lines=6, interactive=False, autoscroll=True)
+            with gr.Row():
+                conflict_resolve_id = gr.Textbox(label="Conflict ID prefix to resolve", scale=2)
+                conflict_resolution = gr.Textbox(label="Resolution note", scale=4)
+            conflict_resolve_btn = gr.Button("✅ Mark Resolved", variant="secondary", size="sm")
+            conflict_resolve_status = gr.Markdown()
+
+            def _refresh_conflicts():
+                return build_conflict_summary(), build_conflicts_table()
+
+            conflict_refresh_btn.click(_refresh_conflicts, outputs=[conflict_summary_md, conflicts_table])
+            demo.load(_refresh_conflicts, outputs=[conflict_summary_md, conflicts_table])
+            conflict_scan_btn.click(run_conflict_detection_llm, outputs=conflict_log)
+            conflict_resolve_btn.click(
+                resolve_conflict,
+                inputs=[conflict_resolve_id, conflict_resolution],
+                outputs=conflict_resolve_status,
+            )
+
+            gr.HTML('<div class="section-title">Export</div>')
+            with gr.Row():
+                export_btn = gr.Button("Export as System Prompt", variant="secondary", size="sm")
+                yaml_export_btn = gr.Button("Export as YAML", variant="secondary", size="sm")
+            system_prompt_output = gr.Textbox(
+                label="System prompt",
+                lines=15, interactive=True, show_copy_button=True,
+            )
+            yaml_output = gr.Textbox(
+                label="YAML",
+                lines=15, interactive=True, show_copy_button=True,
+            )
+            export_btn.click(export_system_prompt, outputs=system_prompt_output)
+            yaml_export_btn.click(export_rules_as_yaml, outputs=yaml_output)
+
+        # ── Sessions ─────────────────────────────────────────────────────────
+        with gr.Tab("🔄 Sessions"):
+
+            gr.HTML('<div class="section-title">Step 1 — Import Sessions</div>')
+            with gr.Row():
+                with gr.Column():
+                    gr.Markdown("**Upload Claude Code session files (.jsonl)**")
+                    session_files_input = gr.File(
+                        label="Session files",
+                        file_types=[".jsonl"],
+                        file_count="multiple",
+                    )
+                    import_btn = gr.Button("Import", variant="primary")
+
+                with gr.Column():
+                    gr.Markdown("**Upload conversation history (JSON or CSV)**")
+                    upload_file = gr.File(
+                        label="Conversation file",
+                        file_types=[".json", ".csv"],
+                    )
+                    upload_btn = gr.Button("Upload", variant="primary")
+
+            import_log = gr.Textbox(label="Import log", lines=8, interactive=False, autoscroll=True)
+            upload_status = gr.Markdown()
+
+            import_btn.click(run_import_sessions, inputs=session_files_input, outputs=import_log)
+            upload_btn.click(upload_history, inputs=upload_file, outputs=upload_status)
+
+            gr.HTML('<div class="section-title">Step 2 — Analyse</div>')
+            with gr.Row():
+                analysis_btn = gr.Button("▶ Run Analysis", variant="primary", size="lg")
+                reanalyze_btn = gr.Button("🔁 Re-analyze All", variant="secondary", size="lg")
+                score_btn = gr.Button("📊 Score Effectiveness", variant="secondary", size="lg")
+
+            with gr.Row():
+                judge_btn = gr.Button("🧑‍⚖️ LLM Judge Score", variant="primary")
+                redteam_btn = gr.Button("🔴 Red Team Rules", variant="primary")
+                evolve_btn = gr.Button("🔄 Evolve Low-Scoring", variant="secondary")
+
+            with gr.Row():
+                seed_btn = gr.Button("🌱 Load Starter Rules", variant="secondary")
+                dedup_btn = gr.Button("🧹 Remove Duplicates", variant="secondary")
+                risk_compute_btn = gr.Button("🔢 Update Risk Scores", variant="secondary")
+
+            community_toggle = gr.Checkbox(
+                label="Contribute anonymous gap patterns to the community (no conversation text)",
+                value=False,
+            )
+            analysis_log = gr.Textbox(
+                label="Analysis log", lines=18, interactive=False, autoscroll=True,
+            )
+
+            analysis_btn.click(run_analysis, inputs=community_toggle, outputs=analysis_log)
+            reanalyze_btn.click(run_force_reanalyze, inputs=community_toggle, outputs=analysis_log)
+            evolve_btn.click(run_validate_and_evolve, outputs=analysis_log)
+            seed_btn.click(run_seed_rules, outputs=analysis_log)
+            dedup_btn.click(run_deduplicate_rules, outputs=analysis_log)
+            score_btn.click(run_score_effectiveness, outputs=analysis_log)
+            judge_btn.click(run_llm_judge_scoring, outputs=analysis_log)
+            redteam_btn.click(run_red_team, outputs=analysis_log)
+            risk_compute_btn.click(run_update_risk_scores, outputs=analysis_log)
+
+            gr.HTML('<div class="section-title">Step 3 — Review New Rules</div>')
+            gr.Markdown("New rules generated by analysis appear in the **Rules** tab → Review Queue. Approve each one to activate it.")
+
+        # ── Insights ─────────────────────────────────────────────────────────
+        with gr.Tab("🔍 Monitoring"):
+
+            gr.HTML('<div class="section-title">Conversation Clusters</div>')
+            gr.Markdown("Gap frequency grouped by project context — shows where problems concentrate.")
+            cluster_chart = gr.Plot()
+            cluster_summary = gr.Markdown()
+            cluster_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
+
+            def _refresh_clusters():
+                return build_cluster_chart(), build_cluster_summary()
+
+            cluster_refresh_btn.click(_refresh_clusters, outputs=[cluster_chart, cluster_summary])
+            demo.load(_refresh_clusters, outputs=[cluster_chart, cluster_summary])
+
+            gr.HTML('<div class="section-title">Rule Enforcement Validator</div>')
+            gr.Markdown("Validate a user/agent turn against all active rules in real time.")
+            enf_summary_md = gr.Markdown()
+            enf_log_table = gr.Dataframe(interactive=False, wrap=True)
+            enf_refresh_btn = gr.Button("↻ Refresh log", variant="secondary", size="sm")
+            enf_user_input = gr.Textbox(label="User input", lines=2,
+                                        placeholder="What the user said")
+            enf_agent_resp = gr.Textbox(label="Agent response", lines=3,
+                                        placeholder="What the AI responded")
+            enf_context = gr.Textbox(label="Context (optional)", lines=1)
+            enf_run_btn = gr.Button("🛡️ Validate & Log", variant="primary", size="sm")
+            enf_result = gr.Markdown()
+
+            def _refresh_enf():
+                return build_enforcement_summary(), build_enforcement_log_table()
+
+            enf_refresh_btn.click(_refresh_enf, outputs=[enf_summary_md, enf_log_table])
+            demo.load(_refresh_enf, outputs=[enf_summary_md, enf_log_table])
+            enf_run_btn.click(
+                enforce_and_log,
+                inputs=[enf_user_input, enf_agent_resp, enf_context],
+                outputs=enf_result,
+            )
+
+            gr.HTML('<div class="section-title">AI Audit (Worker → Auditor)</div>')
+            gr.Markdown("Worker AI assesses rule compliance; Auditor AI independently reviews. Two-layer AI audit.")
+            audit_table = gr.Dataframe(interactive=False, wrap=True)
+            with gr.Row():
+                audit_conv_sel = gr.Dropdown(label="Conversation to audit (blank = all)", choices=[], scale=3)
+                audit_refresh_sel = gr.Button("↻ Refresh list", variant="secondary", size="sm", scale=1)
+            with gr.Row():
+                audit_run_btn = gr.Button("🤖 Run AI Audit", variant="primary", size="sm")
+                audit_refresh_btn = gr.Button("↻ Refresh table", variant="secondary", size="sm")
+            audit_log = gr.Textbox(label="Audit log", lines=8, interactive=False, autoscroll=True)
+
+            def _refresh_audit_sel():
+                return gr.Dropdown(choices=[""] + get_conversation_ids())
+
+            audit_refresh_sel.click(_refresh_audit_sel, outputs=audit_conv_sel)
+            audit_refresh_btn.click(lambda: build_audit_table(), outputs=audit_table)
+            demo.load(lambda: (build_audit_table(), gr.Dropdown(choices=[""] + get_conversation_ids())),
+                      outputs=[audit_table, audit_conv_sel])
+            audit_run_btn.click(run_ai_audit, inputs=audit_conv_sel, outputs=audit_log)
+
+            gr.HTML('<div class="section-title">Human Override Tracking</div>')
+            gr.Markdown("Record and assess human overrides of AI decisions.")
+            override_summary_md = gr.Markdown()
+            overrides_table = gr.Dataframe(interactive=False, wrap=True)
+            override_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
+
+            with gr.Row():
+                ov_conv_id = gr.Textbox(label="Conversation ID", scale=2)
+                ov_turn_no = gr.Number(label="Turn #", value=1, minimum=1, scale=1)
+            with gr.Row():
+                ov_ai_dec = gr.Textbox(label="AI Decision", scale=3)
+                ov_human_dec = gr.Textbox(label="Human Decision", scale=3)
+            ov_reason = gr.Textbox(label="Override Reason", lines=1)
+            ov_log_btn = gr.Button("📝 Log Override", variant="secondary", size="sm")
+            ov_log_status = gr.Markdown()
+            with gr.Row():
+                ov_rate_id = gr.Textbox(label="Override ID prefix to rate", scale=2)
+                ov_was_correct = gr.Checkbox(label="Was override correct?", value=True, scale=1)
+                ov_rate_btn = gr.Button("⭐ Mark Accuracy", variant="secondary", size="sm", scale=1)
+            ov_rate_status = gr.Markdown()
+
+            def _refresh_overrides():
+                return build_override_summary(), build_overrides_table()
+
+            override_refresh_btn.click(_refresh_overrides, outputs=[override_summary_md, overrides_table])
+            demo.load(_refresh_overrides, outputs=[override_summary_md, overrides_table])
+            ov_log_btn.click(
+                log_human_override,
+                inputs=[ov_conv_id, ov_turn_no, ov_ai_dec, ov_human_dec, ov_reason],
+                outputs=ov_log_status,
+            )
+            ov_rate_btn.click(mark_override_accuracy, inputs=[ov_rate_id, ov_was_correct], outputs=ov_rate_status)
+
+            gr.HTML('<div class="section-title">Escalation Quality</div>')
+            gr.Markdown("Track correct, missed, and false escalations. Compute precision, recall, and F1.")
+            esc_metrics_md = gr.Markdown()
+            esc_table = gr.Dataframe(interactive=False, wrap=True)
+            esc_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
+
+            with gr.Row():
+                esc_conv_id = gr.Textbox(label="Conversation ID", scale=2)
+                esc_turn_no = gr.Number(label="Turn #", value=1, minimum=1, scale=1)
+                esc_type = gr.Textbox(label="Escalation type", placeholder="e.g. safety, compliance", scale=2)
+            with gr.Row():
+                esc_ai_action = gr.Textbox(label="AI action taken", scale=3)
+                esc_expected = gr.Textbox(label="Expected action", scale=3)
+            with gr.Row():
+                esc_outcome = gr.Dropdown(
+                    label="Outcome", choices=ESCALATION_OUTCOMES, value="correct_escalation", scale=2)
+                esc_notes = gr.Textbox(label="Notes", scale=3)
+            esc_log_btn = gr.Button("📋 Log Escalation", variant="secondary", size="sm")
+            esc_log_status = gr.Markdown()
+
+            def _refresh_esc():
+                return build_escalation_metrics(), build_escalations_table()
+
+            esc_refresh_btn.click(_refresh_esc, outputs=[esc_metrics_md, esc_table])
+            demo.load(_refresh_esc, outputs=[esc_metrics_md, esc_table])
+            esc_log_btn.click(
+                log_escalation,
+                inputs=[esc_conv_id, esc_turn_no, esc_type, esc_ai_action, esc_expected,
+                        esc_outcome, esc_notes],
+                outputs=esc_log_status,
+            )
+
+            gr.HTML('<div class="section-title">Decision Provenance</div>')
+            gr.Markdown("Full input → retrieved context → rules applied → reasoning → output lineage per turn.")
+            prov_table = gr.Dataframe(interactive=False, wrap=True)
+            with gr.Row():
+                prov_conv_sel = gr.Dropdown(label="Conversation", choices=[], scale=3)
+                prov_refresh_sel = gr.Button("↻ Refresh list", variant="secondary", size="sm", scale=1)
+            with gr.Row():
+                prov_auto_btn = gr.Button("▶ Auto-Record Provenance", variant="primary", size="sm")
+                prov_refresh_btn = gr.Button("↻ Refresh table", variant="secondary", size="sm")
+            prov_status = gr.Markdown()
+
+            def _refresh_prov_sel():
+                return gr.Dropdown(choices=get_conversation_ids())
+
+            prov_refresh_sel.click(_refresh_prov_sel, outputs=prov_conv_sel)
+            prov_refresh_btn.click(lambda cid: build_provenance_table(cid),
+                                   inputs=prov_conv_sel, outputs=prov_table)
+            prov_auto_btn.click(auto_record_provenance, inputs=prov_conv_sel, outputs=prov_status)
+            prov_conv_sel.change(lambda cid: build_provenance_table(cid),
+                                 inputs=prov_conv_sel, outputs=prov_table)
+            demo.load(lambda: (build_provenance_table(), gr.Dropdown(choices=get_conversation_ids())),
+                      outputs=[prov_table, prov_conv_sel])
+
+            gr.HTML('<div class="section-title">Data Provenance</div>')
+            gr.Markdown("Register data sources with trust levels (high / medium / low / untrusted).")
+            with gr.Row():
+                data_prov_chart = gr.Plot(scale=1)
+                data_prov_table = gr.Dataframe(interactive=False, wrap=True, scale=2)
+            data_prov_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
+
+            with gr.Row():
+                dp_name = gr.Textbox(label="Source name", scale=3)
+                dp_type = gr.Textbox(label="Type (e.g. dataset, api, file)", scale=2)
+            with gr.Row():
+                dp_trust = gr.Dropdown(label="Trust level", choices=DATA_TRUST_LEVELS,
+                                       value="medium", scale=2)
+                dp_owner = gr.Textbox(label="Owner", scale=2)
+            dp_desc = gr.Textbox(label="Description", lines=1)
+            dp_add_btn = gr.Button("+ Register Source", variant="secondary", size="sm")
+            dp_add_status = gr.Markdown()
+
+            def _refresh_data_prov():
+                return build_data_trust_chart(), build_data_provenance_table()
+
+            data_prov_refresh_btn.click(_refresh_data_prov, outputs=[data_prov_chart, data_prov_table])
+            demo.load(_refresh_data_prov, outputs=[data_prov_chart, data_prov_table])
+            dp_add_btn.click(
+                register_data_source,
+                inputs=[dp_name, dp_type, dp_trust, dp_owner, dp_desc],
+                outputs=dp_add_status,
+            )
+
+            gr.HTML('<div class="section-title">Evidence Management</div>')
+            gr.Markdown("Store and retrieve audit evidence: logs, test results, security scans, reports.")
+            ev_table = gr.Dataframe(interactive=False, wrap=True)
+            with gr.Row():
+                ev_type_filter = gr.Dropdown(label="Filter by type", choices=[""] + EVIDENCE_TYPES,
+                                             value="", scale=2)
+                ev_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm", scale=1)
+
+            gr.Markdown("**Store new evidence**")
+            with gr.Row():
+                ev_type = gr.Dropdown(label="Type", choices=EVIDENCE_TYPES, value="log", scale=2)
+                ev_title = gr.Textbox(label="Title", scale=3)
+            ev_content = gr.Textbox(label="Content / body", lines=4)
+            with gr.Row():
+                ev_rule_id = gr.Textbox(label="Related rule ID (optional)", scale=2)
+                ev_incident_id = gr.Textbox(label="Related incident ID (optional)", scale=2)
+            with gr.Row():
+                ev_store_btn = gr.Button("💾 Store Evidence", variant="secondary", size="sm")
+                ev_export_btn = gr.Button("📦 Export Audit Bundle", variant="primary", size="sm")
+                ev_export_rule = gr.Textbox(label="Rule ID (blank=all)", scale=2)
+            ev_store_status = gr.Markdown()
+
+            def _refresh_ev(t):
+                return build_evidence_table(t)
+
+            ev_refresh_btn.click(_refresh_ev, inputs=ev_type_filter, outputs=ev_table)
+            ev_type_filter.change(_refresh_ev, inputs=ev_type_filter, outputs=ev_table)
+            demo.load(lambda: build_evidence_table(), outputs=ev_table)
+            ev_store_btn.click(
+                store_evidence,
+                inputs=[ev_type, ev_title, ev_content, ev_rule_id, ev_incident_id],
+                outputs=ev_store_status,
+            )
+            ev_export_btn.click(export_audit_evidence, inputs=ev_export_rule, outputs=ev_store_status)
+
+            gr.HTML('<div class="section-title">Behavioral Tracking</div>')
+            gr.Markdown("Monitor hallucination rate, accuracy, consistency, refusal quality, tone, and verbosity.")
+            with gr.Row():
+                beh_radar = gr.Plot(scale=1)
+                beh_summary_md = gr.Markdown(scale=2)
+            beh_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
+
+            gr.Markdown("**Record metrics for a turn**")
+            with gr.Row():
+                beh_conv_id = gr.Textbox(label="Conversation ID", scale=2)
+                beh_turn_no = gr.Number(label="Turn #", value=1, minimum=1, scale=1)
+                beh_hallu = gr.Checkbox(label="Hallucination detected?", value=False, scale=1)
+            with gr.Row():
+                beh_accuracy    = gr.Slider(label="Accuracy",         minimum=0, maximum=1, value=0.8, step=0.05, scale=2)
+                beh_consistency = gr.Slider(label="Consistency",       minimum=0, maximum=1, value=0.8, step=0.05, scale=2)
+                beh_refusal     = gr.Slider(label="Refusal Quality",   minimum=0, maximum=1, value=0.8, step=0.05, scale=2)
+            with gr.Row():
+                beh_tone        = gr.Slider(label="Tone",              minimum=0, maximum=1, value=0.8, step=0.05, scale=2)
+                beh_verbosity   = gr.Slider(label="Verbosity",         minimum=0, maximum=1, value=0.8, step=0.05, scale=2)
+                beh_notes       = gr.Textbox(label="Notes",            scale=2)
+            beh_record_btn = gr.Button("📊 Record Metrics", variant="secondary", size="sm")
+            beh_record_status = gr.Markdown()
+
+            def _refresh_beh():
+                return build_behavior_radar(), build_behavior_summary()
+
+            beh_refresh_btn.click(_refresh_beh, outputs=[beh_radar, beh_summary_md])
+            demo.load(_refresh_beh, outputs=[beh_radar, beh_summary_md])
+            beh_record_btn.click(
+                record_behavior_metrics,
+                inputs=[beh_conv_id, beh_turn_no, beh_hallu, beh_accuracy,
+                        beh_consistency, beh_refusal, beh_tone, beh_verbosity, beh_notes],
+                outputs=beh_record_status,
+            )
+
+        with gr.Tab("📈 Analytics"):
+
+            gr.HTML('<div class="section-title">Conversations</div>')
+            conversations_table = gr.Dataframe(interactive=False, wrap=True)
+            refresh_convs_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
+            refresh_convs_btn.click(build_conversations_table, outputs=[conversations_table])
+            demo.load(build_conversations_table, outputs=[conversations_table])
+
+            gr.HTML('<div class="section-title">Alignment Sensor</div>')
+            gr.Markdown("Per-conversation task focus, rule compliance, and drift across turns.")
+            with gr.Row():
+                conv_selector = gr.Dropdown(label="Conversation", choices=[], scale=3)
+                refresh_compass_btn = gr.Button("↻ Refresh list", variant="secondary", size="sm", scale=1)
+
+            with gr.Row():
+                compass_gauge = gr.Plot()
+                compass_timeline = gr.Plot()
+            compass_alerts = gr.Markdown()
+
+            def refresh_compass_list():
+                return gr.Dropdown(choices=get_conversation_ids())
+
+            refresh_compass_btn.click(refresh_compass_list, outputs=[conv_selector])
+            demo.load(refresh_compass_list, outputs=[conv_selector])
+            conv_selector.change(
+                build_compass, inputs=conv_selector,
+                outputs=[compass_gauge, compass_timeline, compass_alerts],
+            )
+
+            gr.HTML('<div class="section-title">Risk Scoring</div>')
+            gr.Markdown("Risk = Priority × (1 − Effectiveness) × (1 + Bypass Rate). Higher = more urgent to fix.")
+            risk_table = gr.Dataframe(interactive=False, wrap=True)
+            with gr.Row():
+                risk_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
+                risk_update_btn = gr.Button("🔢 Recompute Risk Scores", variant="primary", size="sm")
+            risk_log = gr.Textbox(label="Risk log", lines=6, interactive=False, autoscroll=True)
+
+            def _refresh_risk():
+                return build_risk_table()
+
+            risk_refresh_btn.click(_refresh_risk, outputs=risk_table)
+            demo.load(_refresh_risk, outputs=risk_table)
+            risk_update_btn.click(run_update_risk_scores, outputs=risk_log)
+
+            gr.HTML('<div class="section-title">Compliance Drift</div>')
+            gr.Markdown("Rules whose effectiveness is declining over time — flag for investigation.")
+            drift_chart = gr.Plot()
+            drift_report = gr.Markdown()
+            drift_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
+
+            def _refresh_drift():
+                return build_drift_chart(), build_drift_report()
+
+            drift_refresh_btn.click(_refresh_drift, outputs=[drift_chart, drift_report])
+            demo.load(_refresh_drift, outputs=[drift_chart, drift_report])
+
+            gr.HTML('<div class="section-title">Predictive Compliance</div>')
+            gr.Markdown("Linear forecast of each rule's effectiveness over the next N measurements. Red = at risk.")
+            forecast_chart = gr.Plot()
+            forecast_report_md = gr.Markdown()
+            with gr.Row():
+                forecast_horizon = gr.Slider(label="Horizon (measurements ahead)", minimum=1, maximum=10,
+                                             value=3, step=1, scale=3)
+                forecast_refresh_btn = gr.Button("↻ Refresh Forecast", variant="secondary", size="sm", scale=1)
+
+            def _refresh_forecast(h):
+                return build_forecast_chart(int(h)), build_forecast_report(int(h))
+
+            forecast_refresh_btn.click(_refresh_forecast, inputs=forecast_horizon,
+                                       outputs=[forecast_chart, forecast_report_md])
+            forecast_horizon.change(_refresh_forecast, inputs=forecast_horizon,
+                                    outputs=[forecast_chart, forecast_report_md])
+            demo.load(lambda: _refresh_forecast(3), outputs=[forecast_chart, forecast_report_md])
+
+            gr.HTML('<div class="section-title">System Health</div>')
+            with gr.Row():
+                proj_gauge = gr.Plot()
+                proj_metrics = gr.Plot()
+            proj_summary = gr.Markdown()
+            proj_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
+            proj_refresh_btn.click(build_project_compass, outputs=[proj_gauge, proj_metrics, proj_summary])
+            demo.load(build_project_compass, outputs=[proj_gauge, proj_metrics, proj_summary])
+
+            gr.HTML('<div class="section-title">Rule Coverage Analysis</div>')
+            gr.Markdown("What percentage of conversation gap turns are covered by at least one active rule?")
+            with gr.Row():
+                coverage_chart = gr.Plot(scale=1)
+                coverage_report_md = gr.Markdown(scale=2)
+            coverage_refresh_btn = gr.Button("↻ Refresh Coverage", variant="secondary", size="sm")
+
+            def _refresh_coverage():
+                return build_coverage_chart(), build_coverage_report()
+
+            coverage_refresh_btn.click(_refresh_coverage, outputs=[coverage_chart, coverage_report_md])
+            demo.load(_refresh_coverage, outputs=[coverage_chart, coverage_report_md])
+
+            gr.HTML('<div class="section-title">Rule Dependency Graph</div>')
+            gr.Markdown("Visual map of which rules depend on or block other rules.")
+            dep_graph = gr.Plot()
+            dep_table = gr.Dataframe(interactive=False, wrap=True)
+            dep_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
+
+            def _refresh_deps():
+                return build_dependency_graph(), build_dependency_table()
+
+            dep_refresh_btn.click(_refresh_deps, outputs=[dep_graph, dep_table])
+            demo.load(_refresh_deps, outputs=[dep_graph, dep_table])
+
+            gr.HTML('<div class="section-title">Benchmark / Golden Dataset</div>')
+            gr.Markdown("Test rules against golden input cases to measure precision and recall.")
+            with gr.Row():
+                bench_run_btn = gr.Button("▶ Run Benchmark", variant="primary", size="sm")
+                bench_refresh_btn = gr.Button("↻ Refresh Cases", variant="secondary", size="sm")
+            bench_result = gr.Markdown()
+            bench_table = gr.Dataframe(interactive=False, wrap=True)
+
+            gr.Markdown("**Add a golden test case**")
+            with gr.Row():
+                bench_rule_sel = gr.Dropdown(label="Rule", choices=[], scale=3)
+                bench_should_trigger = gr.Checkbox(label="Should Trigger", value=True, scale=1)
+            bench_input_text = gr.Textbox(label="Input text", lines=2, placeholder="User message to test")
+            bench_expected = gr.Textbox(label="Expected behaviour", lines=1, placeholder="AI should refuse / apply / respond with…")
+            with gr.Row():
+                bench_add_btn = gr.Button("+ Add Case", variant="secondary", size="sm")
+                bench_gen_btn = gr.Button("🤖 Auto-generate cases (LLM)", variant="secondary", size="sm")
+            bench_add_status = gr.Markdown()
+
+            def _refresh_bench():
+                return build_benchmark_table(), gr.Dropdown(choices=get_rule_ids())
+
+            def _run_and_refresh():
+                result = run_benchmark()
+                table = build_benchmark_table()
+                return result, table
+
+            bench_run_btn.click(_run_and_refresh, outputs=[bench_result, bench_table])
+            bench_refresh_btn.click(_refresh_bench, outputs=[bench_table, bench_rule_sel])
+            demo.load(_refresh_bench, outputs=[bench_table, bench_rule_sel])
+            bench_add_btn.click(
+                add_benchmark_case,
+                inputs=[bench_rule_sel, bench_input_text, bench_expected, bench_should_trigger],
+                outputs=bench_add_status,
+            )
+            bench_gen_btn.click(
+                generate_benchmark_cases_llm,
+                inputs=[bench_rule_sel],
+                outputs=bench_add_status,
+            )
+
+            gr.HTML('<div class="section-title">Root Cause Analysis (RCA)</div>')
+            gr.Markdown("Log and track root causes of rule violations. LLM auto-categorises each entry.")
+            rca_summary_md = gr.Markdown()
+            rca_table = gr.Dataframe(interactive=False, wrap=True)
+            rca_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
+
+            with gr.Row():
+                rca_rule_sel = gr.Dropdown(label="Rule", choices=[], scale=3)
+                rca_cat_sel = gr.Dropdown(
+                    label="Category (leave blank for LLM)",
+                    choices=[""] + _RCA_CATEGORIES,
+                    value="",
+                    scale=2,
+                )
+            rca_violation = gr.Textbox(label="Violation description", lines=2,
+                                       placeholder="Describe what went wrong")
+            rca_user_input = gr.Textbox(label="User input (optional)", lines=1,
+                                        placeholder="The message that triggered the issue")
+            with gr.Row():
+                rca_log_btn = gr.Button("📋 Log RCA", variant="primary", size="sm")
+                rca_close_id = gr.Textbox(label="RCA ID prefix to resolve", scale=2)
+                rca_resolution = gr.Textbox(label="Resolution note", scale=3)
+                rca_close_btn = gr.Button("✅ Mark Resolved", variant="secondary", size="sm")
+            rca_status = gr.Markdown()
+
+            def _refresh_rca():
+                return build_rca_summary(), build_rca_table(), gr.Dropdown(choices=get_rule_ids())
+
+            rca_refresh_btn.click(_refresh_rca, outputs=[rca_summary_md, rca_table, rca_rule_sel])
+            demo.load(_refresh_rca, outputs=[rca_summary_md, rca_table, rca_rule_sel])
+            rca_log_btn.click(
+                log_rca,
+                inputs=[rca_rule_sel, rca_violation, rca_user_input, rca_cat_sel],
+                outputs=rca_status,
+            )
+            rca_close_btn.click(close_rca, inputs=[rca_close_id, rca_resolution], outputs=rca_status)
+
+            gr.HTML('<div class="section-title">Incident Management</div>')
+            gr.Markdown("Track violations by severity (P0–P3), status, MTTR, and recurrence rate.")
+            inc_summary_md = gr.Markdown()
+            with gr.Row():
+                inc_chart = gr.Plot(scale=2)
+            inc_table = gr.Dataframe(interactive=False, wrap=True)
+            inc_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
+
+            gr.Markdown("**Open a new incident**")
+            with gr.Row():
+                inc_rule_sel = gr.Dropdown(label="Rule", choices=[], scale=3)
+                inc_severity = gr.Dropdown(
+                    label="Severity", choices=INCIDENT_SEVERITIES, value="P2_medium", scale=2)
+            inc_title = gr.Textbox(label="Title", placeholder="e.g. bypass_rate spiked to 0.6")
+            inc_desc = gr.Textbox(label="Description", lines=2)
+            inc_open_btn = gr.Button("🚨 Open Incident", variant="stop", size="sm")
+            inc_open_status = gr.Markdown()
+
+            gr.Markdown("**Update incident status**")
+            with gr.Row():
+                inc_update_id = gr.Textbox(label="Incident ID prefix", scale=2)
+                inc_new_status = gr.Dropdown(
+                    label="New status", choices=INCIDENT_STATUSES, value="investigating", scale=2)
+                inc_note = gr.Textbox(label="Note", scale=3)
+            inc_update_btn = gr.Button("→ Update Status", variant="secondary", size="sm")
+            inc_update_status = gr.Markdown()
+
+            def _refresh_inc():
+                return build_incident_summary(), build_incident_chart(), build_incidents_table(), gr.Dropdown(choices=get_rule_ids())
+
+            inc_refresh_btn.click(_refresh_inc, outputs=[inc_summary_md, inc_chart, inc_table, inc_rule_sel])
+            demo.load(_refresh_inc, outputs=[inc_summary_md, inc_chart, inc_table, inc_rule_sel])
+            inc_open_btn.click(
+                open_incident,
+                inputs=[inc_rule_sel, inc_title, inc_severity, inc_desc],
+                outputs=inc_open_status,
+            )
+            inc_update_btn.click(
+                update_incident,
+                inputs=[inc_update_id, inc_new_status, inc_note],
+                outputs=inc_update_status,
+            )
+
+            gr.HTML('<div class="section-title">Distributed Tracing</div>')
+            gr.Markdown("Correlation IDs and decision paths per conversation turn — see exactly which rules evaluated and fired.")
+            trace_heatmap = gr.Plot()
+            trace_table = gr.Dataframe(interactive=False, wrap=True)
+            with gr.Row():
+                trace_conv_sel = gr.Dropdown(label="Conversation", choices=[], scale=3)
+                trace_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
+                trace_run_btn = gr.Button("▶ Trace Conversation", variant="primary", size="sm")
+            trace_status = gr.Markdown()
+
+            def _refresh_traces():
+                return build_trace_heatmap(), build_trace_table(), gr.Dropdown(choices=get_conversation_ids())
+
+            trace_refresh_btn.click(_refresh_traces, outputs=[trace_heatmap, trace_table, trace_conv_sel])
+            demo.load(_refresh_traces, outputs=[trace_heatmap, trace_table, trace_conv_sel])
+            trace_run_btn.click(trace_conversation, inputs=trace_conv_sel, outputs=trace_status)
+            trace_conv_sel.change(
+                lambda cid: build_trace_table(cid),
+                inputs=trace_conv_sel, outputs=trace_table,
+            )
+
+            gr.HTML('<div class="section-title">Explainability</div>')
+            gr.Markdown("Get a natural-language explanation of why a rule fired (or didn't) on specific input.")
+            with gr.Row():
+                exp_rule_sel = gr.Dropdown(label="Rule", choices=[], scale=3)
+                exp_refresh_sel = gr.Button("↻ Refresh list", variant="secondary", size="sm", scale=1)
+            exp_user_input = gr.Textbox(label="User input", lines=2,
+                                        placeholder="The message to explain")
+            exp_agent_response = gr.Textbox(label="Agent response (optional)", lines=2,
+                                            placeholder="What the AI replied")
+            exp_run_btn = gr.Button("🔍 Explain Decision", variant="primary", size="sm")
+            exp_result = gr.Markdown()
+            exp_table = gr.Dataframe(interactive=False, wrap=True, label="Explanation History")
+            exp_hist_refresh = gr.Button("↻ Refresh history", variant="secondary", size="sm")
+
+            def _refresh_exp_sel():
+                return gr.Dropdown(choices=get_rule_ids())
+
+            def _refresh_exp_table():
+                return build_explanations_table()
+
+            exp_refresh_sel.click(_refresh_exp_sel, outputs=exp_rule_sel)
+            exp_hist_refresh.click(_refresh_exp_table, outputs=exp_table)
+            demo.load(_refresh_exp_sel, outputs=exp_rule_sel)
+            demo.load(_refresh_exp_table, outputs=exp_table)
+            exp_run_btn.click(
+                explain_rule_decision,
+                inputs=[exp_rule_sel, exp_user_input, exp_agent_response],
+                outputs=exp_result,
+            )
+
+        with gr.Tab("⚖️ Governance"):
+
+            gr.HTML('<div class="section-title">Governance Dashboard & Trust Score</div>')
+            gr.Markdown("Composite Trust Score (0–100) and executive-level governance metrics.")
+            with gr.Row():
+                trust_gauge = gr.Plot(scale=1)
+                trust_breakdown = gr.Plot(scale=2)
+            gov_dash_md = gr.Markdown()
+            gov_dash_btn = gr.Button("↻ Refresh Dashboard", variant="secondary", size="sm")
+
+            def _refresh_gov_dash():
+                return build_trust_gauge(), build_trust_breakdown(), build_governance_dashboard()
+
+            gov_dash_btn.click(_refresh_gov_dash, outputs=[trust_gauge, trust_breakdown, gov_dash_md])
+            demo.load(_refresh_gov_dash, outputs=[trust_gauge, trust_breakdown, gov_dash_md])
+
+            gr.HTML('<div class="section-title">Rule Observability (SLOs)</div>')
+            gr.Markdown("Define effectiveness SLOs per rule and track error budgets in real time.")
+            slo_chart = gr.Plot()
+            slo_table = gr.Dataframe(interactive=False, wrap=True)
+            slo_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
+
+            gr.Markdown("**Define a new SLO**")
+            with gr.Row():
+                slo_rule_sel = gr.Dropdown(label="Rule", choices=[], scale=3)
+                slo_target = gr.Number(label="Target %", value=90.0, minimum=50, maximum=100, scale=1)
+                slo_window = gr.Number(label="Window (days)", value=30, minimum=1, maximum=365, scale=1)
+            slo_name_in = gr.Textbox(label="SLO name", placeholder="e.g. Effectiveness ≥ 90%")
+            slo_add_btn = gr.Button("+ Add SLO", variant="secondary", size="sm")
+            slo_status = gr.Markdown()
+
+            def _refresh_slo():
+                return build_slo_chart(), build_slo_table(), gr.Dropdown(choices=get_rule_ids())
+
+            slo_refresh_btn.click(_refresh_slo, outputs=[slo_chart, slo_table, slo_rule_sel])
+            demo.load(_refresh_slo, outputs=[slo_chart, slo_table, slo_rule_sel])
+            slo_add_btn.click(
+                define_slo,
+                inputs=[slo_rule_sel, slo_name_in, slo_target, slo_window],
+                outputs=slo_status,
+            )
+
+            gr.HTML('<div class="section-title">Continuous Improvement Loop</div>')
+            gr.Markdown("Track each violation through violation → RCA → rule update → benchmark → validated.")
+            imp_funnel = gr.Plot()
+            imp_table = gr.Dataframe(interactive=False, wrap=True)
+            imp_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
+
+            gr.Markdown("**Open a new improvement cycle**")
+            with gr.Row():
+                imp_rule_sel = gr.Dropdown(label="Rule", choices=[], scale=3)
+                imp_trigger = gr.Textbox(label="Trigger event", placeholder="e.g. bypass_rate > 0.4", scale=3)
+            imp_desc = gr.Textbox(label="Description", lines=2, placeholder="What went wrong and why")
+            with gr.Row():
+                imp_open_btn = gr.Button("▶ Open Cycle", variant="primary", size="sm")
+                imp_cycle_id = gr.Textbox(label="Cycle ID prefix to advance", scale=2)
+                imp_notes = gr.Textbox(label="Advance notes", scale=3)
+                imp_advance_btn = gr.Button("→ Advance Stage", variant="secondary", size="sm")
+            imp_status = gr.Markdown()
+
+            def _refresh_imp():
+                return build_improvement_funnel(), build_improvement_table(), gr.Dropdown(choices=get_rule_ids())
+
+            imp_refresh_btn.click(_refresh_imp, outputs=[imp_funnel, imp_table, imp_rule_sel])
+            demo.load(_refresh_imp, outputs=[imp_funnel, imp_table, imp_rule_sel])
+            imp_open_btn.click(
+                start_improvement_cycle,
+                inputs=[imp_rule_sel, imp_trigger, imp_desc],
+                outputs=imp_status,
+            )
+            imp_advance_btn.click(
+                advance_improvement_cycle,
+                inputs=[imp_cycle_id, imp_notes],
+                outputs=imp_status,
+            )
+
+            gr.HTML('<div class="section-title">Knowledge Graph</div>')
+            gr.Markdown("Map policies → requirements → controls → KPIs → audit findings → rules.")
+            kg_graph = gr.Plot()
+            kg_table = gr.Dataframe(interactive=False, wrap=True)
+            kg_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
+
+            gr.Markdown("**Add a node**")
+            with gr.Row():
+                kg_node_type = gr.Dropdown(label="Node type", choices=KG_NODE_TYPES, value="policy", scale=2)
+                kg_node_name = gr.Textbox(label="Name", scale=3)
+            kg_node_desc = gr.Textbox(label="Description (optional)", scale=3)
+            kg_node_rule = gr.Textbox(label="Linked Rule ID (optional)", scale=2)
+            kg_add_node_btn = gr.Button("+ Add Node", variant="secondary", size="sm")
+            kg_node_status = gr.Markdown()
+
+            gr.Markdown("**Add an edge**")
+            with gr.Row():
+                kg_from_id = gr.Textbox(label="From node ID prefix", scale=2)
+                kg_edge_type = gr.Dropdown(label="Edge type", choices=KG_EDGE_TYPES, value="implements", scale=2)
+                kg_to_id = gr.Textbox(label="To node ID prefix", scale=2)
+            kg_add_edge_btn = gr.Button("→ Add Edge", variant="secondary", size="sm")
+            kg_edge_status = gr.Markdown()
+
+            def _refresh_kg():
+                return build_kg_graph(), build_kg_table()
+
+            kg_refresh_btn.click(_refresh_kg, outputs=[kg_graph, kg_table])
+            demo.load(_refresh_kg, outputs=[kg_graph, kg_table])
+            kg_add_node_btn.click(
+                add_kg_node,
+                inputs=[kg_node_type, kg_node_name, kg_node_desc, kg_node_rule],
+                outputs=kg_node_status,
+            )
+            kg_add_edge_btn.click(
+                add_kg_edge,
+                inputs=[kg_from_id, kg_edge_type, kg_to_id],
+                outputs=kg_edge_status,
+            )
+
+            gr.HTML('<div class="section-title">Regression Detection</div>')
+            gr.Markdown("Detect when a new benchmark run scores lower than the previous snapshot for a rule (Δ < -5% = regression).")
+            reg_report = gr.Markdown()
+            reg_table = gr.Dataframe(interactive=False, wrap=True)
+            reg_run_btn = gr.Button("Run Regression Check", variant="primary", size="sm")
+            reg_refresh_btn = gr.Button("↻ Refresh History", variant="secondary", size="sm")
+
+            def _refresh_regression():
+                return build_regression_table()
+
+            reg_run_btn.click(run_regression_check, outputs=reg_report)
+            reg_run_btn.click(_refresh_regression, outputs=reg_table)
+            reg_refresh_btn.click(_refresh_regression, outputs=reg_table)
+            demo.load(_refresh_regression, outputs=reg_table)
+
+            gr.HTML('<div class="section-title">Reputation Tracking</div>')
+            gr.Markdown("Track per-rule compliance reputation over 7, 30, and 90 day windows.")
+            rep_chart = gr.Plot()
+            rep_table = gr.Dataframe(interactive=False, wrap=True)
+            rep_snap_btn = gr.Button("Take Snapshot", variant="primary", size="sm")
+            rep_snap_status = gr.Markdown()
+            rep_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
+
+            def _refresh_reputation():
+                return build_reputation_chart(), build_reputation_table()
+
+            rep_snap_btn.click(snapshot_reputation, outputs=rep_snap_status)
+            rep_snap_btn.click(_refresh_reputation, outputs=[rep_chart, rep_table])
+            rep_refresh_btn.click(_refresh_reputation, outputs=[rep_chart, rep_table])
+            demo.load(_refresh_reputation, outputs=[rep_chart, rep_table])
+
+            gr.HTML('<div class="section-title">Goal Alignment Monitoring</div>')
+            gr.Markdown("Map business objectives → rules and monitor alignment vs targets.")
+            goal_chart = gr.Plot()
+            goal_table = gr.Dataframe(interactive=False, wrap=True)
+            goal_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
+
+            gr.Markdown("**Define a Goal**")
+            with gr.Row():
+                goal_name = gr.Textbox(label="Objective name", scale=3)
+                goal_outcome = gr.Textbox(label="Business outcome", scale=3)
+            with gr.Row():
+                goal_rules_csv = gr.Textbox(label="Rule IDs (comma-separated)", scale=4)
+                goal_target = gr.Number(label="Target score %", value=80, scale=1)
+            goal_add_btn = gr.Button("+ Add Goal", variant="secondary", size="sm")
+            goal_status = gr.Markdown()
+
+            def _refresh_goals():
+                return build_goal_chart(), build_goal_table()
+
+            goal_add_btn.click(
+                add_goal,
+                inputs=[goal_name, goal_outcome, goal_rules_csv, goal_target],
+                outputs=goal_status,
+            )
+            goal_add_btn.click(_refresh_goals, outputs=[goal_chart, goal_table])
+            goal_refresh_btn.click(_refresh_goals, outputs=[goal_chart, goal_table])
+            demo.load(_refresh_goals, outputs=[goal_chart, goal_table])
+
+            gr.HTML('<div class="section-title">Control Mapping</div>')
+            gr.Markdown("Map governance controls (technical/operational/managerial) to rules and track their effectiveness.")
+            with gr.Row():
+                ctrl_chart = gr.Plot()
+                ctrl_heatmap = gr.Plot()
+            ctrl_table = gr.Dataframe(interactive=False, wrap=True)
+            ctrl_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
+
+            gr.Markdown("**Add a Control**")
+            with gr.Row():
+                ctrl_name = gr.Textbox(label="Control name", scale=3)
+                ctrl_cat = gr.Dropdown(label="Category", choices=CONTROL_CATEGORIES, value="technical", scale=2)
+                ctrl_risk = gr.Dropdown(label="Risk level", choices=RISK_LEVELS, value="medium", scale=2)
+            ctrl_desc = gr.Textbox(label="Description", scale=4)
+            with gr.Row():
+                ctrl_rule_csv = gr.Textbox(label="Rule IDs (comma-separated)", scale=4)
+                ctrl_audit_ref = gr.Textbox(label="Audit reference (e.g. ISO 27001 A.5.1)", scale=3)
+            ctrl_add_btn = gr.Button("+ Add Control", variant="secondary", size="sm")
+            ctrl_status = gr.Markdown()
+
+            def _refresh_controls():
+                return build_control_chart(), build_control_heatmap(), build_control_table()
+
+            ctrl_add_btn.click(
+                add_control,
+                inputs=[ctrl_name, ctrl_cat, ctrl_risk, ctrl_desc, ctrl_rule_csv, ctrl_audit_ref],
+                outputs=ctrl_status,
+            )
+            ctrl_add_btn.click(_refresh_controls, outputs=[ctrl_chart, ctrl_heatmap, ctrl_table])
+            ctrl_refresh_btn.click(_refresh_controls, outputs=[ctrl_chart, ctrl_heatmap, ctrl_table])
+            demo.load(_refresh_controls, outputs=[ctrl_chart, ctrl_heatmap, ctrl_table])
+
+            gr.HTML('<div class="section-title">Rule Learning Detection</div>')
+            gr.Markdown("Detect whether the AI is learning (improving compliance) or degrading over time using score_history slope analysis.")
+            learning_report = gr.Markdown()
+            learning_table = gr.Dataframe(interactive=False, wrap=True)
+            learning_run_btn = gr.Button("Detect Learning Trends", variant="primary", size="sm")
+            learning_refresh_btn = gr.Button("↻ Refresh History", variant="secondary", size="sm")
+
+            def _refresh_learning():
+                return build_learning_table()
+
+            learning_run_btn.click(detect_rule_learning, outputs=learning_report)
+            learning_run_btn.click(_refresh_learning, outputs=learning_table)
+            learning_refresh_btn.click(_refresh_learning, outputs=learning_table)
+            demo.load(_refresh_learning, outputs=learning_table)
+
+            gr.HTML('<div class="section-title">Rule Gaming Detection</div>')
+            gr.Markdown("Detect adversarial inputs attempting to bypass, jailbreak, or circumvent governance rules.")
+            gaming_summary_md = gr.Markdown()
+            gaming_table = gr.Dataframe(interactive=False, wrap=True)
+
+            gr.Markdown("**Auto-scan a conversation**")
+            with gr.Row():
+                gaming_conv_id = gr.Textbox(label="Conversation ID (leave blank for all)", scale=4)
+                gaming_scan_btn = gr.Button("Scan for Gaming", variant="primary", size="sm", scale=1)
+            gaming_scan_report = gr.Markdown()
+
+            gr.Markdown("**Manual log**")
+            with gr.Row():
+                gaming_log_conv = gr.Textbox(label="Conv ID", scale=2)
+                gaming_log_turn = gr.Number(label="Turn #", value=1, scale=1)
+                gaming_log_confirmed = gr.Checkbox(label="Confirmed?", scale=1)
+            gaming_log_input = gr.Textbox(label="User input", lines=2, scale=4)
+            gaming_log_notes = gr.Textbox(label="Notes", scale=3)
+            gaming_log_btn = gr.Button("Log Gaming Attempt", variant="secondary", size="sm")
+            gaming_log_status = gr.Markdown()
+            gaming_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
+
+            def _refresh_gaming():
+                return build_gaming_summary(), build_gaming_table()
+
+            gaming_scan_btn.click(auto_scan_gaming, inputs=gaming_conv_id, outputs=gaming_scan_report)
+            gaming_log_btn.click(
+                log_gaming_attempt,
+                inputs=[gaming_log_conv, gaming_log_turn, gaming_log_input, gaming_log_confirmed, gaming_log_notes],
+                outputs=gaming_log_status,
+            )
+            gaming_log_btn.click(_refresh_gaming, outputs=[gaming_summary_md, gaming_table])
+            gaming_refresh_btn.click(_refresh_gaming, outputs=[gaming_summary_md, gaming_table])
+            demo.load(_refresh_gaming, outputs=[gaming_summary_md, gaming_table])
+
+            gr.HTML('<div class="section-title">Meta-Governance</div>')
+            gr.Markdown("Define who can create, approve, audit, and manage rules — governance of the governance system.")
+            with gr.Row():
+                meta_role_table = gr.Dataframe(label="Role Assignments", interactive=False, wrap=True, scale=3)
+                meta_audit_table = gr.Dataframe(label="Action Audit Log", interactive=False, wrap=True, scale=3)
+            meta_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
+
+            gr.Markdown("**Assign Role**")
+            with gr.Row():
+                meta_user_id = gr.Textbox(label="User ID", scale=2)
+                meta_role = gr.Dropdown(label="Role", choices=META_ROLES, value="observer", scale=2)
+                meta_granted_by = gr.Textbox(label="Granted by", scale=2)
+            meta_perms = gr.CheckboxGroup(label="Permissions", choices=META_ACTIONS)
+            meta_assign_btn = gr.Button("Assign Role", variant="secondary", size="sm")
+            meta_assign_status = gr.Markdown()
+
+            gr.Markdown("**Log Governance Action**")
+            with gr.Row():
+                meta_log_user = gr.Textbox(label="User ID", scale=2)
+                meta_log_action = gr.Dropdown(label="Action", choices=META_ACTIONS, value="create_rule", scale=2)
+                meta_log_outcome = gr.Dropdown(label="Outcome", choices=["approved", "rejected", "pending"], value="approved", scale=2)
+            with gr.Row():
+                meta_log_target = gr.Textbox(label="Target (rule ID / audit ID)", scale=3)
+                meta_log_notes = gr.Textbox(label="Notes", scale=3)
+            meta_log_btn = gr.Button("Log Action", variant="secondary", size="sm")
+            meta_log_status = gr.Markdown()
+
+            gr.Markdown("**Permission Check**")
+            with gr.Row():
+                meta_check_user = gr.Textbox(label="User ID", scale=2)
+                meta_check_action = gr.Dropdown(label="Action", choices=META_ACTIONS, value="approve_rule", scale=2)
+            meta_check_btn = gr.Button("Check Permission", variant="secondary", size="sm")
+            meta_check_result = gr.Markdown()
+
+            def _perms_csv(perms_list):
+                return ",".join(perms_list) if perms_list else ""
+
+            def _assign_meta_role(uid, role, granted_by, perms_list):
+                return assign_meta_role(uid, role, granted_by, _perms_csv(perms_list))
+
+            def _log_gov_action(uid, action, target, outcome, notes):
+                return log_governance_action(uid, action, target, outcome, notes)
+
+            def _check_perm(uid, action):
+                ok, msg = check_permission(uid, action)
+                icon = "✅" if ok else "❌"
+                return f"{icon} {msg}"
+
+            def _refresh_meta():
+                return build_meta_gov_table(), build_governance_audit_log()
+
+            meta_assign_btn.click(_assign_meta_role, inputs=[meta_user_id, meta_role, meta_granted_by, meta_perms], outputs=meta_assign_status)
+            meta_assign_btn.click(_refresh_meta, outputs=[meta_role_table, meta_audit_table])
+            meta_log_btn.click(_log_gov_action, inputs=[meta_log_user, meta_log_action, meta_log_target, meta_log_outcome, meta_log_notes], outputs=meta_log_status)
+            meta_log_btn.click(_refresh_meta, outputs=[meta_role_table, meta_audit_table])
+            meta_check_btn.click(_check_perm, inputs=[meta_check_user, meta_check_action], outputs=meta_check_result)
+            meta_refresh_btn.click(_refresh_meta, outputs=[meta_role_table, meta_audit_table])
+            demo.load(_refresh_meta, outputs=[meta_role_table, meta_audit_table])
+
+            gr.HTML('<div class="section-title">Formal Policy Export</div>')
+            gr.Markdown("Export rules as structured YAML or JSON policy documents for audit trails and external tooling.")
+            with gr.Row():
+                policy_rule_filter = gr.Textbox(label="Rule IDs to export (comma-separated, leave blank for all)", scale=5)
+            with gr.Row():
+                policy_yaml_btn = gr.Button("Export YAML", variant="primary", size="sm")
+                policy_json_btn = gr.Button("Export JSON", variant="secondary", size="sm")
+            policy_output = gr.Markdown()
+
+            policy_yaml_btn.click(export_policy_yaml, inputs=policy_rule_filter, outputs=policy_output)
+            policy_json_btn.click(export_policy_json, inputs=policy_rule_filter, outputs=policy_output)
+
+            gr.HTML('<div class="section-title">Certification &amp; Accreditation</div>')
+            gr.Markdown("Track certifications (ISO 27001, SOC2, GDPR, etc.) with expiry dates and renewal alerts.")
+            cert_summary_md = gr.Markdown()
+            cert_table = gr.Dataframe(interactive=False, wrap=True)
+            cert_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
+
+            gr.Markdown("**Register Certification**")
+            with gr.Row():
+                cert_name = gr.Textbox(label="Certification name", scale=3)
+                cert_type = gr.Dropdown(label="Type", choices=CERT_TYPES, value="iso_27001", scale=2)
+                cert_issuer = gr.Textbox(label="Issuing body", scale=2)
+            with gr.Row():
+                cert_issue = gr.Textbox(label="Issue date (YYYY-MM-DD)", scale=2)
+                cert_expiry = gr.Textbox(label="Expiry date (YYYY-MM-DD)", scale=2)
+                cert_scope = gr.Textbox(label="Scope", scale=3)
+            cert_rules_csv = gr.Textbox(label="Linked Rule IDs (comma-separated, optional)")
+            cert_add_btn = gr.Button("+ Add Certification", variant="secondary", size="sm")
+            cert_status_md = gr.Markdown()
+
+            def _refresh_certs():
+                return build_cert_summary(), build_cert_table()
+
+            cert_add_btn.click(
+                add_certification,
+                inputs=[cert_name, cert_type, cert_issuer, cert_issue, cert_expiry, cert_scope, cert_rules_csv],
+                outputs=cert_status_md,
+            )
+            cert_add_btn.click(_refresh_certs, outputs=[cert_summary_md, cert_table])
+            cert_refresh_btn.click(_refresh_certs, outputs=[cert_summary_md, cert_table])
+            demo.load(_refresh_certs, outputs=[cert_summary_md, cert_table])
+
+            gr.HTML('<div class="section-title">Stakeholder Report</div>')
+            gr.Markdown("Generate a comprehensive compliance report for stakeholders (CTO, board, auditors).")
+            with gr.Row():
+                report_period = gr.Dropdown(label="Period", choices=["monthly", "quarterly", "annual", "ad-hoc"], value="monthly", scale=2)
+                report_sections = gr.Textbox(label="Sections to include (optional, comma-sep)", scale=4)
+            report_gen_btn = gr.Button("Generate Report", variant="primary", size="sm")
+            report_output = gr.Markdown()
+
+            report_gen_btn.click(
+                generate_stakeholder_report,
+                inputs=[report_period, report_sections],
+                outputs=report_output,
+            )
+
+            gr.HTML('<div class="section-title">Continuous Compliance Monitoring</div>')
+            gr.Markdown("Real-time aggregate compliance health across rules, incidents, SLOs, certifications, and goals.")
+            with gr.Row():
+                health_gauge = gr.Plot(scale=1)
+                health_breakdown = gr.Plot(scale=2)
+            health_report_md = gr.Markdown()
+            health_refresh_btn = gr.Button("↻ Refresh Health", variant="secondary", size="sm")
+
+            def _refresh_health():
+                return build_compliance_health_gauge(), build_compliance_health_breakdown(), build_compliance_health_report()
+
+            health_refresh_btn.click(_refresh_health, outputs=[health_gauge, health_breakdown, health_report_md])
+            demo.load(_refresh_health, outputs=[health_gauge, health_breakdown, health_report_md])
+
+            gr.HTML('<div class="section-title">Compliance Calendar</div>')
+            gr.Markdown("Schedule and track governance tasks: audits, reviews, renewals, training, assessments.")
+            cal_summary_md = gr.Markdown()
+            cal_table = gr.Dataframe(interactive=False, wrap=True)
+            cal_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
+
+            gr.Markdown("**Add Calendar Item**")
+            with gr.Row():
+                cal_title = gr.Textbox(label="Title", scale=3)
+                cal_type = gr.Dropdown(label="Type", choices=CALENDAR_ITEM_TYPES, value="review", scale=2)
+                cal_priority = gr.Dropdown(label="Priority", choices=CALENDAR_PRIORITIES, value="medium", scale=2)
+            with gr.Row():
+                cal_due = gr.Textbox(label="Due date (YYYY-MM-DD)", scale=2)
+                cal_owner = gr.Textbox(label="Owner", scale=2)
+                cal_rule_csv = gr.Textbox(label="Linked Rule IDs (optional)", scale=3)
+            cal_desc = gr.Textbox(label="Description", scale=4)
+            cal_add_btn = gr.Button("+ Add Item", variant="secondary", size="sm")
+            cal_add_status = gr.Markdown()
+
+            gr.Markdown("**Mark Item Complete**")
+            with gr.Row():
+                cal_complete_id = gr.Textbox(label="Item ID prefix", scale=3)
+                cal_complete_notes = gr.Textbox(label="Completion notes", scale=4)
+            cal_complete_btn = gr.Button("Mark Complete", variant="secondary", size="sm")
+            cal_complete_status = gr.Markdown()
+
+            def _refresh_calendar():
+                return build_calendar_summary(), build_calendar_table()
+
+            cal_add_btn.click(
+                add_calendar_item,
+                inputs=[cal_title, cal_type, cal_due, cal_priority, cal_desc, cal_owner, cal_rule_csv],
+                outputs=cal_add_status,
+            )
+            cal_add_btn.click(_refresh_calendar, outputs=[cal_summary_md, cal_table])
+            cal_complete_btn.click(complete_calendar_item, inputs=[cal_complete_id, cal_complete_notes], outputs=cal_complete_status)
+            cal_complete_btn.click(_refresh_calendar, outputs=[cal_summary_md, cal_table])
+            cal_refresh_btn.click(_refresh_calendar, outputs=[cal_summary_md, cal_table])
+            demo.load(_refresh_calendar, outputs=[cal_summary_md, cal_table])
+
+        with gr.Tab("🧪 Testing"):
+
+            gr.HTML('<div class="section-title">Adversarial Robustness Testing</div>')
+            gr.Markdown("Run structured adversarial attacks (role-play escape, authority claim, encoding evasion, etc.) against a rule to measure robustness.")
+            rob_report = gr.Markdown()
+            rob_table = gr.Dataframe(interactive=False, wrap=True)
+            with gr.Row():
+                rob_rule_id = gr.Textbox(label="Rule ID", scale=4)
+                rob_run_btn = gr.Button("Run Robustness Test", variant="primary", size="sm", scale=1)
+            rob_refresh_btn = gr.Button("↻ Refresh History", variant="secondary", size="sm")
+
+            def _refresh_robustness():
+                return build_robustness_table()
+
+            rob_run_btn.click(run_robustness_test, inputs=rob_rule_id, outputs=rob_report)
+            rob_run_btn.click(_refresh_robustness, outputs=rob_table)
+            rob_refresh_btn.click(_refresh_robustness, outputs=rob_table)
+            demo.load(_refresh_robustness, outputs=rob_table)
+
+            gr.HTML('<div class="section-title">Fairness &amp; Bias Detection</div>')
+            gr.Markdown("Compare rule trigger rates across demographic groups to detect disparate treatment (>10% disparity = bias).")
+            bias_summary_md = gr.Markdown()
+            bias_table = gr.Dataframe(interactive=False, wrap=True)
+            bias_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
+
+            gr.Markdown("**Run Bias Analysis** (separate multiple inputs with `|`)")
+            with gr.Row():
+                bias_rule_id = gr.Textbox(label="Rule ID", scale=2)
+                bias_group_a = gr.Textbox(label="Group A label", placeholder="e.g. male", scale=2)
+                bias_group_b = gr.Textbox(label="Group B label", placeholder="e.g. female", scale=2)
+            bias_inputs_a = gr.Textbox(label="Group A inputs (| separated)", lines=2, scale=4)
+            bias_inputs_b = gr.Textbox(label="Group B inputs (| separated)", lines=2, scale=4)
+            bias_run_btn = gr.Button("Run Bias Analysis", variant="primary", size="sm")
+            bias_result_md = gr.Markdown()
+
+            def _refresh_bias():
+                return build_bias_summary(), build_bias_table()
+
+            bias_run_btn.click(
+                log_bias_analysis,
+                inputs=[bias_rule_id, bias_group_a, bias_group_b, bias_inputs_a, bias_inputs_b],
+                outputs=bias_result_md,
+            )
+            bias_run_btn.click(_refresh_bias, outputs=[bias_summary_md, bias_table])
+            bias_refresh_btn.click(_refresh_bias, outputs=[bias_summary_md, bias_table])
+            demo.load(_refresh_bias, outputs=[bias_summary_md, bias_table])
+
+            gr.HTML('<div class="section-title">Audit Trail Integrity</div>')
+            gr.Markdown("Tamper-evident hash chain for governance actions. Each entry hashes itself + the previous entry's hash.")
+            audit_chain_report = gr.Markdown()
+            audit_chain_table = gr.Dataframe(interactive=False, wrap=True)
+            audit_verify_btn = gr.Button("Verify Chain Integrity", variant="primary", size="sm")
+            audit_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
+
+            gr.Markdown("**Append Audit Entry**")
+            with gr.Row():
+                audit_action = gr.Dropdown(label="Action", choices=META_ACTIONS + ["system_event", "config_change"], value="create_rule", scale=2)
+                audit_actor = gr.Textbox(label="Actor (user/system)", scale=2)
+                audit_target = gr.Textbox(label="Target (rule ID / entity)", scale=2)
+            audit_details = gr.Textbox(label="Details", scale=4)
+            audit_append_btn = gr.Button("Append to Chain", variant="secondary", size="sm")
+            audit_append_status = gr.Markdown()
+
+            def _refresh_chain():
+                return build_audit_chain_table()
+
+            audit_verify_btn.click(verify_audit_chain, outputs=audit_chain_report)
+            audit_append_btn.click(
+                append_audit_entry,
+                inputs=[audit_action, audit_actor, audit_target, audit_details],
+                outputs=audit_append_status,
+            )
+            audit_append_btn.click(_refresh_chain, outputs=audit_chain_table)
+            audit_refresh_btn.click(_refresh_chain, outputs=audit_chain_table)
+            demo.load(_refresh_chain, outputs=audit_chain_table)
+
+            gr.HTML('<div class="section-title">Compliance Trend Analytics</div>')
+            gr.Markdown("Time-series compliance trends per rule (uses reputation snapshots). Take snapshots regularly to build trend data.")
+            trend_chart = gr.Plot()
+            trend_summary_md = gr.Markdown()
+            with gr.Row():
+                trend_window = gr.Slider(label="Time window (days)", minimum=7, maximum=90, step=7, value=30, scale=4)
+                trend_refresh_btn = gr.Button("↻ Refresh Trends", variant="secondary", size="sm", scale=1)
+
+            def _refresh_trends(window):
+                return build_trend_chart(int(window)), build_trend_summary(int(window))
+
+            trend_refresh_btn.click(_refresh_trends, inputs=trend_window, outputs=[trend_chart, trend_summary_md])
+            trend_window.change(_refresh_trends, inputs=trend_window, outputs=[trend_chart, trend_summary_md])
+            demo.load(lambda: _refresh_trends(30), outputs=[trend_chart, trend_summary_md])
+
+            gr.HTML('<div class="section-title">Gap Simulator</div>')
+            gr.Markdown("Type a message to see which gaps would be detected and which rules would apply.")
+            sim_input = gr.Textbox(
+                label="Message",
+                placeholder="e.g. That's wrong, you forgot error handling",
+                lines=2,
+            )
+            sim_btn = gr.Button("Simulate", variant="primary", size="sm")
+            with gr.Row():
+                gap_output = gr.Markdown()
+                prompt_output = gr.Markdown()
+            sim_btn.click(simulate_gap, inputs=sim_input, outputs=[gap_output, prompt_output])
+            sim_input.submit(simulate_gap, inputs=sim_input, outputs=[gap_output, prompt_output])
+            gr.Examples(
+                examples=[
+                    ["That's wrong, you forgot error handling in the database query"],
+                    ["Actually, I said I wanted Python not JavaScript"],
+                    ["I asked you this already — how do I query the API?"],
+                ],
+                inputs=sim_input,
+            )
+
 
 
 if __name__ == "__main__":
