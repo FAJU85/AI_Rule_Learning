@@ -5,6 +5,7 @@ import io
 import json
 import os
 import re
+import time
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -54,8 +55,15 @@ DATASET_ID = "vooom/AI_Rule_Learning"
 COMMUNITY_DATASET_ID = "vooom/AI_Rule_Learning_Community"
 HF_TOKEN = os.environ.get("HF_TOKEN")
 
+_CACHE_TTL = 60.0  # seconds — shared across all callers within one refresh cycle
+_download_cache: dict[str, tuple[float, list[dict]]] = {}
+
 
 def _download_jsonl(filename: str) -> list[dict]:
+    now = time.time()
+    entry = _download_cache.get(filename)
+    if entry and now - entry[0] < _CACHE_TTL:
+        return entry[1]
     try:
         path = hf_hub_download(
             repo_id=DATASET_ID,
@@ -70,6 +78,7 @@ def _download_jsonl(filename: str) -> list[dict]:
                 line = line.strip()
                 if line:
                     records.append(json.loads(line))
+        _download_cache[filename] = (now, records)
         return records
     except (EntryNotFoundError, RepositoryNotFoundError):
         return []
@@ -87,6 +96,7 @@ def _upload_jsonl(filename: str, records: list[dict]) -> None:
         repo_type="dataset",
         commit_message=f"Update {filename} via Space UI",
     )
+    _download_cache.pop(filename, None)  # invalidate so next read fetches fresh
 
 
 def load_conversations() -> list[dict]:
