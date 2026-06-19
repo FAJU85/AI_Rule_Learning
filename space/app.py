@@ -2525,7 +2525,7 @@ def build_drift_chart() -> Any:
         )
         return _dark_fig(fig)
 
-    palette = ["#58a6ff", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4", "#ec4899"]
+    palette = ["#6366f1", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4", "#ec4899"]
     fig = go.Figure()
     for i, rule in enumerate(active_with_history):
         history = rule["score_history"]
@@ -5831,12 +5831,15 @@ Gap detected → Group similar gaps → ≥2 occurrences?
 
 _CSS = """
 /* ── Base — light theme (slate-50 canvas) ─────────────────────────── */
-body, .gradio-container { background: #f8fafc !important; color: #0f172a; }
+body, .gradio-container { background: #f8fafc !important; color: #0f172a;
+    font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+                 "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
 .app { background: #f8fafc !important; }
 
 /* ── Header ────────────────────────────────────────────────────────── */
 .arl-header { padding: 28px 0 8px; }
-.arl-header h1 { font-size: 1.6rem; font-weight: 700; color: #0f172a; margin: 0; }
+.arl-header h1 { font-size: 1.6rem; font-weight: 700; color: #0f172a; margin: 0;
+    letter-spacing: -0.025em; }
 .arl-header p  { font-size: 0.875rem; color: #64748b; margin: 6px 0 0; }
 
 /* ── Metric cards ───────────────────────────────────────────────────── */
@@ -5845,7 +5848,9 @@ body, .gradio-container { background: #f8fafc !important; color: #0f172a; }
     flex: 1; background: #ffffff; border: 1px solid #e2e8f0;
     border-radius: 12px; padding: 20px; text-align: center;
     box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    transition: box-shadow 0.15s ease, transform 0.15s ease;
 }
+.metric-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.1); transform: translateY(-1px); }
 .metric-value  { font-size: 2rem; font-weight: 700; color: #4f46e5; display: block; }
 .metric-value.green  { color: #10b981; }
 .metric-value.amber  { color: #f59e0b; }
@@ -5876,7 +5881,9 @@ body, .gradio-container { background: #f8fafc !important; color: #0f172a; }
 .activity-feed { display: flex; flex-direction: column; gap: 8px; }
 .activity-item { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px;
     padding: 11px 16px; display: flex; align-items: center; gap: 12px; font-size: 0.875rem;
-    box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    transition: box-shadow 0.12s ease; }
+.activity-item:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
 .activity-icon { font-size: 1rem; width: 22px; text-align: center; }
 .activity-text { color: #334155; flex: 1; }
 .activity-time { color: #64748b; font-size: 0.72rem; white-space: nowrap; }
@@ -5913,11 +5920,13 @@ label.gr-form { color: #64748b !important; }
 .gr-dataframe td { color: #334155 !important; border-color: #f1f5f9 !important; }
 .gr-dataframe tr:hover td { background: #f8fafc !important; }
 /* Buttons */
-button.primary { background: #4f46e5 !important; border-color: #4f46e5 !important; }
-button.primary:hover { background: #4338ca !important; }
+button.primary { background: #4f46e5 !important; border-color: #4f46e5 !important;
+    transition: background 0.15s ease, box-shadow 0.15s ease; }
+button.primary:hover { background: #4338ca !important;
+    box-shadow: 0 2px 8px rgba(79,70,229,0.35) !important; }
 button.secondary { background: #ffffff !important; border-color: #e2e8f0 !important;
-    color: #334155 !important; }
-button.secondary:hover { background: #f8fafc !important; }
+    color: #334155 !important; transition: background 0.12s ease, border-color 0.12s ease; }
+button.secondary:hover { background: #f8fafc !important; border-color: #cbd5e1 !important; }
 /* Markdown inside components */
 .gr-prose, .prose { color: #334155 !important; }
 
@@ -6091,7 +6100,7 @@ def build_effectiveness_chart() -> Any:
         text=[f"{s:.0%}" for s in scores], textposition="outside",
     ))
     fig.update_layout(
-        title=dict(text="Rule Effectiveness", font=dict(size=14, color="#e2e8f0")),
+        title=dict(text="Rule Effectiveness", font=dict(size=14, color="#334155")),
         xaxis=dict(range=[0, 1.1], tickformat=".0%"),
         height=max(250, len(active) * 38),
     )
@@ -6136,7 +6145,7 @@ def build_cluster_chart() -> Any:
 
     contexts = list(cluster_gaps.keys())
     gap_types = sorted({gt for b in cluster_gaps.values() for gt in b})
-    palette = ["#58a6ff", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4", "#ec4899"]
+    palette = ["#6366f1", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4", "#ec4899"]
 
     fig = go.Figure()
     for i, gtype in enumerate(gap_types):
@@ -6148,7 +6157,7 @@ def build_cluster_chart() -> Any:
         ))
     fig.update_layout(
         barmode="stack",
-        title=dict(text="Gap Frequency by Project Context", font=dict(size=14, color="#e2e8f0")),
+        title=dict(text="Gap Frequency by Project Context", font=dict(size=14, color="#334155")),
         xaxis_title="Project / Context",
         yaxis_title="Gaps detected",
         height=340,
