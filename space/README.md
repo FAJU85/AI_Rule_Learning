@@ -9,27 +9,30 @@ python_version: '3.10'
 app_file: app.py
 pinned: false
 license: mit
-short_description: Autonomous system that learns rules from AI conversations
+short_description: Your AI gets smarter every session — automatically
 ---
 
-An autonomous system that intercepts AI conversations, detects behavioural gaps,
-and generates guardrail rules — learning continuously without manual intervention.
+Your AI gets smarter every session — automatically.
 
-## Features
+AI Rule Learning learns from your past AI conversations and turns friction
+points into rules that prevent the same problems from recurring. The more you
+use it, the better your AI gets at serving your specific needs.
 
-- **Live Gap Detection** — sentiment drops, explicit corrections, repeated questions, code anti-patterns
-- **Automatic Rule Generation** — rules are synthesised from recurring gap patterns
-- **Rule Injection** — active rules are injected into system prompts before each AI response
-- **Effectiveness Tracking** — rules are scored and deactivated if they stop working
+## What you can do here
 
-## Architecture
+- **Upload your conversation history** — from any AI tool you use
+- **Run analysis** — surface patterns where your AI could serve you better
+- **View your rules** — see exactly what's been learned and what's active
+- **Track improvement** — watch your AI adapt to your working style over time
 
-```text
-Conversation → Interceptor → Gap Detector → Rule Engine → HF Dataset
-                    ↑                              ↓
-              System Prompt  ←──────── Active Rules
+## Get started
+
+Use the **Import Sessions** tab to upload your conversation history, then
+switch to **Analysis** to generate your personalised rules.
+
+Install the MCP server to have those rules applied automatically in future
+sessions:
+
+```bash
+pip install ai-rule-learning-mcp
 ```
-
-## Source
-
-GitHub: [faju85/AI_Rule_Learning](https://github.com/FAJU85/AI_Rule_Learning)
