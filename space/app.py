@@ -291,6 +291,17 @@ def get_rule_names() -> list[str]:
     return [r.get("name", r.get("rule_id", "?")) for r in rules]
 
 
+def get_rule_ids() -> list[str]:
+    rules = _download_jsonl("rules.jsonl")
+    return [r["rule_id"] for r in rules if "rule_id" in r]
+
+
+def get_rule_id_choices() -> list[str]:
+    """Return 'name (id)' strings for dependency dropdowns."""
+    rules = _download_jsonl("rules.jsonl")
+    return [f"{r.get('name', r['rule_id'])} ({r['rule_id'][:8]})" for r in rules if "rule_id" in r]
+
+
 def get_rule_detail(rule_name: str) -> str:
     if not rule_name:
         return "Select a rule from the table above."
@@ -2638,6 +2649,352 @@ def load_exceptions() -> list[dict]:
 
 
 # ---------------------------------------------------------------------------
+# Rule Dependency Mapping
+# ---------------------------------------------------------------------------
+
+def set_rule_dependencies(rule_id: str, depends_on: list[str], blocks: list[str]) -> str:
+    """Record that rule_id depends on depends_on and blocks the listed rules."""
+    rules = _download_jsonl("rules.jsonl")
+    target = next((r for r in rules if r.get("rule_id") == rule_id), None)
+    if not target:
+        return f"Rule {rule_id} not found."
+    target["depends_on"] = [d for d in depends_on if d != rule_id]
+    target["blocks"] = [b for b in blocks if b != rule_id]
+    _snapshot_rule(target, "dependencies_updated")
+    _upload_jsonl("rules.jsonl", rules)
+    return f"Dependencies saved: depends_on={target['depends_on']}, blocks={target['blocks']}"
+
+
+def build_dependency_graph() -> Any:
+    """Return a Plotly network graph of rule dependencies."""
+    rules = _download_jsonl("rules.jsonl")
+    if not rules:
+        return go.Figure()
+
+    id_to_name: dict[str, str] = {r["rule_id"]: r.get("name", r["rule_id"]) for r in rules if "rule_id" in r}
+    edges: list[tuple[str, str]] = []
+    for r in rules:
+        rid = r.get("rule_id", "")
+        for dep in r.get("depends_on", []):
+            if dep in id_to_name:
+                edges.append((dep, rid))
+        for blk in r.get("blocks", []):
+            if blk in id_to_name:
+                edges.append((rid, blk))
+
+    node_ids = list(id_to_name.keys())
+    n = len(node_ids)
+    import math
+    positions = {nid: (math.cos(2 * math.pi * i / max(n, 1)),
+                       math.sin(2 * math.pi * i / max(n, 1))) for i, nid in enumerate(node_ids)}
+
+    edge_x, edge_y = [], []
+    for src, dst in edges:
+        x0, y0 = positions[src]
+        x1, y1 = positions[dst]
+        edge_x += [x0, x1, None]
+        edge_y += [y0, y1, None]
+
+    node_x = [positions[nid][0] for nid in node_ids]
+    node_y = [positions[nid][1] for nid in node_ids]
+    node_text = [id_to_name[nid] for nid in node_ids]
+
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=edge_x, y=edge_y, mode="lines",
+        line=dict(width=1, color="#444"),
+        hoverinfo="none",
+    ))
+    fig.add_trace(go.Scatter(
+        x=node_x, y=node_y, mode="markers+text",
+        marker=dict(size=14, color="#238636", line=dict(width=1, color="#3fb950")),
+        text=node_text, textposition="top center",
+        hoverinfo="text",
+        textfont=dict(size=9, color="#c9d1d9"),
+    ))
+    fig.update_layout(
+        paper_bgcolor="#0d1117", plot_bgcolor="#0d1117",
+        showlegend=False, margin=dict(l=20, r=20, t=30, b=20),
+        title=dict(text="Rule Dependency Graph", font=dict(color="#c9d1d9")),
+        xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+        yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+    )
+    return fig
+
+
+def build_dependency_table() -> pd.DataFrame:
+    """Tabular view: rule → depends_on count, blocks count."""
+    rules = _download_jsonl("rules.jsonl")
+    rows = []
+    for r in rules:
+        rows.append({
+            "Rule ID": r.get("rule_id", "")[:20],
+            "Name": r.get("name", ""),
+            "Depends On": ", ".join(r.get("depends_on", [])) or "—",
+            "Blocks": ", ".join(r.get("blocks", [])) or "—",
+            "Dep Count": len(r.get("depends_on", [])),
+            "Block Count": len(r.get("blocks", [])),
+        })
+    return pd.DataFrame(rows) if rows else pd.DataFrame(
+        columns=["Rule ID", "Name", "Depends On", "Blocks", "Dep Count", "Block Count"])
+
+
+# ---------------------------------------------------------------------------
+# Rule Coverage Analysis
+# ---------------------------------------------------------------------------
+
+_COVERAGE_GAP_KEYWORDS: list[str] = [
+    "error", "wrong", "forgot", "missing", "incorrect", "fail",
+    "confused", "unclear", "repeated", "already asked", "you said",
+    "not what i", "didn't", "didn't", "broken", "bug", "issue",
+    "should have", "expected", "instead", "but you",
+]
+
+
+def _gap_keywords_from_rule(rule: dict) -> list[str]:
+    """Extract trigger keywords from a rule for coverage matching."""
+    triggers = rule.get("triggers", [])
+    if isinstance(triggers, list):
+        return [str(t).lower() for t in triggers]
+    if isinstance(triggers, str):
+        return [triggers.lower()]
+    return [rule.get("name", "").lower()]
+
+
+def compute_coverage() -> dict:
+    """
+    Compute what fraction of conversation gap turns are covered by ≥1 active rule.
+    Returns dict with covered_turns, total_gap_turns, coverage_pct, uncovered_examples.
+    """
+    convs = _download_jsonl("conversations.jsonl")
+    rules = [r for r in _download_jsonl("rules.jsonl") if r.get("is_active") or r.get("status") == "active"]
+
+    all_rule_kws: list[list[str]] = [_gap_keywords_from_rule(r) for r in rules]
+
+    total_gap = 0
+    covered = 0
+    uncovered_examples: list[str] = []
+
+    for conv in convs:
+        for turn in conv.get("turns", []):
+            user_text = (turn.get("user_input", "") or "").lower()
+            is_gap = any(kw in user_text for kw in _COVERAGE_GAP_KEYWORDS)
+            if not is_gap:
+                continue
+            total_gap += 1
+            matched = any(
+                any(kw in user_text for kw in rule_kws)
+                for rule_kws in all_rule_kws
+            )
+            if matched:
+                covered += 1
+            elif len(uncovered_examples) < 5:
+                uncovered_examples.append(user_text[:120])
+
+    pct = round(covered / total_gap * 100, 1) if total_gap else 0.0
+    return {
+        "total_gap_turns": total_gap,
+        "covered_turns": covered,
+        "coverage_pct": pct,
+        "uncovered_examples": uncovered_examples,
+    }
+
+
+def build_coverage_chart() -> Any:
+    """Donut chart: covered vs uncovered gap turns."""
+    c = compute_coverage()
+    covered = c["covered_turns"]
+    uncovered = c["total_gap_turns"] - covered
+    fig = go.Figure(go.Pie(
+        labels=["Covered", "Uncovered"],
+        values=[covered, uncovered],
+        hole=0.6,
+        marker=dict(colors=["#238636", "#f85149"]),
+        textfont=dict(color="#c9d1d9"),
+    ))
+    fig.update_layout(
+        paper_bgcolor="#0d1117", plot_bgcolor="#0d1117",
+        legend=dict(font=dict(color="#c9d1d9")),
+        margin=dict(l=20, r=20, t=40, b=20),
+        title=dict(text=f"Gap Coverage  {c['coverage_pct']}%", font=dict(color="#c9d1d9")),
+        annotations=[dict(
+            text=f"{c['coverage_pct']}%",
+            x=0.5, y=0.5, showarrow=False,
+            font=dict(size=24, color="#c9d1d9"),
+        )],
+    )
+    return fig
+
+
+def build_coverage_report() -> str:
+    c = compute_coverage()
+    lines = [
+        f"**Gap Coverage Report**",
+        f"",
+        f"| Metric | Value |",
+        f"|--------|-------|",
+        f"| Total gap turns | {c['total_gap_turns']} |",
+        f"| Covered by ≥1 rule | {c['covered_turns']} |",
+        f"| Coverage % | **{c['coverage_pct']}%** |",
+    ]
+    if c["uncovered_examples"]:
+        lines += ["", "**Uncovered gap examples (up to 5):**"]
+        for i, ex in enumerate(c["uncovered_examples"], 1):
+            lines.append(f"{i}. _{ex}_")
+    return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# Benchmark Testing / Golden Dataset
+# ---------------------------------------------------------------------------
+
+BENCHMARK_FILE = "benchmark.jsonl"
+
+
+def load_benchmark() -> list[dict]:
+    return _download_jsonl(BENCHMARK_FILE)
+
+
+def add_benchmark_case(rule_id: str, input_text: str, expected_behavior: str, should_trigger: bool) -> str:
+    """Add a golden test case for a rule."""
+    if not rule_id or not input_text:
+        return "Rule ID and input text are required."
+    cases = load_benchmark()
+    case = {
+        "case_id": str(uuid.uuid4()),
+        "rule_id": rule_id,
+        "input_text": input_text.strip(),
+        "expected_behavior": expected_behavior.strip(),
+        "should_trigger": should_trigger,
+        "created_at": datetime.utcnow().isoformat(),
+    }
+    cases.append(case)
+    _upload_jsonl(BENCHMARK_FILE, cases)
+    return f"Benchmark case added (id={case['case_id'][:8]}…)"
+
+
+def _rule_triggers_on(rule: dict, text: str) -> bool:
+    """Return True if text matches any trigger keyword of the rule."""
+    return _gap_keywords_from_rule(rule) and any(
+        kw in text.lower() for kw in _gap_keywords_from_rule(rule)
+    )
+
+
+def run_benchmark() -> str:
+    """Evaluate all golden cases against active rules. Returns markdown report."""
+    cases = load_benchmark()
+    if not cases:
+        return "No benchmark cases defined. Add cases first."
+
+    rules = {r["rule_id"]: r for r in _download_jsonl("rules.jsonl") if "rule_id" in r}
+
+    passed = failed = skipped = 0
+    failures: list[str] = []
+
+    for c in cases:
+        rid = c.get("rule_id", "")
+        rule = rules.get(rid)
+        if not rule:
+            skipped += 1
+            continue
+        triggered = _rule_triggers_on(rule, c["input_text"])
+        expected = c.get("should_trigger", True)
+        if triggered == expected:
+            passed += 1
+        else:
+            failed += 1
+            label = "SHOULD trigger" if expected else "should NOT trigger"
+            got = "triggered" if triggered else "not triggered"
+            failures.append(f"- Rule `{rule.get('name', rid)}`: {label} but {got}  \n  Input: _{c['input_text'][:80]}_")
+
+    total = passed + failed + skipped
+    pct = round(passed / max(total - skipped, 1) * 100, 1)
+
+    lines = [
+        f"## Benchmark Results",
+        f"",
+        f"| | Count |",
+        f"|--|--|",
+        f"| ✅ Passed | {passed} |",
+        f"| ❌ Failed | {failed} |",
+        f"| ⚠️ Skipped (rule not found) | {skipped} |",
+        f"| **Pass rate** | **{pct}%** |",
+    ]
+    if failures:
+        lines += ["", "### Failures", ""] + failures
+    return "\n".join(lines)
+
+
+def build_benchmark_table() -> pd.DataFrame:
+    cases = load_benchmark()
+    if not cases:
+        return pd.DataFrame(columns=["Case ID", "Rule ID", "Input", "Expected", "Created"])
+    rows = [{
+        "Case ID": c["case_id"][:8],
+        "Rule ID": c.get("rule_id", "")[:20],
+        "Input": c.get("input_text", "")[:60],
+        "Expected": "trigger" if c.get("should_trigger") else "no trigger",
+        "Created": c.get("created_at", "")[:10],
+    } for c in cases]
+    return pd.DataFrame(rows)
+
+
+def generate_benchmark_cases_llm(rule_id: str, n: int = 5) -> str:
+    """Use LLM to auto-generate golden test cases for a rule."""
+    rules = {r["rule_id"]: r for r in _download_jsonl("rules.jsonl") if "rule_id" in r}
+    rule = rules.get(rule_id)
+    if not rule:
+        return f"Rule {rule_id} not found."
+
+    prompt = (
+        f"You are a QA engineer building a test suite for AI guardrail rules.\n"
+        f"Rule name: {rule.get('name', '')}\n"
+        f"Instruction: {(rule.get('action') or {}).get('instruction', rule.get('description', ''))}\n"
+        f"Triggers: {rule.get('triggers', [])}\n\n"
+        f"Generate {n} diverse test cases as a JSON array. Each object must have:\n"
+        f'  "input": the user message text\n'
+        f'  "should_trigger": true if the rule should fire, false otherwise\n'
+        f'  "expected_behavior": one sentence describing expected AI behaviour\n'
+        f"Return ONLY the JSON array, no other text."
+    )
+    try:
+        from huggingface_hub import InferenceClient
+        client = InferenceClient(token=os.environ.get("HF_TOKEN"))
+        resp = client.chat_completion(
+            model="Qwen/Qwen2.5-72B-Instruct",
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=800,
+            temperature=0.7,
+        )
+        raw = resp.choices[0].message.content.strip()
+        raw = re.sub(r"^```(?:json)?\s*", "", raw)
+        raw = re.sub(r"\s*```$", "", raw)
+        items = json.loads(raw)
+        if not isinstance(items, list):
+            return "LLM returned unexpected format."
+        cases = load_benchmark()
+        added = 0
+        for item in items:
+            if not isinstance(item, dict) or "input" not in item:
+                continue
+            cases.append({
+                "case_id": str(uuid.uuid4()),
+                "rule_id": rule_id,
+                "input_text": str(item["input"]).strip(),
+                "expected_behavior": str(item.get("expected_behavior", "")).strip(),
+                "should_trigger": bool(item.get("should_trigger", True)),
+                "created_at": datetime.utcnow().isoformat(),
+                "source": "llm_generated",
+            })
+            added += 1
+        if added:
+            _upload_jsonl(BENCHMARK_FILE, cases)
+        return f"Generated and saved {added} benchmark cases for rule `{rule.get('name', rule_id)}`."
+    except Exception as e:
+        return f"LLM generation failed: {e}"
+
+
+# ---------------------------------------------------------------------------
 # Rule layer classification
 # ---------------------------------------------------------------------------
 
@@ -3918,6 +4275,41 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
             )
             exc_restore_btn.click(restore_from_exception, inputs=exc_rule_selector, outputs=exc_status)
 
+            gr.HTML('<div class="section-title">Rule Dependencies</div>')
+            gr.Markdown("Define which rules must fire before others, or which rules block each other.")
+            dep_rule_sel = gr.Dropdown(label="Rule to configure", choices=[], scale=3)
+            dep_refresh_sel_btn = gr.Button("↻ Refresh list", variant="secondary", size="sm")
+            with gr.Row():
+                dep_depends_on = gr.Textbox(
+                    label="Depends On (rule IDs, comma-separated)",
+                    placeholder="e.g. abc123, def456",
+                    scale=3,
+                )
+                dep_blocks = gr.Textbox(
+                    label="Blocks (rule IDs, comma-separated)",
+                    placeholder="e.g. ghi789",
+                    scale=3,
+                )
+            dep_save_btn = gr.Button("💾 Save Dependencies", variant="primary", size="sm")
+            dep_status = gr.Markdown()
+
+            def _refresh_dep_sel():
+                return gr.Dropdown(choices=get_rule_ids())
+
+            dep_refresh_sel_btn.click(_refresh_dep_sel, outputs=dep_rule_sel)
+            demo.load(_refresh_dep_sel, outputs=dep_rule_sel)
+
+            def _save_deps(rule_id, depends_str, blocks_str):
+                dep_list = [x.strip() for x in depends_str.split(",") if x.strip()]
+                blk_list = [x.strip() for x in blocks_str.split(",") if x.strip()]
+                return set_rule_dependencies(rule_id, dep_list, blk_list)
+
+            dep_save_btn.click(
+                _save_deps,
+                inputs=[dep_rule_sel, dep_depends_on, dep_blocks],
+                outputs=dep_status,
+            )
+
             gr.HTML('<div class="section-title">Export</div>')
             with gr.Row():
                 export_btn = gr.Button("Export as System Prompt", variant="secondary", size="sm")
@@ -4075,6 +4467,72 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
             proj_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
             proj_refresh_btn.click(build_project_compass, outputs=[proj_gauge, proj_metrics, proj_summary])
             demo.load(build_project_compass, outputs=[proj_gauge, proj_metrics, proj_summary])
+
+            gr.HTML('<div class="section-title">Rule Coverage Analysis</div>')
+            gr.Markdown("What percentage of conversation gap turns are covered by at least one active rule?")
+            with gr.Row():
+                coverage_chart = gr.Plot(scale=1)
+                coverage_report_md = gr.Markdown(scale=2)
+            coverage_refresh_btn = gr.Button("↻ Refresh Coverage", variant="secondary", size="sm")
+
+            def _refresh_coverage():
+                return build_coverage_chart(), build_coverage_report()
+
+            coverage_refresh_btn.click(_refresh_coverage, outputs=[coverage_chart, coverage_report_md])
+            demo.load(_refresh_coverage, outputs=[coverage_chart, coverage_report_md])
+
+            gr.HTML('<div class="section-title">Rule Dependency Graph</div>')
+            gr.Markdown("Visual map of which rules depend on or block other rules.")
+            dep_graph = gr.Plot()
+            dep_table = gr.Dataframe(interactive=False, wrap=True)
+            dep_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
+
+            def _refresh_deps():
+                return build_dependency_graph(), build_dependency_table()
+
+            dep_refresh_btn.click(_refresh_deps, outputs=[dep_graph, dep_table])
+            demo.load(_refresh_deps, outputs=[dep_graph, dep_table])
+
+            gr.HTML('<div class="section-title">Benchmark / Golden Dataset</div>')
+            gr.Markdown("Test rules against golden input cases to measure precision and recall.")
+            with gr.Row():
+                bench_run_btn = gr.Button("▶ Run Benchmark", variant="primary", size="sm")
+                bench_refresh_btn = gr.Button("↻ Refresh Cases", variant="secondary", size="sm")
+            bench_result = gr.Markdown()
+            bench_table = gr.Dataframe(interactive=False, wrap=True)
+
+            gr.Markdown("**Add a golden test case**")
+            with gr.Row():
+                bench_rule_sel = gr.Dropdown(label="Rule", choices=[], scale=3)
+                bench_should_trigger = gr.Checkbox(label="Should Trigger", value=True, scale=1)
+            bench_input_text = gr.Textbox(label="Input text", lines=2, placeholder="User message to test")
+            bench_expected = gr.Textbox(label="Expected behaviour", lines=1, placeholder="AI should refuse / apply / respond with…")
+            with gr.Row():
+                bench_add_btn = gr.Button("+ Add Case", variant="secondary", size="sm")
+                bench_gen_btn = gr.Button("🤖 Auto-generate cases (LLM)", variant="secondary", size="sm")
+            bench_add_status = gr.Markdown()
+
+            def _refresh_bench():
+                return build_benchmark_table(), gr.Dropdown(choices=get_rule_ids())
+
+            def _run_and_refresh():
+                result = run_benchmark()
+                table = build_benchmark_table()
+                return result, table
+
+            bench_run_btn.click(_run_and_refresh, outputs=[bench_result, bench_table])
+            bench_refresh_btn.click(_refresh_bench, outputs=[bench_table, bench_rule_sel])
+            demo.load(_refresh_bench, outputs=[bench_table, bench_rule_sel])
+            bench_add_btn.click(
+                add_benchmark_case,
+                inputs=[bench_rule_sel, bench_input_text, bench_expected, bench_should_trigger],
+                outputs=bench_add_status,
+            )
+            bench_gen_btn.click(
+                generate_benchmark_cases_llm,
+                inputs=[bench_rule_sel],
+                outputs=bench_add_status,
+            )
 
             gr.HTML('<div class="section-title">Gap Simulator</div>')
             gr.Markdown("Type a message to see which gaps would be detected and which rules would apply.")
