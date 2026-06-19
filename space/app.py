@@ -9722,5 +9722,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
 
 
 
+demo.queue()
+
 if __name__ == "__main__":
     demo.launch(share=False, show_api=False)
