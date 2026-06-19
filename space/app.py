@@ -274,23 +274,19 @@ def build_rules_table() -> pd.DataFrame:
     rules = load_rules()
     if not rules:
         return pd.DataFrame(
-            columns=["Status", "Name", "Layer", "Priority", "Triggered", "Effectiveness", "FPR", "Bypass", "Created"]
+            columns=["✓", "Name", "Layer", "Pri", "Hits", "Score"]
         )
     rows = []
     for r in rules:
-        bypass = r.get("bypass_rate")
-        fpr = r.get("false_positive_rate")
+        name = r.get("name", r.get("rule_id", "?"))
         rows.append(
             {
-                "Status": "✅ Active" if r.get("is_active") else "⛔ Inactive",
-                "Name": r.get("name", r.get("rule_id", "?")),
+                "✓": "✅" if r.get("is_active") else "⛔",
+                "Name": name[:40] + ("…" if len(name) > 40 else ""),
                 "Layer": _infer_rule_layer(r).replace("_", " ").title(),
-                "Priority": r.get("priority", 0),
-                "Triggered": r.get("times_triggered", 0),
-                "Effectiveness": f"{r.get('effectiveness_score', 0):.0%}",
-                "FPR": f"{fpr:.0%}" if fpr is not None else "—",
-                "Bypass": f"{bypass:.0%}" if bypass is not None else "—",
-                "Created": str(r.get("created_at", ""))[:10],
+                "Pri": r.get("priority", 0),
+                "Hits": r.get("times_triggered", 0),
+                "Score": f"{r.get('effectiveness_score', 0):.0%}",
             }
         )
     return pd.DataFrame(rows)
@@ -2512,10 +2508,17 @@ def build_drift_chart() -> Any:
         if r.get("is_active") and len(r.get("score_history", [])) >= _DRIFT_MIN_POINTS
     ]
     if not active_with_history:
-        return _dark_fig(go.Figure(layout=dict(
-            title=dict(text="No drift data yet — run scoring multiple times", font=dict(color="#e2e8f0")),
-            height=320,
-        )))
+        fig = go.Figure()
+        fig.add_annotation(
+            text="No drift data yet<br><sub>Run 'Score Effectiveness' at least 3 times to build trend history</sub>",
+            xref="paper", yref="paper", x=0.5, y=0.5,
+            showarrow=False, font=dict(color="#8b949e", size=13), align="center",
+        )
+        fig.update_layout(
+            height=280,
+            xaxis=dict(visible=False), yaxis=dict(visible=False),
+        )
+        return _dark_fig(fig)
 
     palette = ["#58a6ff", "#3fb950", "#d29922", "#f85149", "#8b5cf6", "#06b6d4", "#ec4899"]
     fig = go.Figure()
@@ -5855,6 +5858,9 @@ body, .gradio-container { background: #0d1117 !important; }
 .gr-textbox textarea, .gr-textbox input { background: #161b22 !important;
     border-color: #21262d !important; color: #e2e8f0 !important; }
 label.gr-form { color: #8b949e !important; }
+
+/* Mobile: tables scroll horizontally instead of squeezing */
+.table-wrap { overflow-x: auto !important; -webkit-overflow-scrolling: touch; }
 """
 
 
@@ -8259,7 +8265,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
             )
 
         # ── Rules ────────────────────────────────────────────────────────────
-        with gr.Tab("📋 Rules"):
+        with gr.Tab("📋 Rules") as rules_tab:
 
             gr.HTML('<div class="section-title">Active Rules</div>')
             rules_table = gr.Dataframe(interactive=False, wrap=True)
@@ -8278,7 +8284,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 return build_rules_table(), gr.Dropdown(choices=get_rule_names())
 
             refresh_rules_btn.click(refresh_rules, outputs=[rules_table, rule_selector])
-            demo.load(refresh_rules, outputs=[rules_table, rule_selector])
+            rules_tab.select(refresh_rules, outputs=[rules_table, rule_selector])
             rule_selector.change(get_rule_detail, inputs=rule_selector, outputs=rule_detail)
             rule_selector.change(build_rule_score_trend, inputs=rule_selector, outputs=score_trend_chart)
             rule_selector.change(build_rule_version_history, inputs=rule_selector, outputs=version_history_table)
@@ -8298,7 +8304,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 return build_pending_rules_table(), gr.Dropdown(choices=get_pending_rule_ids())
 
             refresh_pending_btn.click(refresh_pending, outputs=[pending_table, pending_selector])
-            demo.load(refresh_pending, outputs=[pending_table, pending_selector])
+            rules_tab.select(refresh_pending, outputs=[pending_table, pending_selector])
             pending_selector.change(get_pending_rule_detail, inputs=pending_selector, outputs=pending_detail)
             approve_btn.click(approve_rule, inputs=pending_selector, outputs=review_status)
             reject_btn.click(reject_rule, inputs=pending_selector, outputs=review_status)
@@ -8315,7 +8321,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 return gr.Dropdown(choices=get_rule_names())
 
             ab_refresh_btn.click(_refresh_ab_rules, outputs=ab_rule_selector)
-            demo.load(_refresh_ab_rules, outputs=ab_rule_selector)
+            rules_tab.select(_refresh_ab_rules, outputs=ab_rule_selector)
             ab_rule_selector.change(build_ab_comparison, inputs=ab_rule_selector, outputs=ab_comparison)
             ab_create_btn.click(create_rule_ab_variant, inputs=ab_rule_selector, outputs=ab_status)
 
@@ -8335,7 +8341,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 return gr.Dropdown(choices=get_rule_names())
 
             owner_refresh_btn.click(_refresh_owner_rules, outputs=owner_rule_selector)
-            demo.load(_refresh_owner_rules, outputs=owner_rule_selector)
+            rules_tab.select(_refresh_owner_rules, outputs=owner_rule_selector)
             owner_save_btn.click(
                 set_rule_owner,
                 inputs=[owner_rule_selector, owner_name, owner_team, owner_contact],
@@ -8361,7 +8367,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 return build_lifecycle_table(), gr.Dropdown(choices=get_rule_names())
 
             lifecycle_refresh_btn.click(_refresh_lc, outputs=[lifecycle_table, lc_rule_selector])
-            demo.load(_refresh_lc, outputs=[lifecycle_table, lc_rule_selector])
+            rules_tab.select(_refresh_lc, outputs=[lifecycle_table, lc_rule_selector])
             lc_transition_btn.click(
                 transition_rule_lifecycle,
                 inputs=[lc_rule_selector, lc_new_state, lc_reason],
@@ -8387,7 +8393,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 return build_exceptions_table(), gr.Dropdown(choices=get_rule_names())
 
             exc_refresh_btn.click(_refresh_exc, outputs=[exceptions_table, exc_rule_selector])
-            demo.load(_refresh_exc, outputs=[exceptions_table, exc_rule_selector])
+            rules_tab.select(_refresh_exc, outputs=[exceptions_table, exc_rule_selector])
             exc_create_btn.click(
                 create_exception,
                 inputs=[exc_rule_selector, exc_reason, exc_approver, exc_duration],
@@ -8417,7 +8423,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 return gr.Dropdown(choices=get_rule_ids())
 
             dep_refresh_sel_btn.click(_refresh_dep_sel, outputs=dep_rule_sel)
-            demo.load(_refresh_dep_sel, outputs=dep_rule_sel)
+            rules_tab.select(_refresh_dep_sel, outputs=dep_rule_sel)
 
             def _save_deps(rule_id, depends_str, blocks_str):
                 dep_list = [x.strip() for x in depends_str.split(",") if x.strip()]
@@ -8448,7 +8454,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 return build_conflict_summary(), build_conflicts_table()
 
             conflict_refresh_btn.click(_refresh_conflicts, outputs=[conflict_summary_md, conflicts_table])
-            demo.load(_refresh_conflicts, outputs=[conflict_summary_md, conflicts_table])
+            rules_tab.select(_refresh_conflicts, outputs=[conflict_summary_md, conflicts_table])
             conflict_scan_btn.click(run_conflict_detection_llm, outputs=conflict_log)
             conflict_resolve_btn.click(
                 resolve_conflict,
@@ -8472,7 +8478,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
             yaml_export_btn.click(export_rules_as_yaml, outputs=yaml_output)
 
         # ── Sessions ─────────────────────────────────────────────────────────
-        with gr.Tab("🔄 Sessions"):
+        with gr.Tab("🔄 Sessions") as sessions_tab:
 
             gr.HTML('<div class="section-title">Step 1 — Import Sessions</div>')
             with gr.Row():
@@ -8537,7 +8543,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
             gr.Markdown("New rules generated by analysis appear in the **Rules** tab → Review Queue. Approve each one to activate it.")
 
         # ── Insights ─────────────────────────────────────────────────────────
-        with gr.Tab("🔍 Monitoring"):
+        with gr.Tab("🔍 Monitoring") as monitoring_tab:
 
             gr.HTML('<div class="section-title">Conversation Clusters</div>')
             gr.Markdown("Gap frequency grouped by project context — shows where problems concentrate.")
@@ -8549,7 +8555,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 return build_cluster_chart(), build_cluster_summary()
 
             cluster_refresh_btn.click(_refresh_clusters, outputs=[cluster_chart, cluster_summary])
-            demo.load(_refresh_clusters, outputs=[cluster_chart, cluster_summary])
+            monitoring_tab.select(_refresh_clusters, outputs=[cluster_chart, cluster_summary])
 
             gr.HTML('<div class="section-title">Rule Enforcement Validator</div>')
             gr.Markdown("Validate a user/agent turn against all active rules in real time.")
@@ -8568,7 +8574,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 return build_enforcement_summary(), build_enforcement_log_table()
 
             enf_refresh_btn.click(_refresh_enf, outputs=[enf_summary_md, enf_log_table])
-            demo.load(_refresh_enf, outputs=[enf_summary_md, enf_log_table])
+            monitoring_tab.select(_refresh_enf, outputs=[enf_summary_md, enf_log_table])
             enf_run_btn.click(
                 enforce_and_log,
                 inputs=[enf_user_input, enf_agent_resp, enf_context],
@@ -8591,7 +8597,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
 
             audit_refresh_sel.click(_refresh_audit_sel, outputs=audit_conv_sel)
             audit_refresh_btn.click(lambda: build_audit_table(), outputs=audit_table)
-            demo.load(lambda: (build_audit_table(), gr.Dropdown(choices=[""] + get_conversation_ids())),
+            monitoring_tab.select(lambda: (build_audit_table(), gr.Dropdown(choices=[""] + get_conversation_ids())),
                       outputs=[audit_table, audit_conv_sel])
             audit_run_btn.click(run_ai_audit, inputs=audit_conv_sel, outputs=audit_log)
 
@@ -8620,7 +8626,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 return build_override_summary(), build_overrides_table()
 
             override_refresh_btn.click(_refresh_overrides, outputs=[override_summary_md, overrides_table])
-            demo.load(_refresh_overrides, outputs=[override_summary_md, overrides_table])
+            monitoring_tab.select(_refresh_overrides, outputs=[override_summary_md, overrides_table])
             ov_log_btn.click(
                 log_human_override,
                 inputs=[ov_conv_id, ov_turn_no, ov_ai_dec, ov_human_dec, ov_reason],
@@ -8652,7 +8658,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 return build_escalation_metrics(), build_escalations_table()
 
             esc_refresh_btn.click(_refresh_esc, outputs=[esc_metrics_md, esc_table])
-            demo.load(_refresh_esc, outputs=[esc_metrics_md, esc_table])
+            monitoring_tab.select(_refresh_esc, outputs=[esc_metrics_md, esc_table])
             esc_log_btn.click(
                 log_escalation,
                 inputs=[esc_conv_id, esc_turn_no, esc_type, esc_ai_action, esc_expected,
@@ -8680,7 +8686,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
             prov_auto_btn.click(auto_record_provenance, inputs=prov_conv_sel, outputs=prov_status)
             prov_conv_sel.change(lambda cid: build_provenance_table(cid),
                                  inputs=prov_conv_sel, outputs=prov_table)
-            demo.load(lambda: (build_provenance_table(), gr.Dropdown(choices=get_conversation_ids())),
+            monitoring_tab.select(lambda: (build_provenance_table(), gr.Dropdown(choices=get_conversation_ids())),
                       outputs=[prov_table, prov_conv_sel])
 
             gr.HTML('<div class="section-title">Data Provenance</div>')
@@ -8705,7 +8711,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 return build_data_trust_chart(), build_data_provenance_table()
 
             data_prov_refresh_btn.click(_refresh_data_prov, outputs=[data_prov_chart, data_prov_table])
-            demo.load(_refresh_data_prov, outputs=[data_prov_chart, data_prov_table])
+            monitoring_tab.select(_refresh_data_prov, outputs=[data_prov_chart, data_prov_table])
             dp_add_btn.click(
                 register_data_source,
                 inputs=[dp_name, dp_type, dp_trust, dp_owner, dp_desc],
@@ -8739,7 +8745,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
 
             ev_refresh_btn.click(_refresh_ev, inputs=ev_type_filter, outputs=ev_table)
             ev_type_filter.change(_refresh_ev, inputs=ev_type_filter, outputs=ev_table)
-            demo.load(lambda: build_evidence_table(), outputs=ev_table)
+            monitoring_tab.select(lambda: build_evidence_table(), outputs=ev_table)
             ev_store_btn.click(
                 store_evidence,
                 inputs=[ev_type, ev_title, ev_content, ev_rule_id, ev_incident_id],
@@ -8774,7 +8780,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 return build_behavior_radar(), build_behavior_summary()
 
             beh_refresh_btn.click(_refresh_beh, outputs=[beh_radar, beh_summary_md])
-            demo.load(_refresh_beh, outputs=[beh_radar, beh_summary_md])
+            monitoring_tab.select(_refresh_beh, outputs=[beh_radar, beh_summary_md])
             beh_record_btn.click(
                 record_behavior_metrics,
                 inputs=[beh_conv_id, beh_turn_no, beh_hallu, beh_accuracy,
@@ -8782,13 +8788,13 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 outputs=beh_record_status,
             )
 
-        with gr.Tab("📈 Analytics"):
+        with gr.Tab("📈 Analytics") as analytics_tab:
 
             gr.HTML('<div class="section-title">Conversations</div>')
             conversations_table = gr.Dataframe(interactive=False, wrap=True)
             refresh_convs_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
             refresh_convs_btn.click(build_conversations_table, outputs=[conversations_table])
-            demo.load(build_conversations_table, outputs=[conversations_table])
+            analytics_tab.select(build_conversations_table, outputs=[conversations_table])
 
             gr.HTML('<div class="section-title">Alignment Sensor</div>')
             gr.Markdown("Per-conversation task focus, rule compliance, and drift across turns.")
@@ -8805,7 +8811,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 return gr.Dropdown(choices=get_conversation_ids())
 
             refresh_compass_btn.click(refresh_compass_list, outputs=[conv_selector])
-            demo.load(refresh_compass_list, outputs=[conv_selector])
+            analytics_tab.select(refresh_compass_list, outputs=[conv_selector])
             conv_selector.change(
                 build_compass, inputs=conv_selector,
                 outputs=[compass_gauge, compass_timeline, compass_alerts],
@@ -8823,7 +8829,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 return build_risk_table()
 
             risk_refresh_btn.click(_refresh_risk, outputs=risk_table)
-            demo.load(_refresh_risk, outputs=risk_table)
+            analytics_tab.select(_refresh_risk, outputs=risk_table)
             risk_update_btn.click(run_update_risk_scores, outputs=risk_log)
 
             gr.HTML('<div class="section-title">Compliance Drift</div>')
@@ -8836,7 +8842,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 return build_drift_chart(), build_drift_report()
 
             drift_refresh_btn.click(_refresh_drift, outputs=[drift_chart, drift_report])
-            demo.load(_refresh_drift, outputs=[drift_chart, drift_report])
+            analytics_tab.select(_refresh_drift, outputs=[drift_chart, drift_report])
 
             gr.HTML('<div class="section-title">Predictive Compliance</div>')
             gr.Markdown("Linear forecast of each rule's effectiveness over the next N measurements. Red = at risk.")
@@ -8854,7 +8860,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                                        outputs=[forecast_chart, forecast_report_md])
             forecast_horizon.change(_refresh_forecast, inputs=forecast_horizon,
                                     outputs=[forecast_chart, forecast_report_md])
-            demo.load(lambda: _refresh_forecast(3), outputs=[forecast_chart, forecast_report_md])
+            analytics_tab.select(lambda: _refresh_forecast(3), outputs=[forecast_chart, forecast_report_md])
 
             gr.HTML('<div class="section-title">System Health</div>')
             with gr.Row():
@@ -8863,7 +8869,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
             proj_summary = gr.Markdown()
             proj_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
             proj_refresh_btn.click(build_project_compass, outputs=[proj_gauge, proj_metrics, proj_summary])
-            demo.load(build_project_compass, outputs=[proj_gauge, proj_metrics, proj_summary])
+            analytics_tab.select(build_project_compass, outputs=[proj_gauge, proj_metrics, proj_summary])
 
             gr.HTML('<div class="section-title">Rule Coverage Analysis</div>')
             gr.Markdown("What percentage of conversation gap turns are covered by at least one active rule?")
@@ -8876,7 +8882,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 return build_coverage_chart(), build_coverage_report()
 
             coverage_refresh_btn.click(_refresh_coverage, outputs=[coverage_chart, coverage_report_md])
-            demo.load(_refresh_coverage, outputs=[coverage_chart, coverage_report_md])
+            analytics_tab.select(_refresh_coverage, outputs=[coverage_chart, coverage_report_md])
 
             gr.HTML('<div class="section-title">Rule Dependency Graph</div>')
             gr.Markdown("Visual map of which rules depend on or block other rules.")
@@ -8888,7 +8894,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 return build_dependency_graph(), build_dependency_table()
 
             dep_refresh_btn.click(_refresh_deps, outputs=[dep_graph, dep_table])
-            demo.load(_refresh_deps, outputs=[dep_graph, dep_table])
+            analytics_tab.select(_refresh_deps, outputs=[dep_graph, dep_table])
 
             gr.HTML('<div class="section-title">Benchmark / Golden Dataset</div>')
             gr.Markdown("Test rules against golden input cases to measure precision and recall.")
@@ -8919,7 +8925,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
 
             bench_run_btn.click(_run_and_refresh, outputs=[bench_result, bench_table])
             bench_refresh_btn.click(_refresh_bench, outputs=[bench_table, bench_rule_sel])
-            demo.load(_refresh_bench, outputs=[bench_table, bench_rule_sel])
+            analytics_tab.select(_refresh_bench, outputs=[bench_table, bench_rule_sel])
             bench_add_btn.click(
                 add_benchmark_case,
                 inputs=[bench_rule_sel, bench_input_text, bench_expected, bench_should_trigger],
@@ -8960,7 +8966,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 return build_rca_summary(), build_rca_table(), gr.Dropdown(choices=get_rule_ids())
 
             rca_refresh_btn.click(_refresh_rca, outputs=[rca_summary_md, rca_table, rca_rule_sel])
-            demo.load(_refresh_rca, outputs=[rca_summary_md, rca_table, rca_rule_sel])
+            analytics_tab.select(_refresh_rca, outputs=[rca_summary_md, rca_table, rca_rule_sel])
             rca_log_btn.click(
                 log_rca,
                 inputs=[rca_rule_sel, rca_violation, rca_user_input, rca_cat_sel],
@@ -8999,7 +9005,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 return build_incident_summary(), build_incident_chart(), build_incidents_table(), gr.Dropdown(choices=get_rule_ids())
 
             inc_refresh_btn.click(_refresh_inc, outputs=[inc_summary_md, inc_chart, inc_table, inc_rule_sel])
-            demo.load(_refresh_inc, outputs=[inc_summary_md, inc_chart, inc_table, inc_rule_sel])
+            analytics_tab.select(_refresh_inc, outputs=[inc_summary_md, inc_chart, inc_table, inc_rule_sel])
             inc_open_btn.click(
                 open_incident,
                 inputs=[inc_rule_sel, inc_title, inc_severity, inc_desc],
@@ -9025,7 +9031,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 return build_trace_heatmap(), build_trace_table(), gr.Dropdown(choices=get_conversation_ids())
 
             trace_refresh_btn.click(_refresh_traces, outputs=[trace_heatmap, trace_table, trace_conv_sel])
-            demo.load(_refresh_traces, outputs=[trace_heatmap, trace_table, trace_conv_sel])
+            analytics_tab.select(_refresh_traces, outputs=[trace_heatmap, trace_table, trace_conv_sel])
             trace_run_btn.click(trace_conversation, inputs=trace_conv_sel, outputs=trace_status)
             trace_conv_sel.change(
                 lambda cid: build_trace_table(cid),
@@ -9054,15 +9060,15 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
 
             exp_refresh_sel.click(_refresh_exp_sel, outputs=exp_rule_sel)
             exp_hist_refresh.click(_refresh_exp_table, outputs=exp_table)
-            demo.load(_refresh_exp_sel, outputs=exp_rule_sel)
-            demo.load(_refresh_exp_table, outputs=exp_table)
+            analytics_tab.select(_refresh_exp_sel, outputs=exp_rule_sel)
+            analytics_tab.select(_refresh_exp_table, outputs=exp_table)
             exp_run_btn.click(
                 explain_rule_decision,
                 inputs=[exp_rule_sel, exp_user_input, exp_agent_response],
                 outputs=exp_result,
             )
 
-        with gr.Tab("⚖️ Governance"):
+        with gr.Tab("⚖️ Governance") as gov_tab:
 
             gr.HTML('<div class="section-title">Governance Dashboard & Trust Score</div>')
             gr.Markdown("Composite Trust Score (0–100) and executive-level governance metrics.")
@@ -9076,7 +9082,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 return build_trust_gauge(), build_trust_breakdown(), build_governance_dashboard()
 
             gov_dash_btn.click(_refresh_gov_dash, outputs=[trust_gauge, trust_breakdown, gov_dash_md])
-            demo.load(_refresh_gov_dash, outputs=[trust_gauge, trust_breakdown, gov_dash_md])
+            gov_tab.select(_refresh_gov_dash, outputs=[trust_gauge, trust_breakdown, gov_dash_md])
 
             gr.HTML('<div class="section-title">Rule Observability (SLOs)</div>')
             gr.Markdown("Define effectiveness SLOs per rule and track error budgets in real time.")
@@ -9097,7 +9103,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 return build_slo_chart(), build_slo_table(), gr.Dropdown(choices=get_rule_ids())
 
             slo_refresh_btn.click(_refresh_slo, outputs=[slo_chart, slo_table, slo_rule_sel])
-            demo.load(_refresh_slo, outputs=[slo_chart, slo_table, slo_rule_sel])
+            gov_tab.select(_refresh_slo, outputs=[slo_chart, slo_table, slo_rule_sel])
             slo_add_btn.click(
                 define_slo,
                 inputs=[slo_rule_sel, slo_name_in, slo_target, slo_window],
@@ -9126,7 +9132,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 return build_improvement_funnel(), build_improvement_table(), gr.Dropdown(choices=get_rule_ids())
 
             imp_refresh_btn.click(_refresh_imp, outputs=[imp_funnel, imp_table, imp_rule_sel])
-            demo.load(_refresh_imp, outputs=[imp_funnel, imp_table, imp_rule_sel])
+            gov_tab.select(_refresh_imp, outputs=[imp_funnel, imp_table, imp_rule_sel])
             imp_open_btn.click(
                 start_improvement_cycle,
                 inputs=[imp_rule_sel, imp_trigger, imp_desc],
@@ -9165,7 +9171,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 return build_kg_graph(), build_kg_table()
 
             kg_refresh_btn.click(_refresh_kg, outputs=[kg_graph, kg_table])
-            demo.load(_refresh_kg, outputs=[kg_graph, kg_table])
+            gov_tab.select(_refresh_kg, outputs=[kg_graph, kg_table])
             kg_add_node_btn.click(
                 add_kg_node,
                 inputs=[kg_node_type, kg_node_name, kg_node_desc, kg_node_rule],
@@ -9190,7 +9196,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
             reg_run_btn.click(run_regression_check, outputs=reg_report)
             reg_run_btn.click(_refresh_regression, outputs=reg_table)
             reg_refresh_btn.click(_refresh_regression, outputs=reg_table)
-            demo.load(_refresh_regression, outputs=reg_table)
+            gov_tab.select(_refresh_regression, outputs=reg_table)
 
             gr.HTML('<div class="section-title">Reputation Tracking</div>')
             gr.Markdown("Track per-rule compliance reputation over 7, 30, and 90 day windows.")
@@ -9206,7 +9212,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
             rep_snap_btn.click(snapshot_reputation, outputs=rep_snap_status)
             rep_snap_btn.click(_refresh_reputation, outputs=[rep_chart, rep_table])
             rep_refresh_btn.click(_refresh_reputation, outputs=[rep_chart, rep_table])
-            demo.load(_refresh_reputation, outputs=[rep_chart, rep_table])
+            gov_tab.select(_refresh_reputation, outputs=[rep_chart, rep_table])
 
             gr.HTML('<div class="section-title">Goal Alignment Monitoring</div>')
             gr.Markdown("Map business objectives → rules and monitor alignment vs targets.")
@@ -9234,7 +9240,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
             )
             goal_add_btn.click(_refresh_goals, outputs=[goal_chart, goal_table])
             goal_refresh_btn.click(_refresh_goals, outputs=[goal_chart, goal_table])
-            demo.load(_refresh_goals, outputs=[goal_chart, goal_table])
+            gov_tab.select(_refresh_goals, outputs=[goal_chart, goal_table])
 
             gr.HTML('<div class="section-title">Control Mapping</div>')
             gr.Markdown("Map governance controls (technical/operational/managerial) to rules and track their effectiveness.")
@@ -9266,7 +9272,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
             )
             ctrl_add_btn.click(_refresh_controls, outputs=[ctrl_chart, ctrl_heatmap, ctrl_table])
             ctrl_refresh_btn.click(_refresh_controls, outputs=[ctrl_chart, ctrl_heatmap, ctrl_table])
-            demo.load(_refresh_controls, outputs=[ctrl_chart, ctrl_heatmap, ctrl_table])
+            gov_tab.select(_refresh_controls, outputs=[ctrl_chart, ctrl_heatmap, ctrl_table])
 
             gr.HTML('<div class="section-title">Rule Learning Detection</div>')
             gr.Markdown("Detect whether the AI is learning (improving compliance) or degrading over time using score_history slope analysis.")
@@ -9281,7 +9287,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
             learning_run_btn.click(detect_rule_learning, outputs=learning_report)
             learning_run_btn.click(_refresh_learning, outputs=learning_table)
             learning_refresh_btn.click(_refresh_learning, outputs=learning_table)
-            demo.load(_refresh_learning, outputs=learning_table)
+            gov_tab.select(_refresh_learning, outputs=learning_table)
 
             gr.HTML('<div class="section-title">Rule Gaming Detection</div>')
             gr.Markdown("Detect adversarial inputs attempting to bypass, jailbreak, or circumvent governance rules.")
@@ -9316,7 +9322,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
             )
             gaming_log_btn.click(_refresh_gaming, outputs=[gaming_summary_md, gaming_table])
             gaming_refresh_btn.click(_refresh_gaming, outputs=[gaming_summary_md, gaming_table])
-            demo.load(_refresh_gaming, outputs=[gaming_summary_md, gaming_table])
+            gov_tab.select(_refresh_gaming, outputs=[gaming_summary_md, gaming_table])
 
             gr.HTML('<div class="section-title">Meta-Governance</div>')
             gr.Markdown("Define who can create, approve, audit, and manage rules — governance of the governance system.")
@@ -9375,7 +9381,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
             meta_log_btn.click(_refresh_meta, outputs=[meta_role_table, meta_audit_table])
             meta_check_btn.click(_check_perm, inputs=[meta_check_user, meta_check_action], outputs=meta_check_result)
             meta_refresh_btn.click(_refresh_meta, outputs=[meta_role_table, meta_audit_table])
-            demo.load(_refresh_meta, outputs=[meta_role_table, meta_audit_table])
+            gov_tab.select(_refresh_meta, outputs=[meta_role_table, meta_audit_table])
 
             gr.HTML('<div class="section-title">Formal Policy Export</div>')
             gr.Markdown("Export rules as structured YAML or JSON policy documents for audit trails and external tooling.")
@@ -9418,7 +9424,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
             )
             cert_add_btn.click(_refresh_certs, outputs=[cert_summary_md, cert_table])
             cert_refresh_btn.click(_refresh_certs, outputs=[cert_summary_md, cert_table])
-            demo.load(_refresh_certs, outputs=[cert_summary_md, cert_table])
+            gov_tab.select(_refresh_certs, outputs=[cert_summary_md, cert_table])
 
             gr.HTML('<div class="section-title">Stakeholder Report</div>')
             gr.Markdown("Generate a comprehensive compliance report for stakeholders (CTO, board, auditors).")
@@ -9446,7 +9452,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 return build_compliance_health_gauge(), build_compliance_health_breakdown(), build_compliance_health_report()
 
             health_refresh_btn.click(_refresh_health, outputs=[health_gauge, health_breakdown, health_report_md])
-            demo.load(_refresh_health, outputs=[health_gauge, health_breakdown, health_report_md])
+            gov_tab.select(_refresh_health, outputs=[health_gauge, health_breakdown, health_report_md])
 
             gr.HTML('<div class="section-title">Compliance Calendar</div>')
             gr.Markdown("Schedule and track governance tasks: audits, reviews, renewals, training, assessments.")
@@ -9486,9 +9492,9 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
             cal_complete_btn.click(complete_calendar_item, inputs=[cal_complete_id, cal_complete_notes], outputs=cal_complete_status)
             cal_complete_btn.click(_refresh_calendar, outputs=[cal_summary_md, cal_table])
             cal_refresh_btn.click(_refresh_calendar, outputs=[cal_summary_md, cal_table])
-            demo.load(_refresh_calendar, outputs=[cal_summary_md, cal_table])
+            gov_tab.select(_refresh_calendar, outputs=[cal_summary_md, cal_table])
 
-        with gr.Tab("🧪 Testing"):
+        with gr.Tab("🧪 Testing") as testing_tab:
 
             gr.HTML('<div class="section-title">Adversarial Robustness Testing</div>')
             gr.Markdown("Run structured adversarial attacks (role-play escape, authority claim, encoding evasion, etc.) against a rule to measure robustness.")
@@ -9505,7 +9511,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
             rob_run_btn.click(run_robustness_test, inputs=rob_rule_id, outputs=rob_report)
             rob_run_btn.click(_refresh_robustness, outputs=rob_table)
             rob_refresh_btn.click(_refresh_robustness, outputs=rob_table)
-            demo.load(_refresh_robustness, outputs=rob_table)
+            testing_tab.select(_refresh_robustness, outputs=rob_table)
 
             gr.HTML('<div class="section-title">Fairness &amp; Bias Detection</div>')
             gr.Markdown("Compare rule trigger rates across demographic groups to detect disparate treatment (>10% disparity = bias).")
@@ -9533,7 +9539,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
             )
             bias_run_btn.click(_refresh_bias, outputs=[bias_summary_md, bias_table])
             bias_refresh_btn.click(_refresh_bias, outputs=[bias_summary_md, bias_table])
-            demo.load(_refresh_bias, outputs=[bias_summary_md, bias_table])
+            testing_tab.select(_refresh_bias, outputs=[bias_summary_md, bias_table])
 
             gr.HTML('<div class="section-title">Audit Trail Integrity</div>')
             gr.Markdown("Tamper-evident hash chain for governance actions. Each entry hashes itself + the previous entry's hash.")
@@ -9562,7 +9568,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
             )
             audit_append_btn.click(_refresh_chain, outputs=audit_chain_table)
             audit_refresh_btn.click(_refresh_chain, outputs=audit_chain_table)
-            demo.load(_refresh_chain, outputs=audit_chain_table)
+            testing_tab.select(_refresh_chain, outputs=audit_chain_table)
 
             gr.HTML('<div class="section-title">Compliance Trend Analytics</div>')
             gr.Markdown("Time-series compliance trends per rule (uses reputation snapshots). Take snapshots regularly to build trend data.")
@@ -9577,7 +9583,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
 
             trend_refresh_btn.click(_refresh_trends, inputs=trend_window, outputs=[trend_chart, trend_summary_md])
             trend_window.change(_refresh_trends, inputs=trend_window, outputs=[trend_chart, trend_summary_md])
-            demo.load(lambda: _refresh_trends(30), outputs=[trend_chart, trend_summary_md])
+            testing_tab.select(lambda: _refresh_trends(30), outputs=[trend_chart, trend_summary_md])
 
             gr.HTML('<div class="section-title">Gap Simulator</div>')
             gr.Markdown("Type a message to see which gaps would be detected and which rules would apply.")
