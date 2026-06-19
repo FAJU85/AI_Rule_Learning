@@ -193,8 +193,8 @@ def build_overview() -> tuple[Any, Any, str]:
         empty_fig = go.Figure()
         empty_fig.update_layout(
             title="No data yet — upload conversations to get started",
-            plot_bgcolor="rgba(0,0,0,0)",
-            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="#f8fafc",
+            paper_bgcolor="#ffffff",
             height=350,
         )
         summary = "### No data yet\n\nUpload conversation history in the **Upload History** tab to populate this dashboard."
@@ -220,8 +220,8 @@ def build_overview() -> tuple[Any, Any, str]:
         title="Rule Effectiveness Scores",
         yaxis_title="Effectiveness",
         yaxis_range=[0, 1.1],
-        plot_bgcolor="rgba(0,0,0,0)",
-        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="#f8fafc",
+        paper_bgcolor="#ffffff",
         height=350,
     )
 
@@ -246,8 +246,8 @@ def build_overview() -> tuple[Any, Any, str]:
 
     fig_gaps.update_layout(
         title="Gap Distribution",
-        plot_bgcolor="rgba(0,0,0,0)",
-        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="#f8fafc",
+        paper_bgcolor="#ffffff",
         height=350,
     )
 
@@ -372,12 +372,12 @@ def build_rule_score_trend(rule_name: str) -> Any:
     fig = go.Figure()
     fig.add_trace(go.Scatter(
         x=dates, y=scores, mode="lines+markers",
-        line=dict(color="#4CAF50" if scores[-1] >= 0.7 else ("#FFC107" if scores[-1] >= 0.4 else "#F44336"), width=2),
+        line=dict(color="#10b981" if scores[-1] >= 0.7 else ("#f59e0b" if scores[-1] >= 0.4 else "#be123c"), width=2),
         marker=dict(size=8),
         name="Effectiveness",
     ))
-    fig.add_hline(y=0.7, line_dash="dot", line_color="green", annotation_text="Good (70%)")
-    fig.add_hline(y=0.3, line_dash="dot", line_color="red", annotation_text="Evolve threshold (30%)")
+    fig.add_hline(y=0.7, line_dash="dot", line_color="#10b981", annotation_text="Good (70%)")
+    fig.add_hline(y=0.3, line_dash="dot", line_color="#be123c", annotation_text="Evolve threshold (30%)")
     fig.update_layout(
         title=f"{rule.get('name', rule_name)} — effectiveness over time",
         yaxis=dict(range=[0, 1], tickformat=".0%"),
@@ -521,7 +521,7 @@ def build_project_compass() -> tuple[Any, Any, str]:
                        f"{direction[1]} {direction[0].replace('_', ' ').title()}</span>"},
         number={"suffix": " / 100"},
     ))
-    fig_gauge.update_layout(height=320, paper_bgcolor="rgba(0,0,0,0)")
+    fig_gauge.update_layout(height=320, paper_bgcolor="#ffffff")
 
     # --- Metrics bar chart ---
     categories = ["Space Running", "Has Data", "Active Rules", "Recent Deploy"]
@@ -541,8 +541,8 @@ def build_project_compass() -> tuple[Any, Any, str]:
         title="Health Score Breakdown",
         yaxis_range=[0, 45],
         yaxis_title="Points",
-        plot_bgcolor="rgba(0,0,0,0)",
-        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="#f8fafc",
+        paper_bgcolor="#ffffff",
         height=320,
     )
 
@@ -582,7 +582,7 @@ def build_compass(conv_id: str) -> tuple[Any, Any, str]:
     if not conv_id:
         empty = go.Figure()
         empty.update_layout(title="Select a conversation", height=300,
-                            plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)")
+                            plot_bgcolor="#f8fafc", paper_bgcolor="#ffffff")
         return empty, empty, "Select a conversation from the dropdown."
 
     convs = load_conversations()
@@ -590,7 +590,7 @@ def build_compass(conv_id: str) -> tuple[Any, Any, str]:
     if conv is None:
         empty = go.Figure()
         empty.update_layout(title="Conversation not found", height=300,
-                            plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)")
+                            plot_bgcolor="#f8fafc", paper_bgcolor="#ffffff")
         return empty, empty, "Conversation not found."
 
     turns = conv.get("turns", [])
@@ -601,7 +601,7 @@ def build_compass(conv_id: str) -> tuple[Any, Any, str]:
         empty = go.Figure()
         empty.update_layout(
             title="No sensor data — readings are generated during live conversations",
-            height=300, plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)"
+            height=300, plot_bgcolor="#f8fafc", paper_bgcolor="#ffffff"
         )
         return empty, empty, (
             "**No sensor readings in this conversation.**\n\n"
@@ -643,7 +643,7 @@ def build_compass(conv_id: str) -> tuple[Any, Any, str]:
                        f"{DIRECTION_EMOJI.get(latest_direction, '🟡')} {latest_direction.replace('_', ' ').title()}</span>"},
         number={"suffix": "%"},
     ))
-    fig_gauge.update_layout(height=300, paper_bgcolor="rgba(0,0,0,0)")
+    fig_gauge.update_layout(height=300, paper_bgcolor="#ffffff")
 
     # --- Timeline ---
     turn_nums, task_scores, rule_scores, focus_scores = [], [], [], []
@@ -670,7 +670,7 @@ def build_compass(conv_id: str) -> tuple[Any, Any, str]:
     fig_timeline.update_layout(
         title="Alignment Timeline per Turn",
         xaxis_title="Turn", yaxis_title="Score", yaxis_range=[0, 1.05],
-        plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)", height=350,
+        plot_bgcolor="#f8fafc", paper_bgcolor="#ffffff", height=350,
         legend={"orientation": "h", "y": -0.2},
     )
 
@@ -2512,7 +2512,7 @@ def build_drift_chart() -> Any:
         fig.add_annotation(
             text="No drift data yet<br><sub>Run 'Score Effectiveness' at least 3 times to build trend history</sub>",
             xref="paper", yref="paper", x=0.5, y=0.5,
-            showarrow=False, font=dict(color="#8b949e", size=13), align="center",
+            showarrow=False, font=dict(color="#64748b", size=13), align="center",
         )
         fig.update_layout(
             height=280,
@@ -2684,7 +2684,7 @@ def build_dependency_graph() -> Any:
     if not rules:
         fig = go.Figure()
         fig.add_annotation(text="No rules yet — import sessions and run Analysis", xref="paper", yref="paper",
-                           x=0.5, y=0.5, showarrow=False, font=dict(color="#8b949e", size=13))
+                           x=0.5, y=0.5, showarrow=False, font=dict(color="#64748b", size=13))
         fig.update_layout(height=280, xaxis=dict(visible=False), yaxis=dict(visible=False))
         return _dark_fig(fig)
 
@@ -2730,7 +2730,7 @@ def build_dependency_graph() -> Any:
         textfont=dict(size=9, color="#c9d1d9"),
     ))
     fig.update_layout(
-        paper_bgcolor="#0d1117", plot_bgcolor="#0d1117",
+        paper_bgcolor="#ffffff", plot_bgcolor="#f8fafc",
         showlegend=False, margin=dict(l=20, r=20, t=30, b=20),
         title=dict(text="Rule Dependency Graph", font=dict(color="#c9d1d9")),
         xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
@@ -2830,7 +2830,7 @@ def build_coverage_chart() -> Any:
         textfont=dict(color="#c9d1d9"),
     ))
     fig.update_layout(
-        paper_bgcolor="#0d1117", plot_bgcolor="#0d1117",
+        paper_bgcolor="#ffffff", plot_bgcolor="#f8fafc",
         legend=dict(font=dict(color="#c9d1d9")),
         margin=dict(l=20, r=20, t=40, b=20),
         title=dict(text=f"Gap Coverage  {c['coverage_pct']}%", font=dict(color="#c9d1d9")),
@@ -3257,7 +3257,7 @@ def build_trace_heatmap() -> Any:
     if not traces:
         fig = go.Figure()
         fig.add_annotation(text="No trace data yet — run AI Audit to generate traces", xref="paper", yref="paper",
-                           x=0.5, y=0.5, showarrow=False, font=dict(color="#8b949e", size=13))
+                           x=0.5, y=0.5, showarrow=False, font=dict(color="#64748b", size=13))
         fig.update_layout(height=280, xaxis=dict(visible=False), yaxis=dict(visible=False))
         return _dark_fig(fig)
 
@@ -3279,7 +3279,7 @@ def build_trace_heatmap() -> Any:
         colorbar=dict(title="Rules Fired", tickfont=dict(color="#c9d1d9")),
     ))
     fig.update_layout(
-        paper_bgcolor="#0d1117", plot_bgcolor="#0d1117",
+        paper_bgcolor="#ffffff", plot_bgcolor="#f8fafc",
         title=dict(text="Decision Trace Heatmap (last 20 conversations)", font=dict(color="#c9d1d9")),
         xaxis=dict(title="Turn", tickfont=dict(color="#c9d1d9"), titlefont=dict(color="#c9d1d9")),
         yaxis=dict(tickfont=dict(color="#c9d1d9"), autorange="reversed"),
@@ -3415,7 +3415,7 @@ def build_kg_graph() -> Any:
     if not nodes:
         fig = go.Figure()
         fig.add_annotation(text="No knowledge graph entries yet — add nodes in Governance", xref="paper", yref="paper",
-                           x=0.5, y=0.5, showarrow=False, font=dict(color="#8b949e", size=13))
+                           x=0.5, y=0.5, showarrow=False, font=dict(color="#64748b", size=13))
         fig.update_layout(height=280, xaxis=dict(visible=False), yaxis=dict(visible=False))
         return _dark_fig(fig)
 
@@ -3463,7 +3463,7 @@ def build_kg_graph() -> Any:
             hoverinfo="text",
         ))
     fig.update_layout(
-        paper_bgcolor="#0d1117", plot_bgcolor="#0d1117",
+        paper_bgcolor="#ffffff", plot_bgcolor="#f8fafc",
         showlegend=True, legend=dict(font=dict(color="#c9d1d9")),
         margin=dict(l=20, r=20, t=40, b=20),
         title=dict(text="Governance Knowledge Graph", font=dict(color="#c9d1d9")),
@@ -3772,7 +3772,7 @@ def build_slo_chart() -> Any:
     if not rows:
         fig = go.Figure()
         fig.add_annotation(text="No SLOs defined yet — add one in Governance → Rule Observability", xref="paper", yref="paper",
-                           x=0.5, y=0.5, showarrow=False, font=dict(color="#8b949e", size=13))
+                           x=0.5, y=0.5, showarrow=False, font=dict(color="#64748b", size=13))
         fig.update_layout(height=280, xaxis=dict(visible=False), yaxis=dict(visible=False))
         return _dark_fig(fig)
     names = [f"{r['rule_name'][:20]} / {r['slo_name']}" for r in rows]
@@ -3790,7 +3790,7 @@ def build_slo_chart() -> Any:
                                     line=dict(width=3, color="#d29922")),
     ))
     fig.update_layout(
-        paper_bgcolor="#0d1117", plot_bgcolor="#161b22",
+        paper_bgcolor="#ffffff", plot_bgcolor="#f8fafc",
         title=dict(text="SLO Status", font=dict(color="#c9d1d9")),
         legend=dict(font=dict(color="#c9d1d9")),
         xaxis=dict(tickfont=dict(color="#c9d1d9"), tickangle=-30),
@@ -3880,7 +3880,7 @@ def build_improvement_funnel() -> Any:
     if not cycles:
         fig = go.Figure()
         fig.add_annotation(text="No improvement cycles open yet", xref="paper", yref="paper",
-                           x=0.5, y=0.5, showarrow=False, font=dict(color="#8b949e", size=13))
+                           x=0.5, y=0.5, showarrow=False, font=dict(color="#64748b", size=13))
         fig.update_layout(height=280, xaxis=dict(visible=False), yaxis=dict(visible=False))
         return _dark_fig(fig)
     from collections import Counter
@@ -3894,7 +3894,7 @@ def build_improvement_funnel() -> Any:
         connector=dict(line=dict(color="#30363d")),
     ))
     fig.update_layout(
-        paper_bgcolor="#0d1117", plot_bgcolor="#0d1117",
+        paper_bgcolor="#ffffff", plot_bgcolor="#f8fafc",
         title=dict(text="Improvement Cycle Pipeline (open cycles)", font=dict(color="#c9d1d9")),
         yaxis=dict(tickfont=dict(color="#c9d1d9")),
         margin=dict(l=160, r=20, t=50, b=20),
@@ -4080,7 +4080,7 @@ def build_trust_gauge() -> Any:
         number={"font": {"color": "#c9d1d9", "size": 40}},
     ))
     fig.update_layout(
-        paper_bgcolor="#0d1117",
+        paper_bgcolor="#ffffff",
         margin=dict(l=20, r=20, t=60, b=20),
         height=250,
     )
@@ -4102,7 +4102,7 @@ def build_trust_breakdown() -> Any:
         textfont=dict(color="#c9d1d9"),
     ))
     fig.update_layout(
-        paper_bgcolor="#0d1117", plot_bgcolor="#161b22",
+        paper_bgcolor="#ffffff", plot_bgcolor="#f8fafc",
         title=dict(text="Trust Score Components", font=dict(color="#c9d1d9")),
         xaxis=dict(tickfont=dict(color="#c9d1d9")),
         yaxis=dict(tickfont=dict(color="#c9d1d9"), range=[0, 110]),
@@ -4239,7 +4239,7 @@ def build_incident_chart() -> Any:
     if not incidents:
         fig = go.Figure()
         fig.add_annotation(text="No incidents logged yet", xref="paper", yref="paper",
-                           x=0.5, y=0.5, showarrow=False, font=dict(color="#8b949e", size=13))
+                           x=0.5, y=0.5, showarrow=False, font=dict(color="#64748b", size=13))
         fig.update_layout(height=280, xaxis=dict(visible=False), yaxis=dict(visible=False))
         return _dark_fig(fig)
     from collections import Counter
@@ -4251,7 +4251,7 @@ def build_incident_chart() -> Any:
         fig.add_trace(go.Bar(name=status, x=INCIDENT_SEVERITIES, y=y_vals))
     fig.update_layout(
         barmode="stack",
-        paper_bgcolor="#0d1117", plot_bgcolor="#161b22",
+        paper_bgcolor="#ffffff", plot_bgcolor="#f8fafc",
         title=dict(text="Incidents by Severity & Status", font=dict(color="#c9d1d9")),
         xaxis=dict(tickfont=dict(color="#c9d1d9")),
         yaxis=dict(tickfont=dict(color="#c9d1d9"), title="Count",
@@ -4329,7 +4329,7 @@ def build_forecast_chart(horizon: int = 3) -> Any:
     fig.add_hline(y=70, line_dash="dot", line_color="#d29922",
                   annotation_text="70% threshold", annotation_font_color="#d29922")
     fig.update_layout(
-        paper_bgcolor="#0d1117", plot_bgcolor="#161b22",
+        paper_bgcolor="#ffffff", plot_bgcolor="#f8fafc",
         title=dict(text=f"Compliance Forecast (next {horizon} measurements)", font=dict(color="#c9d1d9")),
         xaxis=dict(tickfont=dict(color="#c9d1d9")),
         yaxis=dict(tickfont=dict(color="#c9d1d9"), title="Effectiveness %",
@@ -4931,7 +4931,7 @@ def build_data_trust_chart() -> Any:
     if not entries:
         fig = go.Figure()
         fig.add_annotation(text="No data provenance entries yet", xref="paper", yref="paper",
-                           x=0.5, y=0.5, showarrow=False, font=dict(color="#8b949e", size=13))
+                           x=0.5, y=0.5, showarrow=False, font=dict(color="#64748b", size=13))
         fig.update_layout(height=280, xaxis=dict(visible=False), yaxis=dict(visible=False))
         return _dark_fig(fig)
     from collections import Counter
@@ -4946,7 +4946,7 @@ def build_data_trust_chart() -> Any:
         textfont=dict(color="#c9d1d9"),
     ))
     fig.update_layout(
-        paper_bgcolor="#0d1117",
+        paper_bgcolor="#ffffff",
         legend=dict(font=dict(color="#c9d1d9")),
         title=dict(text="Data Sources by Trust Level", font=dict(color="#c9d1d9")),
         margin=dict(l=20, r=20, t=40, b=20),
@@ -5114,7 +5114,7 @@ def build_behavior_radar() -> Any:
         fillcolor="rgba(35,134,54,0.2)",
     ))
     fig.update_layout(
-        paper_bgcolor="#0d1117",
+        paper_bgcolor="#ffffff",
         polar=dict(
             bgcolor="#161b22",
             radialaxis=dict(visible=True, range=[0, 100],
@@ -5825,70 +5825,79 @@ Gap detected → Group similar gaps → ≥2 occurrences?
 # ---------------------------------------------------------------------------
 
 _CSS = """
-/* Base */
-body, .gradio-container { background: #0d1117 !important; }
-.app { background: #0d1117 !important; }
+/* ── Base — light theme (slate-50 canvas) ─────────────────────────── */
+body, .gradio-container { background: #f8fafc !important; color: #0f172a; }
+.app { background: #f8fafc !important; }
 
-/* Header */
+/* ── Header ────────────────────────────────────────────────────────── */
 .arl-header { padding: 28px 0 8px; }
-.arl-header h1 { font-size: 1.6rem; font-weight: 700; color: #f0f6fc; margin: 0; }
-.arl-header p  { font-size: 0.875rem; color: #8b949e; margin: 6px 0 0; }
+.arl-header h1 { font-size: 1.6rem; font-weight: 700; color: #0f172a; margin: 0; }
+.arl-header p  { font-size: 0.875rem; color: #64748b; margin: 6px 0 0; }
 
-/* Metric cards */
+/* ── Metric cards ───────────────────────────────────────────────────── */
 .metrics-row { display: flex; gap: 14px; margin: 0 0 12px; }
 .metric-card {
-    flex: 1; background: #161b22; border: 1px solid #21262d;
+    flex: 1; background: #ffffff; border: 1px solid #e2e8f0;
     border-radius: 12px; padding: 20px; text-align: center;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
 }
-.metric-value  { font-size: 2rem; font-weight: 700; color: #58a6ff; display: block; }
-.metric-value.green  { color: #3fb950; }
-.metric-value.amber  { color: #d29922; }
-.metric-value.red    { color: #f85149; }
-.metric-label { font-size: 0.72rem; color: #8b949e; text-transform: uppercase;
+.metric-value  { font-size: 2rem; font-weight: 700; color: #4f46e5; display: block; }
+.metric-value.green  { color: #10b981; }
+.metric-value.amber  { color: #f59e0b; }
+.metric-value.red    { color: #be123c; }
+.metric-label { font-size: 0.72rem; color: #64748b; text-transform: uppercase;
     letter-spacing: 0.08em; margin-top: 4px; display: block; }
 
-/* Primary KPI cards (top 3) */
+/* ── Primary KPI row ───────────────────────────────────────────────── */
 .primary-kpis { margin-bottom: 8px; }
 .primary-kpis .metric-card { padding: 22px 20px; border-radius: 14px; }
 .kpi-primary .metric-value { font-size: 2.6rem; }
-.metric-sublabel { font-size: 0.88rem; color: #c9d1d9; font-weight: 500; display: block; margin-top: 2px; }
-.metric-delta { font-size: 0.70rem; color: #6e7681; display: block; margin-top: 10px; letter-spacing: 0.03em; }
-.kpi-urgent { border-color: #d29922 !important; box-shadow: 0 0 0 1px #d2992240; }
-/* Secondary metric row */
+.metric-sublabel { font-size: 0.88rem; color: #334155; font-weight: 500; display: block; margin-top: 2px; }
+.metric-delta { font-size: 0.70rem; color: #64748b; display: block; margin-top: 10px; letter-spacing: 0.03em; }
+.kpi-urgent { border-color: #f59e0b !important; box-shadow: 0 0 0 1px #f59e0b40 !important; }
+
+/* ── Secondary KPI row ─────────────────────────────────────────────── */
 .secondary-kpis { margin-bottom: 20px; }
 .secondary-kpis .metric-card { padding: 12px 14px; }
 .secondary-kpis .metric-value { font-size: 1.3rem; }
 .secondary-kpis .metric-label { margin-top: 2px; }
 
-/* Section dividers */
-.section-title { font-size: 0.75rem; font-weight: 600; color: #8b949e;
+/* ── Section dividers ──────────────────────────────────────────────── */
+.section-title { font-size: 0.75rem; font-weight: 600; color: #64748b;
     text-transform: uppercase; letter-spacing: 0.1em;
-    margin: 20px 0 10px; padding-bottom: 8px; border-bottom: 1px solid #21262d; }
+    margin: 20px 0 10px; padding-bottom: 8px; border-bottom: 1px solid #e2e8f0; }
 
-/* Activity feed */
+/* ── Activity feed ─────────────────────────────────────────────────── */
 .activity-feed { display: flex; flex-direction: column; gap: 8px; }
-.activity-item { background: #161b22; border: 1px solid #21262d; border-radius: 8px;
-    padding: 11px 16px; display: flex; align-items: center; gap: 12px; font-size: 0.875rem; }
+.activity-item { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px;
+    padding: 11px 16px; display: flex; align-items: center; gap: 12px; font-size: 0.875rem;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
 .activity-icon { font-size: 1rem; width: 22px; text-align: center; }
-.activity-text { color: #e2e8f0; flex: 1; }
-.activity-time { color: #8b949e; font-size: 0.72rem; white-space: nowrap; }
+.activity-text { color: #334155; flex: 1; }
+.activity-time { color: #64748b; font-size: 0.72rem; white-space: nowrap; }
 
-/* Pending alert */
-.pending-alert { background: #2b1d0e; border: 1px solid #9e6a03; border-radius: 10px;
-    padding: 13px 18px; color: #d29922; font-size: 0.875rem; margin-bottom: 14px; }
-.pending-alert.none { background: #0d2119; border-color: #238636; color: #3fb950; }
+/* ── Pending alert ─────────────────────────────────────────────────── */
+.pending-alert { background: #fffbeb; border: 1px solid #fbbf24; border-radius: 10px;
+    padding: 13px 18px; color: #92400e; font-size: 0.875rem; margin-bottom: 14px; }
+.pending-alert.none { background: #ecfdf5; border-color: #10b981; color: #065f46; }
 
-/* Tabs */
-.tab-nav button { color: #8b949e !important; }
-.tab-nav button.selected { color: #f0f6fc !important; border-bottom-color: #58a6ff !important; }
+/* ── Tabs ───────────────────────────────────────────────────────────── */
+.tab-nav button { color: #64748b !important; font-weight: 500; }
+.tab-nav button.selected { color: #4f46e5 !important; border-bottom-color: #4f46e5 !important; font-weight: 600; }
 
-/* Inputs / textboxes */
-.gr-textbox textarea, .gr-textbox input { background: #161b22 !important;
-    border-color: #21262d !important; color: #e2e8f0 !important; }
-label.gr-form { color: #8b949e !important; }
+/* ── Inputs ─────────────────────────────────────────────────────────── */
+.gr-textbox textarea, .gr-textbox input { background: #ffffff !important;
+    border-color: #e2e8f0 !important; color: #0f172a !important; }
+label.gr-form { color: #64748b !important; }
 
-/* Mobile: tables scroll horizontally instead of squeezing */
+/* ── Mobile ─────────────────────────────────────────────────────────── */
 .table-wrap { overflow-x: auto !important; -webkit-overflow-scrolling: touch; }
+@media (max-width: 768px) {
+    .metrics-row { flex-direction: column; gap: 8px; }
+    .metric-card { padding: 14px; }
+    .kpi-primary .metric-value { font-size: 2rem; }
+    .primary-kpis .metric-card { padding: 16px; }
+}
 """
 
 
@@ -5897,13 +5906,13 @@ label.gr-form { color: #8b949e !important; }
 # ---------------------------------------------------------------------------
 
 def _dark_fig(fig: Any) -> Any:
-    """Apply consistent dark styling to a Plotly figure."""
+    """Apply consistent light styling to a Plotly figure (slate/white theme)."""
     fig.update_layout(
-        paper_bgcolor="#161b22",
-        plot_bgcolor="#161b22",
-        font=dict(color="#e2e8f0", size=12),
-        xaxis=dict(gridcolor="#21262d", linecolor="#21262d"),
-        yaxis=dict(gridcolor="#21262d", linecolor="#21262d"),
+        paper_bgcolor="#ffffff",
+        plot_bgcolor="#f8fafc",
+        font=dict(color="#334155", size=12),
+        xaxis=dict(gridcolor="#e2e8f0", linecolor="#e2e8f0"),
+        yaxis=dict(gridcolor="#e2e8f0", linecolor="#e2e8f0"),
         margin=dict(l=16, r=16, t=44, b=16),
     )
     return fig
@@ -5988,7 +5997,7 @@ def build_metrics_html() -> str:
 def build_activity_html() -> str:
     versions = load_rule_versions()
     if not versions:
-        return '<div class="activity-item"><span class="activity-text" style="color:#8b949e">No activity yet — import sessions and run analysis to get started.</span></div>'
+        return '<div class="activity-item"><span class="activity-text" style="color:#64748b">No activity yet — import sessions and run analysis to get started.</span></div>'
     recent = sorted(versions, key=lambda x: x.get("timestamp", ""), reverse=True)[:5]
     icons = {
         "approved": "✅", "rejected_by_user": "🗑️", "scored": "📊",
@@ -6039,12 +6048,12 @@ def build_effectiveness_chart_dark() -> Any:
         fig = go.Figure()
         fig.add_annotation(text="No active rules yet — import sessions and run Analysis",
                            xref="paper", yref="paper", x=0.5, y=0.5,
-                           showarrow=False, font=dict(color="#8b949e", size=13))
+                           showarrow=False, font=dict(color="#64748b", size=13))
         fig.update_layout(height=280, xaxis=dict(visible=False), yaxis=dict(visible=False))
         return _dark_fig(fig)
     names = [r.get("name", r.get("rule_id", "?"))[:30] for r in active]
     scores = [r.get("effectiveness_score", 0) for r in active]
-    colors = ["#3fb950" if s >= 0.7 else ("#d29922" if s >= 0.4 else "#f85149") for s in scores]
+    colors = ["#10b981" if s >= 0.7 else ("#f59e0b" if s >= 0.4 else "#be123c") for s in scores]
     fig = go.Figure(go.Bar(
         x=scores, y=names, orientation="h",
         marker_color=colors,
@@ -6068,7 +6077,7 @@ def build_cluster_chart() -> Any:
     if not conversations:
         fig = go.Figure()
         fig.add_annotation(text="No data — import sessions first", xref="paper", yref="paper",
-                           x=0.5, y=0.5, showarrow=False, font=dict(color="#8b949e", size=13))
+                           x=0.5, y=0.5, showarrow=False, font=dict(color="#64748b", size=13))
         fig.update_layout(height=320, xaxis=dict(visible=False), yaxis=dict(visible=False))
         return _dark_fig(fig)
 
@@ -6090,7 +6099,7 @@ def build_cluster_chart() -> Any:
     if not cluster_gaps:
         fig = go.Figure()
         fig.add_annotation(text="No gaps recorded yet — run Analysis first", xref="paper", yref="paper",
-                           x=0.5, y=0.5, showarrow=False, font=dict(color="#8b949e", size=13))
+                           x=0.5, y=0.5, showarrow=False, font=dict(color="#64748b", size=13))
         fig.update_layout(height=320, xaxis=dict(visible=False), yaxis=dict(visible=False))
         return _dark_fig(fig)
 
