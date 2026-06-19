@@ -5760,6 +5760,11 @@ body, .gradio-container { background: #f8fafc !important; color: #0f172a;
                  "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
 .app { background: #f8fafc !important; }
 
+/* ── Charts — always fill container width ────────────────────────── */
+.js-plotly-plot, .plotly, .plot-container { width: 100% !important; }
+.js-plotly-plot .main-svg { width: 100% !important; }
+.gr-plot, [data-testid="plot"] { width: 100% !important; min-width: 0; }
+
 /* ── Header ────────────────────────────────────────────────────────── */
 .arl-header { padding: 28px 0 8px; }
 .arl-header h1 { font-size: 1.6rem; font-weight: 700; color: #0f172a; margin: 0;
@@ -5767,9 +5772,9 @@ body, .gradio-container { background: #f8fafc !important; color: #0f172a;
 .arl-header p  { font-size: 0.875rem; color: #64748b; margin: 6px 0 0; }
 
 /* ── Metric cards ───────────────────────────────────────────────────── */
-.metrics-row { display: flex; gap: 14px; margin: 0 0 12px; }
+.metrics-row { display: flex; flex-wrap: wrap; gap: 14px; margin: 0 0 12px; }
 .metric-card {
-    flex: 1; background: #ffffff; border: 1px solid #e2e8f0;
+    flex: 1 1 140px; min-width: 0; background: #ffffff; border: 1px solid #e2e8f0;
     border-radius: 12px; padding: 20px; text-align: center;
     box-shadow: 0 1px 3px rgba(0,0,0,0.08);
     transition: box-shadow 0.15s ease, transform 0.15s ease;
@@ -5804,13 +5809,13 @@ body, .gradio-container { background: #f8fafc !important; color: #0f172a;
 /* ── Activity feed ─────────────────────────────────────────────────── */
 .activity-feed { display: flex; flex-direction: column; gap: 8px; }
 .activity-item { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px;
-    padding: 11px 16px; display: flex; align-items: center; gap: 12px; font-size: 0.875rem;
+    padding: 11px 16px; display: flex; align-items: flex-start; gap: 12px; font-size: 0.875rem;
     box-shadow: 0 1px 2px rgba(0,0,0,0.05);
     transition: box-shadow 0.12s ease; }
 .activity-item:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
-.activity-icon { font-size: 1rem; width: 22px; text-align: center; }
-.activity-text { color: #334155; flex: 1; }
-.activity-time { color: #64748b; font-size: 0.72rem; white-space: nowrap; }
+.activity-icon { font-size: 1rem; width: 22px; flex-shrink: 0; text-align: center; }
+.activity-text { color: #334155; flex: 1; min-width: 0; word-break: break-word; }
+.activity-time { color: #64748b; font-size: 0.72rem; white-space: nowrap; flex-shrink: 0; }
 
 /* ── Pending alert ─────────────────────────────────────────────────── */
 .pending-alert { background: #fffbeb; border: 1px solid #fbbf24; border-radius: 10px;
@@ -5818,29 +5823,36 @@ body, .gradio-container { background: #f8fafc !important; color: #0f172a;
 .pending-alert.none { background: #ecfdf5; border-color: #10b981; color: #065f46; }
 
 /* ── Tabs ───────────────────────────────────────────────────────────── */
-.tab-nav button { color: #64748b !important; font-weight: 500; }
+.tab-nav { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.tab-nav button { color: #64748b !important; font-weight: 500; white-space: nowrap; }
 .tab-nav button.selected { color: #4f46e5 !important; border-bottom-color: #4f46e5 !important; font-weight: 600; }
 
 /* ── Inputs / selects ───────────────────────────────────────────────── */
 .gr-textbox textarea, .gr-textbox input { background: #ffffff !important;
-    border-color: #e2e8f0 !important; color: #0f172a !important; }
+    border-color: #e2e8f0 !important; color: #0f172a !important;
+    width: 100% !important; box-sizing: border-box; }
 label.gr-form { color: #64748b !important; }
 
 /* ── Gradio native component overrides for light theme ─────────────── */
 /* Panels / blocks */
 .gr-panel, .gr-box, .block { background: #ffffff !important;
-    border-color: #e2e8f0 !important; }
+    border-color: #e2e8f0 !important; min-width: 0; }
+/* Row / column layout */
+.gr-row, [data-testid="row"] { flex-wrap: wrap !important; }
+.gr-column, [data-testid="column"] { min-width: 0; }
 /* Accordion */
 .gr-accordion > .label-wrap { background: #f8fafc !important;
     border-color: #e2e8f0 !important; color: #334155 !important; }
 .gr-accordion > .label-wrap span { color: #334155 !important; }
 /* Dropdown */
 .gr-dropdown, select { background: #ffffff !important;
-    border-color: #e2e8f0 !important; color: #0f172a !important; }
+    border-color: #e2e8f0 !important; color: #0f172a !important;
+    max-width: 100%; }
 /* Dataframe / table */
-.gr-dataframe table { border-color: #e2e8f0 !important; }
+.table-wrap, .gr-dataframe { overflow-x: auto !important; -webkit-overflow-scrolling: touch; max-width: 100%; }
+.gr-dataframe table { border-color: #e2e8f0 !important; min-width: 480px; }
 .gr-dataframe th { background: #f8fafc !important; color: #64748b !important;
-    font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; }
+    font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; white-space: nowrap; }
 .gr-dataframe td { color: #334155 !important; border-color: #f1f5f9 !important; }
 .gr-dataframe tr:hover td { background: #f8fafc !important; }
 /* Buttons */
@@ -5853,14 +5865,68 @@ button.secondary { background: #ffffff !important; border-color: #e2e8f0 !import
 button.secondary:hover { background: #f8fafc !important; border-color: #cbd5e1 !important; }
 /* Markdown inside components */
 .gr-prose, .prose { color: #334155 !important; }
+/* Images / media */
+img, video, canvas, iframe { max-width: 100%; height: auto; }
 
-/* ── Mobile ─────────────────────────────────────────────────────────── */
-.table-wrap { overflow-x: auto !important; -webkit-overflow-scrolling: touch; }
+/* ── Tablet (≤ 900 px) ──────────────────────────────────────────────── */
+@media (max-width: 900px) {
+    .arl-header h1 { font-size: 1.35rem; }
+    .kpi-primary .metric-value { font-size: 2.2rem; }
+    .primary-kpis .metric-card { padding: 18px 16px; }
+}
+
+/* ── Mobile (≤ 768 px) ──────────────────────────────────────────────── */
 @media (max-width: 768px) {
+    /* Layout */
+    .gradio-container { padding: 8px !important; }
+    .gr-row, [data-testid="row"] { flex-direction: column !important; }
+    .gr-column, [data-testid="column"] { width: 100% !important; flex: none !important; }
+
+    /* Charts fill full width */
+    .gr-plot, [data-testid="plot"] { width: 100% !important; overflow: hidden; }
+    .js-plotly-plot { width: 100% !important; }
+
+    /* Metric cards stack */
     .metrics-row { flex-direction: column; gap: 8px; }
-    .metric-card { padding: 14px; }
-    .kpi-primary .metric-value { font-size: 2rem; }
+    .metric-card { padding: 14px 16px; flex: 1 1 100%; }
+    .kpi-primary .metric-value { font-size: 1.9rem; }
     .primary-kpis .metric-card { padding: 16px; }
+    .secondary-kpis .metric-value { font-size: 1.15rem; }
+
+    /* Header */
+    .arl-header { padding: 16px 0 6px; }
+    .arl-header h1 { font-size: 1.2rem; }
+
+    /* Activity feed: time drops below text */
+    .activity-item { flex-wrap: wrap; gap: 8px; }
+    .activity-time { width: 100%; padding-left: 34px; }
+
+    /* Tab nav scrolls */
+    .tab-nav { flex-wrap: nowrap !important; }
+
+    /* Buttons full width on mobile */
+    .gr-button-row { flex-direction: column !important; gap: 8px; }
+    .gr-button-row button { width: 100% !important; }
+
+    /* Reduce section margin */
+    .section-title { margin: 14px 0 8px; }
+}
+
+/* ── Small phone (≤ 480 px) ─────────────────────────────────────────── */
+@media (max-width: 480px) {
+    .gradio-container { padding: 4px !important; }
+    .arl-header h1 { font-size: 1.05rem; }
+    .arl-header p  { font-size: 0.78rem; }
+    .metric-value  { font-size: 1.6rem; }
+    .kpi-primary .metric-value { font-size: 1.6rem; }
+    .metric-label  { font-size: 0.65rem; }
+    .metric-sublabel { font-size: 0.78rem; }
+    .metric-card { padding: 12px; }
+    .activity-item { padding: 8px 12px; font-size: 0.8rem; }
+    .section-title { font-size: 0.68rem; }
+    .pending-alert { padding: 10px 14px; font-size: 0.8rem; }
+    /* Dataframes: force scroll, never overflow viewport */
+    .gr-dataframe, .table-wrap { max-width: calc(100vw - 16px); }
 }
 """
 
@@ -5878,6 +5944,7 @@ def _dark_fig(fig: Any) -> Any:
         xaxis=dict(gridcolor="#e2e8f0", linecolor="#e2e8f0"),
         yaxis=dict(gridcolor="#e2e8f0", linecolor="#e2e8f0"),
         margin=dict(l=16, r=16, t=44, b=16),
+        autosize=True,
     )
     return fig
 
