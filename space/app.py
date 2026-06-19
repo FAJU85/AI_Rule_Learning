@@ -1376,10 +1376,12 @@ Only output the JSON. No markdown fences, no explanation."""
         rule_data = json.loads(match.group())
 
         rule_data["rule_id"] = f"rule_{gap_type}_{uuid.uuid4().hex[:8]}"
-        rule_data["is_active"] = True
+        rule_data["is_active"] = False
+        rule_data["status"] = "pending_review"
         rule_data["effectiveness_score"] = 0.5
         rule_data["times_triggered"] = 0
         rule_data["success_count"] = 0
+        rule_data["failure_count"] = 0
         rule_data["created_at"] = datetime.utcnow().isoformat()
         rule_data.setdefault("rule_type", "guardrail")
         rule_data.setdefault("priority", 3)
@@ -1767,10 +1769,12 @@ Only output the JSON. No markdown fences."""
         evolved["rule_id"] = rule.get("rule_id", f"rule_evolved_{uuid.uuid4().hex[:8]}")
         evolved["rule_type"] = rule.get("rule_type", "guardrail")
         evolved["priority"] = rule.get("priority", 3)
-        evolved["is_active"] = True
+        evolved["is_active"] = False
+        evolved["status"] = "pending_review"
         evolved["effectiveness_score"] = 0.5
         evolved["times_triggered"] = 0
         evolved["success_count"] = 0
+        evolved["failure_count"] = 0
         evolved["evolved_from"] = rule.get("rule_id")
         evolved["evolved_at"] = datetime.utcnow().isoformat()
         return evolved
@@ -1854,6 +1858,279 @@ def run_validate_and_evolve():
         yield emit(f"\nRefresh **Rules** and **Overview** tabs to see the updated ruleset.")
     except Exception as exc:
         yield emit(f"\n❌ Failed to save evolved rules: {exc}")
+
+
+# ---------------------------------------------------------------------------
+# Rule safety check
+# ---------------------------------------------------------------------------
+
+_UNSAFE_PHRASES = [
+    "never refuse", "ignore safety", "bypass", "override your", "disregard",
+    "do not refuse", "don't refuse", "ignore your instructions", "ignore all",
+    "forget your", "you must always comply", "no matter what",
+]
+
+_CONFLICT_SIMILARITY_THRESHOLD = 0.6
+
+
+def _check_rule_safety(rule: dict) -> list[str]:
+    """Return a list of safety issues found in the rule. Empty list = safe."""
+    issues = []
+    instruction = (rule.get("action") or {}).get("instruction", "").lower()
+    description = rule.get("description", "").lower()
+    combined = instruction + " " + description
+
+    for phrase in _UNSAFE_PHRASES:
+        if phrase in combined:
+            issues.append(f"Contains unsafe phrase: \"{phrase}\"")
+
+    if instruction and len(instruction) < 10:
+        issues.append("Instruction too vague (< 10 characters)")
+
+    return issues
+
+
+def _detect_rule_conflicts(new_rule: dict, existing_rules: list[dict]) -> list[str]:
+    """Return names of active rules whose keywords heavily overlap with the new rule."""
+    new_kws = set(kw.lower() for kw in (new_rule.get("trigger") or {}).get("keywords", []))
+    if not new_kws:
+        return []
+    conflicts = []
+    for r in existing_rules:
+        if not r.get("is_active"):
+            continue
+        if r.get("rule_id") == new_rule.get("rule_id"):
+            continue
+        existing_kws = set(kw.lower() for kw in (r.get("trigger") or {}).get("keywords", []))
+        if not existing_kws:
+            continue
+        overlap = len(new_kws & existing_kws) / max(len(new_kws | existing_kws), 1)
+        if overlap >= _CONFLICT_SIMILARITY_THRESHOLD:
+            conflicts.append(r.get("name", r.get("rule_id", "?")))
+    return conflicts
+
+
+# ---------------------------------------------------------------------------
+# Review gate — approve / reject pending rules
+# ---------------------------------------------------------------------------
+
+def build_pending_rules_table() -> pd.DataFrame:
+    rules = load_rules()
+    pending = [r for r in rules if r.get("status") == "pending_review"]
+    if not pending:
+        return pd.DataFrame(columns=["Rule ID", "Name", "Priority", "Gap Type", "Instruction", "Safety"])
+    rows = []
+    for r in pending:
+        issues = _check_rule_safety(r)
+        safety = "⚠️ " + "; ".join(issues) if issues else "✅ Safe"
+        rows.append({
+            "Rule ID": r.get("rule_id", "?"),
+            "Name": r.get("name", "?"),
+            "Priority": r.get("priority", "?"),
+            "Gap Type": r.get("empirical_basis", "")[:60],
+            "Instruction": (r.get("action") or {}).get("instruction", "")[:80],
+            "Safety": safety,
+        })
+    return pd.DataFrame(rows)
+
+
+def get_pending_rule_ids() -> list[str]:
+    rules = load_rules()
+    return [r.get("rule_id", "?") for r in rules if r.get("status") == "pending_review"]
+
+
+def get_pending_rule_detail(rule_id: str) -> str:
+    if not rule_id:
+        return "Select a pending rule to review."
+    rules = load_rules()
+    rule = next((r for r in rules if r.get("rule_id") == rule_id), None)
+    if not rule:
+        return "Rule not found."
+    issues = _check_rule_safety(rule)
+    active_rules = [r for r in rules if r.get("is_active")]
+    conflicts = _detect_rule_conflicts(rule, active_rules)
+    safety_block = "✅ **No safety issues detected**" if not issues else (
+        "⚠️ **Safety issues:**\n" + "\n".join(f"- {i}" for i in issues)
+    )
+    conflict_block = "✅ **No conflicts with active rules**" if not conflicts else (
+        "⚠️ **Conflicts with active rules:**\n" + "\n".join(f"- {c}" for c in conflicts)
+    )
+    return f"""### {rule.get('name', '?')}
+
+**ID:** `{rule.get('rule_id', '?')}`
+**Priority:** {rule.get('priority', '?')} / 5
+**Empirical basis:** {rule.get('empirical_basis', '—')}
+
+**Description:**
+{rule.get('description', '—')}
+
+**Trigger keywords:** {(rule.get('trigger') or {}).get('keywords', [])}
+
+**Instruction to AI:**
+> {(rule.get('action') or {}).get('instruction', '—')}
+
+---
+
+{safety_block}
+
+{conflict_block}
+
+---
+_Approve to activate this rule. Reject to discard it._
+"""
+
+
+def approve_rule(rule_id: str) -> str:
+    if not rule_id:
+        return "No rule selected."
+    rules = load_rules()
+    rule = next((r for r in rules if r.get("rule_id") == rule_id), None)
+    if not rule:
+        return f"Rule `{rule_id}` not found."
+    issues = _check_rule_safety(rule)
+    if issues:
+        return "❌ Cannot approve — rule has safety issues:\n" + "\n".join(f"- {i}" for i in issues)
+    rule["is_active"] = True
+    rule["status"] = "active"
+    rule["approved_at"] = datetime.utcnow().isoformat()
+    try:
+        _upload_jsonl("rules.jsonl", rules)
+        return f"✅ Rule **{rule.get('name', rule_id)}** approved and activated."
+    except Exception as exc:
+        return f"❌ Failed to save: {exc}"
+
+
+def reject_rule(rule_id: str) -> str:
+    if not rule_id:
+        return "No rule selected."
+    rules = load_rules()
+    rule = next((r for r in rules if r.get("rule_id") == rule_id), None)
+    if not rule:
+        return f"Rule `{rule_id}` not found."
+    rule["is_active"] = False
+    rule["status"] = "rejected"
+    rule["rejected_at"] = datetime.utcnow().isoformat()
+    try:
+        _upload_jsonl("rules.jsonl", rules)
+        return f"🗑️ Rule **{rule.get('name', rule_id)}** rejected and will not be activated."
+    except Exception as exc:
+        return f"❌ Failed to save: {exc}"
+
+
+# ---------------------------------------------------------------------------
+# Effectiveness scoring — measures whether rules actually changed AI behaviour
+# ---------------------------------------------------------------------------
+
+_GAP_TYPE_TO_RULE_KEYWORDS: dict[str, list[str]] = {
+    "explicit_correction": ["wrong", "correct", "actually", "mistake", "error", "fix"],
+    "user_frustration": ["frustrated", "useless", "unhelpful", "annoying", "terrible"],
+    "repeated_question": ["repeated", "again", "already asked", "same question"],
+    "unanswered_question": ["answer", "question", "explain", "how", "what", "why"],
+    "code_anti_pattern": ["code", "security", "eval", "exception", "error handling"],
+    "sentiment_drop": ["sentiment", "tone", "attitude", "frustration"],
+    "negative_sentiment": ["negative", "frustration", "unhappy", "bad"],
+}
+
+
+def _rule_targets_gap(rule: dict, gap_type: str) -> bool:
+    """True if this rule's keywords overlap with the given gap type's indicator words."""
+    rule_kws = set(kw.lower() for kw in (rule.get("trigger") or {}).get("keywords", []))
+    gap_indicators = set(_GAP_TYPE_TO_RULE_KEYWORDS.get(gap_type, []))
+    return bool(rule_kws & gap_indicators)
+
+
+def run_score_effectiveness():
+    """Re-score each rule based on whether gaps still appeared after the rule was applied."""
+    log: list[str] = []
+
+    def emit(msg: str):
+        log.append(msg)
+        return "\n".join(log)
+
+    if not HF_TOKEN:
+        yield emit("❌ HF_TOKEN not set.")
+        return
+
+    yield emit("📂 Loading conversations and rules…")
+    conversations = load_conversations()
+    rules = load_rules()
+    if not conversations:
+        yield emit("❌ No conversations found. Upload and analyse sessions first.")
+        return
+    if not rules:
+        yield emit("❌ No rules found.")
+        return
+
+    active_rules = {r["rule_id"]: r for r in rules if r.get("is_active") and r.get("rule_id")}
+    if not active_rules:
+        yield emit("⚠️ No active rules to score yet.")
+        return
+
+    yield emit(f"🔬 Scoring {len(active_rules)} active rule(s) across {len(conversations)} conversation(s)…\n")
+
+    # Reset counters for a fresh measurement
+    for r in active_rules.values():
+        r["times_triggered"] = 0
+        r["success_count"] = 0
+        r["failure_count"] = 0
+
+    for conv in conversations:
+        turns = conv.get("turns", [])
+        for i, turn in enumerate(turns):
+            applied_ids = turn.get("rules_applied", [])
+            if not applied_ids:
+                continue
+            # Look ahead: did the same gap types reappear in the next 3 turns?
+            subsequent_gaps: set[str] = set()
+            for future_turn in turns[i + 1: i + 4]:
+                for g in future_turn.get("gaps_detected", []):
+                    subsequent_gaps.add(g.get("type", ""))
+
+            for rid in applied_ids:
+                rule = active_rules.get(rid)
+                if not rule:
+                    continue
+                rule["times_triggered"] += 1
+                # Check if a gap the rule targets still appeared afterward
+                reappeared = any(_rule_targets_gap(rule, gtype) for gtype in subsequent_gaps)
+                if reappeared:
+                    rule["failure_count"] = rule.get("failure_count", 0) + 1
+                else:
+                    rule["success_count"] += 1
+
+    # Update effectiveness scores and report
+    updated = 0
+    for rule in rules:
+        rid = rule.get("rule_id")
+        if rid not in active_rules:
+            continue
+        scored = active_rules[rid]
+        triggered = scored["times_triggered"]
+        if triggered == 0:
+            rule["effectiveness_score"] = rule.get("effectiveness_score", 0.5)
+            yield emit(f"   ⏭️  **{rule.get('name', rid)}** — not yet triggered in session data")
+            continue
+        score = scored["success_count"] / triggered
+        rule["times_triggered"] = triggered
+        rule["success_count"] = scored["success_count"]
+        rule["failure_count"] = scored.get("failure_count", 0)
+        rule["effectiveness_score"] = round(score, 3)
+        updated += 1
+        status = "✅" if score >= 0.7 else ("⚠️" if score >= 0.4 else "❌")
+        yield emit(
+            f"   {status} **{rule.get('name', rid)}** — "
+            f"{triggered} trigger(s), {scored['success_count']} success(es) → {score:.0%} effective"
+        )
+
+    try:
+        _upload_jsonl("rules.jsonl", rules)
+        yield emit(f"\n🎉 Scored {updated} rule(s). Refresh **Rules** tab to see updated scores.")
+        yield emit(
+            "\n_Rules below 30% effectiveness will appear as candidates for evolution "
+            "when you click **🔄 Validate & Evolve**._"
+        )
+    except Exception as exc:
+        yield emit(f"\n❌ Failed to save scores: {exc}")
 
 
 # ---------------------------------------------------------------------------
@@ -2301,11 +2578,54 @@ AI model so they improve rather than disappear.
                 interactive=False,
                 autoscroll=True,
             )
+            with gr.Row():
+                score_btn = gr.Button("📊 Score Effectiveness", variant="secondary", size="lg")
+            gr.Markdown(
+                "_**📊 Score Effectiveness** measures whether each active rule actually prevented "
+                "the gaps it targets — by checking if the same gap types reappeared in turns "
+                "after the rule was applied. Run this after importing new sessions._"
+            )
             analysis_btn.click(run_analysis, inputs=community_toggle, outputs=analysis_log)
             reanalyze_btn.click(run_force_reanalyze, inputs=community_toggle, outputs=analysis_log)
             evolve_btn.click(run_validate_and_evolve, outputs=analysis_log)
             seed_btn.click(run_seed_rules, outputs=analysis_log)
             dedup_btn.click(run_deduplicate_rules, outputs=analysis_log)
+            score_btn.click(run_score_effectiveness, outputs=analysis_log)
+
+        # --- Rule Review ---
+        with gr.Tab("📝 Rule Review"):
+            gr.Markdown(
+                """## Rule Review Queue
+
+Rules generated by analysis or evolution are **not activated automatically**.
+They wait here for your approval.
+
+Before approving, each rule is checked for:
+- Safety issues (instructions that could harm or over-restrict the AI)
+- Conflicts with rules that are already active
+
+**Approve** a rule to activate it. **Reject** to discard it permanently.
+"""
+            )
+            pending_table = gr.Dataframe(interactive=False, wrap=True)
+            refresh_pending_btn = gr.Button("🔄 Refresh", variant="secondary", size="sm")
+            pending_selector = gr.Dropdown(label="Select rule to review", choices=[])
+            pending_detail = gr.Markdown()
+
+            with gr.Row():
+                approve_btn = gr.Button("✅ Approve & Activate", variant="primary")
+                reject_btn = gr.Button("🗑️ Reject", variant="stop")
+
+            review_status = gr.Markdown()
+
+            def refresh_pending():
+                return build_pending_rules_table(), gr.Dropdown(choices=get_pending_rule_ids())
+
+            refresh_pending_btn.click(refresh_pending, outputs=[pending_table, pending_selector])
+            demo.load(refresh_pending, outputs=[pending_table, pending_selector])
+            pending_selector.change(get_pending_rule_detail, inputs=pending_selector, outputs=pending_detail)
+            approve_btn.click(approve_rule, inputs=pending_selector, outputs=review_status)
+            reject_btn.click(reject_rule, inputs=pending_selector, outputs=review_status)
 
         # --- Project Compass ---
         with gr.Tab("🧭 Project Compass"):
