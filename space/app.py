@@ -2457,7 +2457,7 @@ def build_drift_chart() -> Any:
     for i, rule in enumerate(active_with_history):
         history = rule["score_history"]
         xs = list(range(len(history)))
-        ys = [h["score"] for h in history]
+        ys = [h.get("score", 0) if isinstance(h, dict) else 0 for h in history]
         drift = _compute_drift(history)
         color = "#ef4444" if drift["is_drifting"] else palette[i % len(palette)]
         fig.add_trace(go.Scatter(
@@ -3391,10 +3391,10 @@ def build_kg_graph() -> Any:
             name=nt,
             marker=dict(size=14, color=type_colors.get(nt, "#94a3b8"),
                         line=dict(width=1, color="#e2e8f0")),
-            text=[nd["name"] for nd in grp],
+            text=[nd.get("name", "") for nd in grp],
             textposition="top center",
             textfont=dict(size=8, color="#334155"),
-            hovertext=[f"[{nd['node_type']}] {nd['name']}\n{nd.get('description','')}" for nd in grp],
+            hovertext=[f"[{nd.get('node_type', '')}] {nd.get('name', '')}\n{nd.get('description','')}" for nd in grp],
             hoverinfo="text",
         ))
     fig.update_layout(
