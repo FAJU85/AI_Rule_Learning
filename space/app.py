@@ -2761,6 +2761,7 @@ def build_coverage_chart() -> Any:
         hole=0.6,
         marker=dict(colors=["#059669", "#ef4444"]),
         textfont=dict(color="#334155"),
+        hovertemplate="<b>%{label}</b><br>%{value} turns (%{percent})<extra></extra>",
     ))
     fig.update_layout(
         paper_bgcolor="#ffffff", plot_bgcolor="#f8fafc",
@@ -3717,11 +3718,13 @@ def build_slo_chart() -> Any:
     fig.add_trace(go.Bar(
         x=names, y=slis, name="SLI %",
         marker=dict(color=colors),
+        hovertemplate="<b>%{x}</b><br>SLI: %{y:.1f}%<extra></extra>",
     ))
     fig.add_trace(go.Scatter(
         x=names, y=targets, name="Target",
         mode="markers", marker=dict(symbol="line-ew", size=16, color="#f59e0b",
                                     line=dict(width=3, color="#f59e0b")),
+        hovertemplate="<b>%{x}</b><br>Target: %{y:.1f}%<extra></extra>",
     ))
     fig.update_layout(
         paper_bgcolor="#ffffff", plot_bgcolor="#f8fafc",
@@ -4261,6 +4264,7 @@ def build_forecast_chart(horizon: int = 3) -> Any:
             name=f["rule_name"][:20],
             line=dict(color=color, dash="dash" if f["at_risk"] else "solid"),
             marker=dict(size=6),
+            hovertemplate=f"<b>{f['rule_name'][:30]}</b><br>Period %{{x}}<br>%{{y:.1f}}%{'  ⚠ at risk' if f['at_risk'] else ''}<extra></extra>",
         ))
     fig.add_hline(y=70, line_dash="dot", line_color="#f59e0b",
                   annotation_text="70% threshold", annotation_font_color="#92400e")
@@ -4881,6 +4885,7 @@ def build_data_trust_chart() -> Any:
         labels=labels, values=values,
         marker=dict(colors=colors),
         textfont=dict(color="#334155"),
+        hovertemplate="<b>%{label}</b><br>%{value} sources (%{percent})<extra></extra>",
     ))
     fig.update_layout(
         paper_bgcolor="#ffffff",
@@ -5049,6 +5054,7 @@ def build_behavior_radar() -> Any:
         fill="toself",
         line=dict(color="#059669"),
         fillcolor="rgba(35,134,54,0.2)",
+        hovertemplate="<b>%{theta}</b><br>%{r:.1f}%<extra></extra>",
     ))
     fig.update_layout(
         paper_bgcolor="#ffffff",
