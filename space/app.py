@@ -5794,7 +5794,7 @@ body, .gradio-container { background: #0d1117 !important; }
 .arl-header p  { font-size: 0.875rem; color: #8b949e; margin: 6px 0 0; }
 
 /* Metric cards */
-.metrics-row { display: flex; gap: 14px; margin: 0 0 20px; }
+.metrics-row { display: flex; gap: 14px; margin: 0 0 12px; }
 .metric-card {
     flex: 1; background: #161b22; border: 1px solid #21262d;
     border-radius: 12px; padding: 20px; text-align: center;
@@ -5805,6 +5805,19 @@ body, .gradio-container { background: #0d1117 !important; }
 .metric-value.red    { color: #f85149; }
 .metric-label { font-size: 0.72rem; color: #8b949e; text-transform: uppercase;
     letter-spacing: 0.08em; margin-top: 4px; display: block; }
+
+/* Primary KPI cards (top 3) */
+.primary-kpis { margin-bottom: 8px; }
+.primary-kpis .metric-card { padding: 22px 20px; border-radius: 14px; }
+.kpi-primary .metric-value { font-size: 2.6rem; }
+.metric-sublabel { font-size: 0.88rem; color: #c9d1d9; font-weight: 500; display: block; margin-top: 2px; }
+.metric-delta { font-size: 0.70rem; color: #6e7681; display: block; margin-top: 10px; letter-spacing: 0.03em; }
+.kpi-urgent { border-color: #d29922 !important; box-shadow: 0 0 0 1px #d2992240; }
+/* Secondary metric row */
+.secondary-kpis { margin-bottom: 20px; }
+.secondary-kpis .metric-card { padding: 12px 14px; }
+.secondary-kpis .metric-value { font-size: 1.3rem; }
+.secondary-kpis .metric-label { margin-top: 2px; }
 
 /* Section dividers */
 .section-title { font-size: 0.75rem; font-weight: 600; color: #8b949e;
@@ -5857,11 +5870,38 @@ def build_metrics_html() -> str:
     conversations = load_conversations()
     active = [r for r in rules if r.get("is_active")]
     pending = [r for r in rules if r.get("status") == "pending_review"]
+
+    # KPI 1: Governance Maturity
+    try:
+        maturity = assess_maturity()
+        mat_level = maturity.get("current_level", 0)
+        mat_name = maturity.get("current_name", "Unknown")
+        next_lvl = maturity.get("next_level")
+        next_name = maturity.get("next_level_name", "")
+        mat_delta = f"Next: L{next_lvl} {next_name}" if next_lvl else "Maximum level reached"
+    except Exception:
+        mat_level, mat_name, mat_delta = 0, "Unavailable", "—"
+    mat_cls = "green" if mat_level >= 4 else ("amber" if mat_level >= 2 else "red")
+
+    # KPI 2: Compliance Health
+    try:
+        health = compute_compliance_health()
+        health_score = health.get("overall", 0.0)
+        rule_h = health.get("rule_health", 0.0)
+        inc_h = health.get("incident_health", 100.0)
+        health_delta = f"Rules {rule_h:.0f}% · Incidents {inc_h:.0f}%"
+    except Exception:
+        health_score, health_delta = 0.0, "—"
+    health_cls = "green" if health_score >= 70 else ("amber" if health_score >= 40 else "red")
+
+    # KPI 3: Pending Actions
+    actions_cls = "red" if len(pending) > 3 else ("amber" if pending else "green")
+    actions_delta = f"{len(active)} active rules · {len(conversations)} sessions"
+    urgent_class = " kpi-urgent" if pending else ""
+
+    # Secondary row: Avg effectiveness + FPR + Bypass
     avg_eff = sum(r.get("effectiveness_score", 0) for r in active) / max(len(active), 1)
     eff_cls = "green" if avg_eff >= 0.7 else ("amber" if avg_eff >= 0.4 else ("red" if active else ""))
-    pending_cls = "amber" if pending else "green"
-
-    # FPR and bypass KPIs (only from rules that have been measured)
     fpr_vals = [r["false_positive_rate"] for r in active if r.get("false_positive_rate") is not None]
     bypass_vals = [r["bypass_rate"] for r in active if r.get("bypass_rate") is not None]
     avg_fpr = sum(fpr_vals) / len(fpr_vals) if fpr_vals else None
@@ -5872,13 +5912,32 @@ def build_metrics_html() -> str:
     bypass_str = f"{avg_bypass:.0%}" if avg_bypass is not None else "—"
 
     return f"""
-<div class="metrics-row">
-  <div class="metric-card"><span class="metric-value green">{len(active)}</span><span class="metric-label">Active Rules</span></div>
+<div class="metrics-row primary-kpis">
+  <div class="metric-card kpi-primary">
+    <span class="metric-value {mat_cls}">L{mat_level}</span>
+    <span class="metric-sublabel">{mat_name}</span>
+    <span class="metric-label">Governance Maturity</span>
+    <span class="metric-delta">{mat_delta}</span>
+  </div>
+  <div class="metric-card kpi-primary">
+    <span class="metric-value {health_cls}">{health_score:.0f}%</span>
+    <span class="metric-sublabel">&nbsp;</span>
+    <span class="metric-label">Compliance Health</span>
+    <span class="metric-delta">{health_delta}</span>
+  </div>
+  <div class="metric-card kpi-primary{urgent_class}">
+    <span class="metric-value {actions_cls}">{len(pending)}</span>
+    <span class="metric-sublabel">&nbsp;</span>
+    <span class="metric-label">Pending Review</span>
+    <span class="metric-delta">{actions_delta}</span>
+  </div>
+</div>
+<div class="metrics-row secondary-kpis">
   <div class="metric-card"><span class="metric-value {eff_cls}">{avg_eff:.0%}</span><span class="metric-label">Avg Effectiveness</span></div>
   <div class="metric-card"><span class="metric-value {fpr_cls}">{fpr_str}</span><span class="metric-label">Avg FPR</span></div>
   <div class="metric-card"><span class="metric-value {bypass_cls}">{bypass_str}</span><span class="metric-label">Avg Bypass Rate</span></div>
-  <div class="metric-card"><span class="metric-value">{len(conversations)}</span><span class="metric-label">Sessions Analyzed</span></div>
-  <div class="metric-card"><span class="metric-value {('amber' if pending else 'green')}">{len(pending)}</span><span class="metric-label">Pending Review</span></div>
+  <div class="metric-card"><span class="metric-value">{len(active)}</span><span class="metric-label">Active Rules</span></div>
+  <div class="metric-card"><span class="metric-value">{len(conversations)}</span><span class="metric-label">Sessions</span></div>
 </div>"""
 
 
@@ -5886,7 +5945,7 @@ def build_activity_html() -> str:
     versions = load_rule_versions()
     if not versions:
         return '<div class="activity-item"><span class="activity-text" style="color:#8b949e">No activity yet — import sessions and run analysis to get started.</span></div>'
-    recent = sorted(versions, key=lambda x: x.get("timestamp", ""), reverse=True)[:10]
+    recent = sorted(versions, key=lambda x: x.get("timestamp", ""), reverse=True)[:5]
     icons = {
         "approved": "✅", "rejected_by_user": "🗑️", "scored": "📊",
         "evolved": "🔄", "deactivated": "⛔", "scored_auto": "📊",
@@ -5917,10 +5976,16 @@ def build_pending_alert_html() -> str:
     rules = load_rules()
     pending = [r for r in rules if r.get("status") == "pending_review"]
     if pending:
-        names = ", ".join(r.get("name", "?") for r in pending[:3])
-        more = f" + {len(pending) - 3} more" if len(pending) > 3 else ""
-        return f'<div class="pending-alert">⚠️ <strong>{len(pending)} rule(s) waiting for review:</strong> {names}{more} — go to the <strong>Rules</strong> tab to approve or reject.</div>'
-    return '<div class="pending-alert none">✅ No rules pending review.</div>'
+        names = ", ".join(f'<em>{r.get("name", "?")}</em>' for r in pending[:3])
+        more = f" +{len(pending) - 3} more" if len(pending) > 3 else ""
+        return (
+            f'<div class="pending-alert">'
+            f'<strong>⚠️ {len(pending)} rule{"s" if len(pending) != 1 else ""} require your decision</strong> — '
+            f'{names}{more}. '
+            f'Open the <strong>Rules → Pending Review</strong> tab to approve or reject.'
+            f'</div>'
+        )
+    return '<div class="pending-alert none">✅ All rules reviewed — no pending decisions.</div>'
 
 
 def build_effectiveness_chart_dark() -> Any:
@@ -8132,32 +8197,38 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
 
         # ── Dashboard ────────────────────────────────────────────────────────
         with gr.Tab("📊 Dashboard"):
+            # ── Top bar: title + refresh ──────────────────────────────────────
             with gr.Row():
-                gr.HTML('<div style="flex:1;min-width:0"></div>')
+                gr.HTML('<div style="flex:1;min-width:0;display:flex;align-items:center"><span style="font-size:0.8rem;color:#8b949e;text-transform:uppercase;letter-spacing:.08em;font-weight:600">Overview</span></div>')
                 dashboard_refresh = gr.Button("↻ Refresh", variant="secondary", size="sm")
 
-            metrics_html = gr.HTML()
+            # ── Section 1: Action alert ───────────────────────────────────────
             pending_alert = gr.HTML()
 
+            # ── Section 2: Primary KPIs + secondary row ───────────────────────
+            metrics_html = gr.HTML()
+
+            # ── Section 3: Analytics charts (3:2 ratio) ───────────────────────
+            gr.HTML('<div class="section-title">Analytics</div>')
             with gr.Row():
-                with gr.Column(scale=1):
-                    gr.HTML('<div class="section-title">Rule Effectiveness</div>')
+                with gr.Column(scale=3):
                     dash_eff_chart = gr.Plot()
-                with gr.Column(scale=1):
-                    gr.HTML('<div class="section-title">Governance Maturity</div>')
+                with gr.Column(scale=2):
                     maturity_chart = gr.Plot()
 
-            gr.HTML('<div class="section-title">Maturity Assessment</div>')
-            maturity_report_md = gr.Markdown()
-            maturity_refresh_btn = gr.Button("↻ Re-assess", variant="secondary", size="sm")
+            # ── Section 4: Maturity drill-down (progressive disclosure) ────────
+            with gr.Accordion("Maturity Assessment Detail", open=False):
+                maturity_report_md = gr.Markdown()
+                maturity_refresh_btn = gr.Button("↻ Re-assess", variant="secondary", size="sm")
 
+            # ── Section 5: Activity feed (last 5) ─────────────────────────────
             gr.HTML('<div class="section-title">Recent Activity</div>')
             activity_html = gr.HTML()
 
             def refresh_dashboard():
                 return (
-                    build_metrics_html(),
                     build_pending_alert_html(),
+                    build_metrics_html(),
                     build_effectiveness_chart_dark(),
                     build_maturity_chart(),
                     build_maturity_report(),
@@ -8170,11 +8241,11 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
             )
             dashboard_refresh.click(
                 refresh_dashboard,
-                outputs=[metrics_html, pending_alert, dash_eff_chart, maturity_chart, maturity_report_md, activity_html],
+                outputs=[pending_alert, metrics_html, dash_eff_chart, maturity_chart, maturity_report_md, activity_html],
             )
             demo.load(
                 refresh_dashboard,
-                outputs=[metrics_html, pending_alert, dash_eff_chart, maturity_chart, maturity_report_md, activity_html],
+                outputs=[pending_alert, metrics_html, dash_eff_chart, maturity_chart, maturity_report_md, activity_html],
             )
 
         # ── Rules ────────────────────────────────────────────────────────────
