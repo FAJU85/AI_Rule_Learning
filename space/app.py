@@ -2559,10 +2559,383 @@ Gap detected → Group similar gaps → ≥2 occurrences?
 
 
 # ---------------------------------------------------------------------------
+# Dashboard CSS + theme
+# ---------------------------------------------------------------------------
+
+_CSS = """
+/* Base */
+body, .gradio-container { background: #0d1117 !important; }
+.app { background: #0d1117 !important; }
+
+/* Header */
+.arl-header { padding: 28px 0 8px; }
+.arl-header h1 { font-size: 1.6rem; font-weight: 700; color: #f0f6fc; margin: 0; }
+.arl-header p  { font-size: 0.875rem; color: #8b949e; margin: 6px 0 0; }
+
+/* Metric cards */
+.metrics-row { display: flex; gap: 14px; margin: 0 0 20px; }
+.metric-card {
+    flex: 1; background: #161b22; border: 1px solid #21262d;
+    border-radius: 12px; padding: 20px; text-align: center;
+}
+.metric-value  { font-size: 2rem; font-weight: 700; color: #58a6ff; display: block; }
+.metric-value.green  { color: #3fb950; }
+.metric-value.amber  { color: #d29922; }
+.metric-value.red    { color: #f85149; }
+.metric-label { font-size: 0.72rem; color: #8b949e; text-transform: uppercase;
+    letter-spacing: 0.08em; margin-top: 4px; display: block; }
+
+/* Section dividers */
+.section-title { font-size: 0.75rem; font-weight: 600; color: #8b949e;
+    text-transform: uppercase; letter-spacing: 0.1em;
+    margin: 20px 0 10px; padding-bottom: 8px; border-bottom: 1px solid #21262d; }
+
+/* Activity feed */
+.activity-feed { display: flex; flex-direction: column; gap: 8px; }
+.activity-item { background: #161b22; border: 1px solid #21262d; border-radius: 8px;
+    padding: 11px 16px; display: flex; align-items: center; gap: 12px; font-size: 0.875rem; }
+.activity-icon { font-size: 1rem; width: 22px; text-align: center; }
+.activity-text { color: #e2e8f0; flex: 1; }
+.activity-time { color: #8b949e; font-size: 0.72rem; white-space: nowrap; }
+
+/* Pending alert */
+.pending-alert { background: #2b1d0e; border: 1px solid #9e6a03; border-radius: 10px;
+    padding: 13px 18px; color: #d29922; font-size: 0.875rem; margin-bottom: 14px; }
+.pending-alert.none { background: #0d2119; border-color: #238636; color: #3fb950; }
+
+/* Tabs */
+.tab-nav button { color: #8b949e !important; }
+.tab-nav button.selected { color: #f0f6fc !important; border-bottom-color: #58a6ff !important; }
+
+/* Inputs / textboxes */
+.gr-textbox textarea, .gr-textbox input { background: #161b22 !important;
+    border-color: #21262d !important; color: #e2e8f0 !important; }
+label.gr-form { color: #8b949e !important; }
+"""
+
+
+# ---------------------------------------------------------------------------
+# Dashboard helper functions
+# ---------------------------------------------------------------------------
+
+def _dark_fig(fig: Any) -> Any:
+    """Apply consistent dark styling to a Plotly figure."""
+    fig.update_layout(
+        paper_bgcolor="#161b22",
+        plot_bgcolor="#161b22",
+        font=dict(color="#e2e8f0", size=12),
+        xaxis=dict(gridcolor="#21262d", linecolor="#21262d"),
+        yaxis=dict(gridcolor="#21262d", linecolor="#21262d"),
+        margin=dict(l=16, r=16, t=44, b=16),
+    )
+    return fig
+
+
+def build_metrics_html() -> str:
+    rules = load_rules()
+    conversations = load_conversations()
+    active = [r for r in rules if r.get("is_active")]
+    pending = [r for r in rules if r.get("status") == "pending_review"]
+    avg_eff = sum(r.get("effectiveness_score", 0) for r in active) / max(len(active), 1)
+    eff_cls = "green" if avg_eff >= 0.7 else ("amber" if avg_eff >= 0.4 else ("red" if active else ""))
+    pending_cls = "amber" if pending else "green"
+    return f"""
+<div class="metrics-row">
+  <div class="metric-card"><span class="metric-value green">{len(active)}</span><span class="metric-label">Active Rules</span></div>
+  <div class="metric-card"><span class="metric-value {eff_cls}">{avg_eff:.0%}</span><span class="metric-label">Avg Effectiveness</span></div>
+  <div class="metric-card"><span class="metric-value">{len(conversations)}</span><span class="metric-label">Sessions Analyzed</span></div>
+  <div class="metric-card"><span class="metric-value {pending_cls}">{len(pending)}</span><span class="metric-label">Pending Review</span></div>
+</div>"""
+
+
+def build_activity_html() -> str:
+    versions = load_rule_versions()
+    if not versions:
+        return '<div class="activity-item"><span class="activity-text" style="color:#8b949e">No activity yet — import sessions and run analysis to get started.</span></div>'
+    recent = sorted(versions, key=lambda x: x.get("timestamp", ""), reverse=True)[:10]
+    icons = {
+        "approved": "✅", "rejected_by_user": "🗑️", "scored": "📊",
+        "evolved": "🔄", "deactivated": "⛔", "scored_auto": "📊",
+    }
+    labels = {
+        "approved": "activated", "rejected_by_user": "rejected", "scored": "scored",
+        "evolved": "evolved", "deactivated": "deactivated",
+    }
+    items = []
+    for v in recent:
+        event = v.get("event", "?")
+        icon = icons.get(event, "📝")
+        label = labels.get(event, event)
+        name = v.get("name", "Unknown rule")
+        time = v.get("timestamp", "")[:16].replace("T", " ")
+        score = v.get("effectiveness_score")
+        score_str = f" · {score:.0%}" if score is not None else ""
+        items.append(
+            f'<div class="activity-item">'
+            f'<span class="activity-icon">{icon}</span>'
+            f'<span class="activity-text"><strong>{name}</strong> {label}{score_str}</span>'
+            f'<span class="activity-time">{time}</span></div>'
+        )
+    return f'<div class="activity-feed">{"".join(items)}</div>'
+
+
+def build_pending_alert_html() -> str:
+    rules = load_rules()
+    pending = [r for r in rules if r.get("status") == "pending_review"]
+    if pending:
+        names = ", ".join(r.get("name", "?") for r in pending[:3])
+        more = f" + {len(pending) - 3} more" if len(pending) > 3 else ""
+        return f'<div class="pending-alert">⚠️ <strong>{len(pending)} rule(s) waiting for review:</strong> {names}{more} — go to the <strong>Rules</strong> tab to approve or reject.</div>'
+    return '<div class="pending-alert none">✅ No rules pending review.</div>'
+
+
+def build_effectiveness_chart_dark() -> Any:
+    rules = load_rules()
+    if not rules:
+        return _dark_fig(go.Figure())
+    active = [r for r in rules if r.get("is_active")]
+    if not active:
+        return _dark_fig(go.Figure())
+    names = [r.get("name", r.get("rule_id", "?"))[:30] for r in active]
+    scores = [r.get("effectiveness_score", 0) for r in active]
+    colors = ["#3fb950" if s >= 0.7 else ("#d29922" if s >= 0.4 else "#f85149") for s in scores]
+    fig = go.Figure(go.Bar(
+        x=scores, y=names, orientation="h",
+        marker_color=colors,
+        text=[f"{s:.0%}" for s in scores], textposition="outside",
+    ))
+    fig.update_layout(
+        title=dict(text="Rule Effectiveness", font=dict(size=14, color="#e2e8f0")),
+        xaxis=dict(range=[0, 1.1], tickformat=".0%"),
+        height=max(250, len(active) * 38),
+    )
+    return _dark_fig(fig)
+
+
+# ---------------------------------------------------------------------------
 # Build Gradio app
 # ---------------------------------------------------------------------------
 
-with gr.Blocks(title="AI Rule Learning System", theme=gr.themes.Soft()) as demo:
+with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as demo:
+
+    gr.HTML("""
+<div class="arl-header">
+  <h1>AI Rule Learning</h1>
+  <p>Your AI gets smarter every session — automatically.</p>
+</div>
+""")
+
+    with gr.Tabs():
+
+        # ── Dashboard ────────────────────────────────────────────────────────
+        with gr.Tab("📊 Dashboard"):
+            metrics_html = gr.HTML()
+            pending_alert = gr.HTML()
+            dashboard_refresh = gr.Button("↻ Refresh", variant="secondary", size="sm")
+
+            gr.HTML('<div class="section-title">Rule Effectiveness</div>')
+            dash_eff_chart = gr.Plot()
+
+            gr.HTML('<div class="section-title">Recent Activity</div>')
+            activity_html = gr.HTML()
+
+            def refresh_dashboard():
+                return (
+                    build_metrics_html(),
+                    build_pending_alert_html(),
+                    build_effectiveness_chart_dark(),
+                    build_activity_html(),
+                )
+
+            dashboard_refresh.click(
+                refresh_dashboard,
+                outputs=[metrics_html, pending_alert, dash_eff_chart, activity_html],
+            )
+            demo.load(
+                refresh_dashboard,
+                outputs=[metrics_html, pending_alert, dash_eff_chart, activity_html],
+            )
+
+        # ── Rules ────────────────────────────────────────────────────────────
+        with gr.Tab("📋 Rules"):
+
+            gr.HTML('<div class="section-title">Active Rules</div>')
+            rules_table = gr.Dataframe(interactive=False, wrap=True)
+            refresh_rules_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
+
+            rule_selector = gr.Dropdown(label="Select rule", choices=[])
+            rule_detail = gr.Markdown()
+
+            gr.HTML('<div class="section-title">Effectiveness Trend</div>')
+            score_trend_chart = gr.Plot()
+
+            gr.HTML('<div class="section-title">Version History</div>')
+            version_history_table = gr.Dataframe(interactive=False, wrap=True)
+
+            def refresh_rules():
+                return build_rules_table(), gr.Dropdown(choices=get_rule_names())
+
+            refresh_rules_btn.click(refresh_rules, outputs=[rules_table, rule_selector])
+            demo.load(refresh_rules, outputs=[rules_table, rule_selector])
+            rule_selector.change(get_rule_detail, inputs=rule_selector, outputs=rule_detail)
+            rule_selector.change(build_rule_score_trend, inputs=rule_selector, outputs=score_trend_chart)
+            rule_selector.change(build_rule_version_history, inputs=rule_selector, outputs=version_history_table)
+
+            gr.HTML('<div class="section-title">Review Queue</div>')
+            pending_table = gr.Dataframe(interactive=False, wrap=True)
+            refresh_pending_btn = gr.Button("↻ Refresh queue", variant="secondary", size="sm")
+            pending_selector = gr.Dropdown(label="Select pending rule", choices=[])
+            pending_detail = gr.Markdown()
+
+            with gr.Row():
+                approve_btn = gr.Button("✅ Approve & Activate", variant="primary")
+                reject_btn = gr.Button("🗑️ Reject", variant="stop")
+            review_status = gr.Markdown()
+
+            def refresh_pending():
+                return build_pending_rules_table(), gr.Dropdown(choices=get_pending_rule_ids())
+
+            refresh_pending_btn.click(refresh_pending, outputs=[pending_table, pending_selector])
+            demo.load(refresh_pending, outputs=[pending_table, pending_selector])
+            pending_selector.change(get_pending_rule_detail, inputs=pending_selector, outputs=pending_detail)
+            approve_btn.click(approve_rule, inputs=pending_selector, outputs=review_status)
+            reject_btn.click(reject_rule, inputs=pending_selector, outputs=review_status)
+
+            gr.HTML('<div class="section-title">Export</div>')
+            with gr.Row():
+                export_btn = gr.Button("Export as System Prompt", variant="secondary", size="sm")
+                yaml_export_btn = gr.Button("Export as YAML", variant="secondary", size="sm")
+            system_prompt_output = gr.Textbox(
+                label="System prompt",
+                lines=15, interactive=True, show_copy_button=True,
+            )
+            yaml_output = gr.Textbox(
+                label="YAML",
+                lines=15, interactive=True, show_copy_button=True,
+            )
+            export_btn.click(export_system_prompt, outputs=system_prompt_output)
+            yaml_export_btn.click(export_rules_as_yaml, outputs=yaml_output)
+
+        # ── Sessions ─────────────────────────────────────────────────────────
+        with gr.Tab("🔄 Sessions"):
+
+            gr.HTML('<div class="section-title">Step 1 — Import Sessions</div>')
+            with gr.Row():
+                with gr.Column():
+                    gr.Markdown("**Upload Claude Code session files (.jsonl)**")
+                    session_files_input = gr.File(
+                        label="Session files",
+                        file_types=[".jsonl"],
+                        file_count="multiple",
+                    )
+                    import_btn = gr.Button("Import", variant="primary")
+
+                with gr.Column():
+                    gr.Markdown("**Upload conversation history (JSON or CSV)**")
+                    upload_file = gr.File(
+                        label="Conversation file",
+                        file_types=[".json", ".csv"],
+                    )
+                    upload_btn = gr.Button("Upload", variant="primary")
+
+            import_log = gr.Textbox(label="Import log", lines=8, interactive=False, autoscroll=True)
+            upload_status = gr.Markdown()
+
+            import_btn.click(run_import_sessions, inputs=session_files_input, outputs=import_log)
+            upload_btn.click(upload_history, inputs=upload_file, outputs=upload_status)
+
+            gr.HTML('<div class="section-title">Step 2 — Analyse</div>')
+            with gr.Row():
+                analysis_btn = gr.Button("▶ Run Analysis", variant="primary", size="lg")
+                reanalyze_btn = gr.Button("🔁 Re-analyze All", variant="secondary", size="lg")
+                score_btn = gr.Button("📊 Score Effectiveness", variant="secondary", size="lg")
+
+            with gr.Row():
+                evolve_btn = gr.Button("🔄 Evolve Low-Scoring Rules", variant="secondary")
+                seed_btn = gr.Button("🌱 Load Starter Rules", variant="secondary")
+                dedup_btn = gr.Button("🧹 Remove Duplicates", variant="secondary")
+
+            community_toggle = gr.Checkbox(
+                label="Contribute anonymous gap patterns to the community (no conversation text)",
+                value=False,
+            )
+            analysis_log = gr.Textbox(
+                label="Analysis log", lines=18, interactive=False, autoscroll=True,
+            )
+
+            analysis_btn.click(run_analysis, inputs=community_toggle, outputs=analysis_log)
+            reanalyze_btn.click(run_force_reanalyze, inputs=community_toggle, outputs=analysis_log)
+            evolve_btn.click(run_validate_and_evolve, outputs=analysis_log)
+            seed_btn.click(run_seed_rules, outputs=analysis_log)
+            dedup_btn.click(run_deduplicate_rules, outputs=analysis_log)
+            score_btn.click(run_score_effectiveness, outputs=analysis_log)
+
+            gr.HTML('<div class="section-title">Step 3 — Review New Rules</div>')
+            gr.Markdown("New rules generated by analysis appear in the **Rules** tab → Review Queue. Approve each one to activate it.")
+
+        # ── Insights ─────────────────────────────────────────────────────────
+        with gr.Tab("🔬 Insights"):
+
+            gr.HTML('<div class="section-title">Conversations</div>')
+            conversations_table = gr.Dataframe(interactive=False, wrap=True)
+            refresh_convs_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
+            refresh_convs_btn.click(build_conversations_table, outputs=[conversations_table])
+            demo.load(build_conversations_table, outputs=[conversations_table])
+
+            gr.HTML('<div class="section-title">Alignment Sensor</div>')
+            gr.Markdown("Per-conversation task focus, rule compliance, and drift across turns.")
+            with gr.Row():
+                conv_selector = gr.Dropdown(label="Conversation", choices=[], scale=3)
+                refresh_compass_btn = gr.Button("↻ Refresh list", variant="secondary", size="sm", scale=1)
+
+            with gr.Row():
+                compass_gauge = gr.Plot()
+                compass_timeline = gr.Plot()
+            compass_alerts = gr.Markdown()
+
+            def refresh_compass_list():
+                return gr.Dropdown(choices=get_conversation_ids())
+
+            refresh_compass_btn.click(refresh_compass_list, outputs=[conv_selector])
+            demo.load(refresh_compass_list, outputs=[conv_selector])
+            conv_selector.change(
+                build_compass, inputs=conv_selector,
+                outputs=[compass_gauge, compass_timeline, compass_alerts],
+            )
+
+            gr.HTML('<div class="section-title">System Health</div>')
+            with gr.Row():
+                proj_gauge = gr.Plot()
+                proj_metrics = gr.Plot()
+            proj_summary = gr.Markdown()
+            proj_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
+            proj_refresh_btn.click(build_project_compass, outputs=[proj_gauge, proj_metrics, proj_summary])
+            demo.load(build_project_compass, outputs=[proj_gauge, proj_metrics, proj_summary])
+
+            gr.HTML('<div class="section-title">Gap Simulator</div>')
+            gr.Markdown("Type a message to see which gaps would be detected and which rules would apply.")
+            sim_input = gr.Textbox(
+                label="Message",
+                placeholder="e.g. That's wrong, you forgot error handling",
+                lines=2,
+            )
+            sim_btn = gr.Button("Simulate", variant="primary", size="sm")
+            with gr.Row():
+                gap_output = gr.Markdown()
+                prompt_output = gr.Markdown()
+            sim_btn.click(simulate_gap, inputs=sim_input, outputs=[gap_output, prompt_output])
+            sim_input.submit(simulate_gap, inputs=sim_input, outputs=[gap_output, prompt_output])
+            gr.Examples(
+                examples=[
+                    ["That's wrong, you forgot error handling in the database query"],
+                    ["Actually, I said I wanted Python not JavaScript"],
+                    ["I asked you this already — how do I query the API?"],
+                ],
+                inputs=sim_input,
+            )
+
+if __name__ == "__main__":
+    demo.launch()
     gr.Markdown(
         """
 # 🧠 AI Rule Learning System
