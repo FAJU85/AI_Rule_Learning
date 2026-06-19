@@ -86,7 +86,8 @@ def _download_jsonl(filename: str) -> list[dict]:
         return records
     except (EntryNotFoundError, RepositoryNotFoundError):
         return []
-    except Exception:
+    except Exception as e:
+        _log.warning("_download_jsonl %s: %s", filename, e)
         return []
 
 
@@ -379,7 +380,8 @@ def build_project_compass() -> tuple[Any, Any, str]:
         runtime = api.get_space_runtime(SPACE_ID)
         space_status = str(runtime.stage.value) if hasattr(runtime.stage, "value") else str(runtime.stage)
         space_pts = 40 if space_status == "RUNNING" else 0
-    except Exception:
+    except Exception as e:
+        _log.warning("space runtime check failed: %s", e)
         space_status = "UNAVAILABLE"
 
     # --- Dataset metrics ---
@@ -1134,7 +1136,8 @@ def _contribute_community_gaps(gaps_by_type: dict[str, list[dict]]) -> str:
             )
             with open(path, encoding="utf-8") as f:
                 existing_content = f.read()
-        except Exception:
+        except Exception as e:
+            _log.warning("community dataset read %s: %s", filename, e)
             existing_content = ""
 
         new_content = existing_content + json.dumps(contribution, ensure_ascii=False) + "\n"
@@ -1370,7 +1373,8 @@ def _load_checkpoint() -> dict:
         )
         with open(path, "r", encoding="utf-8") as f:
             return json.load(f)
-    except Exception:
+    except Exception as e:
+        _log.warning("_load_checkpoint: %s", e)
         return {}
 
 
@@ -1494,7 +1498,8 @@ Only output the JSON. No markdown fences, no explanation."""
 
         return rule_data
 
-    except Exception:
+    except Exception as e:
+        _log.warning("_generate_rule_from_gap: %s", e)
         return None
 
 
@@ -1882,7 +1887,8 @@ Only output the JSON. No markdown fences."""
         evolved["evolved_from"] = rule.get("rule_id")
         evolved["evolved_at"] = datetime.utcnow().isoformat()
         return evolved
-    except Exception:
+    except Exception as e:
+        _log.warning("rule evolution failed: %s", e)
         return None
 
 
