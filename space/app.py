@@ -7356,6 +7356,105 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
             policy_yaml_btn.click(export_policy_yaml, inputs=policy_rule_filter, outputs=policy_output)
             policy_json_btn.click(export_policy_json, inputs=policy_rule_filter, outputs=policy_output)
 
+            gr.HTML('<div class="section-title">Certification &amp; Accreditation</div>')
+            gr.Markdown("Track certifications (ISO 27001, SOC2, GDPR, etc.) with expiry dates and renewal alerts.")
+            cert_summary_md = gr.Markdown()
+            cert_table = gr.Dataframe(interactive=False, wrap=True)
+            cert_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
+
+            gr.Markdown("**Register Certification**")
+            with gr.Row():
+                cert_name = gr.Textbox(label="Certification name", scale=3)
+                cert_type = gr.Dropdown(label="Type", choices=CERT_TYPES, value="iso_27001", scale=2)
+                cert_issuer = gr.Textbox(label="Issuing body", scale=2)
+            with gr.Row():
+                cert_issue = gr.Textbox(label="Issue date (YYYY-MM-DD)", scale=2)
+                cert_expiry = gr.Textbox(label="Expiry date (YYYY-MM-DD)", scale=2)
+                cert_scope = gr.Textbox(label="Scope", scale=3)
+            cert_rules_csv = gr.Textbox(label="Linked Rule IDs (comma-separated, optional)")
+            cert_add_btn = gr.Button("+ Add Certification", variant="secondary", size="sm")
+            cert_status_md = gr.Markdown()
+
+            def _refresh_certs():
+                return build_cert_summary(), build_cert_table()
+
+            cert_add_btn.click(
+                add_certification,
+                inputs=[cert_name, cert_type, cert_issuer, cert_issue, cert_expiry, cert_scope, cert_rules_csv],
+                outputs=cert_status_md,
+            )
+            cert_add_btn.click(_refresh_certs, outputs=[cert_summary_md, cert_table])
+            cert_refresh_btn.click(_refresh_certs, outputs=[cert_summary_md, cert_table])
+            demo.load(_refresh_certs, outputs=[cert_summary_md, cert_table])
+
+            gr.HTML('<div class="section-title">Stakeholder Report</div>')
+            gr.Markdown("Generate a comprehensive compliance report for stakeholders (CTO, board, auditors).")
+            with gr.Row():
+                report_period = gr.Dropdown(label="Period", choices=["monthly", "quarterly", "annual", "ad-hoc"], value="monthly", scale=2)
+                report_sections = gr.Textbox(label="Sections to include (optional, comma-sep)", scale=4)
+            report_gen_btn = gr.Button("Generate Report", variant="primary", size="sm")
+            report_output = gr.Markdown()
+
+            report_gen_btn.click(
+                generate_stakeholder_report,
+                inputs=[report_period, report_sections],
+                outputs=report_output,
+            )
+
+            gr.HTML('<div class="section-title">Continuous Compliance Monitoring</div>')
+            gr.Markdown("Real-time aggregate compliance health across rules, incidents, SLOs, certifications, and goals.")
+            with gr.Row():
+                health_gauge = gr.Plot(scale=1)
+                health_breakdown = gr.Plot(scale=2)
+            health_report_md = gr.Markdown()
+            health_refresh_btn = gr.Button("↻ Refresh Health", variant="secondary", size="sm")
+
+            def _refresh_health():
+                return build_compliance_health_gauge(), build_compliance_health_breakdown(), build_compliance_health_report()
+
+            health_refresh_btn.click(_refresh_health, outputs=[health_gauge, health_breakdown, health_report_md])
+            demo.load(_refresh_health, outputs=[health_gauge, health_breakdown, health_report_md])
+
+            gr.HTML('<div class="section-title">Compliance Calendar</div>')
+            gr.Markdown("Schedule and track governance tasks: audits, reviews, renewals, training, assessments.")
+            cal_summary_md = gr.Markdown()
+            cal_table = gr.Dataframe(interactive=False, wrap=True)
+            cal_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
+
+            gr.Markdown("**Add Calendar Item**")
+            with gr.Row():
+                cal_title = gr.Textbox(label="Title", scale=3)
+                cal_type = gr.Dropdown(label="Type", choices=CALENDAR_ITEM_TYPES, value="review", scale=2)
+                cal_priority = gr.Dropdown(label="Priority", choices=CALENDAR_PRIORITIES, value="medium", scale=2)
+            with gr.Row():
+                cal_due = gr.Textbox(label="Due date (YYYY-MM-DD)", scale=2)
+                cal_owner = gr.Textbox(label="Owner", scale=2)
+                cal_rule_csv = gr.Textbox(label="Linked Rule IDs (optional)", scale=3)
+            cal_desc = gr.Textbox(label="Description", scale=4)
+            cal_add_btn = gr.Button("+ Add Item", variant="secondary", size="sm")
+            cal_add_status = gr.Markdown()
+
+            gr.Markdown("**Mark Item Complete**")
+            with gr.Row():
+                cal_complete_id = gr.Textbox(label="Item ID prefix", scale=3)
+                cal_complete_notes = gr.Textbox(label="Completion notes", scale=4)
+            cal_complete_btn = gr.Button("Mark Complete", variant="secondary", size="sm")
+            cal_complete_status = gr.Markdown()
+
+            def _refresh_calendar():
+                return build_calendar_summary(), build_calendar_table()
+
+            cal_add_btn.click(
+                add_calendar_item,
+                inputs=[cal_title, cal_type, cal_due, cal_priority, cal_desc, cal_owner, cal_rule_csv],
+                outputs=cal_add_status,
+            )
+            cal_add_btn.click(_refresh_calendar, outputs=[cal_summary_md, cal_table])
+            cal_complete_btn.click(complete_calendar_item, inputs=[cal_complete_id, cal_complete_notes], outputs=cal_complete_status)
+            cal_complete_btn.click(_refresh_calendar, outputs=[cal_summary_md, cal_table])
+            cal_refresh_btn.click(_refresh_calendar, outputs=[cal_summary_md, cal_table])
+            demo.load(_refresh_calendar, outputs=[cal_summary_md, cal_table])
+
             gr.HTML('<div class="section-title">Gap Simulator</div>')
             gr.Markdown("Type a message to see which gaps would be detected and which rules would apply.")
             sim_input = gr.Textbox(
@@ -8247,6 +8346,451 @@ def export_policy_json(rule_ids_csv: str = "") -> str:
         ],
     }
     return "```json\n" + json.dumps(payload, indent=2) + "\n```"
+
+
+# ---------------------------------------------------------------------------
+# #41 CERTIFICATION / ACCREDITATION FRAMEWORK
+# ---------------------------------------------------------------------------
+
+CERT_FILE = "certifications.jsonl"
+CERT_STATUSES = ["active", "expired", "pending_renewal", "revoked"]
+CERT_TYPES = ["iso_27001", "soc2", "gdpr", "hipaa", "nist_csf", "custom"]
+
+
+def _load_certs() -> list[dict]:
+    return _download_jsonl(CERT_FILE)
+
+
+def add_certification(cert_name: str, cert_type: str, issuing_body: str,
+                      issue_date: str, expiry_date: str, scope: str,
+                      rule_ids_csv: str) -> str:
+    if not cert_name:
+        return "Certification name is required."
+    certs = _load_certs()
+    rid_list = [r.strip() for r in rule_ids_csv.split(",") if r.strip()]
+    cert = {
+        "cert_id": f"cert_{datetime.utcnow().strftime('%Y%m%d%H%M%S')}",
+        "name": cert_name,
+        "type": cert_type,
+        "issuing_body": issuing_body,
+        "issue_date": issue_date,
+        "expiry_date": expiry_date,
+        "scope": scope,
+        "linked_rule_ids": rid_list,
+        "status": "active",
+        "created_at": datetime.utcnow().isoformat(),
+    }
+    certs.append(cert)
+    _upload_jsonl(CERT_FILE, certs)
+    return f"Certification '{cert_name}' added (id={cert['cert_id']}, expires {expiry_date})."
+
+
+def compute_cert_status() -> list[dict]:
+    """Compute current status of each certification based on expiry date."""
+    certs = _load_certs()
+    now = datetime.utcnow()
+    results = []
+    for c in certs:
+        expiry_str = c.get("expiry_date", "")
+        days_until_expiry = None
+        status = c.get("status", "active")
+        if expiry_str and status != "revoked":
+            try:
+                expiry = datetime.fromisoformat(expiry_str)
+                days_until_expiry = (expiry - now).days
+                if days_until_expiry < 0:
+                    status = "expired"
+                elif days_until_expiry <= 30:
+                    status = "pending_renewal"
+                else:
+                    status = "active"
+            except ValueError:
+                pass
+        results.append({**c, "current_status": status, "days_until_expiry": days_until_expiry})
+    return results
+
+
+def build_cert_table() -> pd.DataFrame:
+    certs = compute_cert_status()
+    if not certs:
+        return pd.DataFrame(columns=["Name", "Type", "Issuer", "Expires", "Status", "Days Left"])
+    rows = []
+    for c in certs:
+        days = c.get("days_until_expiry")
+        rows.append({
+            "Name": c.get("name", "")[:40],
+            "Type": c.get("type", ""),
+            "Issuer": c.get("issuing_body", "")[:30],
+            "Expires": c.get("expiry_date", "")[:10],
+            "Status": c.get("current_status", ""),
+            "Days Left": days if days is not None else "—",
+        })
+    return pd.DataFrame(rows)
+
+
+def build_cert_summary() -> str:
+    certs = compute_cert_status()
+    if not certs:
+        return "No certifications registered."
+    by_status: dict = {}
+    for c in certs:
+        s = c.get("current_status", "unknown")
+        by_status[s] = by_status.get(s, 0) + 1
+    lines = [f"**Total certifications:** {len(certs)}", ""]
+    for status, count in sorted(by_status.items()):
+        icon = {"active": "✅", "pending_renewal": "⚠️", "expired": "❌", "revoked": "🚫"}.get(status, "•")
+        lines.append(f"{icon} **{status.replace('_', ' ').title()}**: {count}")
+    expiring = [c for c in certs if c.get("current_status") == "pending_renewal"]
+    if expiring:
+        lines += ["", "**Expiring within 30 days:**"]
+        for c in expiring:
+            lines.append(f"- {c.get('name', '')} ({c.get('days_until_expiry', '?')} days)")
+    return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# #42 STAKEHOLDER REPORTING
+# ---------------------------------------------------------------------------
+
+def generate_stakeholder_report(period_label: str = "monthly", include_sections_csv: str = "") -> str:
+    """Generate a comprehensive stakeholder compliance report in Markdown."""
+    now = datetime.utcnow()
+    rules = [r for r in _download_jsonl("rules.jsonl") if "rule_id" in r]
+    incidents = _download_jsonl(INCIDENT_FILE)
+    certs = compute_cert_status()
+    slos = compute_slo_status()
+    trust = compute_trust_score()
+    goals = compute_goal_alignment()
+    controls = compute_control_coverage()
+    benchmarks = _download_jsonl(BENCHMARK_FILE)
+    overrides = _download_jsonl(OVERRIDE_FILE)
+
+    sections = [s.strip() for s in include_sections_csv.split(",") if s.strip()] if include_sections_csv else []
+
+    active_rules = [r for r in rules if r.get("status") == "active"]
+    active_incidents = [i for i in incidents if i.get("status") not in ("resolved", "closed")]
+    p0_p1 = [i for i in active_incidents if i.get("severity") in ("P0_critical", "P1_high")]
+
+    # Benchmark pass rate
+    rules_map = {r["rule_id"]: r for r in rules}
+    bench_passed = bench_total = 0
+    for c in benchmarks:
+        rule = rules_map.get(c.get("rule_id", ""))
+        if not rule:
+            continue
+        triggered = _rule_triggers_on(rule, c.get("input_text", ""))
+        bench_total += 1
+        if triggered == c.get("should_trigger", True):
+            bench_passed += 1
+    bench_pct = round(bench_passed / bench_total * 100, 1) if bench_total else 0.0
+
+    lines = [
+        f"# AI Governance Compliance Report",
+        f"**Period:** {period_label.title()}  |  **Generated:** {now.strftime('%Y-%m-%d %H:%M UTC')}",
+        "",
+        "---",
+        "",
+        "## Executive Summary",
+        "",
+        f"| Metric | Value |",
+        f"|--------|-------|",
+        f"| Trust Score | {trust.get('total', 0):.1f}/100 |",
+        f"| Active Rules | {len(active_rules)} |",
+        f"| Open Incidents | {len(active_incidents)} (P0/P1: {len(p0_p1)}) |",
+        f"| Benchmark Pass Rate | {bench_pct}% |",
+        f"| SLOs Met | {sum(1 for s in slos if s.get('status')=='ok')}/{len(slos)} |",
+        f"| Active Certifications | {sum(1 for c in certs if c.get('current_status')=='active')}/{len(certs)} |",
+        "",
+    ]
+
+    lines += [
+        "## Rule Governance",
+        "",
+        f"- Total rules: {len(rules)} ({len(active_rules)} active)",
+        f"- Rules by layer: " + ", ".join(
+            f"{layer}: {sum(1 for r in active_rules if r.get('layer') == layer)}"
+            for layer in ["input_constraint", "system_directive", "output_guardrail", "routing_rule"]
+        ),
+        "",
+    ]
+
+    if goals:
+        lines += ["## Goal Alignment", ""]
+        aligned = sum(1 for g in goals if g.get("alignment_status") == "aligned")
+        lines += [
+            f"- {aligned}/{len(goals)} business goals aligned to target",
+            "",
+            "| Goal | Target | Actual | Status |",
+            "|------|--------|--------|--------|",
+        ]
+        for g in goals[:10]:
+            lines.append(f"| {g.get('objective','')[:30]} | {g.get('target_score')}% | {g.get('actual_score')}% | {g.get('alignment_status')} |")
+        lines.append("")
+
+    if controls:
+        lines += ["## Control Effectiveness", ""]
+        avg_eff = round(sum(c.get("effectiveness", 0) for c in controls) / len(controls), 1)
+        lines += [f"- Average control effectiveness: {avg_eff}%", ""]
+
+    if incidents:
+        lines += ["## Incident Management", ""]
+        by_sev: dict = {}
+        for i in incidents:
+            s = i.get("severity", "unknown")
+            by_sev[s] = by_sev.get(s, 0) + 1
+        for sev, cnt in sorted(by_sev.items()):
+            lines.append(f"- {sev}: {cnt}")
+        lines.append("")
+
+    if certs:
+        lines += ["## Certification Status", ""]
+        for c in certs[:10]:
+            icon = "✅" if c.get("current_status") == "active" else "⚠️" if c.get("current_status") == "pending_renewal" else "❌"
+            lines.append(f"- {icon} **{c.get('name','')}** ({c.get('type','')}) — {c.get('current_status','')} | Expires: {c.get('expiry_date','')[:10]}")
+        lines.append("")
+
+    lines += [
+        "---",
+        f"_Report generated by AI Rule Learning Governance Platform_",
+    ]
+    return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# #55 CONTINUOUS COMPLIANCE MONITORING
+# ---------------------------------------------------------------------------
+
+def compute_compliance_health() -> dict:
+    """Compute real-time aggregate compliance health across all dimensions."""
+    rules = [r for r in _download_jsonl("rules.jsonl") if "rule_id" in r]
+    incidents = _download_jsonl(INCIDENT_FILE)
+    slos = compute_slo_status()
+    trust = compute_trust_score()
+    certs = compute_cert_status()
+    goals = compute_goal_alignment()
+
+    # Rule health: % active rules with avg compliance ≥ 70%
+    active = [r for r in rules if r.get("status") == "active"]
+    healthy_rules = 0
+    for r in active:
+        h = r.get("score_history", [])
+        if h and sum(h) / len(h) >= 0.7:
+            healthy_rules += 1
+    rule_health = round(healthy_rules / len(active) * 100, 1) if active else 0.0
+
+    # Incident health: no open P0/P1
+    open_critical = sum(1 for i in incidents if i.get("status") not in ("resolved", "closed")
+                        and i.get("severity") in ("P0_critical", "P1_high"))
+    incident_health = max(0.0, 100.0 - open_critical * 25)
+
+    # SLO health
+    slo_ok = sum(1 for s in slos if s.get("status") == "ok")
+    slo_health = round(slo_ok / len(slos) * 100, 1) if slos else 100.0
+
+    # Cert health
+    active_certs = sum(1 for c in certs if c.get("current_status") == "active")
+    cert_health = round(active_certs / len(certs) * 100, 1) if certs else 100.0
+
+    # Goal health
+    aligned_goals = sum(1 for g in goals if g.get("alignment_status") == "aligned")
+    goal_health = round(aligned_goals / len(goals) * 100, 1) if goals else 100.0
+
+    overall = round(
+        rule_health * 0.30 +
+        incident_health * 0.25 +
+        slo_health * 0.20 +
+        cert_health * 0.15 +
+        goal_health * 0.10,
+        1
+    )
+
+    return {
+        "overall": overall,
+        "rule_health": rule_health,
+        "incident_health": incident_health,
+        "slo_health": slo_health,
+        "cert_health": cert_health,
+        "goal_health": goal_health,
+        "trust_score": trust.get("total", 0),
+        "computed_at": datetime.utcnow().isoformat(),
+    }
+
+
+def build_compliance_health_gauge() -> Any:
+    health = compute_compliance_health()
+    overall = health["overall"]
+    color = "#81c784" if overall >= 80 else "#ffb74d" if overall >= 60 else "#e57373"
+    fig = go.Figure(go.Indicator(
+        mode="gauge+number+delta",
+        value=overall,
+        title={"text": "Compliance Health", "font": {"size": 16, "color": "#ffffff"}},
+        gauge={
+            "axis": {"range": [0, 100], "tickcolor": "#aaa"},
+            "bar": {"color": color},
+            "steps": [
+                {"range": [0, 60], "color": "#3d1010"},
+                {"range": [60, 80], "color": "#3d2e10"},
+                {"range": [80, 100], "color": "#10301e"},
+            ],
+            "threshold": {"line": {"color": "#ffffff", "width": 2}, "thickness": 0.75, "value": 80},
+        },
+    ))
+    fig.update_layout(template="plotly_dark", height=280, margin=dict(t=50, b=10, l=20, r=20))
+    return fig
+
+
+def build_compliance_health_breakdown() -> Any:
+    health = compute_compliance_health()
+    dims = ["Rule Health", "Incident Health", "SLO Health", "Cert Health", "Goal Health"]
+    vals = [health["rule_health"], health["incident_health"], health["slo_health"],
+            health["cert_health"], health["goal_health"]]
+    colors = ["#81c784" if v >= 80 else "#ffb74d" if v >= 60 else "#e57373" for v in vals]
+    fig = go.Figure(go.Bar(x=dims, y=vals, marker_color=colors))
+    fig.update_layout(
+        title="Compliance Health Breakdown",
+        template="plotly_dark",
+        height=280,
+        yaxis=dict(range=[0, 110], title="%"),
+    )
+    return fig
+
+
+def build_compliance_health_report() -> str:
+    h = compute_compliance_health()
+    lines = [
+        f"## Continuous Compliance Health",
+        f"_As of {h['computed_at'][:19]}_",
+        "",
+        f"| Dimension | Score |",
+        f"|-----------|-------|",
+        f"| **Overall** | **{h['overall']}%** |",
+        f"| Rule Health | {h['rule_health']}% |",
+        f"| Incident Health | {h['incident_health']}% |",
+        f"| SLO Health | {h['slo_health']}% |",
+        f"| Certification Health | {h['cert_health']}% |",
+        f"| Goal Alignment Health | {h['goal_health']}% |",
+        f"| Trust Score | {h['trust_score']:.1f}/100 |",
+    ]
+    return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# #56 COMPLIANCE CALENDAR
+# ---------------------------------------------------------------------------
+
+CALENDAR_FILE = "compliance_calendar.jsonl"
+CALENDAR_ITEM_TYPES = ["audit", "review", "renewal", "training", "assessment", "report"]
+CALENDAR_PRIORITIES = ["critical", "high", "medium", "low"]
+
+
+def _load_calendar() -> list[dict]:
+    return _download_jsonl(CALENDAR_FILE)
+
+
+def add_calendar_item(title: str, item_type: str, due_date: str, priority: str,
+                      description: str, owner: str, rule_ids_csv: str) -> str:
+    if not title or not due_date:
+        return "Title and due date are required."
+    items = _load_calendar()
+    rid_list = [r.strip() for r in rule_ids_csv.split(",") if r.strip()]
+    item = {
+        "item_id": f"cal_{datetime.utcnow().strftime('%Y%m%d%H%M%S')}",
+        "title": title,
+        "type": item_type,
+        "due_date": due_date,
+        "priority": priority,
+        "description": description,
+        "owner": owner,
+        "linked_rule_ids": rid_list,
+        "status": "pending",
+        "created_at": datetime.utcnow().isoformat(),
+    }
+    items.append(item)
+    _upload_jsonl(CALENDAR_FILE, items)
+    return f"Calendar item '{title}' added (due {due_date})."
+
+
+def complete_calendar_item(item_id: str, notes: str) -> str:
+    if not item_id:
+        return "Item ID is required."
+    items = _load_calendar()
+    matched = False
+    for item in items:
+        if item.get("item_id", "").startswith(item_id):
+            item["status"] = "completed"
+            item["completed_at"] = datetime.utcnow().isoformat()
+            item["completion_notes"] = notes
+            matched = True
+            break
+    if not matched:
+        return f"Item '{item_id}' not found."
+    _upload_jsonl(CALENDAR_FILE, items)
+    return f"Item '{item_id}' marked as completed."
+
+
+def compute_calendar_status() -> list[dict]:
+    items = _load_calendar()
+    now = datetime.utcnow()
+    results = []
+    for item in items:
+        due_str = item.get("due_date", "")
+        days_until = None
+        urgency = "on_track"
+        if due_str and item.get("status") == "pending":
+            try:
+                due = datetime.fromisoformat(due_str)
+                days_until = (due - now).days
+                if days_until < 0:
+                    urgency = "overdue"
+                elif days_until <= 7:
+                    urgency = "urgent"
+                elif days_until <= 30:
+                    urgency = "upcoming"
+            except ValueError:
+                pass
+        results.append({**item, "days_until": days_until, "urgency": urgency})
+    return sorted(results, key=lambda x: x.get("due_date", ""))
+
+
+def build_calendar_table() -> pd.DataFrame:
+    items = compute_calendar_status()
+    if not items:
+        return pd.DataFrame(columns=["Title", "Type", "Due", "Priority", "Owner", "Status", "Urgency"])
+    rows = []
+    for item in items:
+        rows.append({
+            "Title": item.get("title", "")[:40],
+            "Type": item.get("type", ""),
+            "Due": item.get("due_date", "")[:10],
+            "Priority": item.get("priority", ""),
+            "Owner": item.get("owner", "")[:20],
+            "Status": item.get("status", ""),
+            "Urgency": item.get("urgency", "") if item.get("status") == "pending" else "—",
+        })
+    return pd.DataFrame(rows)
+
+
+def build_calendar_summary() -> str:
+    items = compute_calendar_status()
+    if not items:
+        return "No compliance calendar items."
+    pending = [i for i in items if i.get("status") == "pending"]
+    overdue = [i for i in pending if i.get("urgency") == "overdue"]
+    urgent = [i for i in pending if i.get("urgency") == "urgent"]
+    upcoming = [i for i in pending if i.get("urgency") == "upcoming"]
+    completed = [i for i in items if i.get("status") == "completed"]
+
+    lines = [
+        f"**Total items:** {len(items)}  |  **Pending:** {len(pending)}  |  **Completed:** {len(completed)}",
+        "",
+    ]
+    if overdue:
+        lines += [f"**Overdue ({len(overdue)}):**"] + [f"- ❌ {i['title']} (due {i.get('due_date','')[:10]})" for i in overdue] + [""]
+    if urgent:
+        lines += [f"**Urgent — within 7 days ({len(urgent)}):**"] + [f"- ⚠️ {i['title']} (due {i.get('due_date','')[:10]})" for i in urgent] + [""]
+    if upcoming:
+        lines += [f"**Upcoming — within 30 days ({len(upcoming)}):**"] + [f"- 📅 {i['title']} (due {i.get('due_date','')[:10]})" for i in upcoming]
+    return "\n".join(lines)
 
 
 if __name__ == "__main__":
