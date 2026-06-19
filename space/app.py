@@ -3344,6 +3344,390 @@ def build_explanations_table() -> pd.DataFrame:
 
 
 # ---------------------------------------------------------------------------
+# Rule Knowledge Graph (policy → requirement → control → KPI → audit)
+# ---------------------------------------------------------------------------
+
+KG_FILE = "knowledge_graph.jsonl"
+
+KG_NODE_TYPES = ["policy", "requirement", "control", "kpi", "audit_finding", "rule"]
+KG_EDGE_TYPES = ["implements", "satisfies", "measures", "evidences", "linked_to"]
+
+
+def add_kg_node(node_type: str, name: str, description: str = "", rule_id: str = "") -> str:
+    """Add a node to the governance knowledge graph."""
+    if node_type not in KG_NODE_TYPES:
+        return f"Invalid node type. Choose: {KG_NODE_TYPES}"
+    nodes = _download_jsonl(KG_FILE)
+    node = {
+        "node_id": str(uuid.uuid4()),
+        "node_type": node_type,
+        "name": name.strip(),
+        "description": description.strip(),
+        "rule_id": rule_id,
+        "edges": [],
+        "created_at": datetime.utcnow().isoformat(),
+    }
+    nodes.append(node)
+    _upload_jsonl(KG_FILE, nodes)
+    return f"Node added: [{node_type}] {name} (id={node['node_id'][:8]}…)"
+
+
+def add_kg_edge(from_id: str, edge_type: str, to_id: str) -> str:
+    """Connect two KG nodes with a typed edge."""
+    if edge_type not in KG_EDGE_TYPES:
+        return f"Invalid edge type. Choose: {KG_EDGE_TYPES}"
+    nodes = _download_jsonl(KG_FILE)
+    src = next((n for n in nodes if n.get("node_id", "").startswith(from_id)), None)
+    dst = next((n for n in nodes if n.get("node_id", "").startswith(to_id)), None)
+    if not src:
+        return f"Source node {from_id} not found."
+    if not dst:
+        return f"Target node {to_id} not found."
+    src.setdefault("edges", []).append({"edge_type": edge_type, "to_id": dst["node_id"], "to_name": dst["name"]})
+    _upload_jsonl(KG_FILE, nodes)
+    return f"Edge added: [{src['name']}] --{edge_type}--> [{dst['name']}]"
+
+
+def build_kg_graph() -> Any:
+    """Plotly network diagram of the knowledge graph."""
+    nodes = _download_jsonl(KG_FILE)
+    if not nodes:
+        return go.Figure()
+
+    import math
+    type_colors = {
+        "policy": "#1f6feb", "requirement": "#388bfd",
+        "control": "#238636", "kpi": "#d29922",
+        "audit_finding": "#f85149", "rule": "#8b949e",
+    }
+    n = len(nodes)
+    positions = {nd["node_id"]: (math.cos(2 * math.pi * i / max(n, 1)),
+                                  math.sin(2 * math.pi * i / max(n, 1)))
+                 for i, nd in enumerate(nodes)}
+
+    edge_x, edge_y = [], []
+    for nd in nodes:
+        x0, y0 = positions[nd["node_id"]]
+        for edge in nd.get("edges", []):
+            tid = edge.get("to_id", "")
+            if tid in positions:
+                x1, y1 = positions[tid]
+                edge_x += [x0, x1, None]
+                edge_y += [y0, y1, None]
+
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=edge_x, y=edge_y, mode="lines",
+        line=dict(width=1, color="#444"), hoverinfo="none",
+    ))
+    for nt in KG_NODE_TYPES:
+        grp = [nd for nd in nodes if nd.get("node_type") == nt]
+        if not grp:
+            continue
+        fig.add_trace(go.Scatter(
+            x=[positions[nd["node_id"]][0] for nd in grp],
+            y=[positions[nd["node_id"]][1] for nd in grp],
+            mode="markers+text",
+            name=nt,
+            marker=dict(size=14, color=type_colors.get(nt, "#8b949e"),
+                        line=dict(width=1, color="#30363d")),
+            text=[nd["name"] for nd in grp],
+            textposition="top center",
+            textfont=dict(size=8, color="#c9d1d9"),
+            hovertext=[f"[{nd['node_type']}] {nd['name']}\n{nd.get('description','')}" for nd in grp],
+            hoverinfo="text",
+        ))
+    fig.update_layout(
+        paper_bgcolor="#0d1117", plot_bgcolor="#0d1117",
+        showlegend=True, legend=dict(font=dict(color="#c9d1d9")),
+        margin=dict(l=20, r=20, t=40, b=20),
+        title=dict(text="Governance Knowledge Graph", font=dict(color="#c9d1d9")),
+        xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+        yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+    )
+    return fig
+
+
+def build_kg_table() -> pd.DataFrame:
+    nodes = _download_jsonl(KG_FILE)
+    if not nodes:
+        return pd.DataFrame(columns=["Node ID", "Type", "Name", "Description", "Edges", "Created"])
+    rows = [{
+        "Node ID": n.get("node_id", "")[:8],
+        "Type": n.get("node_type", ""),
+        "Name": n.get("name", ""),
+        "Description": n.get("description", "")[:60],
+        "Edges": len(n.get("edges", [])),
+        "Created": n.get("created_at", "")[:10],
+    } for n in nodes]
+    return pd.DataFrame(rows)
+
+
+# ---------------------------------------------------------------------------
+# Rule Observability — SLO / SLI / error budget
+# ---------------------------------------------------------------------------
+
+SLO_FILE = "slos.jsonl"
+
+
+def define_slo(rule_id: str, slo_name: str, target_pct: float, window_days: int = 30) -> str:
+    """Define an SLO (Service Level Objective) for a rule."""
+    slos = _download_jsonl(SLO_FILE)
+    slo = {
+        "slo_id": str(uuid.uuid4()),
+        "rule_id": rule_id,
+        "slo_name": slo_name.strip(),
+        "target_pct": max(0.0, min(100.0, float(target_pct))),
+        "window_days": int(window_days),
+        "created_at": datetime.utcnow().isoformat(),
+    }
+    slos.append(slo)
+    _upload_jsonl(SLO_FILE, slos)
+    return f"SLO defined: {slo_name} @ {target_pct}% over {window_days}d (id={slo['slo_id'][:8]}…)"
+
+
+def compute_slo_status() -> list[dict]:
+    """Return current SLI / error budget for each SLO."""
+    slos = _download_jsonl(SLO_FILE)
+    rules = {r.get("rule_id"): r for r in _download_jsonl("rules.jsonl") if "rule_id" in r}
+    results = []
+    for slo in slos:
+        rid = slo.get("rule_id", "")
+        rule = rules.get(rid, {})
+        eff = rule.get("effectiveness_score", None)
+        sli_pct = round(eff * 100, 1) if eff is not None else None
+        target = slo.get("target_pct", 95.0)
+        if sli_pct is None:
+            budget_remaining = None
+            status = "unknown"
+        else:
+            budget_remaining = round(sli_pct - (100.0 - target), 2)
+            status = "ok" if sli_pct >= target else "breached"
+        results.append({
+            "slo_id": slo["slo_id"],
+            "rule_id": rid,
+            "rule_name": rule.get("name", rid),
+            "slo_name": slo.get("slo_name", ""),
+            "target_pct": target,
+            "sli_pct": sli_pct,
+            "error_budget_remaining": budget_remaining,
+            "status": status,
+            "window_days": slo.get("window_days", 30),
+        })
+    return results
+
+
+def build_slo_table() -> pd.DataFrame:
+    rows = compute_slo_status()
+    if not rows:
+        return pd.DataFrame(columns=["Rule", "SLO", "Target %", "SLI %", "Error Budget", "Status"])
+    return pd.DataFrame([{
+        "Rule": r["rule_name"][:30],
+        "SLO": r["slo_name"],
+        "Target %": r["target_pct"],
+        "SLI %": r["sli_pct"] if r["sli_pct"] is not None else "n/a",
+        "Error Budget": r["error_budget_remaining"] if r["error_budget_remaining"] is not None else "n/a",
+        "Status": r["status"],
+    } for r in rows])
+
+
+def build_slo_chart() -> Any:
+    rows = compute_slo_status()
+    if not rows:
+        return go.Figure()
+    names = [f"{r['rule_name'][:20]} / {r['slo_name']}" for r in rows]
+    slis = [r["sli_pct"] if r["sli_pct"] is not None else 0 for r in rows]
+    targets = [r["target_pct"] for r in rows]
+    colors = ["#238636" if s == "ok" else "#f85149" for s in [r["status"] for r in rows]]
+    fig = go.Figure()
+    fig.add_trace(go.Bar(
+        x=names, y=slis, name="SLI %",
+        marker=dict(color=colors),
+    ))
+    fig.add_trace(go.Scatter(
+        x=names, y=targets, name="Target",
+        mode="markers", marker=dict(symbol="line-ew", size=16, color="#d29922",
+                                    line=dict(width=3, color="#d29922")),
+    ))
+    fig.update_layout(
+        paper_bgcolor="#0d1117", plot_bgcolor="#161b22",
+        title=dict(text="SLO Status", font=dict(color="#c9d1d9")),
+        legend=dict(font=dict(color="#c9d1d9")),
+        xaxis=dict(tickfont=dict(color="#c9d1d9"), tickangle=-30),
+        yaxis=dict(tickfont=dict(color="#c9d1d9"), title="Effectiveness %",
+                   titlefont=dict(color="#c9d1d9"), range=[0, 105]),
+        margin=dict(l=40, r=20, t=50, b=100),
+    )
+    return fig
+
+
+# ---------------------------------------------------------------------------
+# Continuous Improvement Loop
+# ---------------------------------------------------------------------------
+
+IMPROVEMENT_FILE = "improvement_cycles.jsonl"
+
+IMPROVEMENT_STAGES = ["violation_detected", "rca_logged", "rule_updated", "benchmark_run", "validated"]
+
+
+def start_improvement_cycle(rule_id: str, trigger_event: str, description: str) -> str:
+    """Open a new continuous improvement cycle for a rule."""
+    rules = {r.get("rule_id"): r for r in _download_jsonl("rules.jsonl") if "rule_id" in r}
+    rule = rules.get(rule_id, {})
+    cycle = {
+        "cycle_id": str(uuid.uuid4()),
+        "rule_id": rule_id,
+        "rule_name": rule.get("name", rule_id),
+        "trigger_event": trigger_event.strip(),
+        "description": description.strip(),
+        "stage": "violation_detected",
+        "stage_history": [{"stage": "violation_detected", "at": datetime.utcnow().isoformat()}],
+        "opened_at": datetime.utcnow().isoformat(),
+        "closed_at": None,
+        "status": "open",
+    }
+    cycles = _download_jsonl(IMPROVEMENT_FILE)
+    cycles.append(cycle)
+    _upload_jsonl(IMPROVEMENT_FILE, cycles)
+    return f"Improvement cycle opened (id={cycle['cycle_id'][:8]}…): {trigger_event}"
+
+
+def advance_improvement_cycle(cycle_id: str, notes: str = "") -> str:
+    """Advance an open cycle to the next stage."""
+    cycles = _download_jsonl(IMPROVEMENT_FILE)
+    cycle = next((c for c in cycles if c.get("cycle_id", "").startswith(cycle_id)), None)
+    if not cycle:
+        return f"Cycle {cycle_id} not found."
+    if cycle.get("status") == "closed":
+        return "Cycle is already closed."
+    current = cycle.get("stage", IMPROVEMENT_STAGES[0])
+    idx = IMPROVEMENT_STAGES.index(current) if current in IMPROVEMENT_STAGES else 0
+    if idx + 1 >= len(IMPROVEMENT_STAGES):
+        cycle["status"] = "closed"
+        cycle["closed_at"] = datetime.utcnow().isoformat()
+        msg = f"Cycle {cycle_id[:8]} completed — all stages done."
+    else:
+        next_stage = IMPROVEMENT_STAGES[idx + 1]
+        cycle["stage"] = next_stage
+        cycle.setdefault("stage_history", []).append({
+            "stage": next_stage,
+            "at": datetime.utcnow().isoformat(),
+            "notes": notes,
+        })
+        msg = f"Cycle {cycle_id[:8]} advanced to [{next_stage}]."
+    _upload_jsonl(IMPROVEMENT_FILE, cycles)
+    return msg
+
+
+def build_improvement_table() -> pd.DataFrame:
+    cycles = _download_jsonl(IMPROVEMENT_FILE)
+    if not cycles:
+        return pd.DataFrame(columns=["Cycle ID", "Rule", "Trigger", "Stage", "Status", "Opened"])
+    rows = [{
+        "Cycle ID": c.get("cycle_id", "")[:8],
+        "Rule": c.get("rule_name", c.get("rule_id", ""))[:30],
+        "Trigger": c.get("trigger_event", "")[:40],
+        "Stage": c.get("stage", ""),
+        "Status": c.get("status", "open"),
+        "Opened": c.get("opened_at", "")[:10],
+    } for c in sorted(cycles, key=lambda x: x.get("opened_at", ""), reverse=True)]
+    return pd.DataFrame(rows)
+
+
+def build_improvement_funnel() -> Any:
+    """Funnel chart showing how many cycles are at each stage."""
+    cycles = _download_jsonl(IMPROVEMENT_FILE)
+    if not cycles:
+        return go.Figure()
+    from collections import Counter
+    counts = Counter(c.get("stage", "violation_detected") for c in cycles if c.get("status") == "open")
+    values = [counts.get(s, 0) for s in IMPROVEMENT_STAGES]
+    fig = go.Figure(go.Funnel(
+        y=IMPROVEMENT_STAGES,
+        x=values,
+        textinfo="value+percent initial",
+        marker=dict(color=["#1f6feb", "#388bfd", "#238636", "#d29922", "#3fb950"]),
+        connector=dict(line=dict(color="#30363d")),
+    ))
+    fig.update_layout(
+        paper_bgcolor="#0d1117", plot_bgcolor="#0d1117",
+        title=dict(text="Improvement Cycle Pipeline (open cycles)", font=dict(color="#c9d1d9")),
+        yaxis=dict(tickfont=dict(color="#c9d1d9")),
+        margin=dict(l=160, r=20, t=50, b=20),
+    )
+    return fig
+
+
+def build_governance_dashboard() -> str:
+    """Executive-level governance metrics: MTTR, error budget, benchmark pass rate, cycle velocity."""
+    from collections import Counter
+
+    # MTTR — mean time to resolve RCA entries
+    rcas = _download_jsonl(RCA_FILE)
+    resolved = [r for r in rcas if r.get("status") == "resolved" and r.get("logged_at") and r.get("resolved_at")]
+    if resolved:
+        def _td(e):
+            try:
+                a = datetime.fromisoformat(e["logged_at"])
+                b = datetime.fromisoformat(e["resolved_at"])
+                return (b - a).total_seconds() / 3600
+            except Exception:
+                return 0
+        mttr_h = round(sum(_td(e) for e in resolved) / len(resolved), 1)
+    else:
+        mttr_h = None
+
+    # SLO summary
+    slo_rows = compute_slo_status()
+    breached = sum(1 for r in slo_rows if r["status"] == "breached")
+    slo_ok = sum(1 for r in slo_rows if r["status"] == "ok")
+
+    # Benchmark pass rate
+    bench_cases = _download_jsonl(BENCHMARK_FILE)
+    rules = {r["rule_id"]: r for r in _download_jsonl("rules.jsonl") if "rule_id" in r}
+    bench_passed = bench_failed = 0
+    for c in bench_cases:
+        rule = rules.get(c.get("rule_id", ""))
+        if not rule:
+            continue
+        fired = bool(_gap_keywords_from_rule(rule)) and any(
+            kw in c.get("input_text", "").lower() for kw in _gap_keywords_from_rule(rule)
+        )
+        if fired == c.get("should_trigger", True):
+            bench_passed += 1
+        else:
+            bench_failed += 1
+    bench_total = bench_passed + bench_failed
+    bench_rate = f"{round(bench_passed / bench_total * 100, 1)}%" if bench_total else "n/a"
+
+    # Improvement cycle velocity
+    cycles = _download_jsonl(IMPROVEMENT_FILE)
+    closed_30d = [c for c in cycles if c.get("status") == "closed" and c.get("closed_at", "") >= (
+        datetime.utcnow().replace(hour=0, minute=0, second=0).isoformat()[:10]
+    )[:10]]
+    open_cycles = sum(1 for c in cycles if c.get("status") == "open")
+
+    # Coverage
+    cov = compute_coverage()
+
+    lines = [
+        "## Governance Executive Dashboard",
+        "",
+        "| Metric | Value |",
+        "|--------|-------|",
+        f"| Mean Time to Resolve (MTTR) | {f'{mttr_h}h' if mttr_h is not None else 'n/a'} |",
+        f"| SLOs OK / Breached | {slo_ok} / {breached} |",
+        f"| Benchmark Pass Rate | {bench_rate} ({bench_passed}/{bench_total} cases) |",
+        f"| Gap Coverage | {cov['coverage_pct']}% ({cov['covered_turns']}/{cov['total_gap_turns']} turns) |",
+        f"| Open Improvement Cycles | {open_cycles} |",
+        f"| Cycles Closed (today) | {len(closed_30d)} |",
+        f"| Open RCAs | {sum(1 for r in rcas if r.get('status') == 'open')} |",
+        f"| Total Benchmark Cases | {len(bench_cases)} |",
+    ]
+    return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
 # Rule layer classification
 # ---------------------------------------------------------------------------
 
@@ -4969,6 +5353,112 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 explain_rule_decision,
                 inputs=[exp_rule_sel, exp_user_input, exp_agent_response],
                 outputs=exp_result,
+            )
+
+            gr.HTML('<div class="section-title">Governance Dashboard</div>')
+            gr.Markdown("Executive-level metrics: MTTR, SLO health, benchmark pass rate, improvement velocity.")
+            gov_dash_md = gr.Markdown()
+            gov_dash_btn = gr.Button("↻ Refresh Dashboard", variant="secondary", size="sm")
+            gov_dash_btn.click(build_governance_dashboard, outputs=gov_dash_md)
+            demo.load(build_governance_dashboard, outputs=gov_dash_md)
+
+            gr.HTML('<div class="section-title">Rule Observability (SLOs)</div>')
+            gr.Markdown("Define effectiveness SLOs per rule and track error budgets in real time.")
+            slo_chart = gr.Plot()
+            slo_table = gr.Dataframe(interactive=False, wrap=True)
+            slo_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
+
+            gr.Markdown("**Define a new SLO**")
+            with gr.Row():
+                slo_rule_sel = gr.Dropdown(label="Rule", choices=[], scale=3)
+                slo_target = gr.Number(label="Target %", value=90.0, minimum=50, maximum=100, scale=1)
+                slo_window = gr.Number(label="Window (days)", value=30, minimum=1, maximum=365, scale=1)
+            slo_name_in = gr.Textbox(label="SLO name", placeholder="e.g. Effectiveness ≥ 90%")
+            slo_add_btn = gr.Button("+ Add SLO", variant="secondary", size="sm")
+            slo_status = gr.Markdown()
+
+            def _refresh_slo():
+                return build_slo_chart(), build_slo_table(), gr.Dropdown(choices=get_rule_ids())
+
+            slo_refresh_btn.click(_refresh_slo, outputs=[slo_chart, slo_table, slo_rule_sel])
+            demo.load(_refresh_slo, outputs=[slo_chart, slo_table, slo_rule_sel])
+            slo_add_btn.click(
+                define_slo,
+                inputs=[slo_rule_sel, slo_name_in, slo_target, slo_window],
+                outputs=slo_status,
+            )
+
+            gr.HTML('<div class="section-title">Continuous Improvement Loop</div>')
+            gr.Markdown("Track each violation through violation → RCA → rule update → benchmark → validated.")
+            imp_funnel = gr.Plot()
+            imp_table = gr.Dataframe(interactive=False, wrap=True)
+            imp_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
+
+            gr.Markdown("**Open a new improvement cycle**")
+            with gr.Row():
+                imp_rule_sel = gr.Dropdown(label="Rule", choices=[], scale=3)
+                imp_trigger = gr.Textbox(label="Trigger event", placeholder="e.g. bypass_rate > 0.4", scale=3)
+            imp_desc = gr.Textbox(label="Description", lines=2, placeholder="What went wrong and why")
+            with gr.Row():
+                imp_open_btn = gr.Button("▶ Open Cycle", variant="primary", size="sm")
+                imp_cycle_id = gr.Textbox(label="Cycle ID prefix to advance", scale=2)
+                imp_notes = gr.Textbox(label="Advance notes", scale=3)
+                imp_advance_btn = gr.Button("→ Advance Stage", variant="secondary", size="sm")
+            imp_status = gr.Markdown()
+
+            def _refresh_imp():
+                return build_improvement_funnel(), build_improvement_table(), gr.Dropdown(choices=get_rule_ids())
+
+            imp_refresh_btn.click(_refresh_imp, outputs=[imp_funnel, imp_table, imp_rule_sel])
+            demo.load(_refresh_imp, outputs=[imp_funnel, imp_table, imp_rule_sel])
+            imp_open_btn.click(
+                start_improvement_cycle,
+                inputs=[imp_rule_sel, imp_trigger, imp_desc],
+                outputs=imp_status,
+            )
+            imp_advance_btn.click(
+                advance_improvement_cycle,
+                inputs=[imp_cycle_id, imp_notes],
+                outputs=imp_status,
+            )
+
+            gr.HTML('<div class="section-title">Knowledge Graph</div>')
+            gr.Markdown("Map policies → requirements → controls → KPIs → audit findings → rules.")
+            kg_graph = gr.Plot()
+            kg_table = gr.Dataframe(interactive=False, wrap=True)
+            kg_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
+
+            gr.Markdown("**Add a node**")
+            with gr.Row():
+                kg_node_type = gr.Dropdown(label="Node type", choices=KG_NODE_TYPES, value="policy", scale=2)
+                kg_node_name = gr.Textbox(label="Name", scale=3)
+            kg_node_desc = gr.Textbox(label="Description (optional)", scale=3)
+            kg_node_rule = gr.Textbox(label="Linked Rule ID (optional)", scale=2)
+            kg_add_node_btn = gr.Button("+ Add Node", variant="secondary", size="sm")
+            kg_node_status = gr.Markdown()
+
+            gr.Markdown("**Add an edge**")
+            with gr.Row():
+                kg_from_id = gr.Textbox(label="From node ID prefix", scale=2)
+                kg_edge_type = gr.Dropdown(label="Edge type", choices=KG_EDGE_TYPES, value="implements", scale=2)
+                kg_to_id = gr.Textbox(label="To node ID prefix", scale=2)
+            kg_add_edge_btn = gr.Button("→ Add Edge", variant="secondary", size="sm")
+            kg_edge_status = gr.Markdown()
+
+            def _refresh_kg():
+                return build_kg_graph(), build_kg_table()
+
+            kg_refresh_btn.click(_refresh_kg, outputs=[kg_graph, kg_table])
+            demo.load(_refresh_kg, outputs=[kg_graph, kg_table])
+            kg_add_node_btn.click(
+                add_kg_node,
+                inputs=[kg_node_type, kg_node_name, kg_node_desc, kg_node_rule],
+                outputs=kg_node_status,
+            )
+            kg_add_edge_btn.click(
+                add_kg_edge,
+                inputs=[kg_from_id, kg_edge_type, kg_to_id],
+                outputs=kg_edge_status,
             )
 
             gr.HTML('<div class="section-title">Gap Simulator</div>')
