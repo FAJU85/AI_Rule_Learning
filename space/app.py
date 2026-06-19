@@ -2540,7 +2540,7 @@ def build_drift_chart() -> Any:
     fig.add_hline(y=0.7, line_dash="dot", line_color="#3fb950", annotation_text="Good")
     fig.add_hline(y=0.3, line_dash="dot", line_color="#f85149", annotation_text="Evolve threshold")
     fig.update_layout(
-        title=dict(text="Effectiveness Trend (red = drifting)", font=dict(size=14, color="#e2e8f0")),
+        title=dict(text="Effectiveness Trend (red = drifting)", font=dict(size=14, color="#334155")),
         xaxis_title="Measurement #",
         yaxis=dict(range=[0, 1.05], tickformat=".0%"),
         height=360,
@@ -2841,7 +2841,7 @@ def build_coverage_chart() -> Any:
             font=dict(size=24, color="#334155"),
         )],
     )
-    return fig
+    return _dark_fig(fig)
 
 
 def build_coverage_report() -> str:
@@ -3286,7 +3286,7 @@ def build_trace_heatmap() -> Any:
         yaxis=dict(tickfont=dict(color="#334155"), autorange="reversed"),
         margin=dict(l=120, r=20, t=40, b=40),
     )
-    return fig
+    return _dark_fig(fig)
 
 
 # ---------------------------------------------------------------------------
@@ -3900,7 +3900,7 @@ def build_improvement_funnel() -> Any:
         yaxis=dict(tickfont=dict(color="#334155")),
         margin=dict(l=160, r=20, t=50, b=20),
     )
-    return fig
+    return _dark_fig(fig)
 
 
 def build_governance_dashboard() -> str:
@@ -4077,15 +4077,15 @@ def build_trust_gauge() -> Any:
                 "value": 80,
             },
         },
-        title={"text": "Trust Score", "font": {"color": "#c9d1d9", "size": 16}},
-        number={"font": {"color": "#c9d1d9", "size": 40}},
+        title={"text": "Trust Score", "font": {"color": "#334155", "size": 16}},
+        number={"font": {"color": "#0f172a", "size": 40}},
     ))
     fig.update_layout(
         paper_bgcolor="#ffffff",
         margin=dict(l=20, r=20, t=60, b=20),
         height=250,
     )
-    return fig
+    return _dark_fig(fig)
 
 
 def build_trust_breakdown() -> Any:
@@ -4110,9 +4110,9 @@ def build_trust_breakdown() -> Any:
         margin=dict(l=20, r=20, t=50, b=60),
         height=260,
         shapes=[dict(type="line", x0=-0.5, x1=4.5, y0=80, y1=80,
-                     line=dict(color="#d29922", width=1, dash="dash"))],
+                     line=dict(color="#f59e0b", width=1, dash="dash"))],
     )
-    return fig
+    return _dark_fig(fig)
 
 
 # ---------------------------------------------------------------------------
@@ -4952,7 +4952,7 @@ def build_data_trust_chart() -> Any:
         title=dict(text="Data Sources by Trust Level", font=dict(color="#334155")),
         margin=dict(l=20, r=20, t=40, b=20),
     )
-    return fig
+    return _dark_fig(fig)
 
 
 # ---------------------------------------------------------------------------
@@ -5125,7 +5125,7 @@ def build_behavior_radar() -> Any:
         title=dict(text="Behavioral Quality Radar", font=dict(color="#334155")),
         margin=dict(l=60, r=60, t=60, b=60),
     )
-    return fig
+    return _dark_fig(fig)
 
 
 # ---------------------------------------------------------------------------
@@ -6517,7 +6517,7 @@ def build_reputation_chart() -> Any:
     if not summary:
         fig = go.Figure()
         fig.update_layout(title="No reputation data yet", height=300)
-        return fig
+        return _dark_fig(fig)
 
     names = [r.get("rule_name", r["rule_id"])[:30] for r in summary]
     fig = go.Figure()
@@ -6622,7 +6622,7 @@ def build_goal_chart() -> Any:
     if not results:
         fig = go.Figure()
         fig.update_layout(title="No goal data yet", height=300)
-        return fig
+        return _dark_fig(fig)
 
     names = [r.get("objective", r["goal_id"])[:30] for r in results]
     actuals = [r["actual_score"] for r in results]
@@ -6729,7 +6729,7 @@ def build_control_chart() -> Any:
     if not results:
         fig = go.Figure()
         fig.update_layout(title="No control data yet", height=300)
-        return fig
+        return _dark_fig(fig)
 
     # Group by risk level
     risk_order = ["critical", "high", "medium", "low"]
@@ -6766,7 +6766,7 @@ def build_control_heatmap() -> Any:
     if not controls:
         fig = go.Figure()
         fig.update_layout(title="No control mapping data", height=300)
-        return fig
+        return _dark_fig(fig)
 
     all_rules = list(rules_map.keys())
     ctrl_names = [c.get("name", c["control_id"])[:20] for c in controls]
@@ -7462,13 +7462,13 @@ def build_compliance_health_gauge() -> Any:
             "steps": [
                 {"range": [0, 60], "color": "#3d1010"},
                 {"range": [60, 80], "color": "#3d2e10"},
-                {"range": [80, 100], "color": "#10301e"},
+                {"range": [80, 100], "color": "#dcfce7"},
             ],
-            "threshold": {"line": {"color": "#ffffff", "width": 2}, "thickness": 0.75, "value": 80},
+            "threshold": {"line": {"color": "#334155", "width": 2}, "thickness": 0.75, "value": 80},
         },
     ))
     fig.update_layout(height=280, margin=dict(t=50, b=10, l=20, r=20))
-    return fig
+    return _dark_fig(fig)
 
 
 def build_compliance_health_breakdown() -> Any:
@@ -7483,7 +7483,7 @@ def build_compliance_health_breakdown() -> Any:
         height=280,
         yaxis=dict(range=[0, 110], title="%"),
     )
-    return fig
+    return _dark_fig(fig)
 
 
 def build_compliance_health_report() -> str:
@@ -7960,7 +7960,7 @@ def build_trend_chart(window_days: int = 30) -> Any:
         fig = go.Figure()
         fig.update_layout(title="No trend data yet. Take reputation snapshots first.",
                           height=350)
-        return fig
+        return _dark_fig(fig)
 
     fig = go.Figure()
     palette = ["#4fc3f7", "#81c784", "#ffb74d", "#e57373", "#ce93d8", "#80deea", "#fff176", "#ffab91"]
