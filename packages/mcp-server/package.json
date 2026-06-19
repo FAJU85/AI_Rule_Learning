@@ -1,0 +1,37 @@
+{
+  "name": "ai-rule-learning-mcp",
+  "version": "0.1.0",
+  "description": "MCP server for AI Rule Learning — apply personalised rules to Claude sessions",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "ai-rule-learning-mcp": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx src/index.ts",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "zod": "^3.22.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.0",
+    "tsx": "^4.7.0",
+    "@types/node": "^20.0.0"
+  },
+  "keywords": [
+    "mcp",
+    "claude",
+    "ai",
+    "rules",
+    "personalisation",
+    "model-context-protocol"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
