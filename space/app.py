@@ -6542,7 +6542,7 @@ def compute_reputation_summary() -> list[dict]:
             cut = cutoffs[days]
             window_entries = [e for e in entries if e.get("timestamp", "") >= cut]
             if window_entries:
-                avg = round(sum(e["compliance_score"] for e in window_entries) / len(window_entries), 1)
+                avg = round(sum(e.get("compliance_score", 0) for e in window_entries) / len(window_entries), 1)
             else:
                 avg = None
             row[f"{days}d_avg"] = avg
@@ -7995,7 +7995,7 @@ def compute_compliance_trends(window_days: int = 30) -> dict:
     trends: dict = {}
     for rid, entries in by_rule.items():
         sorted_entries = sorted(entries, key=lambda x: x.get("timestamp", ""))
-        scores = [e["compliance_score"] for e in sorted_entries]
+        scores = [e.get("compliance_score", 0) for e in sorted_entries]
         if len(scores) >= 2:
             slope = (scores[-1] - scores[0]) / len(scores)
             trend = "improving" if slope > 1 else "declining" if slope < -1 else "stable"
