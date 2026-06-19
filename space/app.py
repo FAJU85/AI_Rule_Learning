@@ -5549,7 +5549,8 @@ def _parse_session_jsonl(lines: list[str]) -> dict | None:
             continue
         try:
             obj = json.loads(line)
-        except Exception:
+        except Exception as e:
+            _log.warning("json parse error in session line: %s", e)
             continue
 
         msg = obj.get("message", {})
@@ -5978,7 +5979,8 @@ def build_metrics_html() -> str:
         next_lvl = maturity.get("next_level")
         next_name = maturity.get("next_level_name", "")
         mat_delta = f"Next: L{next_lvl} {next_name}" if next_lvl else "Maximum level reached"
-    except Exception:
+    except Exception as e:
+        _log.warning("assess_maturity failed: %s", e)
         mat_level, mat_name, mat_delta = 0, "Unavailable", "—"
     mat_cls = "green" if mat_level >= 4 else ("amber" if mat_level >= 2 else "red")
 
@@ -5989,7 +5991,8 @@ def build_metrics_html() -> str:
         rule_h = health.get("rule_health", 0.0)
         inc_h = health.get("incident_health", 100.0)
         health_delta = f"Rules {rule_h:.0f}% · Incidents {inc_h:.0f}%"
-    except Exception:
+    except Exception as e:
+        _log.warning("compute_compliance_health failed: %s", e)
         health_score, health_delta = 0.0, "—"
     health_cls = "green" if health_score >= 70 else ("amber" if health_score >= 40 else "red")
 
@@ -6881,7 +6884,7 @@ def detect_rule_learning() -> str:
             # linear regression slope over last LEARNING_WINDOW points
             n = LEARNING_WINDOW
             xs = list(range(n))
-            ys = [float(v) for v in history[-n:]]
+            ys = [float(v["score"]) if isinstance(v, dict) else float(v) for v in history[-n:]]
             x_mean = sum(xs) / n
             y_mean = sum(ys) / n
             num = sum((xs[i] - x_mean) * (ys[i] - y_mean) for i in range(n))
