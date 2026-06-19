@@ -6006,11 +6006,14 @@ def build_pending_alert_html() -> str:
 
 def build_effectiveness_chart_dark() -> Any:
     rules = load_rules()
-    if not rules:
-        return _dark_fig(go.Figure())
     active = [r for r in rules if r.get("is_active")]
     if not active:
-        return _dark_fig(go.Figure())
+        fig = go.Figure()
+        fig.add_annotation(text="No active rules yet — import sessions and run Analysis",
+                           xref="paper", yref="paper", x=0.5, y=0.5,
+                           showarrow=False, font=dict(color="#8b949e", size=13))
+        fig.update_layout(height=280, xaxis=dict(visible=False), yaxis=dict(visible=False))
+        return _dark_fig(fig)
     names = [r.get("name", r.get("rule_id", "?"))[:30] for r in active]
     scores = [r.get("effectiveness_score", 0) for r in active]
     colors = ["#3fb950" if s >= 0.7 else ("#d29922" if s >= 0.4 else "#f85149") for s in scores]
@@ -6035,10 +6038,11 @@ def build_cluster_chart() -> Any:
     """Stack-bar of gap types per project context — shows where problems concentrate."""
     conversations = load_conversations()
     if not conversations:
-        return _dark_fig(go.Figure(layout=dict(
-            title=dict(text="No data — import sessions first", font=dict(color="#e2e8f0")),
-            height=320,
-        )))
+        fig = go.Figure()
+        fig.add_annotation(text="No data — import sessions first", xref="paper", yref="paper",
+                           x=0.5, y=0.5, showarrow=False, font=dict(color="#8b949e", size=13))
+        fig.update_layout(height=320, xaxis=dict(visible=False), yaxis=dict(visible=False))
+        return _dark_fig(fig)
 
     cluster_gaps: dict[str, dict[str, int]] = {}
     for conv in conversations:
@@ -6056,10 +6060,11 @@ def build_cluster_chart() -> Any:
                 bucket[gtype] = bucket.get(gtype, 0) + 1
 
     if not cluster_gaps:
-        return _dark_fig(go.Figure(layout=dict(
-            title=dict(text="No gaps recorded yet — run Analysis first", font=dict(color="#e2e8f0")),
-            height=320,
-        )))
+        fig = go.Figure()
+        fig.add_annotation(text="No gaps recorded yet — run Analysis first", xref="paper", yref="paper",
+                           x=0.5, y=0.5, showarrow=False, font=dict(color="#8b949e", size=13))
+        fig.update_layout(height=320, xaxis=dict(visible=False), yaxis=dict(visible=False))
+        return _dark_fig(fig)
 
     contexts = list(cluster_gaps.keys())
     gap_types = sorted({gt for b in cluster_gaps.values() for gt in b})
