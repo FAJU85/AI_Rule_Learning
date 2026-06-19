@@ -295,6 +295,7 @@ def build_rule_score_trend(rule_name: str) -> Any:
         line=dict(color="#10b981" if scores[-1] >= 0.7 else ("#f59e0b" if scores[-1] >= 0.4 else "#be123c"), width=2),
         marker=dict(size=8),
         name="Effectiveness",
+        hovertemplate="<b>%{x}</b><br>Score: %{y:.0%}<extra></extra>",
     ))
     fig.add_hline(y=0.7, line_dash="dot", line_color="#10b981", annotation_text="Good (70%)")
     fig.add_hline(y=0.3, line_dash="dot", line_color="#be123c", annotation_text="Evolve threshold (30%)")
@@ -2460,6 +2461,7 @@ def build_drift_chart() -> Any:
             name=rule.get("name", "?")[:25],
             line=dict(color=color, width=2),
             marker=dict(size=6),
+            hovertemplate=f"<b>{rule.get('name','?')[:30]}</b><br>Measurement #%{{x}}<br>Score: %{{y:.0%}}<br>{'⚠ Drifting' if drift['is_drifting'] else '✓ Stable'}<extra></extra>",
         ))
 
     fig.add_hline(y=0.7, line_dash="dot", line_color="#10b981", annotation_text="Good")
@@ -6084,11 +6086,14 @@ def build_effectiveness_chart() -> Any:
         return _dark_fig(fig)
     names = [r.get("name", r.get("rule_id", "?"))[:30] for r in active]
     scores = [r.get("effectiveness_score", 0) for r in active]
+    triggered = [r.get("times_triggered", 0) for r in active]
     colors = ["#10b981" if s >= 0.7 else ("#f59e0b" if s >= 0.4 else "#be123c") for s in scores]
     fig = go.Figure(go.Bar(
         x=scores, y=names, orientation="h",
         marker_color=colors,
         text=[f"{s:.0%}" for s in scores], textposition="outside",
+        customdata=list(zip(triggered, [r.get("status", "") for r in active])),
+        hovertemplate="<b>%{y}</b><br>Score: %{x:.0%}<br>Triggered: %{customdata[0]}×<br>Status: %{customdata[1]}<extra></extra>",
     ))
     fig.update_layout(
         title=dict(text="Rule Effectiveness", font=dict(size=14, color="#334155")),
