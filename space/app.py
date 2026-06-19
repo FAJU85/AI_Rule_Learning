@@ -8098,29 +8098,25 @@ def build_maturity_report() -> str:
     next_lvl = assessment["next_level"]
     next_name = assessment["next_level_name"]
 
-    lines = [
-        f"## AI Governance Maturity Assessment",
-        f"",
-        f"### Current Level: **{current} — {current_name}**",
-        f"",
-    ]
+    lines = [f"**Current Level: {current} — {current_name}**", ""]
 
     for lvl in assessment["level_results"]:
-        icon = "✅" if lvl["achieved"] else ("🔄" if lvl["level"] == current + 1 else "⬜")
-        lines.append(f"**{icon} Level {lvl['level']}: {lvl['name']}** — {lvl['passed']}/{lvl['total']} ({lvl['pct']}%)")
-        for cap in lvl["capabilities"]:
-            status = "✓" if cap["passed"] else "✗"
-            lines.append(f"  - [{status}] {cap['label']}")
-        lines.append("")
+        if lvl["achieved"]:
+            icon = "✅"
+        elif lvl["level"] == current + 1:
+            icon = "🔄"
+        else:
+            icon = "⬜"
+        bar_filled = int(lvl["pct"] / 10)
+        bar = "█" * bar_filled + "░" * (10 - bar_filled)
+        lines.append(f"{icon} **L{lvl['level']} {lvl['name']}** `{bar}` {lvl['passed']}/{lvl['total']} ({lvl['pct']}%)")
 
     if next_lvl and gaps:
-        lines += [
-            f"---",
-            f"### To reach Level {next_lvl} ({next_name}), complete:",
-            "",
-        ] + [f"- {g}" for g in gaps]
+        lines += ["", f"**To reach Level {next_lvl} ({next_name}), complete:**"]
+        for g in gaps:
+            lines.append(f"- {g}")
     elif current == 6:
-        lines += ["---", "### Maximum maturity achieved (Level 6 — Autonomous)"]
+        lines += ["", "🏆 **Maximum maturity achieved — Level 6 Autonomous**"]
 
     return "\n".join(lines)
 with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as demo:
@@ -8136,18 +8132,24 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
 
         # ── Dashboard ────────────────────────────────────────────────────────
         with gr.Tab("📊 Dashboard"):
+            with gr.Row():
+                gr.HTML('<div style="flex:1;min-width:0"></div>')
+                dashboard_refresh = gr.Button("↻ Refresh", variant="secondary", size="sm")
+
             metrics_html = gr.HTML()
             pending_alert = gr.HTML()
-            dashboard_refresh = gr.Button("↻ Refresh", variant="secondary", size="sm")
 
-            gr.HTML('<div class="section-title">Rule Effectiveness</div>')
-            dash_eff_chart = gr.Plot()
+            with gr.Row():
+                with gr.Column(scale=1):
+                    gr.HTML('<div class="section-title">Rule Effectiveness</div>')
+                    dash_eff_chart = gr.Plot()
+                with gr.Column(scale=1):
+                    gr.HTML('<div class="section-title">Governance Maturity</div>')
+                    maturity_chart = gr.Plot()
 
-            gr.HTML('<div class="section-title">Governance Maturity Model</div>')
-            gr.Markdown("Six-level maturity ladder — auto-assessed from live system data. Shows where you are and exactly what to do next.")
-            maturity_chart = gr.Plot()
+            gr.HTML('<div class="section-title">Maturity Assessment</div>')
             maturity_report_md = gr.Markdown()
-            maturity_refresh_btn = gr.Button("↻ Assess Maturity", variant="secondary", size="sm")
+            maturity_refresh_btn = gr.Button("↻ Re-assess", variant="secondary", size="sm")
 
             gr.HTML('<div class="section-title">Recent Activity</div>')
             activity_html = gr.HTML()
