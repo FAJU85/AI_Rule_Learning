@@ -275,13 +275,23 @@ def get_rule_detail(rule_name: str) -> str:
 def build_rule_score_trend(rule_name: str) -> Any:
     """Return a Plotly figure showing the rule's effectiveness score over time."""
     if not rule_name:
-        return _dark_fig(go.Figure())
+        fig = go.Figure()
+        fig.add_annotation(text="Select a rule to view its score trend",
+                           xref="paper", yref="paper", x=0.5, y=0.5,
+                           showarrow=False, font=dict(color="#64748b", size=13))
+        fig.update_layout(height=240, xaxis=dict(visible=False), yaxis=dict(visible=False))
+        return _dark_fig(fig)
     rules = load_rules()
     rule = next(
         (r for r in rules if r.get("name") == rule_name or r.get("rule_id") == rule_name), None
     )
     if not rule:
-        return _dark_fig(go.Figure())
+        fig = go.Figure()
+        fig.add_annotation(text=f"Rule '{rule_name}' not found",
+                           xref="paper", yref="paper", x=0.5, y=0.5,
+                           showarrow=False, font=dict(color="#64748b", size=13))
+        fig.update_layout(height=240, xaxis=dict(visible=False), yaxis=dict(visible=False))
+        return _dark_fig(fig)
     history = rule.get("score_history", [])
     if not history:
         fig = go.Figure()
@@ -3508,6 +3518,7 @@ def detect_conflicts_heuristic(rules: list[dict]) -> list[dict]:
 
 def run_conflict_detection_llm(max_pairs: int = 10) -> str:
     """LLM-powered conflict scan across active rule pairs. Generator for streaming."""
+    yield "⏳ Loading rules…"
     rules = [r for r in _download_jsonl("rules.jsonl") if r.get("is_active") or r.get("status") == "active"]
     if len(rules) < 2:
         yield "Need at least 2 active rules to detect conflicts."
@@ -4453,6 +4464,7 @@ Return ONLY the JSON."""
 
 def run_ai_audit(conversation_id: str = "", max_turns: int = 3) -> str:
     """Worker AI assesses compliance, Auditor AI reviews. Generator for streaming."""
+    yield "⏳ Loading conversations…"
     convs = _download_jsonl("conversations.jsonl")
     if conversation_id:
         convs = [c for c in convs if c.get("conversation_id") == conversation_id]
