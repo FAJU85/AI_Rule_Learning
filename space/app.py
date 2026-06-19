@@ -6497,6 +6497,137 @@ def build_regression_table() -> pd.DataFrame:
 # #44 REPUTATION TRACKING
 # ---------------------------------------------------------------------------
 
+RATINGS_FILE = "session_ratings.jsonl"
+
+
+def submit_session_rating(conversation_id: str, rating: int, friction_notes: str, helped_notes: str) -> str:
+    """Save a 1-5 session quality rating for before/after analysis."""
+    if not conversation_id.strip():
+        return "❌ Please enter a conversation ID."
+    if rating < 1 or rating > 5:
+        return "❌ Rating must be between 1 and 5."
+    now = datetime.utcnow().isoformat()
+    active_count = sum(1 for r in _download_jsonl("rules.jsonl") if r.get("is_active"))
+    entry = {
+        "conversation_id": conversation_id.strip(),
+        "rating": rating,
+        "friction_notes": friction_notes.strip(),
+        "helped_notes": helped_notes.strip(),
+        "active_rule_count": active_count,
+        "rated_at": now,
+    }
+    _append_jsonl(RATINGS_FILE, [entry])
+    return f"✅ Rating saved (session '{conversation_id.strip()}', score {rating}/5, {active_count} active rules at time of rating)."
+
+
+def build_ratings_before_after() -> Any:
+    """Bar chart comparing average session ratings with 0 rules vs 1+ rules active."""
+    ratings = _download_jsonl(RATINGS_FILE)
+    if not ratings:
+        fig = go.Figure()
+        fig.add_annotation(
+            text="No ratings yet — submit session ratings below to track improvement",
+            xref="paper", yref="paper", x=0.5, y=0.5,
+            showarrow=False, font=dict(color="#64748b", size=13), align="center",
+        )
+        fig.update_layout(height=260, xaxis=dict(visible=False), yaxis=dict(visible=False))
+        return _dark_fig(fig)
+
+    baseline = [r["rating"] for r in ratings if isinstance(r.get("rating"), (int, float)) and r.get("active_rule_count", 0) == 0]
+    with_rules = [r["rating"] for r in ratings if isinstance(r.get("rating"), (int, float)) and r.get("active_rule_count", 0) > 0]
+
+    categories, values, colors = [], [], []
+    if baseline:
+        categories.append(f"Baseline<br><sub>({len(baseline)} sessions, 0 rules)</sub>")
+        values.append(round(sum(baseline) / len(baseline), 2))
+        colors.append("#94a3b8")
+    if with_rules:
+        categories.append(f"With Rules<br><sub>({len(with_rules)} sessions, 1+ rules)</sub>")
+        values.append(round(sum(with_rules) / len(with_rules), 2))
+        colors.append("#4f46e5")
+
+    if not categories:
+        fig = go.Figure()
+        fig.add_annotation(text="Rate more sessions to see comparison",
+                           xref="paper", yref="paper", x=0.5, y=0.5,
+                           showarrow=False, font=dict(color="#64748b", size=13))
+        fig.update_layout(height=260, xaxis=dict(visible=False), yaxis=dict(visible=False))
+        return _dark_fig(fig)
+
+    fig = go.Figure(go.Bar(
+        x=categories, y=values, marker_color=colors,
+        text=[f"{v:.2f}" for v in values], textposition="outside",
+        hovertemplate="<b>%{x}</b><br>Avg rating: %{y:.2f}/5<extra></extra>",
+    ))
+    fig.update_layout(
+        title=dict(text="Session Quality: Before vs After Rules", font=dict(size=14, color="#334155")),
+        yaxis=dict(range=[0, 5.5], title="Avg Rating (1–5)"),
+        height=300,
+    )
+    return _dark_fig(fig)
+
+
+def build_ratings_trend() -> Any:
+    """Line chart of session ratings over time, coloured by rule count."""
+    ratings = sorted(
+        [r for r in _download_jsonl(RATINGS_FILE) if isinstance(r.get("rating"), (int, float))],
+        key=lambda r: r.get("rated_at", ""),
+    )
+    if len(ratings) < 2:
+        fig = go.Figure()
+        fig.add_annotation(text="Need at least 2 ratings to show trend",
+                           xref="paper", yref="paper", x=0.5, y=0.5,
+                           showarrow=False, font=dict(color="#64748b", size=13))
+        fig.update_layout(height=260, xaxis=dict(visible=False), yaxis=dict(visible=False))
+        return _dark_fig(fig)
+
+    dates = [r.get("rated_at", "")[:10] for r in ratings]
+    scores = [r["rating"] for r in ratings]
+    rule_counts = [r.get("active_rule_count", 0) for r in ratings]
+    marker_colors = ["#94a3b8" if c == 0 else "#4f46e5" for c in rule_counts]
+
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=dates, y=scores, mode="lines",
+        line=dict(color="#e2e8f0", width=1), showlegend=False,
+        hoverinfo="skip",
+    ))
+    fig.add_trace(go.Scatter(
+        x=dates, y=scores, mode="markers",
+        marker=dict(color=marker_colors, size=10, line=dict(width=1.5, color="#ffffff")),
+        hovertemplate="<b>%{x}</b><br>Rating: %{y}/5<extra></extra>",
+        name="Session rating",
+    ))
+    fig.update_layout(
+        title=dict(text="Rating Trend Over Time  (grey = no rules, indigo = rules active)",
+                   font=dict(size=13, color="#334155")),
+        yaxis=dict(range=[0.5, 5.5], title="Rating"),
+        height=280,
+    )
+    return _dark_fig(fig)
+
+
+def build_ratings_table() -> pd.DataFrame:
+    ratings = sorted(
+        _download_jsonl(RATINGS_FILE),
+        key=lambda r: r.get("rated_at", ""),
+        reverse=True,
+    )
+    if not ratings:
+        return pd.DataFrame(columns=["Date", "Session", "Rating", "Rules Active", "Friction", "Helped"])
+    rows = []
+    for r in ratings[:50]:
+        rows.append({
+            "Date": r.get("rated_at", "")[:10],
+            "Session": r.get("conversation_id", "")[:30],
+            "Rating": f"{r.get('rating', '?')}/5",
+            "Rules Active": r.get("active_rule_count", 0),
+            "Friction": r.get("friction_notes", "")[:60],
+            "Helped": r.get("helped_notes", "")[:60],
+        })
+    return pd.DataFrame(rows)
+
+
 REPUTATION_FILE = "reputation.jsonl"
 REPUTATION_WINDOWS = [7, 30, 90]  # days
 
@@ -9192,6 +9323,39 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 inputs=[exp_rule_sel, exp_user_input, exp_agent_response],
                 outputs=exp_result,
             )
+
+            gr.HTML('<div class="section-title">Session Feedback — Before vs After</div>')
+            gr.Markdown(
+                "Rate each conversation session 1–5 to measure whether AI performance improves as rules accumulate. "
+                "Sessions rated before any rules are active form the **baseline**; sessions with 1+ active rules form the **with-rules** group."
+            )
+            with gr.Row():
+                rating_before_after = gr.Plot(scale=2)
+                rating_trend = gr.Plot(scale=2)
+            rating_table = gr.Dataframe(interactive=False, wrap=True)
+            rating_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
+
+            gr.Markdown("**Submit a rating**")
+            with gr.Row():
+                rating_conv_id = gr.Textbox(label="Conversation ID", placeholder="e.g. conv_20240101", scale=3)
+                rating_score = gr.Slider(label="Session quality (1 = poor, 5 = excellent)", minimum=1, maximum=5, step=1, value=3, scale=2)
+            with gr.Row():
+                rating_friction = gr.Textbox(label="What caused friction / what went wrong?", lines=2, placeholder="e.g. AI repeated itself, wrong tone…", scale=3)
+                rating_helped = gr.Textbox(label="What rules helped (if any)?", lines=2, placeholder="e.g. 'always show code examples' rule worked well", scale=3)
+            rating_submit_btn = gr.Button("Submit Rating", variant="primary", size="sm")
+            rating_status = gr.Markdown()
+
+            def _refresh_ratings():
+                return build_ratings_before_after(), build_ratings_trend(), build_ratings_table()
+
+            rating_submit_btn.click(
+                submit_session_rating,
+                inputs=[rating_conv_id, rating_score, rating_friction, rating_helped],
+                outputs=rating_status,
+            )
+            rating_submit_btn.click(_refresh_ratings, outputs=[rating_before_after, rating_trend, rating_table])
+            rating_refresh_btn.click(_refresh_ratings, outputs=[rating_before_after, rating_trend, rating_table])
+            analytics_tab.select(_refresh_ratings, outputs=[rating_before_after, rating_trend, rating_table])
 
         with gr.Tab("⚖️ Governance") as gov_tab:
 
