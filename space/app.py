@@ -5466,13 +5466,13 @@ def run_score_effectiveness():
                 rule = active_rules.get(rid)
                 if not rule:
                     continue
-                rule["times_triggered"] += 1
+                rule["times_triggered"] = rule.get("times_triggered", 0) + 1
                 # Check if a gap the rule targets still appeared afterward
                 reappeared = any(_rule_targets_gap(rule, gtype) for gtype in subsequent_gaps)
                 if reappeared:
                     rule["failure_count"] = rule.get("failure_count", 0) + 1
                 else:
-                    rule["success_count"] += 1
+                    rule["success_count"] = rule.get("success_count", 0) + 1
 
     # Update effectiveness scores and report
     now = datetime.utcnow().isoformat()
