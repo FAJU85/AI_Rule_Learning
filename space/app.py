@@ -287,8 +287,8 @@ def build_rule_score_trend(rule_name: str) -> Any:
         fig = go.Figure()
         fig.update_layout(title=f"{rule.get('name', rule_name)} — no score history yet")
         return _dark_fig(fig)
-    dates = [h["date"][:10] for h in history]
-    scores = [h["score"] for h in history]
+    dates = [h.get("date", "")[:10] for h in history if isinstance(h, dict)]
+    scores = [h.get("score", 0) for h in history if isinstance(h, dict)]
     fig = go.Figure()
     fig.add_trace(go.Scatter(
         x=dates, y=scores, mode="lines+markers",
@@ -2364,7 +2364,7 @@ def _compute_drift(score_history: list[dict]) -> dict:
     """Return drift analysis: slope, is_drifting, last_score, first_score."""
     if len(score_history) < _DRIFT_MIN_POINTS:
         return {"slope": 0.0, "is_drifting": False, "insufficient_data": True}
-    scores = [h["score"] for h in score_history]
+    scores = [h.get("score", 0) for h in score_history if isinstance(h, dict)]
     n = len(scores)
     # Linear regression slope (least squares)
     x_mean = (n - 1) / 2
@@ -2849,7 +2849,7 @@ def run_benchmark() -> str:
         if not rule:
             skipped += 1
             continue
-        triggered = _rule_triggers_on(rule, c["input_text"])
+        triggered = _rule_triggers_on(rule, c.get("input_text", ""))
         expected = c.get("should_trigger", True)
         if triggered == expected:
             passed += 1
@@ -6392,7 +6392,7 @@ def run_regression_check() -> str:
         rule = rules_map.get(rid)
         if not rule:
             continue
-        triggered = _rule_triggers_on(rule, c["input_text"])
+        triggered = _rule_triggers_on(rule, c.get("input_text", ""))
         expected = c.get("should_trigger", True)
         entry = rule_scores.setdefault(rid, {"passed": 0, "total": 0, "name": rule.get("name", rid)})
         entry["total"] += 1
