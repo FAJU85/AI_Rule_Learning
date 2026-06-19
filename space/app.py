@@ -6209,6 +6209,12 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
             gr.HTML('<div class="section-title">Rule Effectiveness</div>')
             dash_eff_chart = gr.Plot()
 
+            gr.HTML('<div class="section-title">Governance Maturity Model</div>')
+            gr.Markdown("Six-level maturity ladder — auto-assessed from live system data. Shows where you are and exactly what to do next.")
+            maturity_chart = gr.Plot()
+            maturity_report_md = gr.Markdown()
+            maturity_refresh_btn = gr.Button("↻ Assess Maturity", variant="secondary", size="sm")
+
             gr.HTML('<div class="section-title">Recent Activity</div>')
             activity_html = gr.HTML()
 
@@ -6217,16 +6223,22 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     build_metrics_html(),
                     build_pending_alert_html(),
                     build_effectiveness_chart_dark(),
+                    build_maturity_chart(),
+                    build_maturity_report(),
                     build_activity_html(),
                 )
 
+            maturity_refresh_btn.click(
+                lambda: (build_maturity_chart(), build_maturity_report()),
+                outputs=[maturity_chart, maturity_report_md],
+            )
             dashboard_refresh.click(
                 refresh_dashboard,
-                outputs=[metrics_html, pending_alert, dash_eff_chart, activity_html],
+                outputs=[metrics_html, pending_alert, dash_eff_chart, maturity_chart, maturity_report_md, activity_html],
             )
             demo.load(
                 refresh_dashboard,
-                outputs=[metrics_html, pending_alert, dash_eff_chart, activity_html],
+                outputs=[metrics_html, pending_alert, dash_eff_chart, maturity_chart, maturity_report_md, activity_html],
             )
 
         # ── Rules ────────────────────────────────────────────────────────────
@@ -9267,6 +9279,238 @@ def build_trend_summary(window_days: int = 30) -> str:
         lines += ["", "**Declining rules:**"] + [f"- {d['rule_name']} (slope={d['slope']:+.2f})" for d in declining]
     if improving:
         lines += ["", "**Improving rules:**"] + [f"- {d['rule_name']} (slope={d['slope']:+.2f})" for d in improving]
+    return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# MATURITY MODEL (Levels 1–6)
+# ---------------------------------------------------------------------------
+#
+# Level 1 – Initial:      Rules exist, basic structure in place
+# Level 2 – Defined:      Lifecycle managed, ownership assigned, sessions imported
+# Level 3 – Managed:      Active monitoring, incidents, enforcement, audits
+# Level 4 – Measured:     Metrics-driven (trust score, SLOs, benchmarks, coverage)
+# Level 5 – Optimized:    Predictive, learning, continuous improvement
+# Level 6 – Autonomous:   Certified, tamper-evident, goal-aligned, bias-checked
+#
+# Each capability is a (label, check_fn) pair.  check_fn() returns True/False.
+
+def _has_data(file: str, min_count: int = 1) -> bool:
+    return len(_download_jsonl(file)) >= min_count
+
+
+MATURITY_LEVELS: list[dict] = [
+    {
+        "level": 1,
+        "name": "Initial",
+        "description": "Rules exist and are structured. The foundation is in place.",
+        "color": "#e57373",
+        "capabilities": [
+            ("Rules defined", lambda: _has_data("rules.jsonl", 1)),
+            ("Rule categories used (layer field)", lambda: any(r.get("layer") for r in _download_jsonl("rules.jsonl"))),
+            ("At least one active rule", lambda: any(r.get("status") == "active" for r in _download_jsonl("rules.jsonl"))),
+            ("Rule descriptions present", lambda: any(r.get("description") for r in _download_jsonl("rules.jsonl"))),
+        ],
+    },
+    {
+        "level": 2,
+        "name": "Defined",
+        "description": "Governance processes are defined. Lifecycle, ownership, and session data are managed.",
+        "color": "#ffb74d",
+        "capabilities": [
+            ("Rule lifecycle tracked (status transitions)", lambda: any(r.get("status") in ("deprecated", "retired", "pending_review") for r in _download_jsonl("rules.jsonl"))),
+            ("Rule ownership assigned", lambda: any(r.get("owner") for r in _download_jsonl("rules.jsonl"))),
+            ("Sessions imported", lambda: _has_data("conversations.jsonl", 1)),
+            ("Exceptions managed", lambda: _has_data("exceptions.jsonl", 1)),
+            ("Dependencies mapped", lambda: any(r.get("depends_on") or r.get("blocks") for r in _download_jsonl("rules.jsonl"))),
+        ],
+    },
+    {
+        "level": 3,
+        "name": "Managed",
+        "description": "Active monitoring and response. Incidents are tracked, enforcement is running, audits are conducted.",
+        "color": "#fff176",
+        "capabilities": [
+            ("Incidents tracked", lambda: _has_data(INCIDENT_FILE, 1)),
+            ("Rule enforcement logged", lambda: _has_data(ENFORCEMENT_FILE, 1)),
+            ("AI audits conducted", lambda: _has_data(AUDIT_FILE, 1)),
+            ("Human overrides logged", lambda: _has_data(OVERRIDE_FILE, 1)),
+            ("Conflict detection run", lambda: _has_data(CONFLICT_FILE, 1)),
+            ("RCA log entries present", lambda: _has_data(RCA_FILE, 1)),
+        ],
+    },
+    {
+        "level": 4,
+        "name": "Measured",
+        "description": "Quantitative management. Trust scores, SLOs, benchmarks, and coverage are actively measured.",
+        "color": "#81c784",
+        "capabilities": [
+            ("Trust score computed (score_history present)", lambda: any(r.get("score_history") for r in _download_jsonl("rules.jsonl"))),
+            ("SLOs defined", lambda: _has_data(SLO_FILE, 1)),
+            ("Benchmark cases defined", lambda: _has_data(BENCHMARK_FILE, 3)),
+            ("Rule coverage measured", lambda: bool(compute_coverage().get("covered_gaps", 0))),
+            ("Compliance forecasts run", lambda: _has_data("compliance_forecast.jsonl", 1) if True else any(r.get("score_history") and len(r.get("score_history", [])) >= 3 for r in _download_jsonl("rules.jsonl"))),
+            ("Decision provenance recorded", lambda: _has_data(PROVENANCE_FILE, 1)),
+        ],
+    },
+    {
+        "level": 5,
+        "name": "Optimized",
+        "description": "Continuous improvement and learning. Regressions are caught, rules are improving, improvement cycles run.",
+        "color": "#4fc3f7",
+        "capabilities": [
+            ("Regression detection run", lambda: _has_data(REGRESSION_FILE, 1)),
+            ("Rule learning detected", lambda: _has_data(LEARNING_FILE, 1)),
+            ("Improvement cycles active", lambda: _has_data(IMPROVEMENT_FILE, 1)),
+            ("Reputation snapshots taken", lambda: _has_data(REPUTATION_FILE, 3)),
+            ("Adversarial robustness tested", lambda: _has_data(ROBUSTNESS_FILE, 1)),
+            ("Goal alignment monitored", lambda: _has_data(GOAL_FILE, 1)),
+            ("Predictive compliance horizon set", lambda: any(r.get("score_history") and len(r.get("score_history", [])) >= 5 for r in _download_jsonl("rules.jsonl"))),
+        ],
+    },
+    {
+        "level": 6,
+        "name": "Autonomous",
+        "description": "Self-governing system. Certified, tamper-evident, bias-checked, control-mapped, calendar-driven.",
+        "color": "#ce93d8",
+        "capabilities": [
+            ("Certifications registered", lambda: _has_data(CERT_FILE, 1)),
+            ("Audit trail integrity chain active", lambda: _has_data(AUDIT_CHAIN_FILE, 1)),
+            ("Fairness/bias analyses run", lambda: _has_data(BIAS_FILE, 1)),
+            ("Control mapping complete", lambda: _has_data(CONTROL_FILE, 1)),
+            ("Meta-governance roles assigned", lambda: any(e.get("type") == "role" for e in _download_jsonl(META_GOV_FILE))),
+            ("Compliance calendar active", lambda: _has_data(CALENDAR_FILE, 1)),
+            ("Stakeholder reports generated", lambda: True if _has_data(CERT_FILE, 1) else False),  # proxy: certs + goals = report-ready
+            ("Gaming detection active", lambda: _has_data(GAMING_FILE, 1)),
+        ],
+    },
+]
+
+
+def assess_maturity() -> dict:
+    """Evaluate the system against each maturity level and return full assessment."""
+    level_results: list[dict] = []
+    current_level = 0
+    all_previous_passed = True
+
+    for level_def in MATURITY_LEVELS:
+        caps = []
+        for label, check_fn in level_def["capabilities"]:
+            try:
+                passed = bool(check_fn())
+            except Exception:
+                passed = False
+            caps.append({"label": label, "passed": passed})
+
+        total = len(caps)
+        passed_count = sum(1 for c in caps if c["passed"])
+        pct = round(passed_count / total * 100, 1) if total else 0.0
+        achieved = passed_count == total and all_previous_passed
+
+        if achieved:
+            current_level = level_def["level"]
+        elif all_previous_passed and passed_count < total:
+            all_previous_passed = False
+
+        level_results.append({
+            "level": level_def["level"],
+            "name": level_def["name"],
+            "description": level_def["description"],
+            "color": level_def["color"],
+            "capabilities": caps,
+            "passed": passed_count,
+            "total": total,
+            "pct": pct,
+            "achieved": achieved,
+        })
+
+    # Gaps for next level
+    next_level_idx = current_level  # 0-based index = current_level (since levels are 1-based)
+    gaps: list[str] = []
+    if next_level_idx < len(level_results):
+        next_lvl = level_results[next_level_idx]
+        gaps = [c["label"] for c in next_lvl["capabilities"] if not c["passed"]]
+
+    return {
+        "current_level": current_level,
+        "current_name": MATURITY_LEVELS[current_level - 1]["name"] if current_level > 0 else "Not Started",
+        "level_results": level_results,
+        "gaps_to_next": gaps,
+        "next_level": current_level + 1 if current_level < 6 else None,
+        "next_level_name": MATURITY_LEVELS[current_level]["name"] if current_level < 6 else "Achieved",
+    }
+
+
+def build_maturity_chart() -> Any:
+    assessment = assess_maturity()
+    levels = assessment["level_results"]
+    current = assessment["current_level"]
+
+    names = [f"L{l['level']}: {l['name']}" for l in levels]
+    pcts = [l["pct"] for l in levels]
+    colors = [l["color"] if l["achieved"] else ("#4a4a6a" if l["level"] > current + 1 else l["color"]) for l in levels]
+    opacities = [1.0 if l["level"] <= current + 1 else 0.4 for l in levels]
+
+    fig = go.Figure()
+    for i, (name, pct, color, opacity) in enumerate(zip(names, pcts, colors, opacities)):
+        fig.add_trace(go.Bar(
+            x=[name], y=[pct],
+            marker_color=color,
+            opacity=opacity,
+            showlegend=False,
+            text=[f"{pct}%"],
+            textposition="inside",
+            hovertext=f"Level {i+1}: {levels[i]['description']}",
+        ))
+
+    # Mark current level
+    if current > 0:
+        fig.add_vline(x=current - 0.5, line_dash="dash", line_color="#ffffff", line_width=1,
+                      annotation_text=f"← L{current} achieved", annotation_font_color="#ffffff")
+
+    fig.update_layout(
+        title=f"AI Governance Maturity — Current: Level {current} ({assessment['current_name']})",
+        template="plotly_dark",
+        height=360,
+        yaxis=dict(title="Capability Completion %", range=[0, 110]),
+        showlegend=False,
+        bargap=0.15,
+    )
+    return fig
+
+
+def build_maturity_report() -> str:
+    assessment = assess_maturity()
+    current = assessment["current_level"]
+    current_name = assessment["current_name"]
+    gaps = assessment["gaps_to_next"]
+    next_lvl = assessment["next_level"]
+    next_name = assessment["next_level_name"]
+
+    lines = [
+        f"## AI Governance Maturity Assessment",
+        f"",
+        f"### Current Level: **{current} — {current_name}**",
+        f"",
+    ]
+
+    for lvl in assessment["level_results"]:
+        icon = "✅" if lvl["achieved"] else ("🔄" if lvl["level"] == current + 1 else "⬜")
+        lines.append(f"**{icon} Level {lvl['level']}: {lvl['name']}** — {lvl['passed']}/{lvl['total']} ({lvl['pct']}%)")
+        for cap in lvl["capabilities"]:
+            status = "✓" if cap["passed"] else "✗"
+            lines.append(f"  - [{status}] {cap['label']}")
+        lines.append("")
+
+    if next_lvl and gaps:
+        lines += [
+            f"---",
+            f"### To reach Level {next_lvl} ({next_name}), complete:",
+            "",
+        ] + [f"- {g}" for g in gaps]
+    elif current == 6:
+        lines += ["---", "### Maximum maturity achieved (Level 6 — Autonomous)"]
+
     return "\n".join(lines)
 
 
