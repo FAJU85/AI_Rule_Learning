@@ -35,12 +35,12 @@ Your data is scrubbed locally before anything is sent anywhere. Community
 contributions (if you opt in) share only anonymous pattern counts — never your
 actual conversations or content.
 
-See [PRIVACY.md](../PRIVACY.md) for full details.
+See [PRIVACY.md](https://github.com/faju85/ai_rule_learning/blob/main/PRIVACY.md) for full details.
 
 ## Licence
 
 Free for personal use. Commercial and government use requires written
-permission. See [LICENSE](../LICENSE) and [TERMS.md](../TERMS.md).
+permission. See [LICENSE](https://github.com/faju85/ai_rule_learning/blob/main/LICENSE) and [TERMS.md](https://github.com/faju85/ai_rule_learning/blob/main/TERMS.md).
 
 ---
 
