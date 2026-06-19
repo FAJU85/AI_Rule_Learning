@@ -2645,7 +2645,7 @@ def build_dependency_graph() -> Any:
     fig = go.Figure()
     fig.add_trace(go.Scatter(
         x=edge_x, y=edge_y, mode="lines",
-        line=dict(width=1, color="#444"),
+        line=dict(width=1, color="#cbd5e1"),
         hoverinfo="none",
     ))
     fig.add_trace(go.Scatter(
@@ -3370,7 +3370,7 @@ def build_kg_graph() -> Any:
     fig = go.Figure()
     fig.add_trace(go.Scatter(
         x=edge_x, y=edge_y, mode="lines",
-        line=dict(width=1, color="#444"), hoverinfo="none",
+        line=dict(width=1, color="#cbd5e1"), hoverinfo="none",
     ))
     for nt in KG_NODE_TYPES:
         grp = [nd for nd in nodes if nd.get("node_type") == nt]
