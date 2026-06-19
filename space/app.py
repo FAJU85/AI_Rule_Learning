@@ -3350,7 +3350,7 @@ def build_kg_graph() -> Any:
     type_colors = {
         "policy": "#4f46e5", "requirement": "#818cf8",
         "control": "#059669", "kpi": "#f59e0b",
-        "audit_finding": "#ef4444", "rule": "#8b949e",
+        "audit_finding": "#ef4444", "rule": "#94a3b8",
     }
     n = len(nodes)
     positions = {nd["node_id"]: (math.cos(2 * math.pi * i / max(n, 1)),
@@ -3381,7 +3381,7 @@ def build_kg_graph() -> Any:
             y=[positions[nd["node_id"]][1] for nd in grp],
             mode="markers+text",
             name=nt,
-            marker=dict(size=14, color=type_colors.get(nt, "#8b949e"),
+            marker=dict(size=14, color=type_colors.get(nt, "#94a3b8"),
                         line=dict(width=1, color="#e2e8f0")),
             text=[nd["name"] for nd in grp],
             textposition="top center",
@@ -4864,10 +4864,10 @@ def build_data_trust_chart() -> Any:
         return _dark_fig(fig)
     from collections import Counter
     counts = Counter(e.get("trust_level", "medium") for e in entries)
-    color_map = {"high": "#10b981", "medium": "#f59e0b", "low": "#ef4444", "untrusted": "#ff4444"}
+    color_map = {"high": "#10b981", "medium": "#f59e0b", "low": "#ef4444", "untrusted": "#be123c"}
     labels = list(counts.keys())
     values = [counts[l] for l in labels]
-    colors = [color_map.get(l, "#8b949e") for l in labels]
+    colors = [color_map.get(l, "#94a3b8") for l in labels]
     fig = go.Figure(go.Pie(
         labels=labels, values=values,
         marker=dict(colors=colors),
