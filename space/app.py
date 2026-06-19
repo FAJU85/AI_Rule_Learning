@@ -6792,7 +6792,8 @@ def build_control_chart() -> Any:
             continue
         names = [c.get("name", c["control_id"])[:25] for c in items]
         vals = [c["effectiveness"] for c in items]
-        fig.add_trace(go.Bar(name=rl.capitalize(), x=names, y=vals, marker_color=risk_colors[rl]))
+        fig.add_trace(go.Bar(name=rl.capitalize(), x=names, y=vals, marker_color=risk_colors[rl],
+                             hovertemplate="<b>%{x}</b><br>Risk: " + rl + "<br>Effectiveness: %{y:.0f}%<extra></extra>"))
 
     fig.update_layout(
         title="Control Effectiveness by Risk Level",
@@ -8010,7 +8011,7 @@ def build_trend_chart(window_days: int = 30) -> Any:
         return _dark_fig(fig)
 
     fig = go.Figure()
-    palette = ["#38bdf8", "#34d399", "#fbbf24", "#f87171", "#ce93d8", "#80deea", "#4f46e5", "#ffab91"]
+    palette = ["#38bdf8", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4", "#4f46e5", "#ec4899"]
     for i, (rid, data) in enumerate(trends.items()):
         color = palette[i % len(palette)]
         timestamps = data["timestamps"]
@@ -8023,6 +8024,7 @@ def build_trend_chart(window_days: int = 30) -> Any:
             mode="lines+markers",
             line=dict(color=color, width=2),
             marker=dict(size=6),
+            hovertemplate=f"<b>{data['rule_name'][:30]}</b><br>%{{x}}<br>%{{y:.1f}}%<extra></extra>",
         ))
 
     fig.update_layout(
@@ -8236,7 +8238,7 @@ def build_maturity_chart() -> Any:
             showlegend=False,
             text=[f"{pct}%"],
             textposition="inside",
-            hovertext=f"Level {i+1}: {levels[i]['description']}",
+            hovertemplate=f"<b>{name}</b><br>{pct}% capabilities met<br>{levels[i]['description']}<extra></extra>",
         ))
 
     # Mark current level
