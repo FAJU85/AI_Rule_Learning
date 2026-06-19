@@ -355,13 +355,13 @@ def get_rule_detail(rule_name: str) -> str:
 def build_rule_score_trend(rule_name: str) -> Any:
     """Return a Plotly figure showing the rule's effectiveness score over time."""
     if not rule_name:
-        return go.Figure()
+        return _dark_fig(go.Figure())
     rules = load_rules()
     rule = next(
         (r for r in rules if r.get("name") == rule_name or r.get("rule_id") == rule_name), None
     )
     if not rule:
-        return go.Figure()
+        return _dark_fig(go.Figure())
     history = rule.get("score_history", [])
     if not history:
         fig = go.Figure()
@@ -2682,7 +2682,11 @@ def build_dependency_graph() -> Any:
     """Return a Plotly network graph of rule dependencies."""
     rules = _download_jsonl("rules.jsonl")
     if not rules:
-        return go.Figure()
+        fig = go.Figure()
+        fig.add_annotation(text="No rules yet — import sessions and run Analysis", xref="paper", yref="paper",
+                           x=0.5, y=0.5, showarrow=False, font=dict(color="#8b949e", size=13))
+        fig.update_layout(height=280, xaxis=dict(visible=False), yaxis=dict(visible=False))
+        return _dark_fig(fig)
 
     id_to_name: dict[str, str] = {r["rule_id"]: r.get("name", r["rule_id"]) for r in rules if "rule_id" in r}
     edges: list[tuple[str, str]] = []
@@ -3251,7 +3255,11 @@ def build_trace_heatmap() -> Any:
     """Heatmap: conversation × turn, coloured by rules_fired count."""
     traces = _download_jsonl(TRACE_FILE)
     if not traces:
-        return go.Figure()
+        fig = go.Figure()
+        fig.add_annotation(text="No trace data yet — run AI Audit to generate traces", xref="paper", yref="paper",
+                           x=0.5, y=0.5, showarrow=False, font=dict(color="#8b949e", size=13))
+        fig.update_layout(height=280, xaxis=dict(visible=False), yaxis=dict(visible=False))
+        return _dark_fig(fig)
 
     from collections import defaultdict
     grid: dict[str, dict[int, int]] = defaultdict(dict)
@@ -3405,7 +3413,11 @@ def build_kg_graph() -> Any:
     """Plotly network diagram of the knowledge graph."""
     nodes = _download_jsonl(KG_FILE)
     if not nodes:
-        return go.Figure()
+        fig = go.Figure()
+        fig.add_annotation(text="No knowledge graph entries yet — add nodes in Governance", xref="paper", yref="paper",
+                           x=0.5, y=0.5, showarrow=False, font=dict(color="#8b949e", size=13))
+        fig.update_layout(height=280, xaxis=dict(visible=False), yaxis=dict(visible=False))
+        return _dark_fig(fig)
 
     import math
     type_colors = {
@@ -3758,7 +3770,11 @@ def build_slo_table() -> pd.DataFrame:
 def build_slo_chart() -> Any:
     rows = compute_slo_status()
     if not rows:
-        return go.Figure()
+        fig = go.Figure()
+        fig.add_annotation(text="No SLOs defined yet — add one in Governance → Rule Observability", xref="paper", yref="paper",
+                           x=0.5, y=0.5, showarrow=False, font=dict(color="#8b949e", size=13))
+        fig.update_layout(height=280, xaxis=dict(visible=False), yaxis=dict(visible=False))
+        return _dark_fig(fig)
     names = [f"{r['rule_name'][:20]} / {r['slo_name']}" for r in rows]
     slis = [r["sli_pct"] if r["sli_pct"] is not None else 0 for r in rows]
     targets = [r["target_pct"] for r in rows]
@@ -3862,7 +3878,11 @@ def build_improvement_funnel() -> Any:
     """Funnel chart showing how many cycles are at each stage."""
     cycles = _download_jsonl(IMPROVEMENT_FILE)
     if not cycles:
-        return go.Figure()
+        fig = go.Figure()
+        fig.add_annotation(text="No improvement cycles open yet", xref="paper", yref="paper",
+                           x=0.5, y=0.5, showarrow=False, font=dict(color="#8b949e", size=13))
+        fig.update_layout(height=280, xaxis=dict(visible=False), yaxis=dict(visible=False))
+        return _dark_fig(fig)
     from collections import Counter
     counts = Counter(c.get("stage", "violation_detected") for c in cycles if c.get("status") == "open")
     values = [counts.get(s, 0) for s in IMPROVEMENT_STAGES]
@@ -4217,7 +4237,11 @@ def build_incident_chart() -> Any:
     """Stacked bar by severity and status."""
     incidents = _download_jsonl(INCIDENT_FILE)
     if not incidents:
-        return go.Figure()
+        fig = go.Figure()
+        fig.add_annotation(text="No incidents logged yet", xref="paper", yref="paper",
+                           x=0.5, y=0.5, showarrow=False, font=dict(color="#8b949e", size=13))
+        fig.update_layout(height=280, xaxis=dict(visible=False), yaxis=dict(visible=False))
+        return _dark_fig(fig)
     from collections import Counter
     counts = Counter((i.get("severity", "P3_low"), i.get("status", "open")) for i in incidents)
     statuses = list(dict.fromkeys(i.get("status", "open") for i in incidents))
@@ -4905,7 +4929,11 @@ def build_data_trust_chart() -> Any:
     """Pie chart of data sources by trust level."""
     entries = _download_jsonl(DATA_PROVENANCE_FILE)
     if not entries:
-        return go.Figure()
+        fig = go.Figure()
+        fig.add_annotation(text="No data provenance entries yet", xref="paper", yref="paper",
+                           x=0.5, y=0.5, showarrow=False, font=dict(color="#8b949e", size=13))
+        fig.update_layout(height=280, xaxis=dict(visible=False), yaxis=dict(visible=False))
+        return _dark_fig(fig)
     from collections import Counter
     counts = Counter(e.get("trust_level", "medium") for e in entries)
     color_map = {"high": "#3fb950", "medium": "#d29922", "low": "#f85149", "untrusted": "#ff4444"}
