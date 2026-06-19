@@ -5551,9 +5551,11 @@ def _extract_text_from_content(content) -> str:
 _SKIP_TAGS = ["<github-webhook-activity>", "<system-reminder>", "<task-notification>", "<untrusted_external_data"]
 
 
-def _parse_session_jsonl(lines: list[str]) -> dict | None:
+def _parse_session_jsonl(lines: list[str]) -> dict:
+    """Parse session JSONL lines into a conversation dict. Raises ValueError on failure."""
     messages = []
     session_meta: dict = {}
+    parse_errors = 0
 
     for line in lines:
         line = line.strip()
@@ -5562,6 +5564,7 @@ def _parse_session_jsonl(lines: list[str]) -> dict | None:
         try:
             obj = json.loads(line)
         except Exception as e:
+            parse_errors += 1
             _log.warning("json parse error in session line: %s", e)
             continue
 
@@ -5589,8 +5592,15 @@ def _parse_session_jsonl(lines: list[str]) -> dict | None:
 
         messages.append({"role": role, "text": text, "timestamp": obj.get("timestamp", "")})
 
-    if not session_meta or len(messages) < 4:
-        return None
+    if not session_meta:
+        hint = f" ({parse_errors} line(s) had JSON parse errors)" if parse_errors else ""
+        raise ValueError(f"no session metadata found — file may be empty or wrong format{hint}")
+    if len(messages) < 4:
+        raise ValueError(
+            f"only {len(messages)} message(s) parsed (need ≥ 4); "
+            f"{parse_errors} line(s) had parse errors. "
+            "Expected Claude Code JSONL export format."
+        )
 
     turns = []
     i = 0
@@ -5657,21 +5667,24 @@ def run_import_sessions(jsonl_files):
     new_conversations = []
 
     for f in jsonl_files:
+        fname = os.path.basename(f.name)
         try:
             with open(f.name, encoding="utf-8") as fh:
                 lines = fh.readlines()
-            conv = _parse_session_jsonl(lines)
-            if conv is None:
-                yield emit(f"   ⚠️ {os.path.basename(f.name)} — too short or unreadable, skipped")
+            if not any(l.strip() for l in lines):
+                yield emit(f"   ⚠️ {fname} — file is empty, skipped")
                 continue
+            conv = _parse_session_jsonl(lines)
             if conv["conversation_id"] in existing_ids:
                 yield emit(f"   ↩️  Already in dataset: {conv.get('slug') or conv['session_id'][:12]}")
                 continue
             turns = len(conv["turns"])
             yield emit(f"   ✅ {conv.get('slug') or conv['session_id'][:12]} — {turns} turn(s)")
             new_conversations.append(conv)
+        except ValueError as exc:
+            yield emit(f"   ⚠️ {fname} — skipped: {exc}")
         except Exception as exc:
-            yield emit(f"   ❌ {os.path.basename(f.name)}: {exc}")
+            yield emit(f"   ❌ {fname}: {exc}")
 
     if not new_conversations:
         yield emit("\nℹ️ No new conversations to add.")
