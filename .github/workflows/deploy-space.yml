@@ -19,7 +19,7 @@ jobs:
     env:
       HF_OIDC_RESOURCE: spaces/vooom/AI_Rule_Learning
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           persist-credentials: false
 
