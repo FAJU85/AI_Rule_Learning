@@ -2995,6 +2995,355 @@ def generate_benchmark_cases_llm(rule_id: str, n: int = 5) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Root Cause Analysis (RCA) for rule violations
+# ---------------------------------------------------------------------------
+
+RCA_FILE = "rca_log.jsonl"
+
+_RCA_CATEGORIES = [
+    "rule_too_narrow",
+    "rule_too_broad",
+    "missing_rule",
+    "keyword_mismatch",
+    "model_hallucination",
+    "edge_case",
+    "data_quality",
+    "other",
+]
+
+_RCA_PROMPT = """You are an AI governance analyst performing root cause analysis on a rule violation.
+
+Rule name: {rule_name}
+Rule instruction: {instruction}
+Rule layer: {rule_layer}
+Violation description: {violation_desc}
+User input that caused violation: {user_input}
+
+Categorize this violation and explain the root cause. Categories:
+- rule_too_narrow: the rule doesn't cover enough inputs
+- rule_too_broad: the rule fires when it shouldn't
+- missing_rule: no rule exists for this behaviour gap
+- keyword_mismatch: wrong trigger keywords
+- model_hallucination: model ignored the rule
+- edge_case: unusual scenario not anticipated
+- data_quality: bad training/conversation data
+- other: doesn't fit any category
+
+Respond as JSON with keys: category (one of the above), root_cause (1-2 sentences), remediation (1 sentence).
+Return ONLY the JSON object."""
+
+
+def log_rca(rule_id: str, violation_desc: str, user_input: str = "", manual_category: str = "") -> str:
+    """Log a root cause analysis entry for a rule violation."""
+    rules = {r.get("rule_id"): r for r in _download_jsonl("rules.jsonl") if "rule_id" in r}
+    rule = rules.get(rule_id)
+    if not rule:
+        return f"Rule {rule_id} not found."
+
+    category = manual_category or "other"
+    root_cause = violation_desc
+    remediation = "Review and update rule triggers."
+
+    if not manual_category:
+        prompt = _RCA_PROMPT.format(
+            rule_name=rule.get("name", rule_id),
+            instruction=(rule.get("action") or {}).get("instruction", rule.get("description", "")),
+            rule_layer=rule.get("rule_layer", "system_directive"),
+            violation_desc=violation_desc,
+            user_input=user_input[:300],
+        )
+        try:
+            from huggingface_hub import InferenceClient
+            client = InferenceClient(token=os.environ.get("HF_TOKEN"))
+            resp = client.chat_completion(
+                model="Qwen/Qwen2.5-72B-Instruct",
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=256,
+                temperature=0.2,
+            )
+            raw = resp.choices[0].message.content.strip()
+            raw = re.sub(r"^```(?:json)?\s*", "", raw)
+            raw = re.sub(r"\s*```$", "", raw)
+            parsed = json.loads(raw)
+            category = parsed.get("category", "other")
+            root_cause = parsed.get("root_cause", violation_desc)
+            remediation = parsed.get("remediation", remediation)
+        except Exception:
+            pass
+
+    entry = {
+        "rca_id": str(uuid.uuid4()),
+        "rule_id": rule_id,
+        "rule_name": rule.get("name", ""),
+        "violation_desc": violation_desc[:500],
+        "user_input": user_input[:200],
+        "category": category,
+        "root_cause": root_cause,
+        "remediation": remediation,
+        "logged_at": datetime.utcnow().isoformat(),
+        "status": "open",
+    }
+    existing = _download_jsonl(RCA_FILE)
+    existing.append(entry)
+    _upload_jsonl(RCA_FILE, existing)
+    return f"RCA logged (id={entry['rca_id'][:8]}…): [{category}] {root_cause}"
+
+
+def close_rca(rca_id: str, resolution: str) -> str:
+    """Mark an RCA entry as resolved."""
+    entries = _download_jsonl(RCA_FILE)
+    target = next((e for e in entries if e.get("rca_id", "").startswith(rca_id)), None)
+    if not target:
+        return f"RCA entry {rca_id} not found."
+    target["status"] = "resolved"
+    target["resolution"] = resolution
+    target["resolved_at"] = datetime.utcnow().isoformat()
+    _upload_jsonl(RCA_FILE, entries)
+    return f"RCA {rca_id[:8]} marked resolved."
+
+
+def build_rca_table() -> pd.DataFrame:
+    entries = _download_jsonl(RCA_FILE)
+    if not entries:
+        return pd.DataFrame(columns=["RCA ID", "Rule", "Category", "Root Cause", "Status", "Logged"])
+    rows = [{
+        "RCA ID": e.get("rca_id", "")[:8],
+        "Rule": e.get("rule_name", e.get("rule_id", ""))[:30],
+        "Category": e.get("category", ""),
+        "Root Cause": e.get("root_cause", "")[:80],
+        "Status": e.get("status", "open"),
+        "Logged": e.get("logged_at", "")[:10],
+    } for e in entries]
+    return pd.DataFrame(rows)
+
+
+def build_rca_summary() -> str:
+    entries = _download_jsonl(RCA_FILE)
+    if not entries:
+        return "No RCA entries yet."
+    from collections import Counter
+    counts = Counter(e.get("category", "other") for e in entries)
+    open_count = sum(1 for e in entries if e.get("status") == "open")
+    lines = [
+        f"**RCA Summary** — {len(entries)} total, {open_count} open",
+        "",
+        "| Category | Count |",
+        "|----------|-------|",
+    ] + [f"| {cat} | {cnt} |" for cat, cnt in counts.most_common()]
+    return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# Distributed Tracing (correlation IDs + decision paths)
+# ---------------------------------------------------------------------------
+
+TRACE_FILE = "traces.jsonl"
+
+
+def record_trace(
+    conversation_id: str,
+    turn_number: int,
+    user_input: str,
+    rules_evaluated: list[str],
+    rules_fired: list[str],
+    decision: str,
+    latency_ms: float = 0.0,
+) -> str:
+    """Append a trace record for a single conversation turn."""
+    trace = {
+        "trace_id": str(uuid.uuid4()),
+        "correlation_id": f"{conversation_id}:{turn_number}",
+        "conversation_id": conversation_id,
+        "turn_number": turn_number,
+        "user_input_snippet": user_input[:120],
+        "rules_evaluated": rules_evaluated,
+        "rules_fired": rules_fired,
+        "fired_count": len(rules_fired),
+        "decision": decision,
+        "latency_ms": latency_ms,
+        "traced_at": datetime.utcnow().isoformat(),
+    }
+    existing = _download_jsonl(TRACE_FILE)
+    existing.append(trace)
+    _upload_jsonl(TRACE_FILE, existing)
+    return trace["trace_id"]
+
+
+def build_trace_table(conversation_id: str = "") -> pd.DataFrame:
+    traces = _download_jsonl(TRACE_FILE)
+    if conversation_id:
+        traces = [t for t in traces if t.get("conversation_id") == conversation_id]
+    if not traces:
+        return pd.DataFrame(columns=["Trace ID", "Correlation ID", "Turn", "Rules Fired", "Decision", "Latency ms", "Traced At"])
+    rows = [{
+        "Trace ID": t.get("trace_id", "")[:8],
+        "Correlation ID": t.get("correlation_id", ""),
+        "Turn": t.get("turn_number", 0),
+        "Rules Fired": ", ".join(t.get("rules_fired", [])) or "—",
+        "Decision": t.get("decision", ""),
+        "Latency ms": t.get("latency_ms", 0),
+        "Traced At": t.get("traced_at", "")[:19],
+    } for t in sorted(traces, key=lambda x: x.get("traced_at", ""), reverse=True)[:200]]
+    return pd.DataFrame(rows)
+
+
+def trace_conversation(conversation_id: str) -> str:
+    """Replay all turns of a conversation and emit trace records for each."""
+    if not conversation_id:
+        return "Please enter a conversation ID."
+    convs = _download_jsonl("conversations.jsonl")
+    conv = next((c for c in convs if c.get("conversation_id") == conversation_id), None)
+    if not conv:
+        return f"Conversation {conversation_id} not found."
+
+    rules = [r for r in _download_jsonl("rules.jsonl") if r.get("is_active") or r.get("status") == "active"]
+    existing_traces = {t.get("correlation_id") for t in _download_jsonl(TRACE_FILE)}
+    new_traces = []
+    now = datetime.utcnow().isoformat()
+
+    for turn in conv.get("turns", []):
+        tn = turn.get("turn_number", 0)
+        cid = f"{conversation_id}:{tn}"
+        if cid in existing_traces:
+            continue
+        text = (turn.get("user_input", "") or "").lower()
+        evaluated = [r.get("rule_id", "") for r in rules if "rule_id" in r]
+        fired = []
+        for r in rules:
+            kws = _gap_keywords_from_rule(r)
+            if kws and any(kw in text for kw in kws):
+                fired.append(r.get("rule_id", r.get("name", "")))
+
+        new_traces.append({
+            "trace_id": str(uuid.uuid4()),
+            "correlation_id": cid,
+            "conversation_id": conversation_id,
+            "turn_number": tn,
+            "user_input_snippet": (turn.get("user_input", "") or "")[:120],
+            "rules_evaluated": evaluated,
+            "rules_fired": fired,
+            "fired_count": len(fired),
+            "decision": "rule_applied" if fired else "pass_through",
+            "latency_ms": 0.0,
+            "traced_at": now,
+        })
+
+    if new_traces:
+        existing = _download_jsonl(TRACE_FILE)
+        _upload_jsonl(TRACE_FILE, existing + new_traces)
+    return f"Traced {len(new_traces)} new turns for {conversation_id}."
+
+
+def build_trace_heatmap() -> Any:
+    """Heatmap: conversation × turn, coloured by rules_fired count."""
+    traces = _download_jsonl(TRACE_FILE)
+    if not traces:
+        return go.Figure()
+
+    from collections import defaultdict
+    grid: dict[str, dict[int, int]] = defaultdict(dict)
+    for t in traces:
+        grid[t.get("conversation_id", "?")][t.get("turn_number", 0)] = t.get("fired_count", 0)
+
+    conv_ids = sorted(grid.keys())[-20:]
+    max_turn = max((max(v.keys(), default=0) for v in grid.values()), default=0)
+    turns = list(range(1, max_turn + 2))
+
+    z = [[grid[cid].get(tn, 0) for tn in turns] for cid in conv_ids]
+    short_ids = [c[-12:] for c in conv_ids]
+
+    fig = go.Figure(go.Heatmap(
+        z=z, x=[f"T{t}" for t in turns], y=short_ids,
+        colorscale="RdYlGn_r",
+        colorbar=dict(title="Rules Fired", tickfont=dict(color="#c9d1d9")),
+    ))
+    fig.update_layout(
+        paper_bgcolor="#0d1117", plot_bgcolor="#0d1117",
+        title=dict(text="Decision Trace Heatmap (last 20 conversations)", font=dict(color="#c9d1d9")),
+        xaxis=dict(title="Turn", tickfont=dict(color="#c9d1d9"), titlefont=dict(color="#c9d1d9")),
+        yaxis=dict(tickfont=dict(color="#c9d1d9"), autorange="reversed"),
+        margin=dict(l=120, r=20, t=40, b=40),
+    )
+    return fig
+
+
+# ---------------------------------------------------------------------------
+# Explainability Tracking (why a rule fired, decision evidence)
+# ---------------------------------------------------------------------------
+
+EXPLAIN_FILE = "explanations.jsonl"
+
+
+def explain_rule_decision(rule_id: str, user_input: str, agent_response: str) -> str:
+    """Generate a natural-language explanation of why a rule fired (or didn't) on given input."""
+    rules = {r.get("rule_id"): r for r in _download_jsonl("rules.jsonl") if "rule_id" in r}
+    rule = rules.get(rule_id)
+    if not rule:
+        return f"Rule {rule_id} not found."
+
+    kws = _gap_keywords_from_rule(rule)
+    matched_kws = [kw for kw in kws if kw in user_input.lower()]
+    fired = bool(matched_kws)
+
+    prompt = (
+        f"You are an AI explainability engine.\n"
+        f"Rule: {rule.get('name', rule_id)}\n"
+        f"Instruction: {(rule.get('action') or {}).get('instruction', rule.get('description', ''))}\n"
+        f"Trigger keywords: {kws}\n"
+        f"User input: {user_input[:300]}\n"
+        f"Agent response: {agent_response[:300]}\n"
+        f"The rule {'FIRED' if fired else 'did NOT fire'} (matched keywords: {matched_kws}).\n\n"
+        f"Write a 2-3 sentence plain-English explanation of:\n"
+        f"1. Why the rule did{'' if fired else ' not'} trigger\n"
+        f"2. What evidence supports or contradicts the trigger\n"
+        f"3. Whether the rule decision appears correct\n"
+        f"Be concise and factual."
+    )
+    try:
+        from huggingface_hub import InferenceClient
+        client = InferenceClient(token=os.environ.get("HF_TOKEN"))
+        resp = client.chat_completion(
+            model="Qwen/Qwen2.5-72B-Instruct",
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=200,
+            temperature=0.3,
+        )
+        explanation = resp.choices[0].message.content.strip()
+    except Exception as e:
+        explanation = f"LLM unavailable: {e}"
+
+    entry = {
+        "explain_id": str(uuid.uuid4()),
+        "rule_id": rule_id,
+        "rule_name": rule.get("name", ""),
+        "user_input_snippet": user_input[:120],
+        "fired": fired,
+        "matched_keywords": matched_kws,
+        "explanation": explanation,
+        "explained_at": datetime.utcnow().isoformat(),
+    }
+    existing = _download_jsonl(EXPLAIN_FILE)
+    existing.append(entry)
+    _upload_jsonl(EXPLAIN_FILE, existing)
+    return f"**{'Rule fired' if fired else 'Rule did not fire'}** (matched: {matched_kws or 'none'})\n\n{explanation}"
+
+
+def build_explanations_table() -> pd.DataFrame:
+    entries = _download_jsonl(EXPLAIN_FILE)
+    if not entries:
+        return pd.DataFrame(columns=["Explain ID", "Rule", "Fired", "Keywords Matched", "Explanation", "Date"])
+    rows = [{
+        "Explain ID": e.get("explain_id", "")[:8],
+        "Rule": e.get("rule_name", "")[:30],
+        "Fired": "Yes" if e.get("fired") else "No",
+        "Keywords Matched": ", ".join(e.get("matched_keywords", [])) or "—",
+        "Explanation": e.get("explanation", "")[:100],
+        "Date": e.get("explained_at", "")[:10],
+    } for e in sorted(entries, key=lambda x: x.get("explained_at", ""), reverse=True)[:100]]
+    return pd.DataFrame(rows)
+
+
+# ---------------------------------------------------------------------------
 # Rule layer classification
 # ---------------------------------------------------------------------------
 
@@ -4532,6 +4881,94 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 generate_benchmark_cases_llm,
                 inputs=[bench_rule_sel],
                 outputs=bench_add_status,
+            )
+
+            gr.HTML('<div class="section-title">Root Cause Analysis (RCA)</div>')
+            gr.Markdown("Log and track root causes of rule violations. LLM auto-categorises each entry.")
+            rca_summary_md = gr.Markdown()
+            rca_table = gr.Dataframe(interactive=False, wrap=True)
+            rca_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
+
+            with gr.Row():
+                rca_rule_sel = gr.Dropdown(label="Rule", choices=[], scale=3)
+                rca_cat_sel = gr.Dropdown(
+                    label="Category (leave blank for LLM)",
+                    choices=[""] + _RCA_CATEGORIES,
+                    value="",
+                    scale=2,
+                )
+            rca_violation = gr.Textbox(label="Violation description", lines=2,
+                                       placeholder="Describe what went wrong")
+            rca_user_input = gr.Textbox(label="User input (optional)", lines=1,
+                                        placeholder="The message that triggered the issue")
+            with gr.Row():
+                rca_log_btn = gr.Button("📋 Log RCA", variant="primary", size="sm")
+                rca_close_id = gr.Textbox(label="RCA ID prefix to resolve", scale=2)
+                rca_resolution = gr.Textbox(label="Resolution note", scale=3)
+                rca_close_btn = gr.Button("✅ Mark Resolved", variant="secondary", size="sm")
+            rca_status = gr.Markdown()
+
+            def _refresh_rca():
+                return build_rca_summary(), build_rca_table(), gr.Dropdown(choices=get_rule_ids())
+
+            rca_refresh_btn.click(_refresh_rca, outputs=[rca_summary_md, rca_table, rca_rule_sel])
+            demo.load(_refresh_rca, outputs=[rca_summary_md, rca_table, rca_rule_sel])
+            rca_log_btn.click(
+                log_rca,
+                inputs=[rca_rule_sel, rca_violation, rca_user_input, rca_cat_sel],
+                outputs=rca_status,
+            )
+            rca_close_btn.click(close_rca, inputs=[rca_close_id, rca_resolution], outputs=rca_status)
+
+            gr.HTML('<div class="section-title">Distributed Tracing</div>')
+            gr.Markdown("Correlation IDs and decision paths per conversation turn — see exactly which rules evaluated and fired.")
+            trace_heatmap = gr.Plot()
+            trace_table = gr.Dataframe(interactive=False, wrap=True)
+            with gr.Row():
+                trace_conv_sel = gr.Dropdown(label="Conversation", choices=[], scale=3)
+                trace_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
+                trace_run_btn = gr.Button("▶ Trace Conversation", variant="primary", size="sm")
+            trace_status = gr.Markdown()
+
+            def _refresh_traces():
+                return build_trace_heatmap(), build_trace_table(), gr.Dropdown(choices=get_conversation_ids())
+
+            trace_refresh_btn.click(_refresh_traces, outputs=[trace_heatmap, trace_table, trace_conv_sel])
+            demo.load(_refresh_traces, outputs=[trace_heatmap, trace_table, trace_conv_sel])
+            trace_run_btn.click(trace_conversation, inputs=trace_conv_sel, outputs=trace_status)
+            trace_conv_sel.change(
+                lambda cid: build_trace_table(cid),
+                inputs=trace_conv_sel, outputs=trace_table,
+            )
+
+            gr.HTML('<div class="section-title">Explainability</div>')
+            gr.Markdown("Get a natural-language explanation of why a rule fired (or didn't) on specific input.")
+            with gr.Row():
+                exp_rule_sel = gr.Dropdown(label="Rule", choices=[], scale=3)
+                exp_refresh_sel = gr.Button("↻ Refresh list", variant="secondary", size="sm", scale=1)
+            exp_user_input = gr.Textbox(label="User input", lines=2,
+                                        placeholder="The message to explain")
+            exp_agent_response = gr.Textbox(label="Agent response (optional)", lines=2,
+                                            placeholder="What the AI replied")
+            exp_run_btn = gr.Button("🔍 Explain Decision", variant="primary", size="sm")
+            exp_result = gr.Markdown()
+            exp_table = gr.Dataframe(interactive=False, wrap=True, label="Explanation History")
+            exp_hist_refresh = gr.Button("↻ Refresh history", variant="secondary", size="sm")
+
+            def _refresh_exp_sel():
+                return gr.Dropdown(choices=get_rule_ids())
+
+            def _refresh_exp_table():
+                return build_explanations_table()
+
+            exp_refresh_sel.click(_refresh_exp_sel, outputs=exp_rule_sel)
+            exp_hist_refresh.click(_refresh_exp_table, outputs=exp_table)
+            demo.load(_refresh_exp_sel, outputs=exp_rule_sel)
+            demo.load(_refresh_exp_table, outputs=exp_table)
+            exp_run_btn.click(
+                explain_rule_decision,
+                inputs=[exp_rule_sel, exp_user_input, exp_agent_response],
+                outputs=exp_result,
             )
 
             gr.HTML('<div class="section-title">Gap Simulator</div>')
