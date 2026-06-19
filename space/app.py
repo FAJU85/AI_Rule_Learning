@@ -458,6 +458,8 @@ def build_project_compass() -> tuple[Any, Any, str]:
         marker_color=colors,
         text=[f"{s}/{m}" for s, m in zip(scores, max_scores)],
         textposition="outside",
+        customdata=max_scores,
+        hovertemplate="<b>%{x}</b><br>%{y} / %{customdata} pts<extra></extra>",
     ))
     fig_metrics.update_layout(
         title="Health Score Breakdown",
@@ -580,11 +582,14 @@ def build_compass(conv_id: str) -> tuple[Any, Any, str]:
     fig_timeline = go.Figure()
     if turn_nums:
         fig_timeline.add_trace(go.Scatter(x=turn_nums, y=task_scores, name="Task Alignment",
-                                          mode="lines+markers", line={"color": "#4f46e5"}))
+                                          mode="lines+markers", line={"color": "#4f46e5"},
+                                          hovertemplate="Turn %{x}<br>Task Alignment: %{y:.0%}<extra></extra>"))
         fig_timeline.add_trace(go.Scatter(x=turn_nums, y=rule_scores, name="Rule Compliance",
-                                          mode="lines+markers", line={"color": "#22c55e"}))
+                                          mode="lines+markers", line={"color": "#22c55e"},
+                                          hovertemplate="Turn %{x}<br>Rule Compliance: %{y:.0%}<extra></extra>"))
         fig_timeline.add_trace(go.Scatter(x=turn_nums, y=focus_scores, name="Focus (1-drift)",
-                                          mode="lines+markers", line={"color": "#f59e0b"}))
+                                          mode="lines+markers", line={"color": "#f59e0b"},
+                                          hovertemplate="Turn %{x}<br>Focus: %{y:.0%}<extra></extra>"))
         fig_timeline.add_hline(y=0.7, line_dash="dash", line_color="#22c55e",
                                annotation_text="On-track threshold")
         fig_timeline.add_hline(y=0.4, line_dash="dash", line_color="#ef4444",
@@ -4029,6 +4034,7 @@ def build_trust_breakdown() -> Any:
         text=[f"{v}%" for v in values],
         textposition="outside",
         textfont=dict(color="#334155"),
+        hovertemplate="<b>%{x}</b><br>%{y}%<extra></extra>",
     ))
     fig.update_layout(
         paper_bgcolor="#ffffff", plot_bgcolor="#f8fafc",
@@ -7512,7 +7518,8 @@ def build_compliance_health_breakdown() -> Any:
     vals = [health["rule_health"], health["incident_health"], health["slo_health"],
             health["cert_health"], health["goal_health"]]
     colors = ["#10b981" if v >= 80 else "#f59e0b" if v >= 60 else "#ef4444" for v in vals]
-    fig = go.Figure(go.Bar(x=dims, y=vals, marker_color=colors))
+    fig = go.Figure(go.Bar(x=dims, y=vals, marker_color=colors,
+                           hovertemplate="<b>%{x}</b><br>%{y:.0f}%<extra></extra>"))
     fig.update_layout(
         title="Compliance Health Breakdown",
         height=280,
