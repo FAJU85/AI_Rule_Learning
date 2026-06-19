@@ -30,33 +30,7 @@ See [LICENSE](LICENSE) · [TERMS](TERMS.md) · [PRIVACY](PRIVACY.md)
 pip install ai-rule-learning-mcp
 ```
 
-Add to your AI config:
-
-```json
-{
-  "mcpServers": {
-    "ai-rule-learning": {
-      "command": "ai-rule-learning-mcp",
-      "env": {
-        "HF_TOKEN": "your_token_here",
-        "ARL_DATASET": "yourname/AI_Rule_Learning"
-      }
-    }
-  }
-}
-```
-
-Then tell your AI: _"Sync my sessions"_ or _"Load my guardrail rules"_ — and
-it handles the rest.
-
-See [mcp/README.md](mcp/README.md) for full setup.
-
-## Dashboard
-
-Explore your rules, review your session history, and run analysis from the
-live dashboard:
-
-<https://huggingface.co/spaces/vooom/AI_Rule_Learning>
+Once installed, connect it to your AI tool and it starts working automatically.
 
 ## Contributing
 

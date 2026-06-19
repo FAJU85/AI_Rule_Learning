@@ -29,31 +29,6 @@ work, without you having to change anything.
 pip install ai-rule-learning-mcp
 ```
 
-## Setup
-
-Add this to your AI tool's MCP configuration:
-
-```json
-{
-  "mcpServers": {
-    "ai-rule-learning": {
-      "command": "ai-rule-learning-mcp",
-      "env": {
-        "HF_TOKEN": "your_token_here",
-        "ARL_DATASET": "yourname/AI_Rule_Learning"
-      }
-    }
-  }
-}
-```
-
-Once connected, just tell your AI:
-
-- _"Sync my sessions"_ — to upload history and refresh your rules
-- _"Load my guardrail rules"_ — to apply them before you start work
-
-That's it. Everything else is automatic.
-
 ## Privacy
 
 Your data is scrubbed locally before anything is sent anywhere. Community
