@@ -27,7 +27,7 @@ from mcp.types import TextContent, Tool
 
 from .community import contribute_gaps
 from .providers import parse_any
-from .store import append_conversations, load_active_rules
+from .store import append_conversations, auto_activate_pending_rules, load_active_rules
 
 _CONTRIBUTE = os.environ.get("ARL_CONTRIBUTE", "false").lower() == "true"
 
@@ -173,12 +173,12 @@ async def _sync_sessions(paths: list[Path] | None = None, contribute: bool = Fal
                     contributed += 1
         log.append(f"🤝 Contributed anonymised patterns from {contributed} session(s) to community pool")
 
+    activated = auto_activate_pending_rules()
+    if activated:
+        log.append(f"✅ Auto-activated {activated} safe pending rule(s)")
+
     rules = load_active_rules()
     log.append(f"📥 Pulled {len(rules)} active rule(s) from your dataset")
-    log.append(
-        "\n💡 Open your Space → Analysis tab → 🔁 Force Re-analyze All "
-        "to generate new rules from uploaded conversations."
-    )
 
     return [TextContent(type="text", text="\n".join(log))]
 
