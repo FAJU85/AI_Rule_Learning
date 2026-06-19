@@ -3,6 +3,7 @@
 import csv
 import io
 import json
+import logging
 import os
 import re
 import time
@@ -10,6 +11,9 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+
+logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(name)s: %(message)s")
+_log = logging.getLogger("arl")
 
 # ---------------------------------------------------------------------------
 # PII scrubbing helpers
@@ -139,8 +143,8 @@ def _snapshot_rule_version(rule: dict, event: str) -> None:
     }
     try:
         _append_jsonl("rule_versions.jsonl", [snapshot])
-    except Exception:
-        pass
+    except Exception as e:
+        _log.warning("failed to snapshot rule version: %s", e)
 
 
 def _save_to_rejected_memory(rule: dict, reason: str) -> None:
@@ -156,8 +160,8 @@ def _save_to_rejected_memory(rule: dict, reason: str) -> None:
     }
     try:
         _append_jsonl("rejected_rules.jsonl", [entry])
-    except Exception:
-        pass
+    except Exception as e:
+        _log.warning("failed to save rejected rule: %s", e)
 
 
 def _is_too_similar_to_rejected(new_rule: dict, rejected: list[dict], threshold: float = 0.55) -> str | None:
@@ -1465,8 +1469,8 @@ def _save_checkpoint(state: dict) -> None:
             repo_type="dataset",
             commit_message="Update analysis checkpoint",
         )
-    except Exception:
-        pass
+    except Exception as e:
+        _log.warning("failed to save analysis checkpoint: %s", e)
 
 
 def _generate_rule_hf(gap_type: str, examples: list[dict], total_conversations: int = 0) -> dict | None:
@@ -3086,8 +3090,8 @@ def log_rca(rule_id: str, violation_desc: str, user_input: str = "", manual_cate
             category = parsed.get("category", "other")
             root_cause = parsed.get("root_cause", violation_desc)
             remediation = parsed.get("remediation", remediation)
-        except Exception:
-            pass
+        except Exception as e:
+            _log.warning("rca json parse failed: %s", e)
 
     entry = {
         "rca_id": str(uuid.uuid4()),
