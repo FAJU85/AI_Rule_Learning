@@ -436,7 +436,7 @@ def build_project_compass() -> tuple[Any, Any, str]:
                 {"range": [40, 70], "color": "#fef9c3"},
                 {"range": [70, 100], "color": "#dcfce7"},
             ],
-            "threshold": {"line": {"color": "#1d4ed8", "width": 4}, "value": 70},
+            "threshold": {"line": {"color": "#4f46e5", "width": 4}, "value": 70},
         },
         title={"text": f"Project Health<br><span style='font-size:0.9em'>"
                        f"{direction[1]} {direction[0].replace('_', ' ').title()}</span>"},
@@ -552,13 +552,13 @@ def build_compass(conv_id: str) -> tuple[Any, Any, str]:
                "increasing": {"color": "#22c55e"}, "decreasing": {"color": "#ef4444"}},
         gauge={
             "axis": {"range": [0, 100]},
-            "bar": {"color": "#3b82f6"},
+            "bar": {"color": "#4f46e5"},
             "steps": [
                 {"range": [0, 40], "color": "#fee2e2"},
                 {"range": [40, 70], "color": "#fef9c3"},
                 {"range": [70, 100], "color": "#dcfce7"},
             ],
-            "threshold": {"line": {"color": "#1d4ed8", "width": 4}, "value": 70},
+            "threshold": {"line": {"color": "#4f46e5", "width": 4}, "value": 70},
         },
         title={"text": f"Alignment Score<br><span style='font-size:0.8em'>"
                        f"{DIRECTION_EMOJI.get(latest_direction, '🟡')} {latest_direction.replace('_', ' ').title()}</span>"},
@@ -8131,7 +8131,7 @@ MATURITY_LEVELS: list[dict] = [
         "level": 6,
         "name": "Autonomous",
         "description": "Self-governing system. Certified, tamper-evident, bias-checked, control-mapped, calendar-driven.",
-        "color": "#ce93d8",
+        "color": "#8b5cf6",
         "capabilities": [
             ("Certifications registered", lambda: _has_data(CERT_FILE, 1)),
             ("Audit trail integrity chain active", lambda: _has_data(AUDIT_CHAIN_FILE, 1)),
@@ -8207,7 +8207,7 @@ def build_maturity_chart() -> Any:
 
     names = [f"L{l['level']}: {l['name']}" for l in levels]
     pcts = [l["pct"] for l in levels]
-    colors = [l["color"] if l["achieved"] else ("#4a4a6a" if l["level"] > current + 1 else l["color"]) for l in levels]
+    colors = [l["color"] if l["achieved"] else ("#94a3b8" if l["level"] > current + 1 else l["color"]) for l in levels]
     opacities = [1.0 if l["level"] <= current + 1 else 0.4 for l in levels]
 
     fig = go.Figure()
