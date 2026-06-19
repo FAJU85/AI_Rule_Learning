@@ -63,10 +63,52 @@ def _upload(filename: str, records: list[dict]) -> None:
     )
 
 
+_UNSAFE_PHRASES = [
+    "never refuse",
+    "bypass",
+    "override your",
+    "ignore safety",
+    "ignore all",
+    "disregard",
+    "forget your",
+]
+
+
+def _is_safe_rule(rule: dict) -> bool:
+    """Return True if the rule content contains no unsafe phrases."""
+    text = " ".join([
+        rule.get("name", ""),
+        rule.get("instruction", ""),
+        rule.get("action", {}).get("instruction", "") if isinstance(rule.get("action"), dict) else "",
+        str(rule.get("triggers", "")),
+        str(rule.get("trigger", "")),
+    ]).lower()
+    return not any(phrase in text for phrase in _UNSAFE_PHRASES)
+
+
+def auto_activate_pending_rules() -> int:
+    """Fetch rules, auto-activate safe pending ones, save back. Returns count activated."""
+    rules = _download("rules.jsonl")
+    if not rules:
+        return 0
+    activated = 0
+    now = datetime.utcnow().isoformat()
+    for rule in rules:
+        if rule.get("status") == "pending_review" and not rule.get("is_active", False):
+            if _is_safe_rule(rule):
+                rule["is_active"] = True
+                rule["status"] = "active"
+                rule["approved_at"] = now
+                activated += 1
+    if activated:
+        _upload("rules.jsonl", rules)
+    return activated
+
+
 def load_active_rules() -> list[dict]:
     """Return all active rules from the dataset, sorted by priority desc."""
     rules = _download("rules.jsonl")
-    active = [r for r in rules if r.get("is_active", True)]
+    active = [r for r in rules if r.get("is_active", True) or r.get("status") == "active"]
     return sorted(active, key=lambda r: r.get("priority", 0), reverse=True)
 
 
