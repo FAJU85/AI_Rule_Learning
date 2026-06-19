@@ -4740,6 +4740,352 @@ def build_escalations_table() -> pd.DataFrame:
 
 
 # ---------------------------------------------------------------------------
+# Decision Provenance (#20) — full lineage per turn
+# ---------------------------------------------------------------------------
+
+PROVENANCE_FILE = "provenance.jsonl"
+
+
+def record_provenance(
+    conversation_id: str,
+    turn_number: int,
+    user_input: str,
+    retrieved_context: str,
+    rules_applied: list[str],
+    reasoning_summary: str,
+    agent_response: str,
+    model_used: str = "Qwen/Qwen2.5-72B-Instruct",
+) -> str:
+    """Record the complete decision lineage for a single turn."""
+    entry = {
+        "provenance_id":    str(uuid.uuid4()),
+        "conversation_id":  conversation_id,
+        "turn_number":      int(turn_number),
+        "lineage": {
+            "input":             user_input[:300],
+            "retrieved_context": retrieved_context[:300],
+            "rules_applied":     rules_applied,
+            "reasoning_summary": reasoning_summary[:300],
+            "output":            agent_response[:300],
+        },
+        "model_used":   model_used,
+        "recorded_at":  datetime.utcnow().isoformat(),
+    }
+    existing = _download_jsonl(PROVENANCE_FILE)
+    existing.append(entry)
+    _upload_jsonl(PROVENANCE_FILE, existing)
+    return f"Provenance recorded (id={entry['provenance_id'][:8]}…)"
+
+
+def auto_record_provenance(conversation_id: str) -> str:
+    """Auto-derive provenance for all turns in a conversation using active rules."""
+    convs = _download_jsonl("conversations.jsonl")
+    conv = next((c for c in convs if c.get("conversation_id") == conversation_id), None)
+    if not conv:
+        return f"Conversation {conversation_id} not found."
+    rules = [r for r in _download_jsonl("rules.jsonl")
+             if r.get("is_active") or r.get("status") == "active"]
+    existing = _download_jsonl(PROVENANCE_FILE)
+    existing_keys = {(e["conversation_id"], e["turn_number"]) for e in existing}
+    added = 0
+    now = datetime.utcnow().isoformat()
+    for turn in conv.get("turns", []):
+        key = (conversation_id, turn.get("turn_number", 0))
+        if key in existing_keys:
+            continue
+        text = (turn.get("user_input", "") or "").lower()
+        applied = [r.get("name", "") for r in rules
+                   if any(kw in text for kw in _gap_keywords_from_rule(r))]
+        existing.append({
+            "provenance_id":   str(uuid.uuid4()),
+            "conversation_id": conversation_id,
+            "turn_number":     turn.get("turn_number", 0),
+            "lineage": {
+                "input":             (turn.get("user_input", "") or "")[:300],
+                "retrieved_context": "",
+                "rules_applied":     applied,
+                "reasoning_summary": f"Rules matched: {applied}" if applied else "No rules triggered",
+                "output":            (turn.get("agent_response", "") or "")[:300],
+            },
+            "model_used":  "auto",
+            "recorded_at": now,
+        })
+        added += 1
+    if added:
+        _upload_jsonl(PROVENANCE_FILE, existing)
+    return f"Provenance recorded for {added} turn(s) in {conversation_id}."
+
+
+def build_provenance_table(conversation_id: str = "") -> pd.DataFrame:
+    entries = _download_jsonl(PROVENANCE_FILE)
+    if conversation_id:
+        entries = [e for e in entries if e.get("conversation_id") == conversation_id]
+    if not entries:
+        return pd.DataFrame(columns=["ID", "Conv", "Turn", "Input", "Rules Applied", "Output", "Model", "Date"])
+    rows = [{
+        "ID":            e.get("provenance_id", "")[:8],
+        "Conv":          e.get("conversation_id", "")[-8:],
+        "Turn":          e.get("turn_number", 0),
+        "Input":         e.get("lineage", {}).get("input", "")[:40],
+        "Rules Applied": ", ".join(e.get("lineage", {}).get("rules_applied", [])) or "—",
+        "Output":        e.get("lineage", {}).get("output", "")[:40],
+        "Model":         e.get("model_used", ""),
+        "Date":          e.get("recorded_at", "")[:10],
+    } for e in sorted(entries, key=lambda x: x.get("recorded_at", ""), reverse=True)[:100]]
+    return pd.DataFrame(rows)
+
+
+# ---------------------------------------------------------------------------
+# Data Provenance (#21)
+# ---------------------------------------------------------------------------
+
+DATA_PROVENANCE_FILE = "data_provenance.jsonl"
+
+DATA_TRUST_LEVELS = ["high", "medium", "low", "untrusted"]
+
+
+def register_data_source(
+    source_name: str,
+    source_type: str,
+    trust_level: str,
+    owner: str = "",
+    description: str = "",
+) -> str:
+    """Register a data source with trust metadata."""
+    if trust_level not in DATA_TRUST_LEVELS:
+        trust_level = "medium"
+    entry = {
+        "source_id":    str(uuid.uuid4()),
+        "source_name":  source_name.strip(),
+        "source_type":  source_type.strip(),
+        "trust_level":  trust_level,
+        "owner":        owner.strip(),
+        "description":  description.strip(),
+        "registered_at": datetime.utcnow().isoformat(),
+        "last_used_at":  None,
+        "use_count":     0,
+    }
+    existing = _download_jsonl(DATA_PROVENANCE_FILE)
+    existing.append(entry)
+    _upload_jsonl(DATA_PROVENANCE_FILE, existing)
+    return f"Data source registered: {source_name} (trust={trust_level}, id={entry['source_id'][:8]}…)"
+
+
+def build_data_provenance_table() -> pd.DataFrame:
+    entries = _download_jsonl(DATA_PROVENANCE_FILE)
+    if not entries:
+        return pd.DataFrame(columns=["ID", "Name", "Type", "Trust Level", "Owner", "Uses", "Registered"])
+    rows = [{
+        "ID":           e.get("source_id", "")[:8],
+        "Name":         e.get("source_name", ""),
+        "Type":         e.get("source_type", ""),
+        "Trust Level":  e.get("trust_level", ""),
+        "Owner":        e.get("owner", ""),
+        "Uses":         e.get("use_count", 0),
+        "Registered":   e.get("registered_at", "")[:10],
+    } for e in entries]
+    return pd.DataFrame(rows)
+
+
+def build_data_trust_chart() -> Any:
+    """Pie chart of data sources by trust level."""
+    entries = _download_jsonl(DATA_PROVENANCE_FILE)
+    if not entries:
+        return go.Figure()
+    from collections import Counter
+    counts = Counter(e.get("trust_level", "medium") for e in entries)
+    color_map = {"high": "#3fb950", "medium": "#d29922", "low": "#f85149", "untrusted": "#ff4444"}
+    labels = list(counts.keys())
+    values = [counts[l] for l in labels]
+    colors = [color_map.get(l, "#8b949e") for l in labels]
+    fig = go.Figure(go.Pie(
+        labels=labels, values=values,
+        marker=dict(colors=colors),
+        textfont=dict(color="#c9d1d9"),
+    ))
+    fig.update_layout(
+        paper_bgcolor="#0d1117",
+        legend=dict(font=dict(color="#c9d1d9")),
+        title=dict(text="Data Sources by Trust Level", font=dict(color="#c9d1d9")),
+        margin=dict(l=20, r=20, t=40, b=20),
+    )
+    return fig
+
+
+# ---------------------------------------------------------------------------
+# Evidence Management (#22)
+# ---------------------------------------------------------------------------
+
+EVIDENCE_FILE = "evidence.jsonl"
+
+EVIDENCE_TYPES = ["log", "screenshot", "report", "test_result", "security_scan", "audit_export", "other"]
+
+
+def store_evidence(
+    evidence_type: str,
+    title: str,
+    content: str,
+    related_rule_id: str = "",
+    related_incident_id: str = "",
+    tags: list[str] | None = None,
+) -> str:
+    """Store an evidence artefact."""
+    if evidence_type not in EVIDENCE_TYPES:
+        evidence_type = "other"
+    entry = {
+        "evidence_id":          str(uuid.uuid4()),
+        "evidence_type":        evidence_type,
+        "title":                title.strip(),
+        "content":              content.strip()[:2000],
+        "related_rule_id":      related_rule_id,
+        "related_incident_id":  related_incident_id,
+        "tags":                 tags or [],
+        "stored_at":            datetime.utcnow().isoformat(),
+    }
+    existing = _download_jsonl(EVIDENCE_FILE)
+    existing.append(entry)
+    _upload_jsonl(EVIDENCE_FILE, existing)
+    return f"Evidence stored (id={entry['evidence_id'][:8]}…): [{evidence_type}] {title}"
+
+
+def export_audit_evidence(rule_id: str = "") -> str:
+    """Auto-generate an audit evidence bundle for a rule (or all rules)."""
+    rules = _download_jsonl("rules.jsonl")
+    if rule_id:
+        rules = [r for r in rules if r.get("rule_id") == rule_id]
+    rcas = _download_jsonl(RCA_FILE)
+    incidents = _download_jsonl(INCIDENT_FILE)
+    benchmarks = _download_jsonl(BENCHMARK_FILE)
+    red_team = _download_jsonl("red_team_results.jsonl")
+
+    bundle_parts = []
+    for rule in rules[:5]:
+        rid = rule.get("rule_id", "")
+        rname = rule.get("name", rid)
+        rule_rcas = [r for r in rcas if r.get("rule_id") == rid]
+        rule_incs = [i for i in incidents if i.get("rule_id") == rid]
+        rule_bench = [b for b in benchmarks if b.get("rule_id") == rid]
+        rule_rt = [r for r in red_team if r.get("rule_id") == rid]
+        bundle_parts.append(
+            f"=== {rname} ===\n"
+            f"Effectiveness: {rule.get('effectiveness_score','n/a')}\n"
+            f"Bypass Rate: {rule.get('bypass_rate','n/a')}\n"
+            f"RCAs: {len(rule_rcas)} | Incidents: {len(rule_incs)} | "
+            f"Benchmarks: {len(rule_bench)} | Red Team: {len(rule_rt)}"
+        )
+
+    content = "\n\n".join(bundle_parts) or "No rules found."
+    title = f"Audit Bundle {'— ' + rule_id[:8] if rule_id else '(all rules)'} @ {datetime.utcnow().isoformat()[:10]}"
+    return store_evidence("audit_export", title, content, related_rule_id=rule_id)
+
+
+def build_evidence_table(evidence_type: str = "") -> pd.DataFrame:
+    entries = _download_jsonl(EVIDENCE_FILE)
+    if evidence_type:
+        entries = [e for e in entries if e.get("evidence_type") == evidence_type]
+    if not entries:
+        return pd.DataFrame(columns=["ID", "Type", "Title", "Rule", "Incident", "Tags", "Stored"])
+    rows = [{
+        "ID":       e.get("evidence_id", "")[:8],
+        "Type":     e.get("evidence_type", ""),
+        "Title":    e.get("title", "")[:50],
+        "Rule":     e.get("related_rule_id", "")[:12] or "—",
+        "Incident": e.get("related_incident_id", "")[:12] or "—",
+        "Tags":     ", ".join(e.get("tags", [])) or "—",
+        "Stored":   e.get("stored_at", "")[:10],
+    } for e in sorted(entries, key=lambda x: x.get("stored_at", ""), reverse=True)[:100]]
+    return pd.DataFrame(rows)
+
+
+# ---------------------------------------------------------------------------
+# Behavioral Tracking (#24)
+# ---------------------------------------------------------------------------
+
+BEHAVIOR_FILE = "behavior_metrics.jsonl"
+
+
+def record_behavior_metrics(
+    conversation_id: str,
+    turn_number: int,
+    hallucination_detected: bool,
+    accuracy_score: float,
+    consistency_score: float,
+    refusal_quality: float,
+    tone_score: float,
+    verbosity_score: float,
+    notes: str = "",
+) -> str:
+    """Store behavioral quality metrics for a conversation turn."""
+    entry = {
+        "behavior_id":          str(uuid.uuid4()),
+        "conversation_id":      conversation_id,
+        "turn_number":          int(turn_number),
+        "hallucination_detected": bool(hallucination_detected),
+        "accuracy_score":       round(max(0.0, min(1.0, float(accuracy_score))), 3),
+        "consistency_score":    round(max(0.0, min(1.0, float(consistency_score))), 3),
+        "refusal_quality":      round(max(0.0, min(1.0, float(refusal_quality))), 3),
+        "tone_score":           round(max(0.0, min(1.0, float(tone_score))), 3),
+        "verbosity_score":      round(max(0.0, min(1.0, float(verbosity_score))), 3),
+        "notes":                notes.strip(),
+        "recorded_at":          datetime.utcnow().isoformat(),
+    }
+    existing = _download_jsonl(BEHAVIOR_FILE)
+    existing.append(entry)
+    _upload_jsonl(BEHAVIOR_FILE, existing)
+    return f"Behavior metrics recorded (id={entry['behavior_id'][:8]}…)"
+
+
+def build_behavior_summary() -> str:
+    entries = _download_jsonl(BEHAVIOR_FILE)
+    if not entries:
+        return "No behavioral metrics recorded yet."
+    n = len(entries)
+    metrics = ["accuracy_score", "consistency_score", "refusal_quality", "tone_score", "verbosity_score"]
+    avgs = {m: round(sum(e.get(m, 0) for e in entries) / n * 100, 1) for m in metrics}
+    halluc_rate = round(sum(1 for e in entries if e.get("hallucination_detected")) / n * 100, 1)
+    lines = [
+        f"**Behavioral Metrics Summary** — {n} recorded turns",
+        "",
+        "| Metric | Avg Score |",
+        "|--------|-----------|",
+        f"| Hallucination Rate | {halluc_rate}% |",
+    ] + [f"| {m.replace('_', ' ').title()} | {v}% |" for m, v in avgs.items()]
+    return "\n".join(lines)
+
+
+def build_behavior_radar() -> Any:
+    """Radar chart of average behavioral metric scores."""
+    entries = _download_jsonl(BEHAVIOR_FILE)
+    metrics = ["accuracy_score", "consistency_score", "refusal_quality", "tone_score", "verbosity_score"]
+    labels = ["Accuracy", "Consistency", "Refusal Quality", "Tone", "Verbosity"]
+    if not entries:
+        values = [0.0] * len(metrics)
+    else:
+        n = len(entries)
+        values = [round(sum(e.get(m, 0) for e in entries) / n * 100, 1) for m in metrics]
+    values_closed = values + [values[0]]
+    labels_closed = labels + [labels[0]]
+    fig = go.Figure(go.Scatterpolar(
+        r=values_closed, theta=labels_closed,
+        fill="toself",
+        line=dict(color="#238636"),
+        fillcolor="rgba(35,134,54,0.2)",
+    ))
+    fig.update_layout(
+        paper_bgcolor="#0d1117",
+        polar=dict(
+            bgcolor="#161b22",
+            radialaxis=dict(visible=True, range=[0, 100],
+                            tickfont=dict(color="#c9d1d9"), gridcolor="#30363d"),
+            angularaxis=dict(tickfont=dict(color="#c9d1d9"), gridcolor="#30363d"),
+        ),
+        title=dict(text="Behavioral Quality Radar", font=dict(color="#c9d1d9")),
+        margin=dict(l=60, r=60, t=60, b=60),
+    )
+    return fig
+
+
+# ---------------------------------------------------------------------------
 # Rule layer classification
 # ---------------------------------------------------------------------------
 
@@ -6283,6 +6629,128 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 inputs=[esc_conv_id, esc_turn_no, esc_type, esc_ai_action, esc_expected,
                         esc_outcome, esc_notes],
                 outputs=esc_log_status,
+            )
+
+            gr.HTML('<div class="section-title">Decision Provenance</div>')
+            gr.Markdown("Full input → retrieved context → rules applied → reasoning → output lineage per turn.")
+            prov_table = gr.Dataframe(interactive=False, wrap=True)
+            with gr.Row():
+                prov_conv_sel = gr.Dropdown(label="Conversation", choices=[], scale=3)
+                prov_refresh_sel = gr.Button("↻ Refresh list", variant="secondary", size="sm", scale=1)
+            with gr.Row():
+                prov_auto_btn = gr.Button("▶ Auto-Record Provenance", variant="primary", size="sm")
+                prov_refresh_btn = gr.Button("↻ Refresh table", variant="secondary", size="sm")
+            prov_status = gr.Markdown()
+
+            def _refresh_prov_sel():
+                return gr.Dropdown(choices=get_conversation_ids())
+
+            prov_refresh_sel.click(_refresh_prov_sel, outputs=prov_conv_sel)
+            prov_refresh_btn.click(lambda cid: build_provenance_table(cid),
+                                   inputs=prov_conv_sel, outputs=prov_table)
+            prov_auto_btn.click(auto_record_provenance, inputs=prov_conv_sel, outputs=prov_status)
+            prov_conv_sel.change(lambda cid: build_provenance_table(cid),
+                                 inputs=prov_conv_sel, outputs=prov_table)
+            demo.load(lambda: (build_provenance_table(), gr.Dropdown(choices=get_conversation_ids())),
+                      outputs=[prov_table, prov_conv_sel])
+
+            gr.HTML('<div class="section-title">Data Provenance</div>')
+            gr.Markdown("Register data sources with trust levels (high / medium / low / untrusted).")
+            with gr.Row():
+                data_prov_chart = gr.Plot(scale=1)
+                data_prov_table = gr.Dataframe(interactive=False, wrap=True, scale=2)
+            data_prov_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
+
+            with gr.Row():
+                dp_name = gr.Textbox(label="Source name", scale=3)
+                dp_type = gr.Textbox(label="Type (e.g. dataset, api, file)", scale=2)
+            with gr.Row():
+                dp_trust = gr.Dropdown(label="Trust level", choices=DATA_TRUST_LEVELS,
+                                       value="medium", scale=2)
+                dp_owner = gr.Textbox(label="Owner", scale=2)
+            dp_desc = gr.Textbox(label="Description", lines=1)
+            dp_add_btn = gr.Button("+ Register Source", variant="secondary", size="sm")
+            dp_add_status = gr.Markdown()
+
+            def _refresh_data_prov():
+                return build_data_trust_chart(), build_data_provenance_table()
+
+            data_prov_refresh_btn.click(_refresh_data_prov, outputs=[data_prov_chart, data_prov_table])
+            demo.load(_refresh_data_prov, outputs=[data_prov_chart, data_prov_table])
+            dp_add_btn.click(
+                register_data_source,
+                inputs=[dp_name, dp_type, dp_trust, dp_owner, dp_desc],
+                outputs=dp_add_status,
+            )
+
+            gr.HTML('<div class="section-title">Evidence Management</div>')
+            gr.Markdown("Store and retrieve audit evidence: logs, test results, security scans, reports.")
+            ev_table = gr.Dataframe(interactive=False, wrap=True)
+            with gr.Row():
+                ev_type_filter = gr.Dropdown(label="Filter by type", choices=[""] + EVIDENCE_TYPES,
+                                             value="", scale=2)
+                ev_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm", scale=1)
+
+            gr.Markdown("**Store new evidence**")
+            with gr.Row():
+                ev_type = gr.Dropdown(label="Type", choices=EVIDENCE_TYPES, value="log", scale=2)
+                ev_title = gr.Textbox(label="Title", scale=3)
+            ev_content = gr.Textbox(label="Content / body", lines=4)
+            with gr.Row():
+                ev_rule_id = gr.Textbox(label="Related rule ID (optional)", scale=2)
+                ev_incident_id = gr.Textbox(label="Related incident ID (optional)", scale=2)
+            with gr.Row():
+                ev_store_btn = gr.Button("💾 Store Evidence", variant="secondary", size="sm")
+                ev_export_btn = gr.Button("📦 Export Audit Bundle", variant="primary", size="sm")
+                ev_export_rule = gr.Textbox(label="Rule ID (blank=all)", scale=2)
+            ev_store_status = gr.Markdown()
+
+            def _refresh_ev(t):
+                return build_evidence_table(t)
+
+            ev_refresh_btn.click(_refresh_ev, inputs=ev_type_filter, outputs=ev_table)
+            ev_type_filter.change(_refresh_ev, inputs=ev_type_filter, outputs=ev_table)
+            demo.load(lambda: build_evidence_table(), outputs=ev_table)
+            ev_store_btn.click(
+                store_evidence,
+                inputs=[ev_type, ev_title, ev_content, ev_rule_id, ev_incident_id],
+                outputs=ev_store_status,
+            )
+            ev_export_btn.click(export_audit_evidence, inputs=ev_export_rule, outputs=ev_store_status)
+
+            gr.HTML('<div class="section-title">Behavioral Tracking</div>')
+            gr.Markdown("Monitor hallucination rate, accuracy, consistency, refusal quality, tone, and verbosity.")
+            with gr.Row():
+                beh_radar = gr.Plot(scale=1)
+                beh_summary_md = gr.Markdown(scale=2)
+            beh_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
+
+            gr.Markdown("**Record metrics for a turn**")
+            with gr.Row():
+                beh_conv_id = gr.Textbox(label="Conversation ID", scale=2)
+                beh_turn_no = gr.Number(label="Turn #", value=1, minimum=1, scale=1)
+                beh_hallu = gr.Checkbox(label="Hallucination detected?", value=False, scale=1)
+            with gr.Row():
+                beh_accuracy    = gr.Slider(label="Accuracy",         minimum=0, maximum=1, value=0.8, step=0.05, scale=2)
+                beh_consistency = gr.Slider(label="Consistency",       minimum=0, maximum=1, value=0.8, step=0.05, scale=2)
+                beh_refusal     = gr.Slider(label="Refusal Quality",   minimum=0, maximum=1, value=0.8, step=0.05, scale=2)
+            with gr.Row():
+                beh_tone        = gr.Slider(label="Tone",              minimum=0, maximum=1, value=0.8, step=0.05, scale=2)
+                beh_verbosity   = gr.Slider(label="Verbosity",         minimum=0, maximum=1, value=0.8, step=0.05, scale=2)
+                beh_notes       = gr.Textbox(label="Notes",            scale=2)
+            beh_record_btn = gr.Button("📊 Record Metrics", variant="secondary", size="sm")
+            beh_record_status = gr.Markdown()
+
+            def _refresh_beh():
+                return build_behavior_radar(), build_behavior_summary()
+
+            beh_refresh_btn.click(_refresh_beh, outputs=[beh_radar, beh_summary_md])
+            demo.load(_refresh_beh, outputs=[beh_radar, beh_summary_md])
+            beh_record_btn.click(
+                record_behavior_metrics,
+                inputs=[beh_conv_id, beh_turn_no, beh_hallu, beh_accuracy,
+                        beh_consistency, beh_refusal, beh_tone, beh_verbosity, beh_notes],
+                outputs=beh_record_status,
             )
 
             gr.HTML('<div class="section-title">Conversations</div>')
