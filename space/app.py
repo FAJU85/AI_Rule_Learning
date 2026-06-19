@@ -186,92 +186,7 @@ def _is_too_similar_to_rejected(new_rule: dict, rejected: list[dict], threshold:
 
 
 # ---------------------------------------------------------------------------
-# Tab 1 — Overview
-# ---------------------------------------------------------------------------
-
-def build_overview() -> tuple[Any, Any, str]:
-    rules = load_rules()
-    conversations = load_conversations()
-
-    if not rules and not conversations:
-        empty_fig = go.Figure()
-        empty_fig.update_layout(
-            title="No data yet — upload conversations to get started",
-            plot_bgcolor="#f8fafc",
-            paper_bgcolor="#ffffff",
-            height=350,
-        )
-        summary = "### No data yet\n\nUpload conversation history in the **Upload History** tab to populate this dashboard."
-        return _dark_fig(empty_fig), _dark_fig(go.Figure()), summary
-
-    active_rules = [r for r in rules if r.get("is_active")]
-    total_triggers = sum(r.get("times_triggered", 0) for r in active_rules)
-    avg_eff = (
-        sum(r.get("effectiveness_score", 0) for r in active_rules) / max(len(active_rules), 1)
-    )
-
-    # Effectiveness bar chart
-    fig_eff = go.Figure(
-        go.Bar(
-            x=[r.get("name", r.get("rule_id", "?"))[:30] for r in rules],
-            y=[r.get("effectiveness_score", 0) for r in rules],
-            marker_color=["#22c55e" if r.get("is_active") else "#94a3b8" for r in rules],
-            text=[f"{r.get('effectiveness_score', 0):.0%}" for r in rules],
-            textposition="outside",
-        )
-    )
-    fig_eff.update_layout(
-        title="Rule Effectiveness Scores",
-        yaxis_title="Effectiveness",
-        yaxis_range=[0, 1.1],
-        plot_bgcolor="#f8fafc",
-        paper_bgcolor="#ffffff",
-        height=350,
-    )
-
-    # Gap distribution from conversations
-    gap_counts: dict[str, int] = {}
-    for conv in conversations:
-        for turn in conv.get("turns", []):
-            for gap in turn.get("gaps_detected", []):
-                gtype = gap.get("type", "unknown") if isinstance(gap, dict) else str(gap)
-                gap_counts[gtype] = gap_counts.get(gtype, 0) + 1
-
-    if gap_counts:
-        fig_gaps = go.Figure(
-            go.Pie(
-                labels=[k.replace("_", " ").title() for k in gap_counts],
-                values=list(gap_counts.values()),
-                hole=0.4,
-            )
-        )
-    else:
-        fig_gaps = go.Figure(go.Pie(labels=["No gaps detected"], values=[1], hole=0.4))
-
-    fig_gaps.update_layout(
-        title="Gap Distribution",
-        plot_bgcolor="#f8fafc",
-        paper_bgcolor="#ffffff",
-        height=350,
-    )
-
-    total_gaps = sum(gap_counts.values())
-    summary = f"""
-### System Summary
-
-| Metric | Value |
-|--------|-------|
-| Active rules | {len(active_rules)} / {len(rules)} |
-| Total rule triggers | {total_triggers} |
-| Average effectiveness | {avg_eff:.0%} |
-| Conversations analysed | {len(conversations)} |
-| Gaps detected (all time) | {total_gaps} |
-"""
-    return fig_eff, fig_gaps, summary
-
-
-# ---------------------------------------------------------------------------
-# Tab 2 — Rules
+# Rules
 # ---------------------------------------------------------------------------
 
 def build_rules_table() -> pd.DataFrame:
@@ -420,7 +335,7 @@ def build_rule_version_history(rule_name: str) -> pd.DataFrame:
 
 
 # ---------------------------------------------------------------------------
-# Tab 3 — Conversations
+# Conversations
 # ---------------------------------------------------------------------------
 
 def build_conversations_table() -> pd.DataFrame:
@@ -447,7 +362,7 @@ def build_conversations_table() -> pd.DataFrame:
 
 
 # ---------------------------------------------------------------------------
-# Tab 4 — Project Compass (project-level health sensor)
+# Project Compass
 # ---------------------------------------------------------------------------
 
 SPACE_ID = "vooom/AI_Rule_Learning"
@@ -571,7 +486,7 @@ def build_project_compass() -> tuple[Any, Any, str]:
 
 
 # ---------------------------------------------------------------------------
-# Tab 5 — Alignment Sensor (per-conversation)
+# Alignment Sensor
 # ---------------------------------------------------------------------------
 
 DIRECTION_EMOJI = {"on_track": "🟢", "drifting": "🟡", "off_course": "🔴"}
@@ -701,7 +616,7 @@ def build_compass(conv_id: str) -> tuple[Any, Any, str]:
 
 
 # ---------------------------------------------------------------------------
-# Tab 5 — Gap Simulator
+# Gap Simulator
 # ---------------------------------------------------------------------------
 
 def simulate_gap(user_message: str) -> tuple[str, str]:
@@ -744,7 +659,7 @@ def simulate_gap(user_message: str) -> tuple[str, str]:
 
 
 # ---------------------------------------------------------------------------
-# Tab 5 — Upload History
+# Upload History
 # ---------------------------------------------------------------------------
 
 def _parse_json_conversations(content: str) -> list[dict]:
