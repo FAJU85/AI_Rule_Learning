@@ -8668,7 +8668,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
             gr.Markdown("Monitor hallucination rate, accuracy, consistency, refusal quality, tone, and verbosity.")
             with gr.Row():
                 beh_radar = gr.Plot(scale=1)
-                beh_summary_md = gr.Markdown(scale=2)
+                beh_summary_md = gr.Markdown()
             beh_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
 
             gr.Markdown("**Record metrics for a turn**")
@@ -8786,7 +8786,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
             gr.Markdown("What percentage of conversation gap turns are covered by at least one active rule?")
             with gr.Row():
                 coverage_chart = gr.Plot(scale=1)
-                coverage_report_md = gr.Markdown(scale=2)
+                coverage_report_md = gr.Markdown()
             coverage_refresh_btn = gr.Button("↻ Refresh Coverage", variant="secondary", size="sm")
 
             def _refresh_coverage():
