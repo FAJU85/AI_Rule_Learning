@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ai-rule-learning-mcp"
-version = "0.1.0"
+version = "0.1.1"
 description = "MCP server that learns guardrail rules from your AI conversations and injects them automatically"
 readme = {file = "README.md", content-type = "text/markdown"}
 requires-python = ">=3.10"
