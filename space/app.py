@@ -2752,6 +2752,7 @@ def build_coverage_chart() -> Any:
     fig.update_layout(
         paper_bgcolor="#ffffff", plot_bgcolor="#f8fafc",
         legend=dict(font=dict(color="#334155")),
+        height=280,
         margin=dict(l=20, r=20, t=40, b=20),
         title=dict(text=f"Gap Coverage  {c['coverage_pct']}%", font=dict(color="#334155")),
         annotations=[dict(
@@ -4255,6 +4256,7 @@ def build_forecast_chart(horizon: int = 3) -> Any:
         yaxis=dict(tickfont=dict(color="#334155"), title="Effectiveness %",
                    titlefont=dict(color="#334155"), range=[0, 105]),
         legend=dict(font=dict(color="#334155")),
+        height=350,
         margin=dict(l=40, r=20, t=50, b=40),
     )
     return _dark_fig(fig)
@@ -5042,6 +5044,7 @@ def build_behavior_radar() -> Any:
             angularaxis=dict(tickfont=dict(color="#334155"), gridcolor="#e2e8f0"),
         ),
         title=dict(text="Behavioral Quality Radar", font=dict(color="#334155")),
+        height=360,
         margin=dict(l=60, r=60, t=60, b=60),
     )
     return _dark_fig(fig)
