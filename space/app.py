@@ -6657,7 +6657,7 @@ def build_goal_chart() -> Any:
     names = [r.get("objective", r["goal_id"])[:30] for r in results]
     actuals = [r["actual_score"] for r in results]
     targets = [r["target_score"] for r in results]
-    colors = ["#34d399" if r["alignment_status"] == "aligned" else "#fbbf24" if r["alignment_status"] == "warning" else "#f87171" for r in results]
+    colors = ["#10b981" if r["alignment_status"] == "aligned" else "#f59e0b" if r["alignment_status"] == "warning" else "#ef4444" for r in results]
 
     fig = go.Figure()
     fig.add_trace(go.Bar(name="Actual", x=names, y=actuals, marker_color=colors))
@@ -6763,7 +6763,7 @@ def build_control_chart() -> Any:
 
     # Group by risk level
     risk_order = ["critical", "high", "medium", "low"]
-    risk_colors = {"critical": "#f87171", "high": "#fbbf24", "medium": "#4f46e5", "low": "#34d399"}
+    risk_colors = {"critical": "#ef4444", "high": "#f59e0b", "medium": "#4f46e5", "low": "#10b981"}
     by_risk: dict[str, list] = {r: [] for r in risk_order}
     for ctrl in results:
         rl = ctrl.get("risk_level", "low")
@@ -7481,17 +7481,17 @@ def compute_compliance_health() -> dict:
 def build_compliance_health_gauge() -> Any:
     health = compute_compliance_health()
     overall = health["overall"]
-    color = "#34d399" if overall >= 80 else "#fbbf24" if overall >= 60 else "#f87171"
+    color = "#10b981" if overall >= 80 else "#f59e0b" if overall >= 60 else "#ef4444"
     fig = go.Figure(go.Indicator(
         mode="gauge+number+delta",
         value=overall,
-        title={"text": "Compliance Health", "font": {"size": 16, "color": "#ffffff"}},
+        title={"text": "Compliance Health", "font": {"size": 16, "color": "#334155"}},
         gauge={
-            "axis": {"range": [0, 100], "tickcolor": "#aaa"},
+            "axis": {"range": [0, 100], "tickcolor": "#64748b"},
             "bar": {"color": color},
             "steps": [
-                {"range": [0, 60], "color": "#3d1010"},
-                {"range": [60, 80], "color": "#3d2e10"},
+                {"range": [0, 60], "color": "#fee2e2"},
+                {"range": [60, 80], "color": "#fef3c7"},
                 {"range": [80, 100], "color": "#dcfce7"},
             ],
             "threshold": {"line": {"color": "#334155", "width": 2}, "thickness": 0.75, "value": 80},
@@ -7506,7 +7506,7 @@ def build_compliance_health_breakdown() -> Any:
     dims = ["Rule Health", "Incident Health", "SLO Health", "Cert Health", "Goal Health"]
     vals = [health["rule_health"], health["incident_health"], health["slo_health"],
             health["cert_health"], health["goal_health"]]
-    colors = ["#34d399" if v >= 80 else "#fbbf24" if v >= 60 else "#f87171" for v in vals]
+    colors = ["#10b981" if v >= 80 else "#f59e0b" if v >= 60 else "#ef4444" for v in vals]
     fig = go.Figure(go.Bar(x=dims, y=vals, marker_color=colors))
     fig.update_layout(
         title="Compliance Health Breakdown",
@@ -8063,7 +8063,7 @@ MATURITY_LEVELS: list[dict] = [
         "level": 1,
         "name": "Initial",
         "description": "Rules exist and are structured. The foundation is in place.",
-        "color": "#f87171",
+        "color": "#ef4444",
         "capabilities": [
             ("Rules defined", lambda: _has_data("rules.jsonl", 1)),
             ("Rule categories used (layer field)", lambda: any(r.get("layer") for r in _download_jsonl("rules.jsonl"))),
@@ -8102,7 +8102,7 @@ MATURITY_LEVELS: list[dict] = [
         "level": 4,
         "name": "Measured",
         "description": "Quantitative management. Trust scores, SLOs, benchmarks, and coverage are actively measured.",
-        "color": "#34d399",
+        "color": "#10b981",
         "capabilities": [
             ("Trust score computed (score_history present)", lambda: any(r.get("score_history") for r in _download_jsonl("rules.jsonl"))),
             ("SLOs defined", lambda: _has_data(SLO_FILE, 1)),
