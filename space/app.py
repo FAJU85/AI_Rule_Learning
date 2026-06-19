@@ -4328,6 +4328,418 @@ def build_forecast_report(horizon: int = 3) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Rule Enforcement (#10) — real-time pass/fail validator
+# ---------------------------------------------------------------------------
+
+ENFORCEMENT_FILE = "enforcement_log.jsonl"
+
+
+def validate_action(user_input: str, agent_response: str) -> dict:
+    """
+    Run all active rules against a user/agent turn.
+    Returns: {passed: [...], failed: [...], warnings: [...], verdict: 'pass'|'fail'|'warn'}
+    """
+    rules = [r for r in _download_jsonl("rules.jsonl")
+             if r.get("is_active") or r.get("status") == "active"]
+    passed, failed, warnings = [], [], []
+    text = (user_input + " " + agent_response).lower()
+
+    for rule in rules:
+        kws = _gap_keywords_from_rule(rule)
+        if not kws:
+            continue
+        triggered = any(kw in text for kw in kws)
+        instr = ((rule.get("action") or {}).get("instruction", "") or
+                 rule.get("description", "")).lower()
+        # Negative instruction: rule says "never/don't/refuse" — triggering = fail
+        neg = any(w in instr for w in ("never", "not", "don't", "refuse", "block", "no "))
+        if triggered and neg:
+            failed.append({"rule_id": rule.get("rule_id",""), "name": rule.get("name",""),
+                           "reason": f"Trigger matched but rule forbids: {kws[:2]}"})
+        elif triggered:
+            passed.append({"rule_id": rule.get("rule_id",""), "name": rule.get("name","")})
+        # Positive instruction triggered but response may miss it → warning
+        elif not triggered and not neg and any(kw in user_input.lower() for kw in kws):
+            warnings.append({"rule_id": rule.get("rule_id",""), "name": rule.get("name",""),
+                             "reason": f"Rule may apply but response didn't address: {kws[:2]}"})
+
+    verdict = "fail" if failed else ("warn" if warnings else "pass")
+    return {"passed": passed, "failed": failed, "warnings": warnings, "verdict": verdict}
+
+
+def enforce_and_log(user_input: str, agent_response: str, context: str = "") -> str:
+    """Validate a turn and log the enforcement result. Returns markdown report."""
+    result = validate_action(user_input, agent_response)
+    entry = {
+        "enforcement_id": str(uuid.uuid4()),
+        "user_input":     user_input[:300],
+        "agent_response": agent_response[:300],
+        "context":        context,
+        "verdict":        result["verdict"],
+        "passed_count":   len(result["passed"]),
+        "failed_count":   len(result["failed"]),
+        "warning_count":  len(result["warnings"]),
+        "failed_rules":   [f["name"] for f in result["failed"]],
+        "enforced_at":    datetime.utcnow().isoformat(),
+    }
+    existing = _download_jsonl(ENFORCEMENT_FILE)
+    existing.append(entry)
+    _upload_jsonl(ENFORCEMENT_FILE, existing)
+
+    verdict_icon = {"pass": "✅", "warn": "⚠️", "fail": "❌"}[result["verdict"]]
+    lines = [f"## Enforcement Result: {verdict_icon} {result['verdict'].upper()}",
+             f"",
+             f"| | Count |",
+             f"|--|--|",
+             f"| ✅ Rules passed | {len(result['passed'])} |",
+             f"| ❌ Rules failed | {len(result['failed'])} |",
+             f"| ⚠️ Warnings     | {len(result['warnings'])} |",
+             ]
+    if result["failed"]:
+        lines += ["", "**Failures:**"]
+        for f in result["failed"]:
+            lines.append(f"- `{f['name']}`: {f['reason']}")
+    if result["warnings"]:
+        lines += ["", "**Warnings:**"]
+        for w in result["warnings"]:
+            lines.append(f"- `{w['name']}`: {w['reason']}")
+    return "\n".join(lines)
+
+
+def build_enforcement_log_table() -> pd.DataFrame:
+    entries = _download_jsonl(ENFORCEMENT_FILE)
+    if not entries:
+        return pd.DataFrame(columns=["ID", "Verdict", "Passed", "Failed", "Warnings", "Failed Rules", "Date"])
+    rows = [{
+        "ID":           e.get("enforcement_id","")[:8],
+        "Verdict":      e.get("verdict",""),
+        "Passed":       e.get("passed_count", 0),
+        "Failed":       e.get("failed_count", 0),
+        "Warnings":     e.get("warning_count", 0),
+        "Failed Rules": ", ".join(e.get("failed_rules",[]))[:50] or "—",
+        "Date":         e.get("enforced_at","")[:19],
+    } for e in sorted(entries, key=lambda x: x.get("enforced_at",""), reverse=True)[:100]]
+    return pd.DataFrame(rows)
+
+
+def build_enforcement_summary() -> str:
+    entries = _download_jsonl(ENFORCEMENT_FILE)
+    if not entries:
+        return "No enforcement runs yet."
+    from collections import Counter
+    by_verdict = Counter(e.get("verdict","pass") for e in entries)
+    total = len(entries)
+    pass_rate = round(by_verdict.get("pass", 0) / total * 100, 1)
+    lines = [
+        f"**Enforcement Log** — {total} validations, {pass_rate}% pass rate",
+        "",
+        "| Verdict | Count |",
+        "|---------|-------|",
+    ] + [f"| {v} | {c} |" for v, c in by_verdict.most_common()]
+    return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# AI Audit Layer (#18) — scheduled worker AI → auditor AI
+# ---------------------------------------------------------------------------
+
+AUDIT_FILE = "audit_results.jsonl"
+
+_AUDIT_WORKER_PROMPT = """You are an AI governance worker. Review the following AI conversation turn and assess rule compliance.
+
+Active rules:
+{rules_summary}
+
+User input: {user_input}
+AI response: {agent_response}
+
+For each rule, state: COMPLIANT, NON_COMPLIANT, or NOT_APPLICABLE.
+Then give an overall_verdict: PASS or FAIL.
+Return JSON: {{"rule_assessments": [{{"rule_name": str, "verdict": str, "note": str}}], "overall_verdict": str, "summary": str}}
+Return ONLY the JSON."""
+
+_AUDIT_AUDITOR_PROMPT = """You are an independent AI auditor reviewing a worker AI's compliance assessment.
+
+Worker assessment:
+{worker_assessment}
+
+Original conversation:
+User: {user_input}
+AI: {agent_response}
+
+Do you agree with the worker's overall verdict? Respond JSON:
+{{"agree": true/false, "final_verdict": "PASS"|"FAIL", "auditor_note": str}}
+Return ONLY the JSON."""
+
+
+def run_ai_audit(conversation_id: str = "", max_turns: int = 3) -> str:
+    """Worker AI assesses compliance, Auditor AI reviews. Generator for streaming."""
+    convs = _download_jsonl("conversations.jsonl")
+    if conversation_id:
+        convs = [c for c in convs if c.get("conversation_id") == conversation_id]
+    if not convs:
+        yield "No conversations found to audit."
+        return
+
+    rules = [r for r in _download_jsonl("rules.jsonl")
+             if r.get("is_active") or r.get("status") == "active"]
+    rules_summary = "\n".join(
+        f"- {r.get('name','')}: {(r.get('action') or {}).get('instruction', r.get('description',''))[:80]}"
+        for r in rules[:10]
+    )
+
+    try:
+        from huggingface_hub import InferenceClient
+        client = InferenceClient(token=os.environ.get("HF_TOKEN"))
+    except Exception as e:
+        yield f"LLM client error: {e}"
+        return
+
+    audit_entries = _download_jsonl(AUDIT_FILE)
+    audited = 0
+    now = datetime.utcnow().isoformat()
+
+    for conv in convs[:2]:
+        for turn in conv.get("turns", [])[:max_turns]:
+            user_in = turn.get("user_input","")[:300]
+            agent_resp = turn.get("agent_response","")[:300]
+            if not user_in or not agent_resp:
+                continue
+
+            # Worker assessment
+            try:
+                w_resp = client.chat_completion(
+                    model="Qwen/Qwen2.5-72B-Instruct",
+                    messages=[{"role":"user","content": _AUDIT_WORKER_PROMPT.format(
+                        rules_summary=rules_summary, user_input=user_in, agent_response=agent_resp)}],
+                    max_tokens=400, temperature=0.1,
+                )
+                w_raw = w_resp.choices[0].message.content.strip()
+                w_raw = re.sub(r"^```(?:json)?\s*","",w_raw); w_raw = re.sub(r"\s*```$","",w_raw)
+                worker = json.loads(w_raw)
+            except Exception as e:
+                yield f"Worker error on turn {turn.get('turn_number')}: {e}\n"
+                continue
+
+            # Auditor review
+            try:
+                a_resp = client.chat_completion(
+                    model="Qwen/Qwen2.5-72B-Instruct",
+                    messages=[{"role":"user","content": _AUDIT_AUDITOR_PROMPT.format(
+                        worker_assessment=json.dumps(worker), user_input=user_in, agent_response=agent_resp)}],
+                    max_tokens=150, temperature=0.1,
+                )
+                a_raw = a_resp.choices[0].message.content.strip()
+                a_raw = re.sub(r"^```(?:json)?\s*","",a_raw); a_raw = re.sub(r"\s*```$","",a_raw)
+                auditor = json.loads(a_raw)
+            except Exception as e:
+                auditor = {"agree": True, "final_verdict": worker.get("overall_verdict","PASS"), "auditor_note": f"Auditor error: {e}"}
+
+            final = auditor.get("final_verdict", "PASS")
+            audit_entries.append({
+                "audit_id":         str(uuid.uuid4()),
+                "conversation_id":  conv.get("conversation_id",""),
+                "turn_number":      turn.get("turn_number", 0),
+                "user_input":       user_in[:120],
+                "worker_verdict":   worker.get("overall_verdict","PASS"),
+                "auditor_verdict":  final,
+                "auditor_agreed":   auditor.get("agree", True),
+                "auditor_note":     auditor.get("auditor_note",""),
+                "worker_summary":   worker.get("summary",""),
+                "rule_assessments": worker.get("rule_assessments",[]),
+                "audited_at":       now,
+            })
+            audited += 1
+            icon = "✅" if final == "PASS" else "❌"
+            yield f"{icon} [{final}] Conv {conv.get('conversation_id','')[-8:]} Turn {turn.get('turn_number')}: {auditor.get('auditor_note','')[:80]}\n"
+
+    if audited:
+        _upload_jsonl(AUDIT_FILE, audit_entries)
+    yield f"\n✅ Audit complete — {audited} turns assessed."
+
+
+def build_audit_table() -> pd.DataFrame:
+    entries = _download_jsonl(AUDIT_FILE)
+    if not entries:
+        return pd.DataFrame(columns=["Audit ID","Conv","Turn","Worker","Auditor","Agreed","Note","Date"])
+    rows = [{
+        "Audit ID":  e.get("audit_id","")[:8],
+        "Conv":      e.get("conversation_id","")[-8:],
+        "Turn":      e.get("turn_number",0),
+        "Worker":    e.get("worker_verdict",""),
+        "Auditor":   e.get("auditor_verdict",""),
+        "Agreed":    "Yes" if e.get("auditor_agreed") else "No",
+        "Note":      e.get("auditor_note","")[:60],
+        "Date":      e.get("audited_at","")[:10],
+    } for e in sorted(entries, key=lambda x: x.get("audited_at",""), reverse=True)[:100]]
+    return pd.DataFrame(rows)
+
+
+# ---------------------------------------------------------------------------
+# Human Override Tracking (#45)
+# ---------------------------------------------------------------------------
+
+OVERRIDE_FILE = "human_overrides.jsonl"
+
+
+def log_human_override(
+    conversation_id: str,
+    turn_number: int,
+    ai_decision: str,
+    human_decision: str,
+    override_reason: str,
+    overrider: str = "human",
+) -> str:
+    """Record a human override of an AI decision."""
+    entry = {
+        "override_id":       str(uuid.uuid4()),
+        "conversation_id":   conversation_id,
+        "turn_number":       int(turn_number),
+        "ai_decision":       ai_decision.strip(),
+        "human_decision":    human_decision.strip(),
+        "override_reason":   override_reason.strip(),
+        "overrider":         overrider,
+        "correct":           None,
+        "logged_at":         datetime.utcnow().isoformat(),
+    }
+    existing = _download_jsonl(OVERRIDE_FILE)
+    existing.append(entry)
+    _upload_jsonl(OVERRIDE_FILE, existing)
+    return f"Override logged (id={entry['override_id'][:8]}…)"
+
+
+def mark_override_accuracy(override_id: str, was_correct: bool) -> str:
+    """Mark whether a human override was retrospectively correct."""
+    entries = _download_jsonl(OVERRIDE_FILE)
+    target = next((e for e in entries if e.get("override_id","").startswith(override_id)), None)
+    if not target:
+        return f"Override {override_id} not found."
+    target["correct"] = was_correct
+    _upload_jsonl(OVERRIDE_FILE, entries)
+    return f"Override {override_id[:8]} marked {'correct' if was_correct else 'incorrect'}."
+
+
+def build_override_summary() -> str:
+    entries = _download_jsonl(OVERRIDE_FILE)
+    if not entries:
+        return "No overrides recorded yet."
+    total = len(entries)
+    rated = [e for e in entries if e.get("correct") is not None]
+    correct = sum(1 for e in rated if e.get("correct"))
+    accuracy = round(correct / len(rated) * 100, 1) if rated else None
+    from collections import Counter
+    by_reason = Counter(e.get("override_reason","")[:30] for e in entries)
+    lines = [
+        f"**Human Override Summary** — {total} total",
+        f"Override accuracy (rated): {f'{accuracy}%' if accuracy is not None else 'n/a'} ({len(rated)} rated)",
+        "",
+        "| Reason | Count |",
+        "|--------|-------|",
+    ] + [f"| {r} | {c} |" for r, c in by_reason.most_common(5)]
+    return "\n".join(lines)
+
+
+def build_overrides_table() -> pd.DataFrame:
+    entries = _download_jsonl(OVERRIDE_FILE)
+    if not entries:
+        return pd.DataFrame(columns=["ID","Conv","Turn","AI Decision","Human Decision","Reason","Correct","Date"])
+    rows = [{
+        "ID":             e.get("override_id","")[:8],
+        "Conv":           e.get("conversation_id","")[-8:],
+        "Turn":           e.get("turn_number",0),
+        "AI Decision":    e.get("ai_decision","")[:30],
+        "Human Decision": e.get("human_decision","")[:30],
+        "Reason":         e.get("override_reason","")[:40],
+        "Correct":        {"True":"Yes","False":"No",None:"—"}.get(str(e.get("correct")), "—"),
+        "Date":           e.get("logged_at","")[:10],
+    } for e in sorted(entries, key=lambda x: x.get("logged_at",""), reverse=True)[:100]]
+    return pd.DataFrame(rows)
+
+
+# ---------------------------------------------------------------------------
+# Escalation Quality (#47)
+# ---------------------------------------------------------------------------
+
+ESCALATION_FILE = "escalations.jsonl"
+
+ESCALATION_OUTCOMES = ["correct_escalation", "missed_escalation", "false_escalation"]
+
+
+def log_escalation(
+    conversation_id: str,
+    turn_number: int,
+    escalation_type: str,
+    ai_action: str,
+    expected_action: str,
+    outcome: str,
+    notes: str = "",
+) -> str:
+    """Log an escalation event and its quality assessment."""
+    if outcome not in ESCALATION_OUTCOMES:
+        return f"Invalid outcome. Choose: {ESCALATION_OUTCOMES}"
+    entry = {
+        "escalation_id":    str(uuid.uuid4()),
+        "conversation_id":  conversation_id,
+        "turn_number":      int(turn_number),
+        "escalation_type":  escalation_type.strip(),
+        "ai_action":        ai_action.strip(),
+        "expected_action":  expected_action.strip(),
+        "outcome":          outcome,
+        "notes":            notes.strip(),
+        "logged_at":        datetime.utcnow().isoformat(),
+    }
+    existing = _download_jsonl(ESCALATION_FILE)
+    existing.append(entry)
+    _upload_jsonl(ESCALATION_FILE, existing)
+    return f"Escalation logged (id={entry['escalation_id'][:8]}…): [{outcome}]"
+
+
+def build_escalation_metrics() -> str:
+    entries = _download_jsonl(ESCALATION_FILE)
+    if not entries:
+        return "No escalations recorded yet."
+    from collections import Counter
+    by_outcome = Counter(e.get("outcome") for e in entries)
+    total = len(entries)
+    correct = by_outcome.get("correct_escalation", 0)
+    missed  = by_outcome.get("missed_escalation", 0)
+    false_e = by_outcome.get("false_escalation", 0)
+    precision = round(correct / max(correct + false_e, 1) * 100, 1)
+    recall    = round(correct / max(correct + missed, 1) * 100, 1)
+    f1 = round(2 * precision * recall / max(precision + recall, 0.01), 1)
+    lines = [
+        f"**Escalation Quality Metrics** — {total} events",
+        "",
+        f"| Metric | Value |",
+        f"|--------|-------|",
+        f"| Precision | {precision}% |",
+        f"| Recall | {recall}% |",
+        f"| F1 Score | {f1}% |",
+        f"| Correct Escalations | {correct} |",
+        f"| Missed Escalations | {missed} |",
+        f"| False Escalations | {false_e} |",
+    ]
+    return "\n".join(lines)
+
+
+def build_escalations_table() -> pd.DataFrame:
+    entries = _download_jsonl(ESCALATION_FILE)
+    if not entries:
+        return pd.DataFrame(columns=["ID","Conv","Turn","Type","Outcome","AI Action","Expected","Date"])
+    rows = [{
+        "ID":       e.get("escalation_id","")[:8],
+        "Conv":     e.get("conversation_id","")[-8:],
+        "Turn":     e.get("turn_number",0),
+        "Type":     e.get("escalation_type","")[:20],
+        "Outcome":  e.get("outcome",""),
+        "AI Action": e.get("ai_action","")[:30],
+        "Expected":  e.get("expected_action","")[:30],
+        "Date":     e.get("logged_at","")[:10],
+    } for e in sorted(entries, key=lambda x: x.get("logged_at",""), reverse=True)[:100]]
+    return pd.DataFrame(rows)
+
+
+# ---------------------------------------------------------------------------
 # Rule layer classification
 # ---------------------------------------------------------------------------
 
@@ -5763,6 +6175,115 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
 
             cluster_refresh_btn.click(_refresh_clusters, outputs=[cluster_chart, cluster_summary])
             demo.load(_refresh_clusters, outputs=[cluster_chart, cluster_summary])
+
+            gr.HTML('<div class="section-title">Rule Enforcement Validator</div>')
+            gr.Markdown("Validate a user/agent turn against all active rules in real time.")
+            enf_summary_md = gr.Markdown()
+            enf_log_table = gr.Dataframe(interactive=False, wrap=True)
+            enf_refresh_btn = gr.Button("↻ Refresh log", variant="secondary", size="sm")
+            enf_user_input = gr.Textbox(label="User input", lines=2,
+                                        placeholder="What the user said")
+            enf_agent_resp = gr.Textbox(label="Agent response", lines=3,
+                                        placeholder="What the AI responded")
+            enf_context = gr.Textbox(label="Context (optional)", lines=1)
+            enf_run_btn = gr.Button("🛡️ Validate & Log", variant="primary", size="sm")
+            enf_result = gr.Markdown()
+
+            def _refresh_enf():
+                return build_enforcement_summary(), build_enforcement_log_table()
+
+            enf_refresh_btn.click(_refresh_enf, outputs=[enf_summary_md, enf_log_table])
+            demo.load(_refresh_enf, outputs=[enf_summary_md, enf_log_table])
+            enf_run_btn.click(
+                enforce_and_log,
+                inputs=[enf_user_input, enf_agent_resp, enf_context],
+                outputs=enf_result,
+            )
+
+            gr.HTML('<div class="section-title">AI Audit (Worker → Auditor)</div>')
+            gr.Markdown("Worker AI assesses rule compliance; Auditor AI independently reviews. Two-layer AI audit.")
+            audit_table = gr.Dataframe(interactive=False, wrap=True)
+            with gr.Row():
+                audit_conv_sel = gr.Dropdown(label="Conversation to audit (blank = all)", choices=[], scale=3)
+                audit_refresh_sel = gr.Button("↻ Refresh list", variant="secondary", size="sm", scale=1)
+            with gr.Row():
+                audit_run_btn = gr.Button("🤖 Run AI Audit", variant="primary", size="sm")
+                audit_refresh_btn = gr.Button("↻ Refresh table", variant="secondary", size="sm")
+            audit_log = gr.Textbox(label="Audit log", lines=8, interactive=False, autoscroll=True)
+
+            def _refresh_audit_sel():
+                return gr.Dropdown(choices=[""] + get_conversation_ids())
+
+            audit_refresh_sel.click(_refresh_audit_sel, outputs=audit_conv_sel)
+            audit_refresh_btn.click(lambda: build_audit_table(), outputs=audit_table)
+            demo.load(lambda: (build_audit_table(), gr.Dropdown(choices=[""] + get_conversation_ids())),
+                      outputs=[audit_table, audit_conv_sel])
+            audit_run_btn.click(run_ai_audit, inputs=audit_conv_sel, outputs=audit_log)
+
+            gr.HTML('<div class="section-title">Human Override Tracking</div>')
+            gr.Markdown("Record and assess human overrides of AI decisions.")
+            override_summary_md = gr.Markdown()
+            overrides_table = gr.Dataframe(interactive=False, wrap=True)
+            override_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
+
+            with gr.Row():
+                ov_conv_id = gr.Textbox(label="Conversation ID", scale=2)
+                ov_turn_no = gr.Number(label="Turn #", value=1, minimum=1, scale=1)
+            with gr.Row():
+                ov_ai_dec = gr.Textbox(label="AI Decision", scale=3)
+                ov_human_dec = gr.Textbox(label="Human Decision", scale=3)
+            ov_reason = gr.Textbox(label="Override Reason", lines=1)
+            ov_log_btn = gr.Button("📝 Log Override", variant="secondary", size="sm")
+            ov_log_status = gr.Markdown()
+            with gr.Row():
+                ov_rate_id = gr.Textbox(label="Override ID prefix to rate", scale=2)
+                ov_was_correct = gr.Checkbox(label="Was override correct?", value=True, scale=1)
+                ov_rate_btn = gr.Button("⭐ Mark Accuracy", variant="secondary", size="sm", scale=1)
+            ov_rate_status = gr.Markdown()
+
+            def _refresh_overrides():
+                return build_override_summary(), build_overrides_table()
+
+            override_refresh_btn.click(_refresh_overrides, outputs=[override_summary_md, overrides_table])
+            demo.load(_refresh_overrides, outputs=[override_summary_md, overrides_table])
+            ov_log_btn.click(
+                log_human_override,
+                inputs=[ov_conv_id, ov_turn_no, ov_ai_dec, ov_human_dec, ov_reason],
+                outputs=ov_log_status,
+            )
+            ov_rate_btn.click(mark_override_accuracy, inputs=[ov_rate_id, ov_was_correct], outputs=ov_rate_status)
+
+            gr.HTML('<div class="section-title">Escalation Quality</div>')
+            gr.Markdown("Track correct, missed, and false escalations. Compute precision, recall, and F1.")
+            esc_metrics_md = gr.Markdown()
+            esc_table = gr.Dataframe(interactive=False, wrap=True)
+            esc_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
+
+            with gr.Row():
+                esc_conv_id = gr.Textbox(label="Conversation ID", scale=2)
+                esc_turn_no = gr.Number(label="Turn #", value=1, minimum=1, scale=1)
+                esc_type = gr.Textbox(label="Escalation type", placeholder="e.g. safety, compliance", scale=2)
+            with gr.Row():
+                esc_ai_action = gr.Textbox(label="AI action taken", scale=3)
+                esc_expected = gr.Textbox(label="Expected action", scale=3)
+            with gr.Row():
+                esc_outcome = gr.Dropdown(
+                    label="Outcome", choices=ESCALATION_OUTCOMES, value="correct_escalation", scale=2)
+                esc_notes = gr.Textbox(label="Notes", scale=3)
+            esc_log_btn = gr.Button("📋 Log Escalation", variant="secondary", size="sm")
+            esc_log_status = gr.Markdown()
+
+            def _refresh_esc():
+                return build_escalation_metrics(), build_escalations_table()
+
+            esc_refresh_btn.click(_refresh_esc, outputs=[esc_metrics_md, esc_table])
+            demo.load(_refresh_esc, outputs=[esc_metrics_md, esc_table])
+            esc_log_btn.click(
+                log_escalation,
+                inputs=[esc_conv_id, esc_turn_no, esc_type, esc_ai_action, esc_expected,
+                        esc_outcome, esc_notes],
+                outputs=esc_log_status,
+            )
 
             gr.HTML('<div class="section-title">Conversations</div>')
             conversations_table = gr.Dataframe(interactive=False, wrap=True)
