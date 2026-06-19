@@ -97,6 +97,80 @@ def load_rules() -> list[dict]:
     return _download_jsonl("rules.jsonl")
 
 
+def load_rejected_rules() -> list[dict]:
+    return _download_jsonl("rejected_rules.jsonl")
+
+
+def load_rule_versions() -> list[dict]:
+    return _download_jsonl("rule_versions.jsonl")
+
+
+def _append_jsonl(filename: str, records: list[dict]) -> None:
+    """Append records to a JSONL file in the dataset (load → merge → upload)."""
+    existing = _download_jsonl(filename)
+    _upload_jsonl(filename, existing + records)
+
+
+def _snapshot_rule_version(rule: dict, event: str) -> None:
+    """Save a timestamped snapshot of a rule's current state to rule_versions.jsonl."""
+    snapshot = {
+        "rule_id": rule.get("rule_id"),
+        "name": rule.get("name"),
+        "event": event,
+        "timestamp": datetime.utcnow().isoformat(),
+        "is_active": rule.get("is_active"),
+        "effectiveness_score": rule.get("effectiveness_score"),
+        "times_triggered": rule.get("times_triggered", 0),
+        "success_count": rule.get("success_count", 0),
+        "failure_count": rule.get("failure_count", 0),
+        "instruction": (rule.get("action") or {}).get("instruction", ""),
+        "keywords": (rule.get("trigger") or {}).get("keywords", []),
+        "priority": rule.get("priority"),
+    }
+    try:
+        _append_jsonl("rule_versions.jsonl", [snapshot])
+    except Exception:
+        pass
+
+
+def _save_to_rejected_memory(rule: dict, reason: str) -> None:
+    """Persist a failed rule to rejected_rules.jsonl so it is never recreated."""
+    entry = {
+        "rule_id": rule.get("rule_id"),
+        "name": rule.get("name", ""),
+        "description": rule.get("description", ""),
+        "keywords": (rule.get("trigger") or {}).get("keywords", []),
+        "instruction": (rule.get("action") or {}).get("instruction", ""),
+        "reason": reason,
+        "rejected_at": datetime.utcnow().isoformat(),
+    }
+    try:
+        _append_jsonl("rejected_rules.jsonl", [entry])
+    except Exception:
+        pass
+
+
+def _is_too_similar_to_rejected(new_rule: dict, rejected: list[dict], threshold: float = 0.55) -> str | None:
+    """Return the name of the matching rejected rule if the new rule is too similar, else None."""
+    new_kws = set(kw.lower() for kw in (new_rule.get("trigger") or {}).get("keywords", []))
+    new_instruction = (new_rule.get("action") or {}).get("instruction", "").lower()
+    for r in rejected:
+        old_kws = set(kw.lower() for kw in r.get("keywords", []))
+        if new_kws and old_kws:
+            overlap = len(new_kws & old_kws) / max(len(new_kws | old_kws), 1)
+            if overlap >= threshold:
+                return r.get("name", r.get("rule_id", "?"))
+        # Also match on instruction text similarity (word overlap)
+        old_instruction = r.get("instruction", "").lower()
+        if new_instruction and old_instruction:
+            new_words = set(new_instruction.split())
+            old_words = set(old_instruction.split())
+            word_overlap = len(new_words & old_words) / max(len(new_words | old_words), 1)
+            if word_overlap >= threshold:
+                return r.get("name", r.get("rule_id", "?"))
+    return None
+
+
 # ---------------------------------------------------------------------------
 # Tab 1 — Overview
 # ---------------------------------------------------------------------------
@@ -250,7 +324,71 @@ def get_rule_detail(rule_name: str) -> str:
 - Times triggered: {triggered}
 - Success rate: {success_rate:.0%}
 - Effectiveness score: {rule.get('effectiveness_score', 0):.0%}
+- Score measurements: {len(rule.get('score_history', []))} recorded
 """
+
+
+def build_rule_score_trend(rule_name: str) -> Any:
+    """Return a Plotly figure showing the rule's effectiveness score over time."""
+    if not rule_name:
+        return go.Figure()
+    rules = load_rules()
+    rule = next(
+        (r for r in rules if r.get("name") == rule_name or r.get("rule_id") == rule_name), None
+    )
+    if not rule:
+        return go.Figure()
+    history = rule.get("score_history", [])
+    if not history:
+        fig = go.Figure()
+        fig.update_layout(title=f"{rule.get('name', rule_name)} — no score history yet")
+        return fig
+    dates = [h["date"][:10] for h in history]
+    scores = [h["score"] for h in history]
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=dates, y=scores, mode="lines+markers",
+        line=dict(color="#4CAF50" if scores[-1] >= 0.7 else ("#FFC107" if scores[-1] >= 0.4 else "#F44336"), width=2),
+        marker=dict(size=8),
+        name="Effectiveness",
+    ))
+    fig.add_hline(y=0.7, line_dash="dot", line_color="green", annotation_text="Good (70%)")
+    fig.add_hline(y=0.3, line_dash="dot", line_color="red", annotation_text="Evolve threshold (30%)")
+    fig.update_layout(
+        title=f"{rule.get('name', rule_name)} — effectiveness over time",
+        yaxis=dict(range=[0, 1], tickformat=".0%"),
+        xaxis_title="Measurement date",
+        yaxis_title="Effectiveness score",
+        height=300,
+    )
+    return fig
+
+
+def build_rule_version_history(rule_name: str) -> pd.DataFrame:
+    """Return a DataFrame of all recorded state changes for a rule."""
+    if not rule_name:
+        return pd.DataFrame(columns=["Date", "Event", "Score", "Triggered", "Success", "Instruction"])
+    rules = load_rules()
+    rule = next(
+        (r for r in rules if r.get("name") == rule_name or r.get("rule_id") == rule_name), None
+    )
+    if not rule:
+        return pd.DataFrame(columns=["Date", "Event", "Score", "Triggered", "Success", "Instruction"])
+    rid = rule.get("rule_id")
+    versions = [v for v in load_rule_versions() if v.get("rule_id") == rid]
+    if not versions:
+        return pd.DataFrame({"Info": ["No version history recorded yet. History is captured on approve, reject, score, and evolve events."]})
+    rows = []
+    for v in sorted(versions, key=lambda x: x.get("timestamp", ""), reverse=True):
+        rows.append({
+            "Date": v.get("timestamp", "")[:16],
+            "Event": v.get("event", "?"),
+            "Score": f"{v.get('effectiveness_score', 0):.0%}" if v.get("effectiveness_score") is not None else "—",
+            "Triggered": v.get("times_triggered", 0),
+            "Success": v.get("success_count", 0),
+            "Instruction": (v.get("instruction", "") or "")[:80],
+        })
+    return pd.DataFrame(rows)
 
 
 # ---------------------------------------------------------------------------
@@ -1313,6 +1451,22 @@ def _generate_rule_hf(gap_type: str, examples: list[dict], total_conversations: 
 
         client = InferenceClient(token=HF_TOKEN)
 
+        # Load rejected rule memory so the LLM avoids recreating failed rules
+        rejected = load_rejected_rules()
+        rejected_block = ""
+        if rejected:
+            rejected_lines = []
+            for r in rejected[-20:]:  # last 20 rejected rules as context
+                rejected_lines.append(
+                    f"  - \"{r.get('name', '?')}\" — {r.get('reason', 'failed')} "
+                    f"(keywords: {r.get('keywords', [])})"
+                )
+            rejected_block = (
+                "\nPreviously tried rules that FAILED and must NOT be recreated:\n"
+                + "\n".join(rejected_lines)
+                + "\nDo not generate a rule with similar keywords or instructions to any of the above.\n"
+            )
+
         example_parts = []
         for e in examples[:5]:
             user = e.get("user_input", "")[:150]
@@ -1334,7 +1488,7 @@ def _generate_rule_hf(gap_type: str, examples: list[dict], total_conversations: 
 
 Gap pattern: {gap_type}
 Frequency: {freq_note}
-
+{rejected_block}
 Real failure examples (each shows what the user said and what the AI responded that caused the gap):
 {examples_text}
 
@@ -1375,6 +1529,11 @@ Only output the JSON. No markdown fences, no explanation."""
 
         rule_data = json.loads(match.group())
 
+        # Block rules too similar to previously rejected ones
+        similar_to = _is_too_similar_to_rejected(rule_data, rejected)
+        if similar_to:
+            return None  # silently skip — caller will log this
+
         rule_data["rule_id"] = f"rule_{gap_type}_{uuid.uuid4().hex[:8]}"
         rule_data["is_active"] = False
         rule_data["status"] = "pending_review"
@@ -1382,6 +1541,7 @@ Only output the JSON. No markdown fences, no explanation."""
         rule_data["times_triggered"] = 0
         rule_data["success_count"] = 0
         rule_data["failure_count"] = 0
+        rule_data["score_history"] = []
         rule_data["created_at"] = datetime.utcnow().isoformat()
         rule_data.setdefault("rule_type", "guardrail")
         rule_data.setdefault("priority", 3)
@@ -1824,8 +1984,14 @@ def run_validate_and_evolve():
 
         if score < _DEACTIVATION_THRESHOLD and triggered >= 20:
             rule["is_active"] = False
+            rule["status"] = "deactivated"
             deactivated.append(name)
             yield emit(f"   🚫 Deactivated (score {score:.0%} < {_DEACTIVATION_THRESHOLD:.0%} with {triggered} triggers)")
+            _snapshot_rule_version(rule, "deactivated")
+            _save_to_rejected_memory(
+                rule,
+                f"auto-deactivated: score {score:.0%} after {triggered} triggers — below {_DEACTIVATION_THRESHOLD:.0%} threshold"
+            )
             evolved_rules.append(rule)
             continue
 
@@ -1993,8 +2159,10 @@ def approve_rule(rule_id: str) -> str:
     rule["is_active"] = True
     rule["status"] = "active"
     rule["approved_at"] = datetime.utcnow().isoformat()
+    rule.setdefault("score_history", [])
     try:
         _upload_jsonl("rules.jsonl", rules)
+        _snapshot_rule_version(rule, "approved")
         return f"✅ Rule **{rule.get('name', rule_id)}** approved and activated."
     except Exception as exc:
         return f"❌ Failed to save: {exc}"
@@ -2012,7 +2180,9 @@ def reject_rule(rule_id: str) -> str:
     rule["rejected_at"] = datetime.utcnow().isoformat()
     try:
         _upload_jsonl("rules.jsonl", rules)
-        return f"🗑️ Rule **{rule.get('name', rule_id)}** rejected and will not be activated."
+        _snapshot_rule_version(rule, "rejected_by_user")
+        _save_to_rejected_memory(rule, "rejected by user during review")
+        return f"🗑️ Rule **{rule.get('name', rule_id)}** rejected — stored in memory so it won't be recreated."
     except Exception as exc:
         return f"❌ Failed to save: {exc}"
 
@@ -2099,6 +2269,7 @@ def run_score_effectiveness():
                     rule["success_count"] += 1
 
     # Update effectiveness scores and report
+    now = datetime.utcnow().isoformat()
     updated = 0
     for rule in rules:
         rid = rule.get("rule_id")
@@ -2115,6 +2286,15 @@ def run_score_effectiveness():
         rule["success_count"] = scored["success_count"]
         rule["failure_count"] = scored.get("failure_count", 0)
         rule["effectiveness_score"] = round(score, 3)
+        # Append to score history for trend tracking
+        rule.setdefault("score_history", [])
+        rule["score_history"].append({
+            "date": now,
+            "score": round(score, 3),
+            "triggered": triggered,
+            "success": scored["success_count"],
+            "failure": scored.get("failure_count", 0),
+        })
         updated += 1
         status = "✅" if score >= 0.7 else ("⚠️" if score >= 0.4 else "❌")
         yield emit(
@@ -2124,10 +2304,14 @@ def run_score_effectiveness():
 
     try:
         _upload_jsonl("rules.jsonl", rules)
+        # Snapshot versions for all scored rules
+        for rule in rules:
+            if rule.get("rule_id") in active_rules and active_rules[rule["rule_id"]]["times_triggered"] > 0:
+                _snapshot_rule_version(rule, "scored")
         yield emit(f"\n🎉 Scored {updated} rule(s). Refresh **Rules** tab to see updated scores.")
         yield emit(
-            "\n_Rules below 30% effectiveness will appear as candidates for evolution "
-            "when you click **🔄 Validate & Evolve**._"
+            "\n_Score history is recorded each run — open a rule in the Rules tab to see its trend over time. "
+            "Rules below 30% effectiveness will be flagged for evolution._"
         )
     except Exception as exc:
         yield emit(f"\n❌ Failed to save scores: {exc}")
@@ -2438,6 +2622,14 @@ with gr.Blocks(title="AI Rule Learning System", theme=gr.themes.Soft()) as demo:
             )
             yaml_export_btn.click(export_rules_as_yaml, outputs=yaml_output)
             demo.load(export_rules_as_yaml, outputs=yaml_output)
+
+            gr.Markdown("---\n### 📈 Rule Score Trend\nSelect a rule above to see how its effectiveness has changed over time.")
+            score_trend_chart = gr.Plot(label="Effectiveness over time")
+            rule_selector.change(build_rule_score_trend, inputs=rule_selector, outputs=score_trend_chart)
+
+            gr.Markdown("---\n### 🕓 Rule Version History\nEvery approve, reject, score, and evolve event is recorded here.")
+            version_history_table = gr.Dataframe(interactive=False, wrap=True)
+            rule_selector.change(build_rule_version_history, inputs=rule_selector, outputs=version_history_table)
 
         # --- Conversations ---
         with gr.Tab("💬 Conversations"):
