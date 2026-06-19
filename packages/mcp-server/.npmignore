@@ -1,0 +1,7 @@
+src/
+tsconfig.json
+*.map
+.env
+.env.*
+node_modules/
+*.log
