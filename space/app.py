@@ -10020,7 +10020,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 audit_chain_report = gr.Markdown()
                 audit_chain_table = gr.Dataframe(interactive=False, wrap=True)
                 audit_verify_btn = gr.Button("Verify Chain Integrity", variant="primary", size="sm")
-                audit_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
+                audit_chain_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
 
                 gr.Markdown("**Append Audit Entry**")
                 with gr.Row():
@@ -10041,7 +10041,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     outputs=audit_append_status,
                 )
                 audit_append_btn.click(_refresh_chain, outputs=audit_chain_table)
-                audit_refresh_btn.click(_refresh_chain, outputs=audit_chain_table)
+                audit_chain_refresh_btn.click(_refresh_chain, outputs=audit_chain_table)
                 testing_tab.select(_refresh_chain, outputs=audit_chain_table)
 
             with gr.Accordion('📊 Analytics & Simulation', open=False):
