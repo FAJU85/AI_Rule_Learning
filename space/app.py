@@ -8306,8 +8306,14 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
             refresh_pending_btn.click(refresh_pending, outputs=[pending_table, pending_selector])
             rules_tab.select(refresh_pending, outputs=[pending_table, pending_selector])
             pending_selector.change(get_pending_rule_detail, inputs=pending_selector, outputs=pending_detail)
-            approve_btn.click(approve_rule, inputs=pending_selector, outputs=review_status)
-            reject_btn.click(reject_rule, inputs=pending_selector, outputs=review_status)
+            approve_btn.click(approve_rule, inputs=pending_selector, outputs=review_status).then(
+                refresh_pending, outputs=[pending_table, pending_selector],
+            ).then(
+                refresh_rules, outputs=[rules_table, rule_selector],
+            )
+            reject_btn.click(reject_rule, inputs=pending_selector, outputs=review_status).then(
+                refresh_pending, outputs=[pending_table, pending_selector],
+            )
 
             gr.HTML('<div class="section-title">A/B Testing</div>')
             gr.Markdown("Create a keyword variant of a rule to compare effectiveness after real sessions.")
@@ -8529,10 +8535,17 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 label="Analysis log", lines=18, interactive=False, autoscroll=True,
             )
 
-            analysis_btn.click(run_analysis, inputs=community_toggle, outputs=analysis_log)
-            reanalyze_btn.click(run_force_reanalyze, inputs=community_toggle, outputs=analysis_log)
+            # After analysis/seed — auto-update the dashboard pending alert so the KPI stays current
+            analysis_btn.click(run_analysis, inputs=community_toggle, outputs=analysis_log).then(
+                build_pending_alert_html, outputs=pending_alert,
+            )
+            reanalyze_btn.click(run_force_reanalyze, inputs=community_toggle, outputs=analysis_log).then(
+                build_pending_alert_html, outputs=pending_alert,
+            )
             evolve_btn.click(run_validate_and_evolve, outputs=analysis_log)
-            seed_btn.click(run_seed_rules, outputs=analysis_log)
+            seed_btn.click(run_seed_rules, outputs=analysis_log).then(
+                build_pending_alert_html, outputs=pending_alert,
+            )
             dedup_btn.click(run_deduplicate_rules, outputs=analysis_log)
             score_btn.click(run_score_effectiveness, outputs=analysis_log)
             judge_btn.click(run_llm_judge_scoring, outputs=analysis_log)
