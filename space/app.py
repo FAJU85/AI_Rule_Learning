@@ -2247,9 +2247,9 @@ def set_rule_owner(rule_id: str, owner: str, team: str, contact: str) -> str:
 # ---------------------------------------------------------------------------
 
 _RISK_LABELS = {
-    (0.0, 0.25): ("Low",      "#3fb950"),
-    (0.25, 0.5): ("Medium",   "#d29922"),
-    (0.5, 0.75): ("High",     "#f85149"),
+    (0.0, 0.25): ("Low",      "#10b981"),
+    (0.25, 0.5): ("Medium",   "#f59e0b"),
+    (0.5, 0.75): ("High",     "#ef4444"),
     (0.75, 1.1): ("Critical", "#ff4444"),
 }
 
@@ -2525,14 +2525,14 @@ def build_drift_chart() -> Any:
         )
         return _dark_fig(fig)
 
-    palette = ["#58a6ff", "#3fb950", "#d29922", "#f85149", "#8b5cf6", "#06b6d4", "#ec4899"]
+    palette = ["#58a6ff", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4", "#ec4899"]
     fig = go.Figure()
     for i, rule in enumerate(active_with_history):
         history = rule["score_history"]
         xs = list(range(len(history)))
         ys = [h["score"] for h in history]
         drift = _compute_drift(history)
-        color = "#f85149" if drift["is_drifting"] else palette[i % len(palette)]
+        color = "#ef4444" if drift["is_drifting"] else palette[i % len(palette)]
         fig.add_trace(go.Scatter(
             x=xs, y=ys,
             mode="lines+markers",
@@ -2541,8 +2541,8 @@ def build_drift_chart() -> Any:
             marker=dict(size=6),
         ))
 
-    fig.add_hline(y=0.7, line_dash="dot", line_color="#3fb950", annotation_text="Good")
-    fig.add_hline(y=0.3, line_dash="dot", line_color="#f85149", annotation_text="Evolve threshold")
+    fig.add_hline(y=0.7, line_dash="dot", line_color="#10b981", annotation_text="Good")
+    fig.add_hline(y=0.3, line_dash="dot", line_color="#ef4444", annotation_text="Evolve threshold")
     fig.update_layout(
         title=dict(text="Effectiveness Trend (red = drifting)", font=dict(size=14, color="#334155")),
         xaxis_title="Measurement #",
@@ -2729,7 +2729,7 @@ def build_dependency_graph() -> Any:
     ))
     fig.add_trace(go.Scatter(
         x=node_x, y=node_y, mode="markers+text",
-        marker=dict(size=14, color="#238636", line=dict(width=1, color="#3fb950")),
+        marker=dict(size=14, color="#059669", line=dict(width=1, color="#10b981")),
         text=node_text, textposition="top center",
         hoverinfo="text",
         textfont=dict(size=9, color="#334155"),
@@ -2831,7 +2831,7 @@ def build_coverage_chart() -> Any:
         labels=["Covered", "Uncovered"],
         values=[covered, uncovered],
         hole=0.6,
-        marker=dict(colors=["#238636", "#f85149"]),
+        marker=dict(colors=["#059669", "#ef4444"]),
         textfont=dict(color="#334155"),
     ))
     fig.update_layout(
@@ -3426,9 +3426,9 @@ def build_kg_graph() -> Any:
 
     import math
     type_colors = {
-        "policy": "#1f6feb", "requirement": "#388bfd",
-        "control": "#238636", "kpi": "#d29922",
-        "audit_finding": "#f85149", "rule": "#8b949e",
+        "policy": "#4f46e5", "requirement": "#818cf8",
+        "control": "#059669", "kpi": "#f59e0b",
+        "audit_finding": "#ef4444", "rule": "#8b949e",
     }
     n = len(nodes)
     positions = {nd["node_id"]: (math.cos(2 * math.pi * i / max(n, 1)),
@@ -3783,7 +3783,7 @@ def build_slo_chart() -> Any:
     names = [f"{r['rule_name'][:20]} / {r['slo_name']}" for r in rows]
     slis = [r["sli_pct"] if r["sli_pct"] is not None else 0 for r in rows]
     targets = [r["target_pct"] for r in rows]
-    colors = ["#238636" if s == "ok" else "#f85149" for s in [r["status"] for r in rows]]
+    colors = ["#059669" if s == "ok" else "#ef4444" for s in [r["status"] for r in rows]]
     fig = go.Figure()
     fig.add_trace(go.Bar(
         x=names, y=slis, name="SLI %",
@@ -3791,8 +3791,8 @@ def build_slo_chart() -> Any:
     ))
     fig.add_trace(go.Scatter(
         x=names, y=targets, name="Target",
-        mode="markers", marker=dict(symbol="line-ew", size=16, color="#d29922",
-                                    line=dict(width=3, color="#d29922")),
+        mode="markers", marker=dict(symbol="line-ew", size=16, color="#f59e0b",
+                                    line=dict(width=3, color="#f59e0b")),
     ))
     fig.update_layout(
         paper_bgcolor="#ffffff", plot_bgcolor="#f8fafc",
@@ -3895,7 +3895,7 @@ def build_improvement_funnel() -> Any:
         y=IMPROVEMENT_STAGES,
         x=values,
         textinfo="value+percent initial",
-        marker=dict(color=["#1f6feb", "#388bfd", "#238636", "#d29922", "#3fb950"]),
+        marker=dict(color=["#4f46e5", "#818cf8", "#059669", "#f59e0b", "#10b981"]),
         connector=dict(line=dict(color="#e2e8f0")),
     ))
     fig.update_layout(
@@ -4059,11 +4059,11 @@ def build_trust_gauge() -> Any:
     """Gauge chart for the composite trust score."""
     ts = compute_trust_score()
     score = ts["trust_score"]
-    color = "#3fb950" if score >= 80 else "#d29922" if score >= 60 else "#f85149"
+    color = "#10b981" if score >= 80 else "#f59e0b" if score >= 60 else "#ef4444"
     fig = go.Figure(go.Indicator(
         mode="gauge+number+delta",
         value=score,
-        delta={"reference": 80, "increasing": {"color": "#3fb950"}, "decreasing": {"color": "#f85149"}},
+        delta={"reference": 80, "increasing": {"color": "#10b981"}, "decreasing": {"color": "#ef4444"}},
         gauge={
             "axis": {"range": [0, 100], "tickcolor": "#64748b",
                      "tickfont": {"color": "#64748b"}},
@@ -4098,7 +4098,7 @@ def build_trust_breakdown() -> Any:
     components = ["Compliance", "Drift Health", "Coverage", "Audit Pass Rate", "Incident Health"]
     values = [ts["compliance"], ts["drift_health"], ts["coverage"],
               ts["audit_pass_rate"], ts["incident_health"]]
-    colors = ["#3fb950" if v >= 80 else "#d29922" if v >= 60 else "#f85149" for v in values]
+    colors = ["#10b981" if v >= 80 else "#f59e0b" if v >= 60 else "#ef4444" for v in values]
     fig = go.Figure(go.Bar(
         x=components, y=values,
         marker=dict(color=colors),
@@ -4130,9 +4130,9 @@ INCIDENT_STATUSES   = ["open", "investigating", "mitigating", "resolved", "close
 
 _SEVERITY_COLORS = {
     "P0_critical": "#ff4444",
-    "P1_high":     "#f85149",
-    "P2_medium":   "#d29922",
-    "P3_low":      "#3fb950",
+    "P1_high":     "#ef4444",
+    "P2_medium":   "#f59e0b",
+    "P3_low":      "#10b981",
 }
 
 
@@ -4323,7 +4323,7 @@ def build_forecast_chart(horizon: int = 3) -> Any:
     x_future = [f"T+{i+1}" for i in range(horizon)]
     x_all = x_current + x_future
     for f in at_risk[:8]:
-        color = "#f85149" if f["at_risk"] else "#3fb950"
+        color = "#ef4444" if f["at_risk"] else "#10b981"
         y_vals = [f["current_eff"]] + f["predicted"]
         fig.add_trace(go.Scatter(
             x=x_all, y=y_vals, mode="lines+markers",
@@ -4941,7 +4941,7 @@ def build_data_trust_chart() -> Any:
         return _dark_fig(fig)
     from collections import Counter
     counts = Counter(e.get("trust_level", "medium") for e in entries)
-    color_map = {"high": "#3fb950", "medium": "#d29922", "low": "#f85149", "untrusted": "#ff4444"}
+    color_map = {"high": "#10b981", "medium": "#f59e0b", "low": "#ef4444", "untrusted": "#ff4444"}
     labels = list(counts.keys())
     values = [counts[l] for l in labels]
     colors = [color_map.get(l, "#8b949e") for l in labels]
@@ -5115,7 +5115,7 @@ def build_behavior_radar() -> Any:
     fig = go.Figure(go.Scatterpolar(
         r=values_closed, theta=labels_closed,
         fill="toself",
-        line=dict(color="#238636"),
+        line=dict(color="#059669"),
         fillcolor="rgba(35,134,54,0.2)",
     ))
     fig.update_layout(
@@ -6110,7 +6110,7 @@ def build_cluster_chart() -> Any:
 
     contexts = list(cluster_gaps.keys())
     gap_types = sorted({gt for b in cluster_gaps.values() for gt in b})
-    palette = ["#58a6ff", "#3fb950", "#d29922", "#f85149", "#8b5cf6", "#06b6d4", "#ec4899"]
+    palette = ["#58a6ff", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4", "#ec4899"]
 
     fig = go.Figure()
     for i, gtype in enumerate(gap_types):
@@ -6525,7 +6525,7 @@ def build_reputation_chart() -> Any:
 
     names = [r.get("rule_name", r["rule_id"])[:30] for r in summary]
     fig = go.Figure()
-    colors = {"7d_avg": "#4fc3f7", "30d_avg": "#81c784", "90d_avg": "#ffb74d"}
+    colors = {"7d_avg": "#38bdf8", "30d_avg": "#34d399", "90d_avg": "#fbbf24"}
     for key, label in [("7d_avg", "7 days"), ("30d_avg", "30 days"), ("90d_avg", "90 days")]:
         vals = [r.get(key) for r in summary]
         fig.add_trace(go.Bar(name=label, x=names, y=vals, marker_color=colors[key]))
@@ -6631,7 +6631,7 @@ def build_goal_chart() -> Any:
     names = [r.get("objective", r["goal_id"])[:30] for r in results]
     actuals = [r["actual_score"] for r in results]
     targets = [r["target_score"] for r in results]
-    colors = ["#81c784" if r["alignment_status"] == "aligned" else "#ffb74d" if r["alignment_status"] == "warning" else "#e57373" for r in results]
+    colors = ["#34d399" if r["alignment_status"] == "aligned" else "#fbbf24" if r["alignment_status"] == "warning" else "#f87171" for r in results]
 
     fig = go.Figure()
     fig.add_trace(go.Bar(name="Actual", x=names, y=actuals, marker_color=colors))
@@ -6737,7 +6737,7 @@ def build_control_chart() -> Any:
 
     # Group by risk level
     risk_order = ["critical", "high", "medium", "low"]
-    risk_colors = {"critical": "#e57373", "high": "#ffb74d", "medium": "#fff176", "low": "#81c784"}
+    risk_colors = {"critical": "#f87171", "high": "#fbbf24", "medium": "#4f46e5", "low": "#34d399"}
     by_risk: dict[str, list] = {r: [] for r in risk_order}
     for ctrl in results:
         rl = ctrl.get("risk_level", "low")
@@ -7455,7 +7455,7 @@ def compute_compliance_health() -> dict:
 def build_compliance_health_gauge() -> Any:
     health = compute_compliance_health()
     overall = health["overall"]
-    color = "#81c784" if overall >= 80 else "#ffb74d" if overall >= 60 else "#e57373"
+    color = "#34d399" if overall >= 80 else "#fbbf24" if overall >= 60 else "#f87171"
     fig = go.Figure(go.Indicator(
         mode="gauge+number+delta",
         value=overall,
@@ -7480,7 +7480,7 @@ def build_compliance_health_breakdown() -> Any:
     dims = ["Rule Health", "Incident Health", "SLO Health", "Cert Health", "Goal Health"]
     vals = [health["rule_health"], health["incident_health"], health["slo_health"],
             health["cert_health"], health["goal_health"]]
-    colors = ["#81c784" if v >= 80 else "#ffb74d" if v >= 60 else "#e57373" for v in vals]
+    colors = ["#34d399" if v >= 80 else "#fbbf24" if v >= 60 else "#f87171" for v in vals]
     fig = go.Figure(go.Bar(x=dims, y=vals, marker_color=colors))
     fig.update_layout(
         title="Compliance Health Breakdown",
@@ -7967,7 +7967,7 @@ def build_trend_chart(window_days: int = 30) -> Any:
         return _dark_fig(fig)
 
     fig = go.Figure()
-    palette = ["#4fc3f7", "#81c784", "#ffb74d", "#e57373", "#ce93d8", "#80deea", "#fff176", "#ffab91"]
+    palette = ["#38bdf8", "#34d399", "#fbbf24", "#f87171", "#ce93d8", "#80deea", "#4f46e5", "#ffab91"]
     for i, (rid, data) in enumerate(trends.items()):
         color = palette[i % len(palette)]
         timestamps = data["timestamps"]
@@ -8037,7 +8037,7 @@ MATURITY_LEVELS: list[dict] = [
         "level": 1,
         "name": "Initial",
         "description": "Rules exist and are structured. The foundation is in place.",
-        "color": "#e57373",
+        "color": "#f87171",
         "capabilities": [
             ("Rules defined", lambda: _has_data("rules.jsonl", 1)),
             ("Rule categories used (layer field)", lambda: any(r.get("layer") for r in _download_jsonl("rules.jsonl"))),
@@ -8049,7 +8049,7 @@ MATURITY_LEVELS: list[dict] = [
         "level": 2,
         "name": "Defined",
         "description": "Governance processes are defined. Lifecycle, ownership, and session data are managed.",
-        "color": "#ffb74d",
+        "color": "#fbbf24",
         "capabilities": [
             ("Rule lifecycle tracked (status transitions)", lambda: any(r.get("status") in ("deprecated", "retired", "pending_review") for r in _download_jsonl("rules.jsonl"))),
             ("Rule ownership assigned", lambda: any(r.get("owner") for r in _download_jsonl("rules.jsonl"))),
@@ -8062,7 +8062,7 @@ MATURITY_LEVELS: list[dict] = [
         "level": 3,
         "name": "Managed",
         "description": "Active monitoring and response. Incidents are tracked, enforcement is running, audits are conducted.",
-        "color": "#fff176",
+        "color": "#4f46e5",
         "capabilities": [
             ("Incidents tracked", lambda: _has_data(INCIDENT_FILE, 1)),
             ("Rule enforcement logged", lambda: _has_data(ENFORCEMENT_FILE, 1)),
@@ -8076,7 +8076,7 @@ MATURITY_LEVELS: list[dict] = [
         "level": 4,
         "name": "Measured",
         "description": "Quantitative management. Trust scores, SLOs, benchmarks, and coverage are actively measured.",
-        "color": "#81c784",
+        "color": "#34d399",
         "capabilities": [
             ("Trust score computed (score_history present)", lambda: any(r.get("score_history") for r in _download_jsonl("rules.jsonl"))),
             ("SLOs defined", lambda: _has_data(SLO_FILE, 1)),
@@ -8090,7 +8090,7 @@ MATURITY_LEVELS: list[dict] = [
         "level": 5,
         "name": "Optimized",
         "description": "Continuous improvement and learning. Regressions are caught, rules are improving, improvement cycles run.",
-        "color": "#4fc3f7",
+        "color": "#38bdf8",
         "capabilities": [
             ("Regression detection run", lambda: _has_data(REGRESSION_FILE, 1)),
             ("Rule learning detected", lambda: _has_data(LEARNING_FILE, 1)),
