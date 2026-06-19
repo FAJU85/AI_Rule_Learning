@@ -2713,6 +2713,246 @@ def build_effectiveness_chart_dark() -> Any:
 
 
 # ---------------------------------------------------------------------------
+# Conversation clustering — group by project context, visualise gap distribution
+# ---------------------------------------------------------------------------
+
+def build_cluster_chart() -> Any:
+    """Stack-bar of gap types per project context — shows where problems concentrate."""
+    conversations = load_conversations()
+    if not conversations:
+        return _dark_fig(go.Figure(layout=dict(
+            title=dict(text="No data — import sessions first", font=dict(color="#e2e8f0")),
+            height=320,
+        )))
+
+    cluster_gaps: dict[str, dict[str, int]] = {}
+    for conv in conversations:
+        raw_ctx = (
+            conv.get("project_context")
+            or conv.get("git_branch")
+            or conv.get("slug")
+            or "unknown"
+        )
+        ctx = str(raw_ctx).rstrip("/").split("/")[-1][:30] or "unknown"
+        bucket = cluster_gaps.setdefault(ctx, {})
+        for turn in conv.get("turns", []):
+            for gap in turn.get("gaps_detected", []):
+                gtype = gap.get("type", "unknown") if isinstance(gap, dict) else str(gap)
+                bucket[gtype] = bucket.get(gtype, 0) + 1
+
+    if not cluster_gaps:
+        return _dark_fig(go.Figure(layout=dict(
+            title=dict(text="No gaps recorded yet — run Analysis first", font=dict(color="#e2e8f0")),
+            height=320,
+        )))
+
+    contexts = list(cluster_gaps.keys())
+    gap_types = sorted({gt for b in cluster_gaps.values() for gt in b})
+    palette = ["#58a6ff", "#3fb950", "#d29922", "#f85149", "#8b5cf6", "#06b6d4", "#ec4899"]
+
+    fig = go.Figure()
+    for i, gtype in enumerate(gap_types):
+        fig.add_trace(go.Bar(
+            name=gtype.replace("_", " ").title(),
+            x=contexts,
+            y=[cluster_gaps[ctx].get(gtype, 0) for ctx in contexts],
+            marker_color=palette[i % len(palette)],
+        ))
+    fig.update_layout(
+        barmode="stack",
+        title=dict(text="Gap Frequency by Project Context", font=dict(size=14, color="#e2e8f0")),
+        xaxis_title="Project / Context",
+        yaxis_title="Gaps detected",
+        height=340,
+        legend=dict(orientation="h", y=-0.28, font=dict(size=11)),
+    )
+    return _dark_fig(fig)
+
+
+def build_cluster_summary() -> str:
+    """Return markdown table: project context → conversation count, gap count, top gap type."""
+    conversations = load_conversations()
+    if not conversations:
+        return "_No conversations yet._"
+
+    rows: dict[str, dict] = {}
+    for conv in conversations:
+        raw_ctx = (
+            conv.get("project_context")
+            or conv.get("git_branch")
+            or conv.get("slug")
+            or "unknown"
+        )
+        ctx = str(raw_ctx).rstrip("/").split("/")[-1][:40] or "unknown"
+        r = rows.setdefault(ctx, {"convs": 0, "gaps": 0, "types": {}})
+        r["convs"] += 1
+        for turn in conv.get("turns", []):
+            for gap in turn.get("gaps_detected", []):
+                gtype = gap.get("type", "?") if isinstance(gap, dict) else str(gap)
+                r["gaps"] += 1
+                r["types"][gtype] = r["types"].get(gtype, 0) + 1
+
+    lines = ["| Project | Sessions | Gaps | Top Issue |", "|---------|----------|------|-----------|"]
+    for ctx, data in sorted(rows.items(), key=lambda x: -x[1]["gaps"]):
+        top = max(data["types"], key=data["types"].get) if data["types"] else "—"
+        top = top.replace("_", " ")
+        lines.append(f"| `{ctx}` | {data['convs']} | {data['gaps']} | {top} |")
+    return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# A/B testing — create keyword variants of rules and compare effectiveness
+# ---------------------------------------------------------------------------
+
+def create_rule_ab_variant(rule_name: str) -> str:
+    """Generate a keyword/instruction variant of a rule for A/B comparison."""
+    if not rule_name:
+        return "Select a rule first."
+    if not HF_TOKEN:
+        return "❌ HF_TOKEN not set."
+    rules = load_rules()
+    rule = next(
+        (r for r in rules if r.get("name") == rule_name or r.get("rule_id") == rule_name), None
+    )
+    if not rule:
+        return "Rule not found."
+
+    try:
+        import re
+        from huggingface_hub import InferenceClient
+
+        client = InferenceClient(token=HF_TOKEN)
+        original_kws = (rule.get("trigger") or {}).get("keywords", [])
+        original_inst = (rule.get("action") or {}).get("instruction", "")
+
+        prompt = f"""You are an AI guardrail engineer. Create a variant of this rule with different trigger keywords but the same intent, for A/B effectiveness testing.
+
+Original rule:
+  Name: {rule.get('name')}
+  Instruction: {original_inst}
+  Keywords: {original_kws}
+
+Generate a variant with broader or more specific keywords. The instruction may be slightly refined but must have the same goal.
+
+Return ONLY a valid JSON object:
+{{
+  "trigger": {{"keywords": ["kw1", "kw2", "kw3", "kw4"]}},
+  "action": {{"type": "modify_response", "instruction": "Refined instruction here"}}
+}}
+
+Only output the JSON. No markdown fences."""
+
+        response = client.chat.completions.create(
+            model=_HF_MODEL,
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=250,
+            temperature=0.3,
+        )
+        text = response.choices[0].message.content.strip()
+        text = re.sub(r"^```[a-z]*\n?", "", text).rstrip("`").strip()
+        match = re.search(r"\{.*\}", text, re.DOTALL)
+        if not match:
+            return "❌ Could not parse variant from model response."
+
+        variant_data = json.loads(match.group())
+        variant: dict = {
+            **rule,
+            "rule_id": f"{rule.get('rule_id', 'rule')}_v{uuid.uuid4().hex[:6]}",
+            "name": f"{rule.get('name', '?')} (Variant)",
+            "is_active": False,
+            "status": "pending_review",
+            "ab_original_id": rule.get("rule_id"),
+            "effectiveness_score": 0.5,
+            "times_triggered": 0,
+            "success_count": 0,
+            "failure_count": 0,
+            "score_history": [],
+            "created_at": datetime.utcnow().isoformat(),
+        }
+        variant["trigger"] = variant_data.get("trigger", rule.get("trigger", {}))
+        variant["action"] = variant_data.get("action", rule.get("action", {}))
+
+        _upload_jsonl("rules.jsonl", rules + [variant])
+        new_kws = variant["trigger"].get("keywords", [])
+        return (
+            f"✅ A/B variant created: **{variant['name']}**\n\n"
+            f"**Original keywords:** {original_kws}\n\n"
+            f"**Variant keywords:** {new_kws}\n\n"
+            f"Go to **Review Queue** to approve the variant, then run "
+            f"**Score Effectiveness** after sessions to compare performance."
+        )
+    except Exception as exc:
+        return f"❌ Failed to create variant: {exc}"
+
+
+def build_ab_comparison(rule_name: str) -> str:
+    """Compare effectiveness of original rule vs its A/B variant(s)."""
+    if not rule_name:
+        return "_Select a rule to see its A/B comparison._"
+    rules = load_rules()
+    rule = next(
+        (r for r in rules if r.get("name") == rule_name or r.get("rule_id") == rule_name), None
+    )
+    if not rule:
+        return "Rule not found."
+
+    rid = rule.get("rule_id")
+    # Look for variants of this rule, and also check if this IS a variant
+    variants = [r for r in rules if r.get("ab_original_id") == rid]
+    original_id = rule.get("ab_original_id")
+    if original_id and not variants:
+        original = next((r for r in rules if r.get("rule_id") == original_id), None)
+        if original:
+            return build_ab_comparison(original.get("name") or original_id)
+
+    if not variants:
+        return (
+            "_No A/B variants found for this rule._\n\n"
+            "Click **Create A/B Variant** above to generate an alternative version "
+            "with different trigger keywords for comparison testing."
+        )
+
+    def _fmt(r: dict, label: str) -> list[str]:
+        eff = r.get("effectiveness_score", 0)
+        triggered = r.get("times_triggered", 0)
+        status = "✅ Active" if r.get("is_active") else "⏳ Pending review"
+        kws = (r.get("trigger") or {}).get("keywords", [])
+        return [
+            f"**{label}** (`{r.get('rule_id')}`)",
+            f"- Effectiveness: **{eff:.0%}**",
+            f"- Triggered: {triggered} time(s)",
+            f"- Keywords: `{kws}`",
+            f"- Status: {status}",
+        ]
+
+    lines = [f"### A/B Comparison — {rule.get('name', rid)}\n"]
+    lines += _fmt(rule, "Original")
+    lines.append("")
+
+    for v in variants:
+        lines += _fmt(v, "Variant")
+        orig_eff = rule.get("effectiveness_score", 0)
+        var_eff = v.get("effectiveness_score", 0)
+        orig_t = rule.get("times_triggered", 0)
+        var_t = v.get("times_triggered", 0)
+        if orig_t >= 5 and var_t >= 5:
+            if var_eff > orig_eff + 0.05:
+                lines.append(f"\n🏆 **Variant is winning** (+{var_eff - orig_eff:.0%}) — consider replacing the original.")
+            elif orig_eff > var_eff + 0.05:
+                lines.append(f"\n🏆 **Original is winning** (+{orig_eff - var_eff:.0%}) — variant can be rejected.")
+            else:
+                lines.append("\n🤝 **Too close to call** — collect more trigger data.")
+        else:
+            lines.append(
+                f"\n_Need ≥5 triggers each to declare a winner. "
+                f"Original: {orig_t}, Variant: {var_t}._"
+            )
+        lines.append("")
+
+    return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
 # Build Gradio app
 # ---------------------------------------------------------------------------
 
@@ -2801,6 +3041,22 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
             approve_btn.click(approve_rule, inputs=pending_selector, outputs=review_status)
             reject_btn.click(reject_rule, inputs=pending_selector, outputs=review_status)
 
+            gr.HTML('<div class="section-title">A/B Testing</div>')
+            gr.Markdown("Create a keyword variant of a rule to compare effectiveness after real sessions.")
+            ab_rule_selector = gr.Dropdown(label="Select rule to test", choices=[])
+            ab_refresh_btn = gr.Button("↻ Refresh rule list", variant="secondary", size="sm")
+            ab_create_btn = gr.Button("🧪 Create A/B Variant", variant="secondary")
+            ab_status = gr.Markdown()
+            ab_comparison = gr.Markdown()
+
+            def _refresh_ab_rules():
+                return gr.Dropdown(choices=get_rule_names())
+
+            ab_refresh_btn.click(_refresh_ab_rules, outputs=ab_rule_selector)
+            demo.load(_refresh_ab_rules, outputs=ab_rule_selector)
+            ab_rule_selector.change(build_ab_comparison, inputs=ab_rule_selector, outputs=ab_comparison)
+            ab_create_btn.click(create_rule_ab_variant, inputs=ab_rule_selector, outputs=ab_status)
+
             gr.HTML('<div class="section-title">Export</div>')
             with gr.Row():
                 export_btn = gr.Button("Export as System Prompt", variant="secondary", size="sm")
@@ -2876,6 +3132,18 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
         # ── Insights ─────────────────────────────────────────────────────────
         with gr.Tab("🔬 Insights"):
 
+            gr.HTML('<div class="section-title">Conversation Clusters</div>')
+            gr.Markdown("Gap frequency grouped by project context — shows where problems concentrate.")
+            cluster_chart = gr.Plot()
+            cluster_summary = gr.Markdown()
+            cluster_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
+
+            def _refresh_clusters():
+                return build_cluster_chart(), build_cluster_summary()
+
+            cluster_refresh_btn.click(_refresh_clusters, outputs=[cluster_chart, cluster_summary])
+            demo.load(_refresh_clusters, outputs=[cluster_chart, cluster_summary])
+
             gr.HTML('<div class="section-title">Conversations</div>')
             conversations_table = gr.Dataframe(interactive=False, wrap=True)
             refresh_convs_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
@@ -2934,389 +3202,6 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 inputs=sim_input,
             )
 
-if __name__ == "__main__":
-    demo.launch()
-    gr.Markdown(
-        """
-# 🧠 AI Rule Learning System
-**Autonomous guardrail generation from conversation patterns**
-
-> Connected to dataset: [`vooom/AI_Rule_Learning`](https://huggingface.co/datasets/vooom/AI_Rule_Learning)
-"""
-    )
-
-    with gr.Tabs():
-        # --- Overview ---
-        with gr.Tab("📊 Overview"):
-            with gr.Row():
-                eff_chart = gr.Plot(label="Rule Effectiveness")
-                gaps_chart = gr.Plot(label="Gap Distribution")
-            summary_md = gr.Markdown()
-            refresh_btn = gr.Button("🔄 Refresh", variant="secondary", size="sm")
-
-            def refresh_overview():
-                return build_overview()
-
-            refresh_btn.click(refresh_overview, outputs=[eff_chart, gaps_chart, summary_md])
-            demo.load(refresh_overview, outputs=[eff_chart, gaps_chart, summary_md])
-
-        # --- Rules ---
-        with gr.Tab("📋 Rules"):
-            rules_table = gr.Dataframe(interactive=False, wrap=True)
-            refresh_rules_btn = gr.Button("🔄 Refresh", variant="secondary", size="sm")
-            rule_selector = gr.Dropdown(label="Select rule for details", choices=[])
-            rule_detail = gr.Markdown()
-
-            def refresh_rules():
-                return build_rules_table(), gr.Dropdown(choices=get_rule_names())
-
-            refresh_rules_btn.click(refresh_rules, outputs=[rules_table, rule_selector])
-            demo.load(refresh_rules, outputs=[rules_table, rule_selector])
-            rule_selector.change(get_rule_detail, inputs=rule_selector, outputs=rule_detail)
-
-            gr.Markdown("---\n### 📤 Export as System Prompt\nCopy this block into any AI system prompt to apply your active rules immediately.")
-            export_btn = gr.Button("Generate System Prompt", variant="primary", size="sm")
-            system_prompt_output = gr.Textbox(
-                label="System prompt — copy and paste into any AI",
-                lines=20,
-                interactive=True,
-                show_copy_button=True,
-            )
-            export_btn.click(export_system_prompt, outputs=system_prompt_output)
-            demo.load(export_system_prompt, outputs=system_prompt_output)
-
-            gr.Markdown("---\n### 📄 Export as YAML (MCP-Ready)\nFor use with claude-learner, mengram, or mcp-standards.")
-            yaml_export_btn = gr.Button("Generate YAML", variant="secondary", size="sm")
-            yaml_output = gr.Textbox(
-                label="YAML — save as guardrails.yaml",
-                lines=20,
-                interactive=True,
-                show_copy_button=True,
-            )
-            yaml_export_btn.click(export_rules_as_yaml, outputs=yaml_output)
-            demo.load(export_rules_as_yaml, outputs=yaml_output)
-
-            gr.Markdown("---\n### 📈 Rule Score Trend\nSelect a rule above to see how its effectiveness has changed over time.")
-            score_trend_chart = gr.Plot(label="Effectiveness over time")
-            rule_selector.change(build_rule_score_trend, inputs=rule_selector, outputs=score_trend_chart)
-
-            gr.Markdown("---\n### 🕓 Rule Version History\nEvery approve, reject, score, and evolve event is recorded here.")
-            version_history_table = gr.Dataframe(interactive=False, wrap=True)
-            rule_selector.change(build_rule_version_history, inputs=rule_selector, outputs=version_history_table)
-
-        # --- Conversations ---
-        with gr.Tab("💬 Conversations"):
-            conversations_table = gr.Dataframe(interactive=False, wrap=True)
-            refresh_convs_btn = gr.Button("🔄 Refresh", variant="secondary", size="sm")
-
-            def refresh_conversations():
-                return build_conversations_table()
-
-            refresh_convs_btn.click(refresh_conversations, outputs=[conversations_table])
-            demo.load(refresh_conversations, outputs=[conversations_table])
-
-        # --- Upload History ---
-        with gr.Tab("📤 Upload History"):
-            gr.Markdown(
-                """
-## Upload Conversation History
-
-Upload a **JSON** or **CSV** file containing past conversations.
-
-### JSON format
-```json
-[
-  {
-    "conversation_id": "optional",
-    "turns": [
-      {"turn_number": 1, "user_input": "Hello", "agent_response": "Hi!"},
-      {"turn_number": 2, "user_input": "...", "agent_response": "..."}
-    ]
-  }
-]
-```
-
-### CSV format
-One row per turn, columns: `conversation_id, turn_number, user_input, agent_response`
-Optional columns: `session_id, user_id, sentiment_before, sentiment_after`
-"""
-            )
-            upload_file = gr.File(
-                label="Select JSON or CSV file",
-                file_types=[".json", ".csv"],
-            )
-            upload_btn = gr.Button("Upload to Dataset", variant="primary")
-            upload_status = gr.Markdown()
-
-            upload_btn.click(upload_history, inputs=upload_file, outputs=upload_status)
-
-        # --- Import Live Sessions ---
-        with gr.Tab("📥 Import Sessions"):
-            gr.Markdown(
-                """
-## Import Claude Code Live Sessions
-
-Upload session JSONL files exported directly from Claude Code's local storage —
-**no Anthropic API key required**.
-
-### How to export sessions from your machine
-
-```bash
-# Export all sessions from this project
-python scripts/export_sessions.py --dry-run   # preview
-python scripts/export_sessions.py             # upload directly to dataset
-
-# Or export a specific session
-python scripts/export_sessions.py --session <session-id>
-```
-
-The script reads `~/.claude/projects/` on your local machine and uploads
-conversations to the HF dataset. The Space then picks them up automatically.
-
-### Or: upload JSONL files manually here
-
-If you have the raw Claude Code session JSONL files, upload them directly below.
-Each file is one session (e.g. `be6d062b-eb09-5398-b69a-1cdfa8f3c5b7.jsonl`).
-
-The importer extracts user↔assistant turn pairs, strips internal tool calls
-and webhook notifications, and merges into the conversation dataset.
-"""
-            )
-            session_files_input = gr.File(
-                label="Upload Claude Code session JSONL file(s)",
-                file_types=[".jsonl"],
-                file_count="multiple",
-            )
-            import_btn = gr.Button("📥 Import Sessions", variant="primary", size="lg")
-            import_log = gr.Textbox(
-                label="Import log",
-                lines=12,
-                interactive=False,
-                autoscroll=True,
-            )
-            import_btn.click(run_import_sessions, inputs=session_files_input, outputs=import_log)
-
-        # --- Analysis ---
-        with gr.Tab("🔍 Analysis"):
-            gr.Markdown(
-                """
-## Run Analysis
-
-Scans all uploaded conversations for behavioural gaps, then uses
-**`Qwen/Qwen2.5-72B-Instruct`** via the HF Inference API to generate
-guardrail rules automatically.
-
-- **Ralph Loop** checkpointing: analysis is resumable if the Space times out mid-run
-- Detects: explicit corrections, repeated questions, code anti-patterns, sentiment drops
-- Requires ≥2 occurrences of a gap type before generating a rule
-- Rules are saved directly to the dataset and appear in the **Rules** tab
-
----
-
-**🔄 Validate & Evolve** uses the Mengram feedback pattern: instead of just
-deactivating low-performing rules (< 30% effectiveness), it rewrites them with the
-AI model so they improve rather than disappear.
-"""
-            )
-            with gr.Row():
-                analysis_btn = gr.Button("▶ Run Analysis", variant="primary", size="lg")
-                reanalyze_btn = gr.Button("🔁 Force Re-analyze All", variant="primary", size="lg")
-            with gr.Row():
-                evolve_btn = gr.Button("🔄 Validate & Evolve", variant="secondary", size="lg")
-                seed_btn = gr.Button("🌱 Seed Work Rules", variant="secondary", size="lg")
-                dedup_btn = gr.Button("🧹 Deduplicate Rules", variant="secondary", size="lg")
-            gr.Markdown(
-                "_**▶ Run Analysis** processes only new conversations. "
-                "**🔁 Force Re-analyze All** clears the checkpoint and reprocesses every "
-                "conversation — use this after the gap detection was improved._"
-            )
-            community_toggle = gr.Checkbox(
-                label="🌍 Contribute anonymized gap patterns to community dataset "
-                      "(no conversation text — only gap type, count, and severity)",
-                value=False,
-                info="Opt-in: sends a statistical summary of detected gaps to "
-                     "vooom/AI_Rule_Learning_Community. Zero text, fully anonymous.",
-            )
-            analysis_log = gr.Textbox(
-                label="Analysis log",
-                lines=20,
-                interactive=False,
-                autoscroll=True,
-            )
-            with gr.Row():
-                score_btn = gr.Button("📊 Score Effectiveness", variant="secondary", size="lg")
-            gr.Markdown(
-                "_**📊 Score Effectiveness** measures whether each active rule actually prevented "
-                "the gaps it targets — by checking if the same gap types reappeared in turns "
-                "after the rule was applied. Run this after importing new sessions._"
-            )
-            analysis_btn.click(run_analysis, inputs=community_toggle, outputs=analysis_log)
-            reanalyze_btn.click(run_force_reanalyze, inputs=community_toggle, outputs=analysis_log)
-            evolve_btn.click(run_validate_and_evolve, outputs=analysis_log)
-            seed_btn.click(run_seed_rules, outputs=analysis_log)
-            dedup_btn.click(run_deduplicate_rules, outputs=analysis_log)
-            score_btn.click(run_score_effectiveness, outputs=analysis_log)
-
-        # --- Rule Review ---
-        with gr.Tab("📝 Rule Review"):
-            gr.Markdown(
-                """## Rule Review Queue
-
-Rules generated by analysis or evolution are **not activated automatically**.
-They wait here for your approval.
-
-Before approving, each rule is checked for:
-- Safety issues (instructions that could harm or over-restrict the AI)
-- Conflicts with rules that are already active
-
-**Approve** a rule to activate it. **Reject** to discard it permanently.
-"""
-            )
-            pending_table = gr.Dataframe(interactive=False, wrap=True)
-            refresh_pending_btn = gr.Button("🔄 Refresh", variant="secondary", size="sm")
-            pending_selector = gr.Dropdown(label="Select rule to review", choices=[])
-            pending_detail = gr.Markdown()
-
-            with gr.Row():
-                approve_btn = gr.Button("✅ Approve & Activate", variant="primary")
-                reject_btn = gr.Button("🗑️ Reject", variant="stop")
-
-            review_status = gr.Markdown()
-
-            def refresh_pending():
-                return build_pending_rules_table(), gr.Dropdown(choices=get_pending_rule_ids())
-
-            refresh_pending_btn.click(refresh_pending, outputs=[pending_table, pending_selector])
-            demo.load(refresh_pending, outputs=[pending_table, pending_selector])
-            pending_selector.change(get_pending_rule_detail, inputs=pending_selector, outputs=pending_detail)
-            approve_btn.click(approve_rule, inputs=pending_selector, outputs=review_status)
-            reject_btn.click(reject_rule, inputs=pending_selector, outputs=review_status)
-
-        # --- Project Compass ---
-        with gr.Tab("🧭 Project Compass"):
-            gr.Markdown(
-                "**Project-level health sensor** — tracks whether the deployed Space, "
-                "dataset, rule system, and workflow are all moving in the right direction."
-            )
-            with gr.Row():
-                proj_gauge = gr.Plot(label="Health Score")
-                proj_metrics = gr.Plot(label="Score Breakdown")
-            proj_summary = gr.Markdown()
-            proj_refresh_btn = gr.Button("🔄 Refresh", variant="secondary", size="sm")
-
-            def refresh_project_compass():
-                return build_project_compass()
-
-            proj_refresh_btn.click(refresh_project_compass,
-                                   outputs=[proj_gauge, proj_metrics, proj_summary])
-            demo.load(refresh_project_compass,
-                      outputs=[proj_gauge, proj_metrics, proj_summary])
-
-        # --- Alignment Sensor ---
-        with gr.Tab("📐 Alignment"):
-            gr.Markdown(
-                "Per-conversation alignment sensor — task focus, rule compliance, "
-                "and semantic drift across turns."
-            )
-            with gr.Row():
-                conv_selector = gr.Dropdown(label="Conversation", choices=[], scale=3)
-                refresh_compass_btn = gr.Button("🔄 Refresh list", variant="secondary", size="sm", scale=1)
-
-            with gr.Row():
-                compass_gauge = gr.Plot(label="Alignment Score")
-                compass_timeline = gr.Plot(label="Timeline")
-
-            compass_alerts = gr.Markdown()
-
-            def refresh_compass_list():
-                return gr.Dropdown(choices=get_conversation_ids())
-
-            refresh_compass_btn.click(refresh_compass_list, outputs=[conv_selector])
-            demo.load(refresh_compass_list, outputs=[conv_selector])
-            conv_selector.change(build_compass, inputs=conv_selector,
-                                 outputs=[compass_gauge, compass_timeline, compass_alerts])
-
-        # --- Gap Simulator ---
-        with gr.Tab("🔬 Gap Simulator"):
-            gr.Markdown(
-                "Type a user message below to see which gaps would be detected and which rules would be injected."
-            )
-            sim_input = gr.Textbox(
-                label="User message",
-                placeholder="e.g. That's wrong, you forgot error handling in the database query",
-                lines=3,
-            )
-            sim_btn = gr.Button("Simulate", variant="primary")
-            with gr.Row():
-                gap_output = gr.Markdown()
-                prompt_output = gr.Markdown()
-
-            sim_btn.click(simulate_gap, inputs=sim_input, outputs=[gap_output, prompt_output])
-            sim_input.submit(simulate_gap, inputs=sim_input, outputs=[gap_output, prompt_output])
-
-            gr.Examples(
-                examples=[
-                    ["That's wrong, you forgot error handling in the database query"],
-                    ["Actually, I said I wanted Python not JavaScript"],
-                    ["I asked you this already — how do I query the API?"],
-                    ["What is the capital of France?"],
-                ],
-                inputs=sim_input,
-            )
-
-        # --- Architecture ---
-        with gr.Tab("🏗️ Architecture"):
-            gr.Markdown(ARCHITECTURE_MD)
-
-        # --- Quick Start ---
-        with gr.Tab("🚀 Quick Start"):
-            gr.Markdown(
-                """
-## How to Use These Rules with Any AI
-
-### Step 1 — Generate rules from your conversations
-
-1. Upload your Claude Code session files in the **📥 Import Sessions** tab
-2. Click **🔁 Force Re-analyze All** in the **🔍 Analysis** tab to scan all conversations
-3. The system detects gaps and calls `Qwen/Qwen2.5-72B-Instruct` to generate guardrail rules
-
-### Step 2 — Export the system prompt
-
-Go to **📋 Rules** → click **Generate System Prompt** → copy the output.
-
-### Step 3 — Apply to any AI
-
-Paste the system prompt into:
-- **Claude** — Project instructions or system prompt in Claude.ai
-- **ChatGPT / OpenAI API** — `system` message in the messages array
-- **Any API** — `{"role": "system", "content": "<paste here>"}`
-- **Claude Code** — Add to `CLAUDE.md` in your project root
-
-### Auto-export from Claude Code sessions
-
-The Stop hook auto-exports sessions when a session ends. Set `HF_TOKEN` in your shell:
-
-```bash
-export HF_TOKEN=your_hf_token
-# Now every Claude Code session auto-uploads to the dataset on exit
-```
-
-### Fetch rules programmatically
-
-```python
-from huggingface_hub import hf_hub_download
-import json
-
-path = hf_hub_download("vooom/AI_Rule_Learning", "rules.jsonl", repo_type="dataset", token="your_token")
-rules = [json.loads(l) for l in open(path) if l.strip()]
-active = [r for r in rules if r.get("is_active")]
-```
-
-## Source
-
-[github.com/FAJU85/AI_Rule_Learning](https://github.com/FAJU85/AI_Rule_Learning)
-"""
-            )
 
 if __name__ == "__main__":
     demo.launch()
