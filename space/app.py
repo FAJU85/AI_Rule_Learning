@@ -2195,6 +2195,449 @@ def reject_rule(rule_id: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Rule ownership
+# ---------------------------------------------------------------------------
+
+def set_rule_owner(rule_id: str, owner: str, team: str, contact: str) -> str:
+    """Assign an owner, team, and contact to a rule."""
+    if not rule_id:
+        return "No rule selected."
+    if not HF_TOKEN:
+        return "❌ HF_TOKEN not set."
+    rules = load_rules()
+    rule = next((r for r in rules if r.get("rule_id") == rule_id), None)
+    if not rule:
+        return f"Rule `{rule_id}` not found."
+    rule["owner"] = owner.strip()
+    rule["team"] = team.strip()
+    rule["contact"] = contact.strip()
+    rule["ownership_set_at"] = datetime.utcnow().isoformat()
+    try:
+        _upload_jsonl("rules.jsonl", rules)
+        _snapshot_rule_version(rule, "ownership_assigned")
+        return f"✅ Ownership set for **{rule.get('name', rule_id)}** → {owner} / {team}"
+    except Exception as exc:
+        return f"❌ Failed to save: {exc}"
+
+
+# ---------------------------------------------------------------------------
+# Risk scoring  (Impact × Probability)
+# ---------------------------------------------------------------------------
+
+_RISK_LABELS = {
+    (0.0, 0.25): ("Low",      "#3fb950"),
+    (0.25, 0.5): ("Medium",   "#d29922"),
+    (0.5, 0.75): ("High",     "#f85149"),
+    (0.75, 1.1): ("Critical", "#ff4444"),
+}
+
+
+def _compute_risk_score(rule: dict) -> float:
+    """Risk = priority_fraction × failure_probability × bypass_amplifier.
+
+    - priority_fraction : priority/5  (impact proxy)
+    - failure_probability : 1 - effectiveness_score  (likelihood of non-compliance)
+    - bypass_amplifier : 1 + bypass_rate  (ease of circumvention)
+    Returns a value in [0, ~2]; clamped to [0, 1] for display.
+    """
+    priority_fraction = rule.get("priority", 3) / 5.0
+    failure_prob = 1.0 - min(max(rule.get("effectiveness_score", 0.5), 0.0), 1.0)
+    bypass_rate = rule.get("bypass_rate", 0.0)
+    raw = priority_fraction * failure_prob * (1.0 + bypass_rate)
+    return round(min(raw, 1.0), 3)
+
+
+def _risk_label(score: float) -> tuple[str, str]:
+    for (lo, hi), (label, color) in _RISK_LABELS.items():
+        if lo <= score < hi:
+            return label, color
+    return "Critical", "#ff4444"
+
+
+def build_risk_table() -> pd.DataFrame:
+    rules = load_rules()
+    if not rules:
+        return pd.DataFrame(columns=["Name", "Owner", "Team", "Risk Score", "Level", "Priority", "Effectiveness", "Bypass"])
+    rows = []
+    for r in rules:
+        if not r.get("is_active"):
+            continue
+        score = _compute_risk_score(r)
+        label, _ = _risk_label(score)
+        bypass = r.get("bypass_rate")
+        rows.append({
+            "Name": r.get("name", r.get("rule_id", "?")),
+            "Owner": r.get("owner", "—"),
+            "Team": r.get("team", "—"),
+            "Risk Score": f"{score:.2f}",
+            "Level": label,
+            "Priority": r.get("priority", "?"),
+            "Effectiveness": f"{r.get('effectiveness_score', 0):.0%}",
+            "Bypass": f"{bypass:.0%}" if bypass is not None else "—",
+        })
+    rows.sort(key=lambda x: float(x["Risk Score"]), reverse=True)
+    return pd.DataFrame(rows)
+
+
+def run_update_risk_scores():
+    """Recompute risk scores for all active rules and save."""
+    log: list[str] = []
+
+    def emit(msg: str):
+        log.append(msg)
+        return "\n".join(log)
+
+    if not HF_TOKEN:
+        yield emit("❌ HF_TOKEN not set.")
+        return
+
+    rules = load_rules()
+    if not rules:
+        yield emit("❌ No rules found.")
+        return
+
+    changed = 0
+    for rule in rules:
+        if not rule.get("is_active"):
+            continue
+        score = _compute_risk_score(rule)
+        rule["risk_score"] = score
+        label, _ = _risk_label(score)
+        rule["risk_level"] = label
+        changed += 1
+
+    try:
+        _upload_jsonl("rules.jsonl", rules)
+        yield emit(f"✅ Risk scores updated for {changed} active rule(s).")
+        for rule in sorted(rules, key=lambda r: r.get("risk_score", 0), reverse=True):
+            if not rule.get("is_active"):
+                continue
+            label = rule.get("risk_level", "?")
+            score = rule.get("risk_score", 0)
+            icon = "🔴" if label == "Critical" else ("🟠" if label == "High" else ("🟡" if label == "Medium" else "🟢"))
+            yield emit(f"   {icon} [{label}] **{rule.get('name', '?')}** — {score:.2f}")
+    except Exception as exc:
+        yield emit(f"❌ Failed to save: {exc}")
+
+
+# ---------------------------------------------------------------------------
+# Extended rule lifecycle  (Draft → Review → Approved/Active → Deprecated → Retired)
+# ---------------------------------------------------------------------------
+
+LIFECYCLE_STATES = ["draft", "pending_review", "active", "deprecated", "retired", "rejected"]
+
+LIFECYCLE_TRANSITIONS: dict[str, list[str]] = {
+    "draft":          ["pending_review"],
+    "pending_review": ["active", "rejected"],
+    "active":         ["deprecated"],
+    "deprecated":     ["retired", "active"],
+    "rejected":       ["draft"],
+    "retired":        [],
+}
+
+LIFECYCLE_ICONS = {
+    "draft": "📝",
+    "pending_review": "⏳",
+    "active": "✅",
+    "deprecated": "⚠️",
+    "retired": "🗄️",
+    "rejected": "🗑️",
+}
+
+
+def transition_rule_lifecycle(rule_id: str, new_status: str, reason: str = "") -> str:
+    """Move a rule to a new lifecycle state with an optional reason."""
+    if not rule_id:
+        return "No rule selected."
+    if not HF_TOKEN:
+        return "❌ HF_TOKEN not set."
+    if new_status not in LIFECYCLE_STATES:
+        return f"Unknown state `{new_status}`. Valid: {LIFECYCLE_STATES}"
+    rules = load_rules()
+    rule = next((r for r in rules if r.get("rule_id") == rule_id), None)
+    if not rule:
+        return f"Rule `{rule_id}` not found."
+
+    current = rule.get("status", "active")
+    allowed = LIFECYCLE_TRANSITIONS.get(current, [])
+    if new_status not in allowed:
+        return (
+            f"❌ Invalid transition: `{current}` → `{new_status}`.\n"
+            f"Allowed next states from `{current}`: {allowed or ['none — terminal state']}"
+        )
+
+    rule["status"] = new_status
+    rule["is_active"] = (new_status == "active")
+    rule[f"{new_status}_at"] = datetime.utcnow().isoformat()
+    if reason:
+        rule["lifecycle_reason"] = reason
+
+    try:
+        _upload_jsonl("rules.jsonl", rules)
+        _snapshot_rule_version(rule, f"lifecycle_{new_status}")
+        icon = LIFECYCLE_ICONS.get(new_status, "📌")
+        return f"{icon} Rule **{rule.get('name', rule_id)}** moved to `{new_status}`." + (f"\nReason: {reason}" if reason else "")
+    except Exception as exc:
+        return f"❌ Failed to save: {exc}"
+
+
+def build_lifecycle_table() -> pd.DataFrame:
+    rules = load_rules()
+    if not rules:
+        return pd.DataFrame(columns=["State", "Name", "Owner", "Team", "Priority", "Created", "Last Changed"])
+    rows = []
+    for r in rules:
+        status = r.get("status", "active")
+        icon = LIFECYCLE_ICONS.get(status, "?")
+        rows.append({
+            "State": f"{icon} {status}",
+            "Name": r.get("name", r.get("rule_id", "?")),
+            "Owner": r.get("owner", "—"),
+            "Team": r.get("team", "—"),
+            "Priority": r.get("priority", "?"),
+            "Created": str(r.get("created_at", ""))[:10],
+            "Last Changed": str(r.get(f"{status}_at", r.get("created_at", "")))[:10],
+        })
+    order = {"active": 0, "pending_review": 1, "draft": 2, "deprecated": 3, "retired": 4, "rejected": 5}
+    rows.sort(key=lambda x: order.get(x["State"].split(" ", 1)[-1], 9))
+    return pd.DataFrame(rows)
+
+
+# ---------------------------------------------------------------------------
+# Drift detection — alerts when a rule's compliance trend is declining
+# ---------------------------------------------------------------------------
+
+_DRIFT_MIN_POINTS = 3     # need at least this many score_history entries
+_DRIFT_DECLINE_THRESHOLD = 0.05  # flag if slope is < -0.05 per measurement
+
+
+def _compute_drift(score_history: list[dict]) -> dict:
+    """Return drift analysis: slope, is_drifting, last_score, first_score."""
+    if len(score_history) < _DRIFT_MIN_POINTS:
+        return {"slope": 0.0, "is_drifting": False, "insufficient_data": True}
+    scores = [h["score"] for h in score_history]
+    n = len(scores)
+    # Linear regression slope (least squares)
+    x_mean = (n - 1) / 2
+    y_mean = sum(scores) / n
+    numerator = sum((i - x_mean) * (scores[i] - y_mean) for i in range(n))
+    denominator = sum((i - x_mean) ** 2 for i in range(n))
+    slope = numerator / denominator if denominator else 0.0
+    return {
+        "slope": round(slope, 4),
+        "is_drifting": slope < -_DRIFT_DECLINE_THRESHOLD,
+        "first_score": scores[0],
+        "last_score": scores[-1],
+        "total_change": round(scores[-1] - scores[0], 3),
+        "measurements": n,
+        "insufficient_data": False,
+    }
+
+
+def build_drift_report() -> str:
+    """Return markdown summary of compliance drift across all active rules."""
+    rules = load_rules()
+    active = [r for r in rules if r.get("is_active")]
+    if not active:
+        return "_No active rules._"
+
+    drifting = []
+    stable = []
+    no_data = []
+
+    for rule in active:
+        name = rule.get("name", rule.get("rule_id", "?"))
+        history = rule.get("score_history", [])
+        drift = _compute_drift(history)
+        if drift.get("insufficient_data"):
+            no_data.append(name)
+        elif drift["is_drifting"]:
+            drifting.append((name, drift))
+        else:
+            stable.append((name, drift))
+
+    lines = ["### Compliance Drift Report\n"]
+
+    if drifting:
+        lines.append(f"#### 🔴 Drifting Rules ({len(drifting)})")
+        lines.append("_Effectiveness declining — investigate and consider evolving_\n")
+        for name, d in sorted(drifting, key=lambda x: x[1]["slope"]):
+            lines.append(
+                f"- **{name}**: {d['first_score']:.0%} → {d['last_score']:.0%} "
+                f"(slope {d['slope']:+.3f}/measurement, {d['measurements']} points)"
+            )
+        lines.append("")
+
+    if stable:
+        lines.append(f"#### 🟢 Stable Rules ({len(stable)})")
+        for name, d in stable:
+            lines.append(f"- **{name}**: {d['last_score']:.0%} (slope {d['slope']:+.3f})")
+        lines.append("")
+
+    if no_data:
+        lines.append(f"#### ⏭️ Insufficient Data ({len(no_data)})")
+        lines.append(f"_Need ≥{_DRIFT_MIN_POINTS} score measurements each_")
+        for name in no_data:
+            lines.append(f"- {name}")
+
+    return "\n".join(lines)
+
+
+def build_drift_chart() -> Any:
+    """Plot effectiveness over time for all rules with ≥3 score history points."""
+    rules = load_rules()
+    active_with_history = [
+        r for r in rules
+        if r.get("is_active") and len(r.get("score_history", [])) >= _DRIFT_MIN_POINTS
+    ]
+    if not active_with_history:
+        return _dark_fig(go.Figure(layout=dict(
+            title=dict(text="No drift data yet — run scoring multiple times", font=dict(color="#e2e8f0")),
+            height=320,
+        )))
+
+    palette = ["#58a6ff", "#3fb950", "#d29922", "#f85149", "#8b5cf6", "#06b6d4", "#ec4899"]
+    fig = go.Figure()
+    for i, rule in enumerate(active_with_history):
+        history = rule["score_history"]
+        xs = list(range(len(history)))
+        ys = [h["score"] for h in history]
+        drift = _compute_drift(history)
+        color = "#f85149" if drift["is_drifting"] else palette[i % len(palette)]
+        fig.add_trace(go.Scatter(
+            x=xs, y=ys,
+            mode="lines+markers",
+            name=rule.get("name", "?")[:25],
+            line=dict(color=color, width=2),
+            marker=dict(size=6),
+        ))
+
+    fig.add_hline(y=0.7, line_dash="dot", line_color="#3fb950", annotation_text="Good")
+    fig.add_hline(y=0.3, line_dash="dot", line_color="#f85149", annotation_text="Evolve threshold")
+    fig.update_layout(
+        title=dict(text="Effectiveness Trend (red = drifting)", font=dict(size=14, color="#e2e8f0")),
+        xaxis_title="Measurement #",
+        yaxis=dict(range=[0, 1.05], tickformat=".0%"),
+        height=360,
+        legend=dict(orientation="h", y=-0.3, font=dict(size=10)),
+    )
+    return _dark_fig(fig)
+
+
+# ---------------------------------------------------------------------------
+# Exception management — temporary rule bypass with reason / approver / expiry
+# ---------------------------------------------------------------------------
+
+def create_exception(rule_id: str, reason: str, approved_by: str, duration_hours: int) -> str:
+    """Temporarily disable a rule with a mandatory reason, approver, and expiry."""
+    if not rule_id:
+        return "No rule selected."
+    if not HF_TOKEN:
+        return "❌ HF_TOKEN not set."
+    if not reason.strip():
+        return "❌ A reason is required for exceptions."
+    if not approved_by.strip():
+        return "❌ An approver is required."
+    if duration_hours < 1 or duration_hours > 720:
+        return "❌ Duration must be between 1 and 720 hours (30 days)."
+
+    rules = load_rules()
+    rule = next((r for r in rules if r.get("rule_id") == rule_id), None)
+    if not rule:
+        return f"Rule `{rule_id}` not found."
+    if not rule.get("is_active"):
+        return f"Rule `{rule.get('name', rule_id)}` is already inactive."
+
+    now = datetime.utcnow()
+    expires_at = now.isoformat()  # placeholder; compute below
+    from datetime import timedelta
+    expires_dt = now + timedelta(hours=duration_hours)
+    expires_at = expires_dt.isoformat()
+
+    exception_record = {
+        "rule_id": rule_id,
+        "rule_name": rule.get("name", rule_id),
+        "reason": reason.strip(),
+        "approved_by": approved_by.strip(),
+        "created_at": now.isoformat(),
+        "expires_at": expires_at,
+        "duration_hours": duration_hours,
+        "previous_status": rule.get("status", "active"),
+    }
+
+    rule["is_active"] = False
+    rule["status"] = "exception"
+    rule["exception"] = exception_record
+
+    try:
+        _upload_jsonl("rules.jsonl", rules)
+        _append_jsonl("exceptions.jsonl", [exception_record])
+        _snapshot_rule_version(rule, "exception_created")
+        return (
+            f"⚠️ Exception created for **{rule.get('name', rule_id)}**\n\n"
+            f"- **Reason**: {reason}\n"
+            f"- **Approved by**: {approved_by}\n"
+            f"- **Expires**: {expires_at[:16].replace('T', ' ')} UTC ({duration_hours}h)\n\n"
+            f"Rule is now disabled. Restore it manually before or at expiry."
+        )
+    except Exception as exc:
+        return f"❌ Failed to save exception: {exc}"
+
+
+def restore_from_exception(rule_id: str) -> str:
+    """Re-activate a rule that is under exception."""
+    if not rule_id:
+        return "No rule selected."
+    if not HF_TOKEN:
+        return "❌ HF_TOKEN not set."
+    rules = load_rules()
+    rule = next((r for r in rules if r.get("rule_id") == rule_id), None)
+    if not rule:
+        return f"Rule `{rule_id}` not found."
+    if rule.get("status") != "exception":
+        return f"Rule `{rule.get('name', rule_id)}` is not under exception (status: {rule.get('status')})."
+
+    prev_status = (rule.get("exception") or {}).get("previous_status", "active")
+    rule["is_active"] = (prev_status == "active")
+    rule["status"] = prev_status
+    rule.pop("exception", None)
+    rule["restored_at"] = datetime.utcnow().isoformat()
+
+    try:
+        _upload_jsonl("rules.jsonl", rules)
+        _snapshot_rule_version(rule, "exception_restored")
+        return f"✅ Rule **{rule.get('name', rule_id)}** restored to `{prev_status}`."
+    except Exception as exc:
+        return f"❌ Failed to restore: {exc}"
+
+
+def build_exceptions_table() -> pd.DataFrame:
+    """Show all active exceptions and recently expired ones."""
+    rules = load_rules()
+    exceptions = [r for r in rules if r.get("status") == "exception"]
+    if not exceptions:
+        return pd.DataFrame({"Info": ["No active exceptions."]})
+    rows = []
+    now = datetime.utcnow().isoformat()
+    for r in exceptions:
+        exc = r.get("exception") or {}
+        expires = exc.get("expires_at", "?")
+        expired = expires < now if expires != "?" else False
+        rows.append({
+            "Rule": r.get("name", r.get("rule_id", "?")),
+            "Reason": exc.get("reason", "?")[:60],
+            "Approved By": exc.get("approved_by", "?"),
+            "Expires": expires[:16].replace("T", " ") if expires != "?" else "?",
+            "Status": "🔴 EXPIRED" if expired else "⏳ Active",
+        })
+    return pd.DataFrame(rows)
+
+
+def load_exceptions() -> list[dict]:
+    return _download_jsonl("exceptions.jsonl")
+
+
+# ---------------------------------------------------------------------------
 # Rule layer classification
 # ---------------------------------------------------------------------------
 
@@ -3399,6 +3842,82 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
             ab_rule_selector.change(build_ab_comparison, inputs=ab_rule_selector, outputs=ab_comparison)
             ab_create_btn.click(create_rule_ab_variant, inputs=ab_rule_selector, outputs=ab_status)
 
+            gr.HTML('<div class="section-title">Ownership</div>')
+            gr.Markdown("Assign accountability to every rule — required for audit trails.")
+            with gr.Row():
+                owner_rule_selector = gr.Dropdown(label="Rule", choices=[], scale=3)
+                owner_refresh_btn = gr.Button("↻", variant="secondary", size="sm", scale=1)
+            with gr.Row():
+                owner_name = gr.Textbox(label="Owner name", placeholder="e.g. Jane Smith", scale=2)
+                owner_team = gr.Textbox(label="Team", placeholder="e.g. Security", scale=2)
+                owner_contact = gr.Textbox(label="Contact", placeholder="e.g. security@company.com", scale=2)
+            owner_save_btn = gr.Button("💾 Save Ownership", variant="primary", size="sm")
+            owner_status = gr.Markdown()
+
+            def _refresh_owner_rules():
+                return gr.Dropdown(choices=get_rule_names())
+
+            owner_refresh_btn.click(_refresh_owner_rules, outputs=owner_rule_selector)
+            demo.load(_refresh_owner_rules, outputs=owner_rule_selector)
+            owner_save_btn.click(
+                set_rule_owner,
+                inputs=[owner_rule_selector, owner_name, owner_team, owner_contact],
+                outputs=owner_status,
+            )
+
+            gr.HTML('<div class="section-title">Lifecycle Management</div>')
+            gr.Markdown("Move rules through: `draft → pending_review → active → deprecated → retired`")
+            lifecycle_table = gr.Dataframe(interactive=False, wrap=True)
+            lifecycle_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
+            with gr.Row():
+                lc_rule_selector = gr.Dropdown(label="Rule", choices=[], scale=3)
+                lc_new_state = gr.Dropdown(
+                    label="New state",
+                    choices=LIFECYCLE_STATES,
+                    scale=2,
+                )
+            lc_reason = gr.Textbox(label="Reason (optional)", placeholder="e.g. Superseded by Rule #22")
+            lc_transition_btn = gr.Button("▶ Apply Transition", variant="primary", size="sm")
+            lc_status = gr.Markdown()
+
+            def _refresh_lc():
+                return build_lifecycle_table(), gr.Dropdown(choices=get_rule_names())
+
+            lifecycle_refresh_btn.click(_refresh_lc, outputs=[lifecycle_table, lc_rule_selector])
+            demo.load(_refresh_lc, outputs=[lifecycle_table, lc_rule_selector])
+            lc_transition_btn.click(
+                transition_rule_lifecycle,
+                inputs=[lc_rule_selector, lc_new_state, lc_reason],
+                outputs=lc_status,
+            )
+
+            gr.HTML('<div class="section-title">Exception Management</div>')
+            gr.Markdown("Temporarily disable a rule with a mandatory reason, approver, and expiry.")
+            exceptions_table = gr.Dataframe(interactive=False, wrap=True)
+            exc_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
+            with gr.Row():
+                exc_rule_selector = gr.Dropdown(label="Rule to disable", choices=[], scale=3)
+                exc_duration = gr.Number(label="Duration (hours)", value=24, minimum=1, maximum=720, scale=1)
+            with gr.Row():
+                exc_reason = gr.Textbox(label="Reason", placeholder="e.g. Emergency incident response", scale=3)
+                exc_approver = gr.Textbox(label="Approved by", placeholder="e.g. CISO", scale=2)
+            with gr.Row():
+                exc_create_btn = gr.Button("⚠️ Create Exception", variant="stop")
+                exc_restore_btn = gr.Button("✅ Restore Rule", variant="primary")
+            exc_status = gr.Markdown()
+
+            def _refresh_exc():
+                return build_exceptions_table(), gr.Dropdown(choices=get_rule_names())
+
+            exc_refresh_btn.click(_refresh_exc, outputs=[exceptions_table, exc_rule_selector])
+            demo.load(_refresh_exc, outputs=[exceptions_table, exc_rule_selector])
+            exc_create_btn.click(
+                create_exception,
+                inputs=[exc_rule_selector, exc_reason, exc_approver, exc_duration],
+                outputs=exc_status,
+            )
+            exc_restore_btn.click(restore_from_exception, inputs=exc_rule_selector, outputs=exc_status)
+
             gr.HTML('<div class="section-title">Export</div>')
             with gr.Row():
                 export_btn = gr.Button("Export as System Prompt", variant="secondary", size="sm")
@@ -3456,6 +3975,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
             with gr.Row():
                 seed_btn = gr.Button("🌱 Load Starter Rules", variant="secondary")
                 dedup_btn = gr.Button("🧹 Remove Duplicates", variant="secondary")
+                risk_compute_btn = gr.Button("🔢 Update Risk Scores", variant="secondary")
 
             community_toggle = gr.Checkbox(
                 label="Contribute anonymous gap patterns to the community (no conversation text)",
@@ -3473,6 +3993,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
             score_btn.click(run_score_effectiveness, outputs=analysis_log)
             judge_btn.click(run_llm_judge_scoring, outputs=analysis_log)
             redteam_btn.click(run_red_team, outputs=analysis_log)
+            risk_compute_btn.click(run_update_risk_scores, outputs=analysis_log)
 
             gr.HTML('<div class="section-title">Step 3 — Review New Rules</div>')
             gr.Markdown("New rules generated by analysis appear in the **Rules** tab → Review Queue. Approve each one to activate it.")
@@ -3518,6 +4039,33 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 build_compass, inputs=conv_selector,
                 outputs=[compass_gauge, compass_timeline, compass_alerts],
             )
+
+            gr.HTML('<div class="section-title">Risk Scoring</div>')
+            gr.Markdown("Risk = Priority × (1 − Effectiveness) × (1 + Bypass Rate). Higher = more urgent to fix.")
+            risk_table = gr.Dataframe(interactive=False, wrap=True)
+            with gr.Row():
+                risk_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
+                risk_update_btn = gr.Button("🔢 Recompute Risk Scores", variant="primary", size="sm")
+            risk_log = gr.Textbox(label="Risk log", lines=6, interactive=False, autoscroll=True)
+
+            def _refresh_risk():
+                return build_risk_table()
+
+            risk_refresh_btn.click(_refresh_risk, outputs=risk_table)
+            demo.load(_refresh_risk, outputs=risk_table)
+            risk_update_btn.click(run_update_risk_scores, outputs=risk_log)
+
+            gr.HTML('<div class="section-title">Compliance Drift</div>')
+            gr.Markdown("Rules whose effectiveness is declining over time — flag for investigation.")
+            drift_chart = gr.Plot()
+            drift_report = gr.Markdown()
+            drift_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
+
+            def _refresh_drift():
+                return build_drift_chart(), build_drift_report()
+
+            drift_refresh_btn.click(_refresh_drift, outputs=[drift_chart, drift_report])
+            demo.load(_refresh_drift, outputs=[drift_chart, drift_report])
 
             gr.HTML('<div class="section-title">System Health</div>')
             with gr.Row():
