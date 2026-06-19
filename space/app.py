@@ -7235,6 +7235,127 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
             ctrl_refresh_btn.click(_refresh_controls, outputs=[ctrl_chart, ctrl_heatmap, ctrl_table])
             demo.load(_refresh_controls, outputs=[ctrl_chart, ctrl_heatmap, ctrl_table])
 
+            gr.HTML('<div class="section-title">Rule Learning Detection</div>')
+            gr.Markdown("Detect whether the AI is learning (improving compliance) or degrading over time using score_history slope analysis.")
+            learning_report = gr.Markdown()
+            learning_table = gr.Dataframe(interactive=False, wrap=True)
+            learning_run_btn = gr.Button("Detect Learning Trends", variant="primary", size="sm")
+            learning_refresh_btn = gr.Button("↻ Refresh History", variant="secondary", size="sm")
+
+            def _refresh_learning():
+                return build_learning_table()
+
+            learning_run_btn.click(detect_rule_learning, outputs=learning_report)
+            learning_run_btn.click(_refresh_learning, outputs=learning_table)
+            learning_refresh_btn.click(_refresh_learning, outputs=learning_table)
+            demo.load(_refresh_learning, outputs=learning_table)
+
+            gr.HTML('<div class="section-title">Rule Gaming Detection</div>')
+            gr.Markdown("Detect adversarial inputs attempting to bypass, jailbreak, or circumvent governance rules.")
+            gaming_summary_md = gr.Markdown()
+            gaming_table = gr.Dataframe(interactive=False, wrap=True)
+
+            gr.Markdown("**Auto-scan a conversation**")
+            with gr.Row():
+                gaming_conv_id = gr.Textbox(label="Conversation ID (leave blank for all)", scale=4)
+                gaming_scan_btn = gr.Button("Scan for Gaming", variant="primary", size="sm", scale=1)
+            gaming_scan_report = gr.Markdown()
+
+            gr.Markdown("**Manual log**")
+            with gr.Row():
+                gaming_log_conv = gr.Textbox(label="Conv ID", scale=2)
+                gaming_log_turn = gr.Number(label="Turn #", value=1, scale=1)
+                gaming_log_confirmed = gr.Checkbox(label="Confirmed?", scale=1)
+            gaming_log_input = gr.Textbox(label="User input", lines=2, scale=4)
+            gaming_log_notes = gr.Textbox(label="Notes", scale=3)
+            gaming_log_btn = gr.Button("Log Gaming Attempt", variant="secondary", size="sm")
+            gaming_log_status = gr.Markdown()
+            gaming_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
+
+            def _refresh_gaming():
+                return build_gaming_summary(), build_gaming_table()
+
+            gaming_scan_btn.click(auto_scan_gaming, inputs=gaming_conv_id, outputs=gaming_scan_report)
+            gaming_log_btn.click(
+                log_gaming_attempt,
+                inputs=[gaming_log_conv, gaming_log_turn, gaming_log_input, gaming_log_confirmed, gaming_log_notes],
+                outputs=gaming_log_status,
+            )
+            gaming_log_btn.click(_refresh_gaming, outputs=[gaming_summary_md, gaming_table])
+            gaming_refresh_btn.click(_refresh_gaming, outputs=[gaming_summary_md, gaming_table])
+            demo.load(_refresh_gaming, outputs=[gaming_summary_md, gaming_table])
+
+            gr.HTML('<div class="section-title">Meta-Governance</div>')
+            gr.Markdown("Define who can create, approve, audit, and manage rules — governance of the governance system.")
+            with gr.Row():
+                meta_role_table = gr.Dataframe(label="Role Assignments", interactive=False, wrap=True, scale=3)
+                meta_audit_table = gr.Dataframe(label="Action Audit Log", interactive=False, wrap=True, scale=3)
+            meta_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
+
+            gr.Markdown("**Assign Role**")
+            with gr.Row():
+                meta_user_id = gr.Textbox(label="User ID", scale=2)
+                meta_role = gr.Dropdown(label="Role", choices=META_ROLES, value="observer", scale=2)
+                meta_granted_by = gr.Textbox(label="Granted by", scale=2)
+            meta_perms = gr.CheckboxGroup(label="Permissions", choices=META_ACTIONS)
+            meta_assign_btn = gr.Button("Assign Role", variant="secondary", size="sm")
+            meta_assign_status = gr.Markdown()
+
+            gr.Markdown("**Log Governance Action**")
+            with gr.Row():
+                meta_log_user = gr.Textbox(label="User ID", scale=2)
+                meta_log_action = gr.Dropdown(label="Action", choices=META_ACTIONS, value="create_rule", scale=2)
+                meta_log_outcome = gr.Dropdown(label="Outcome", choices=["approved", "rejected", "pending"], value="approved", scale=2)
+            with gr.Row():
+                meta_log_target = gr.Textbox(label="Target (rule ID / audit ID)", scale=3)
+                meta_log_notes = gr.Textbox(label="Notes", scale=3)
+            meta_log_btn = gr.Button("Log Action", variant="secondary", size="sm")
+            meta_log_status = gr.Markdown()
+
+            gr.Markdown("**Permission Check**")
+            with gr.Row():
+                meta_check_user = gr.Textbox(label="User ID", scale=2)
+                meta_check_action = gr.Dropdown(label="Action", choices=META_ACTIONS, value="approve_rule", scale=2)
+            meta_check_btn = gr.Button("Check Permission", variant="secondary", size="sm")
+            meta_check_result = gr.Markdown()
+
+            def _perms_csv(perms_list):
+                return ",".join(perms_list) if perms_list else ""
+
+            def _assign_meta_role(uid, role, granted_by, perms_list):
+                return assign_meta_role(uid, role, granted_by, _perms_csv(perms_list))
+
+            def _log_gov_action(uid, action, target, outcome, notes):
+                return log_governance_action(uid, action, target, outcome, notes)
+
+            def _check_perm(uid, action):
+                ok, msg = check_permission(uid, action)
+                icon = "✅" if ok else "❌"
+                return f"{icon} {msg}"
+
+            def _refresh_meta():
+                return build_meta_gov_table(), build_governance_audit_log()
+
+            meta_assign_btn.click(_assign_meta_role, inputs=[meta_user_id, meta_role, meta_granted_by, meta_perms], outputs=meta_assign_status)
+            meta_assign_btn.click(_refresh_meta, outputs=[meta_role_table, meta_audit_table])
+            meta_log_btn.click(_log_gov_action, inputs=[meta_log_user, meta_log_action, meta_log_target, meta_log_outcome, meta_log_notes], outputs=meta_log_status)
+            meta_log_btn.click(_refresh_meta, outputs=[meta_role_table, meta_audit_table])
+            meta_check_btn.click(_check_perm, inputs=[meta_check_user, meta_check_action], outputs=meta_check_result)
+            meta_refresh_btn.click(_refresh_meta, outputs=[meta_role_table, meta_audit_table])
+            demo.load(_refresh_meta, outputs=[meta_role_table, meta_audit_table])
+
+            gr.HTML('<div class="section-title">Formal Policy Export</div>')
+            gr.Markdown("Export rules as structured YAML or JSON policy documents for audit trails and external tooling.")
+            with gr.Row():
+                policy_rule_filter = gr.Textbox(label="Rule IDs to export (comma-separated, leave blank for all)", scale=5)
+            with gr.Row():
+                policy_yaml_btn = gr.Button("Export YAML", variant="primary", size="sm")
+                policy_json_btn = gr.Button("Export JSON", variant="secondary", size="sm")
+            policy_output = gr.Markdown()
+
+            policy_yaml_btn.click(export_policy_yaml, inputs=policy_rule_filter, outputs=policy_output)
+            policy_json_btn.click(export_policy_json, inputs=policy_rule_filter, outputs=policy_output)
+
             gr.HTML('<div class="section-title">Gap Simulator</div>')
             gr.Markdown("Type a message to see which gaps would be detected and which rules would apply.")
             sim_input = gr.Textbox(
@@ -7738,6 +7859,394 @@ def build_control_heatmap() -> Any:
         xaxis=dict(tickangle=-30),
     )
     return fig
+
+
+# ---------------------------------------------------------------------------
+# #26 RULE LEARNING DETECTION
+# ---------------------------------------------------------------------------
+
+LEARNING_FILE = "learning_log.jsonl"
+LEARNING_WINDOW = 5  # minimum snapshots to assess trend
+
+
+def _load_learning_log() -> list[dict]:
+    return _download_jsonl(LEARNING_FILE)
+
+
+def detect_rule_learning() -> str:
+    """Analyse score_history per rule to detect consistent compliance improvement."""
+    rules = [r for r in _download_jsonl("rules.jsonl") if "rule_id" in r]
+    if not rules:
+        return "No rules found."
+
+    now = datetime.utcnow().isoformat()
+    log = _load_learning_log()
+    new_entries: list[dict] = []
+    learned: list[str] = []
+    regressing: list[str] = []
+
+    for rule in rules:
+        history = rule.get("score_history", [])
+        if len(history) < LEARNING_WINDOW:
+            status = "insufficient_data"
+            slope = None
+        else:
+            # linear regression slope over last LEARNING_WINDOW points
+            n = LEARNING_WINDOW
+            xs = list(range(n))
+            ys = [float(v) for v in history[-n:]]
+            x_mean = sum(xs) / n
+            y_mean = sum(ys) / n
+            num = sum((xs[i] - x_mean) * (ys[i] - y_mean) for i in range(n))
+            den = sum((xs[i] - x_mean) ** 2 for i in range(n))
+            slope = round(num / den, 4) if den else 0.0
+            if slope >= 0.02:
+                status = "learning"
+                learned.append(f"- **{rule.get('name', rule['rule_id'])}** (slope={slope:+.4f})")
+            elif slope <= -0.02:
+                status = "degrading"
+                regressing.append(f"- **{rule.get('name', rule['rule_id'])}** (slope={slope:+.4f})")
+            else:
+                status = "stable"
+
+        new_entries.append({
+            "rule_id": rule["rule_id"],
+            "rule_name": rule.get("name", rule["rule_id"]),
+            "status": status,
+            "slope": slope,
+            "history_len": len(history),
+            "timestamp": now,
+        })
+
+    log.extend(new_entries)
+    _upload_jsonl(LEARNING_FILE, log)
+
+    lines = ["## Rule Learning Detection", f"_Run at {now[:19]}_", ""]
+    if learned:
+        lines += [f"### Rules showing learning ({len(learned)})", ""] + learned + [""]
+    if regressing:
+        lines += [f"### Rules degrading ({len(regressing)})", ""] + regressing + [""]
+    if not learned and not regressing:
+        lines.append("No significant learning or degradation trends detected.")
+    lines.append(f"\n_Assessed {len(rules)} rule(s)._")
+    return "\n".join(lines)
+
+
+def build_learning_table() -> pd.DataFrame:
+    log = _load_learning_log()
+    if not log:
+        return pd.DataFrame(columns=["Rule", "Status", "Slope", "History Points", "Timestamp"])
+    # Latest per rule
+    latest: dict = {}
+    for e in log:
+        rid = e["rule_id"]
+        if rid not in latest or e.get("timestamp", "") > latest[rid].get("timestamp", ""):
+            latest[rid] = e
+    rows = [{
+        "Rule": e.get("rule_name", e["rule_id"])[:40],
+        "Status": e.get("status", ""),
+        "Slope": f"{e['slope']:+.4f}" if e.get("slope") is not None else "N/A",
+        "History Points": e.get("history_len", 0),
+        "Timestamp": e.get("timestamp", "")[:16],
+    } for e in latest.values()]
+    return pd.DataFrame(rows)
+
+
+# ---------------------------------------------------------------------------
+# #27 RULE GAMING DETECTION
+# ---------------------------------------------------------------------------
+
+GAMING_FILE = "gaming_log.jsonl"
+
+_GAMING_PATTERNS = [
+    (r"ignore\b.{0,20}\b(instructions?|rules?|prompt|guidelines?)", "instruction override"),
+    (r"pretend (you are|you're|to be) (not |un)?restricted", "persona jailbreak"),
+    (r"(do|say|write|act) (anything|whatever|everything) (you want|i say|without|freely)", "unrestricted request"),
+    (r"(jailbreak|bypass|circumvent|disable|override|forget).{0,20}(rule|filter|guard|limit|policy)", "explicit bypass"),
+    (r"(encode|base64|rot13|hex|morse|leetspeak).{0,30}(restrict|rule|forbid|ban)", "encoding evasion"),
+    (r"(as (a|an|the) (developer|admin|root|god|system|assistant|ai|language model))", "role escalation"),
+    (r"(repeat|echo|print).{0,20}(system prompt|instructions?|rules?)", "prompt extraction"),
+    (r"(hypothetically|in fiction|in a story|imagine).{0,40}(harm|kill|attack|exploit)", "fiction framing"),
+]
+
+
+def detect_gaming(user_input: str) -> list[dict]:
+    """Return list of matched gaming patterns in user_input."""
+    import re
+    matches = []
+    for pattern, label in _GAMING_PATTERNS:
+        if re.search(pattern, user_input, re.IGNORECASE):
+            matches.append({"pattern": label, "regex": pattern})
+    return matches
+
+
+def log_gaming_attempt(conv_id: str, turn_number: int, user_input: str, confirmed: bool, notes: str) -> str:
+    """Log a potential rule gaming attempt."""
+    if not user_input:
+        return "User input is required."
+    matches = detect_gaming(user_input)
+    entry = {
+        "gaming_id": f"game_{datetime.utcnow().strftime('%Y%m%d%H%M%S%f')[:18]}",
+        "conv_id": conv_id,
+        "turn_number": turn_number,
+        "user_input": user_input[:500],
+        "patterns_matched": [m["pattern"] for m in matches],
+        "auto_detected": bool(matches),
+        "confirmed": confirmed,
+        "notes": notes,
+        "timestamp": datetime.utcnow().isoformat(),
+    }
+    log = _download_jsonl(GAMING_FILE)
+    log.append(entry)
+    _upload_jsonl(GAMING_FILE, log)
+    pattern_str = ", ".join(m["pattern"] for m in matches) if matches else "none"
+    return f"Gaming attempt logged (id={entry['gaming_id'][:12]}). Patterns: {pattern_str}."
+
+
+def auto_scan_gaming(conversation_id: str = "") -> str:
+    """Scan conversation turns for gaming patterns."""
+    convs = _download_jsonl("conversations.jsonl")
+    if conversation_id:
+        convs = [c for c in convs if c.get("conversation_id") == conversation_id]
+    if not convs:
+        return "No conversations to scan."
+
+    total_turns = 0
+    flagged: list[str] = []
+    for conv in convs:
+        cid = conv.get("conversation_id", "?")
+        for turn in conv.get("turns", []):
+            user_input = turn.get("user_input", "")
+            total_turns += 1
+            matches = detect_gaming(user_input)
+            if matches:
+                labels = ", ".join(m["pattern"] for m in matches)
+                flagged.append(f"Conv `{cid[:8]}` turn {turn.get('turn_number','?')}: **{labels}**  \n  _{user_input[:80]}_")
+
+    lines = ["## Gaming Detection Scan", f"Scanned {total_turns} turns across {len(convs)} conversation(s).", ""]
+    if flagged:
+        lines += [f"### Flagged turns ({len(flagged)})", ""] + flagged
+    else:
+        lines.append("No gaming patterns detected.")
+    return "\n".join(lines)
+
+
+def build_gaming_table() -> pd.DataFrame:
+    log = _download_jsonl(GAMING_FILE)
+    if not log:
+        return pd.DataFrame(columns=["ID", "Conv", "Turn", "Patterns", "Confirmed", "Timestamp"])
+    rows = [{
+        "ID": e.get("gaming_id", "")[:12],
+        "Conv": e.get("conv_id", "")[:12],
+        "Turn": e.get("turn_number", ""),
+        "Patterns": ", ".join(e.get("patterns_matched", [])) or "manual",
+        "Confirmed": "yes" if e.get("confirmed") else "no",
+        "Timestamp": e.get("timestamp", "")[:16],
+    } for e in log]
+    return pd.DataFrame(rows)
+
+
+def build_gaming_summary() -> str:
+    log = _download_jsonl(GAMING_FILE)
+    if not log:
+        return "No gaming attempts logged."
+    total = len(log)
+    confirmed = sum(1 for e in log if e.get("confirmed"))
+    auto = sum(1 for e in log if e.get("auto_detected"))
+    by_pattern: dict = {}
+    for e in log:
+        for p in e.get("patterns_matched", []):
+            by_pattern[p] = by_pattern.get(p, 0) + 1
+    top = sorted(by_pattern.items(), key=lambda x: -x[1])[:5]
+    lines = [f"**Total attempts:** {total}  |  **Confirmed:** {confirmed}  |  **Auto-detected:** {auto}", ""]
+    if top:
+        lines += ["**Top patterns:**"] + [f"- {p}: {c}" for p, c in top]
+    return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# #57 META-GOVERNANCE
+# ---------------------------------------------------------------------------
+
+META_GOV_FILE = "meta_governance.jsonl"
+
+META_ROLES = ["rule_author", "rule_approver", "auditor", "observer"]
+META_ACTIONS = ["create_rule", "approve_rule", "reject_rule", "deprecate_rule",
+                "run_audit", "view_audit", "manage_exceptions", "export_data"]
+
+
+def _load_meta_gov() -> list[dict]:
+    return _download_jsonl(META_GOV_FILE)
+
+
+def assign_meta_role(user_id: str, role: str, granted_by: str, permissions_csv: str) -> str:
+    """Assign a governance role to a user with specific permissions."""
+    if not user_id or not role:
+        return "User ID and role are required."
+    perms = [p.strip() for p in permissions_csv.split(",") if p.strip()]
+    entries = _load_meta_gov()
+    # Revoke existing role for this user
+    entries = [e for e in entries if not (e.get("type") == "role" and e.get("user_id") == user_id)]
+    entry = {
+        "type": "role",
+        "entry_id": f"mgov_{datetime.utcnow().strftime('%Y%m%d%H%M%S')}",
+        "user_id": user_id,
+        "role": role,
+        "permissions": perms,
+        "granted_by": granted_by,
+        "granted_at": datetime.utcnow().isoformat(),
+    }
+    entries.append(entry)
+    _upload_jsonl(META_GOV_FILE, entries)
+    return f"Role '{role}' assigned to '{user_id}' with {len(perms)} permission(s)."
+
+
+def log_governance_action(user_id: str, action: str, target: str, outcome: str, notes: str) -> str:
+    """Audit log an action performed within the governance system."""
+    if not user_id or not action:
+        return "User ID and action are required."
+    entries = _load_meta_gov()
+    entry = {
+        "type": "action_log",
+        "entry_id": f"mgov_{datetime.utcnow().strftime('%Y%m%d%H%M%S%f')[:18]}",
+        "user_id": user_id,
+        "action": action,
+        "target": target,
+        "outcome": outcome,
+        "notes": notes,
+        "timestamp": datetime.utcnow().isoformat(),
+    }
+    entries.append(entry)
+    _upload_jsonl(META_GOV_FILE, entries)
+    return f"Governance action '{action}' by '{user_id}' logged."
+
+
+def check_permission(user_id: str, action: str) -> tuple[bool, str]:
+    """Check if a user has permission to perform an action."""
+    entries = _load_meta_gov()
+    roles = [e for e in entries if e.get("type") == "role" and e.get("user_id") == user_id]
+    if not roles:
+        return False, f"User '{user_id}' has no assigned role."
+    role_entry = roles[-1]
+    perms = role_entry.get("permissions", [])
+    if action in perms or "all" in perms:
+        return True, f"Permitted: {role_entry['role']} → {action}"
+    return False, f"Denied: role '{role_entry['role']}' lacks '{action}' permission."
+
+
+def build_meta_gov_table() -> pd.DataFrame:
+    entries = _load_meta_gov()
+    roles = [e for e in entries if e.get("type") == "role"]
+    if not roles:
+        return pd.DataFrame(columns=["User", "Role", "Permissions", "Granted By", "Granted At"])
+    rows = [{
+        "User": e.get("user_id", ""),
+        "Role": e.get("role", ""),
+        "Permissions": ", ".join(e.get("permissions", [])),
+        "Granted By": e.get("granted_by", ""),
+        "Granted At": e.get("granted_at", "")[:16],
+    } for e in roles]
+    return pd.DataFrame(rows)
+
+
+def build_governance_audit_log() -> pd.DataFrame:
+    entries = _load_meta_gov()
+    actions = [e for e in entries if e.get("type") == "action_log"]
+    if not actions:
+        return pd.DataFrame(columns=["User", "Action", "Target", "Outcome", "Timestamp"])
+    rows = [{
+        "User": e.get("user_id", ""),
+        "Action": e.get("action", ""),
+        "Target": e.get("target", "")[:40],
+        "Outcome": e.get("outcome", ""),
+        "Timestamp": e.get("timestamp", "")[:16],
+    } for e in actions[-50:]]
+    return pd.DataFrame(rows)
+
+
+# ---------------------------------------------------------------------------
+# #38 FORMAL POLICY REPRESENTATION (structured YAML/JSON export)
+# ---------------------------------------------------------------------------
+
+def export_policy_yaml(rule_ids_csv: str = "") -> str:
+    """Export rules as a structured YAML policy document."""
+    try:
+        import yaml
+    except ImportError:
+        yaml = None  # type: ignore
+
+    rules = [r for r in _download_jsonl("rules.jsonl") if "rule_id" in r]
+    if rule_ids_csv.strip():
+        wanted = {r.strip() for r in rule_ids_csv.split(",") if r.strip()}
+        rules = [r for r in rules if r["rule_id"] in wanted]
+
+    if not rules:
+        return "No rules found to export."
+
+    policy = {
+        "policy_document": {
+            "version": "1.0",
+            "generated_at": datetime.utcnow().isoformat(),
+            "rule_count": len(rules),
+            "rules": [],
+        }
+    }
+
+    for rule in rules:
+        entry = {
+            "id": rule.get("rule_id"),
+            "name": rule.get("name"),
+            "description": rule.get("description", ""),
+            "status": rule.get("status", "active"),
+            "priority": rule.get("priority", 3),
+            "layer": rule.get("layer", "output_guardrail"),
+            "positive_instructions": rule.get("positive_instructions", []),
+            "negative_instructions": rule.get("negative_instructions", []),
+            "turn_types": rule.get("turn_types", []),
+            "applies_to_gaps": rule.get("applies_to_gaps", []),
+            "owner": rule.get("owner", ""),
+            "created_at": rule.get("created_at", ""),
+            "updated_at": rule.get("updated_at", ""),
+            "effectiveness": rule.get("effectiveness", 0.0),
+            "depends_on": rule.get("depends_on", []),
+            "blocks": rule.get("blocks", []),
+        }
+        policy["policy_document"]["rules"].append(entry)
+
+    if yaml:
+        return "```yaml\n" + yaml.dump(policy, default_flow_style=False, sort_keys=False, allow_unicode=True) + "\n```"
+    else:
+        import json
+        return "```json\n" + json.dumps(policy, indent=2, default=str) + "\n```"
+
+
+def export_policy_json(rule_ids_csv: str = "") -> str:
+    """Export rules as structured JSON policy."""
+    import json
+    rules = [r for r in _download_jsonl("rules.jsonl") if "rule_id" in r]
+    if rule_ids_csv.strip():
+        wanted = {r.strip() for r in rule_ids_csv.split(",") if r.strip()}
+        rules = [r for r in rules if r["rule_id"] in wanted]
+    if not rules:
+        return "No rules found."
+    payload = {
+        "schema_version": "1.0",
+        "generated_at": datetime.utcnow().isoformat(),
+        "rules": [
+            {
+                "id": r.get("rule_id"),
+                "name": r.get("name"),
+                "status": r.get("status", "active"),
+                "priority": r.get("priority", 3),
+                "layer": r.get("layer", "output_guardrail"),
+                "positive": r.get("positive_instructions", []),
+                "negative": r.get("negative_instructions", []),
+                "owner": r.get("owner", ""),
+            }
+            for r in rules
+        ],
+    }
+    return "```json\n" + json.dumps(payload, indent=2) + "\n```"
 
 
 if __name__ == "__main__":
