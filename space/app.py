@@ -6503,7 +6503,8 @@ def snapshot_reputation() -> str:
     for rule in rules:
         rid = rule["rule_id"]
         history = rule.get("score_history", [])
-        avg_score = round(sum(history) / len(history) * 100, 1) if history else 0.0
+        _sc = [e["score"] for e in history if isinstance(e, dict) and "score" in e]
+        avg_score = round(sum(_sc) / len(_sc) * 100, 1) if _sc else 0.0
         new_entries.append({
             "rule_id": rid,
             "rule_name": rule.get("name", rid),
@@ -6632,8 +6633,9 @@ def compute_goal_alignment() -> list[dict]:
             if not rule:
                 continue
             history = rule.get("score_history", [])
-            if history:
-                scores.append(sum(history) / len(history) * 100)
+            _sc = [e["score"] for e in history if isinstance(e, dict) and "score" in e]
+            if _sc:
+                scores.append(sum(_sc) / len(_sc) * 100)
         actual = round(sum(scores) / len(scores), 1) if scores else 0.0
         target = g.get("target_score", 80.0)
         gap = round(actual - target, 1)
@@ -6746,8 +6748,9 @@ def compute_control_coverage() -> list[dict]:
             if not rule:
                 continue
             history = rule.get("score_history", [])
-            if history:
-                scores.append(sum(history) / len(history) * 100)
+            _sc = [e["score"] for e in history if isinstance(e, dict) and "score" in e]
+            if _sc:
+                scores.append(sum(_sc) / len(_sc) * 100)
         effectiveness = round(sum(scores) / len(scores), 1) if scores else 0.0
         results.append({
             **ctrl,
@@ -7459,7 +7462,8 @@ def compute_compliance_health() -> dict:
     healthy_rules = 0
     for r in active:
         h = r.get("score_history", [])
-        if h and sum(h) / len(h) >= 0.7:
+        scores = [e["score"] for e in h if isinstance(e, dict) and "score" in e]
+        if scores and sum(scores) / len(scores) >= 0.7:
             healthy_rules += 1
     rule_health = round(healthy_rules / len(active) * 100, 1) if active else 0.0
 
