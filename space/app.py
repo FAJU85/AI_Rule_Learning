@@ -579,7 +579,7 @@ def build_compass(conv_id: str) -> tuple[Any, Any, str]:
     fig_timeline = go.Figure()
     if turn_nums:
         fig_timeline.add_trace(go.Scatter(x=turn_nums, y=task_scores, name="Task Alignment",
-                                          mode="lines+markers", line={"color": "#3b82f6"}))
+                                          mode="lines+markers", line={"color": "#4f46e5"}))
         fig_timeline.add_trace(go.Scatter(x=turn_nums, y=rule_scores, name="Rule Compliance",
                                           mode="lines+markers", line={"color": "#22c55e"}))
         fig_timeline.add_trace(go.Scatter(x=turn_nums, y=focus_scores, name="Focus (1-drift)",
