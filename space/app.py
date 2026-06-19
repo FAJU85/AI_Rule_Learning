@@ -6644,15 +6644,18 @@ def build_regression_table() -> pd.DataFrame:
     # Latest snapshot per rule
     latest: dict[str, dict] = {}
     for entry in log:
-        rid = entry["rule_id"]
+        rid = entry.get("rule_id", "")
+        if not rid:
+            continue
         if rid not in latest or entry.get("timestamp", "") > latest[rid].get("timestamp", ""):
             latest[rid] = entry
     rows = []
     for entry in latest.values():
-        delta_str = (f"+{entry['delta']}%" if entry.get("delta", 0) >= 0 else f"{entry['delta']}%") if entry.get("delta") is not None else "N/A (first run)"
+        delta = entry.get("delta")
+        delta_str = (f"+{delta}%" if delta >= 0 else f"{delta}%") if delta is not None else "N/A (first run)"
         rows.append({
-            "Rule": entry.get("rule_name", entry["rule_id"])[:40],
-            "Pass Rate": f"{entry['pass_rate']}%",
+            "Rule": entry.get("rule_name", entry.get("rule_id", ""))[:40],
+            "Pass Rate": f"{entry.get('pass_rate', 0)}%",
             "Delta": delta_str,
             "Status": entry.get("status", "stable"),
             "Timestamp": entry.get("timestamp", "")[:16],
