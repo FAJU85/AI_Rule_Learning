@@ -51,6 +51,7 @@ from huggingface_hub.errors import EntryNotFoundError, RepositoryNotFoundError
 # ---------------------------------------------------------------------------
 
 DATASET_ID = "vooom/AI_Rule_Learning"
+COMMUNITY_DATASET_ID = "vooom/AI_Rule_Learning_Community"
 HF_TOKEN = os.environ.get("HF_TOKEN")
 
 
@@ -1001,6 +1002,73 @@ def _backfill_sensor_reading(conv: dict) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Community contribution — anonymised gap pattern summaries only
+# ---------------------------------------------------------------------------
+
+def _contribute_community_gaps(gaps_by_type: dict[str, list[dict]]) -> str:
+    """Upload an anonymised gap-pattern summary to the community dataset.
+
+    Sends only: gap type, count, severity distribution — zero conversation text.
+    """
+    if not gaps_by_type:
+        return "no gaps to contribute"
+    try:
+        import hashlib
+        source_hash = hashlib.sha256(
+            json.dumps(sorted(gaps_by_type.keys())).encode()
+        ).hexdigest()[:16]
+
+        contribution = {
+            "source_hash": source_hash,
+            "contributed_at": datetime.utcnow().isoformat(),
+            "gap_patterns": {
+                gtype: {
+                    "count": len(gaps),
+                    "severity_distribution": {
+                        str(s): sum(1 for g in gaps if g.get("severity") == s)
+                        for s in range(1, 6)
+                        if any(g.get("severity") == s for g in gaps)
+                    },
+                    "avg_severity": round(
+                        sum(g.get("severity", 3) for g in gaps) / max(len(gaps), 1), 2
+                    ),
+                }
+                for gtype, gaps in gaps_by_type.items()
+            },
+            "total_gaps": sum(len(v) for v in gaps_by_type.values()),
+            "total_gap_types": len(gaps_by_type),
+        }
+
+        api = HfApi(token=HF_TOKEN)
+        filename = f"contributions/{datetime.utcnow().strftime('%Y-%m')}.jsonl"
+
+        try:
+            path = hf_hub_download(
+                repo_id=COMMUNITY_DATASET_ID,
+                filename=filename,
+                repo_type="dataset",
+                token=HF_TOKEN,
+                force_download=True,
+            )
+            with open(path, encoding="utf-8") as f:
+                existing_content = f.read()
+        except Exception:
+            existing_content = ""
+
+        new_content = existing_content + json.dumps(contribution, ensure_ascii=False) + "\n"
+        api.upload_file(
+            path_or_fileobj=new_content.encode("utf-8"),
+            path_in_repo=filename,
+            repo_id=COMMUNITY_DATASET_ID,
+            repo_type="dataset",
+            commit_message="community gap contribution",
+        )
+        return f"contributed {sum(len(v) for v in gaps_by_type.values())} gap(s) across {len(gaps_by_type)} type(s)"
+    except Exception as e:
+        return f"skipped: {e}"
+
+
+# ---------------------------------------------------------------------------
 # Seed rules — empirical rules derived from this project's session gap analysis
 # ---------------------------------------------------------------------------
 
@@ -1324,7 +1392,7 @@ Only output the JSON. No markdown fences, no explanation."""
         return None
 
 
-def run_analysis():
+def run_analysis(contribute: bool = False):
     """Generator — yields the growing log string so Gradio streams it live.
 
     Ralph Loop pattern: saves a checkpoint after every 10 conversations and
@@ -1406,6 +1474,12 @@ def run_analysis():
         yield emit(f"✅ Found **{total_gaps}** gaps across **{len(conv_gap_map)}** conversation(s):")
         for gtype, gaps in sorted(all_gaps_by_type.items(), key=lambda x: -len(x[1])):
             yield emit(f"   • `{gtype}`: {len(gaps)} occurrence{'s' if len(gaps) != 1 else ''}")
+
+    # --- Opt-in community contribution (anonymised gap summaries only) ---
+    if contribute and all_gaps_by_type:
+        yield emit("\n🌍 Contributing anonymised gap patterns to community dataset…")
+        contrib_msg = _contribute_community_gaps(all_gaps_by_type)
+        yield emit(f"   {contrib_msg}")
 
     # --- Annotate conversations with gaps + backfill sensor readings ---
     if conv_gap_map or pending:
@@ -1503,7 +1577,7 @@ def run_analysis():
 # Force re-analyze: clear checkpoint and reprocess all conversations
 # ---------------------------------------------------------------------------
 
-def run_force_reanalyze():
+def run_force_reanalyze(contribute: bool = False):
     """Clear the Ralph Loop checkpoint so every conversation is reprocessed."""
     log: list[str] = []
 
@@ -1526,7 +1600,7 @@ def run_force_reanalyze():
     except Exception as exc:
         yield emit(f"⚠️  Could not clear checkpoint: {exc} — continuing anyway…\n")
 
-    yield from run_analysis()
+    yield from run_analysis(contribute)
 
 
 # ---------------------------------------------------------------------------
@@ -2214,14 +2288,21 @@ AI model so they improve rather than disappear.
                 "**🔁 Force Re-analyze All** clears the checkpoint and reprocesses every "
                 "conversation — use this after the gap detection was improved._"
             )
+            community_toggle = gr.Checkbox(
+                label="🌍 Contribute anonymized gap patterns to community dataset "
+                      "(no conversation text — only gap type, count, and severity)",
+                value=False,
+                info="Opt-in: sends a statistical summary of detected gaps to "
+                     "vooom/AI_Rule_Learning_Community. Zero text, fully anonymous.",
+            )
             analysis_log = gr.Textbox(
                 label="Analysis log",
                 lines=20,
                 interactive=False,
                 autoscroll=True,
             )
-            analysis_btn.click(run_analysis, outputs=analysis_log)
-            reanalyze_btn.click(run_force_reanalyze, outputs=analysis_log)
+            analysis_btn.click(run_analysis, inputs=community_toggle, outputs=analysis_log)
+            reanalyze_btn.click(run_force_reanalyze, inputs=community_toggle, outputs=analysis_log)
             evolve_btn.click(run_validate_and_evolve, outputs=analysis_log)
             seed_btn.click(run_seed_rules, outputs=analysis_log)
             dedup_btn.click(run_deduplicate_rules, outputs=analysis_log)
