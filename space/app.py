@@ -7144,6 +7144,97 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 outputs=kg_edge_status,
             )
 
+            gr.HTML('<div class="section-title">Regression Detection</div>')
+            gr.Markdown("Detect when a new benchmark run scores lower than the previous snapshot for a rule (Δ < -5% = regression).")
+            reg_report = gr.Markdown()
+            reg_table = gr.Dataframe(interactive=False, wrap=True)
+            reg_run_btn = gr.Button("Run Regression Check", variant="primary", size="sm")
+            reg_refresh_btn = gr.Button("↻ Refresh History", variant="secondary", size="sm")
+
+            def _refresh_regression():
+                return build_regression_table()
+
+            reg_run_btn.click(run_regression_check, outputs=reg_report)
+            reg_run_btn.click(_refresh_regression, outputs=reg_table)
+            reg_refresh_btn.click(_refresh_regression, outputs=reg_table)
+            demo.load(_refresh_regression, outputs=reg_table)
+
+            gr.HTML('<div class="section-title">Reputation Tracking</div>')
+            gr.Markdown("Track per-rule compliance reputation over 7, 30, and 90 day windows.")
+            rep_chart = gr.Plot()
+            rep_table = gr.Dataframe(interactive=False, wrap=True)
+            rep_snap_btn = gr.Button("Take Snapshot", variant="primary", size="sm")
+            rep_snap_status = gr.Markdown()
+            rep_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
+
+            def _refresh_reputation():
+                return build_reputation_chart(), build_reputation_table()
+
+            rep_snap_btn.click(snapshot_reputation, outputs=rep_snap_status)
+            rep_snap_btn.click(_refresh_reputation, outputs=[rep_chart, rep_table])
+            rep_refresh_btn.click(_refresh_reputation, outputs=[rep_chart, rep_table])
+            demo.load(_refresh_reputation, outputs=[rep_chart, rep_table])
+
+            gr.HTML('<div class="section-title">Goal Alignment Monitoring</div>')
+            gr.Markdown("Map business objectives → rules and monitor alignment vs targets.")
+            goal_chart = gr.Plot()
+            goal_table = gr.Dataframe(interactive=False, wrap=True)
+            goal_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
+
+            gr.Markdown("**Define a Goal**")
+            with gr.Row():
+                goal_name = gr.Textbox(label="Objective name", scale=3)
+                goal_outcome = gr.Textbox(label="Business outcome", scale=3)
+            with gr.Row():
+                goal_rules_csv = gr.Textbox(label="Rule IDs (comma-separated)", scale=4)
+                goal_target = gr.Number(label="Target score %", value=80, scale=1)
+            goal_add_btn = gr.Button("+ Add Goal", variant="secondary", size="sm")
+            goal_status = gr.Markdown()
+
+            def _refresh_goals():
+                return build_goal_chart(), build_goal_table()
+
+            goal_add_btn.click(
+                add_goal,
+                inputs=[goal_name, goal_outcome, goal_rules_csv, goal_target],
+                outputs=goal_status,
+            )
+            goal_add_btn.click(_refresh_goals, outputs=[goal_chart, goal_table])
+            goal_refresh_btn.click(_refresh_goals, outputs=[goal_chart, goal_table])
+            demo.load(_refresh_goals, outputs=[goal_chart, goal_table])
+
+            gr.HTML('<div class="section-title">Control Mapping</div>')
+            gr.Markdown("Map governance controls (technical/operational/managerial) to rules and track their effectiveness.")
+            with gr.Row():
+                ctrl_chart = gr.Plot()
+                ctrl_heatmap = gr.Plot()
+            ctrl_table = gr.Dataframe(interactive=False, wrap=True)
+            ctrl_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
+
+            gr.Markdown("**Add a Control**")
+            with gr.Row():
+                ctrl_name = gr.Textbox(label="Control name", scale=3)
+                ctrl_cat = gr.Dropdown(label="Category", choices=CONTROL_CATEGORIES, value="technical", scale=2)
+                ctrl_risk = gr.Dropdown(label="Risk level", choices=RISK_LEVELS, value="medium", scale=2)
+            ctrl_desc = gr.Textbox(label="Description", scale=4)
+            with gr.Row():
+                ctrl_rule_csv = gr.Textbox(label="Rule IDs (comma-separated)", scale=4)
+                ctrl_audit_ref = gr.Textbox(label="Audit reference (e.g. ISO 27001 A.5.1)", scale=3)
+            ctrl_add_btn = gr.Button("+ Add Control", variant="secondary", size="sm")
+            ctrl_status = gr.Markdown()
+
+            def _refresh_controls():
+                return build_control_chart(), build_control_heatmap(), build_control_table()
+
+            ctrl_add_btn.click(
+                add_control,
+                inputs=[ctrl_name, ctrl_cat, ctrl_risk, ctrl_desc, ctrl_rule_csv, ctrl_audit_ref],
+                outputs=ctrl_status,
+            )
+            ctrl_add_btn.click(_refresh_controls, outputs=[ctrl_chart, ctrl_heatmap, ctrl_table])
+            ctrl_refresh_btn.click(_refresh_controls, outputs=[ctrl_chart, ctrl_heatmap, ctrl_table])
+            demo.load(_refresh_controls, outputs=[ctrl_chart, ctrl_heatmap, ctrl_table])
+
             gr.HTML('<div class="section-title">Gap Simulator</div>')
             gr.Markdown("Type a message to see which gaps would be detected and which rules would apply.")
             sim_input = gr.Textbox(
@@ -7165,6 +7256,488 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 ],
                 inputs=sim_input,
             )
+
+
+# ---------------------------------------------------------------------------
+# #29 REGRESSION DETECTION
+# ---------------------------------------------------------------------------
+
+REGRESSION_FILE = "regression_log.jsonl"
+
+
+def _load_regression_log() -> list[dict]:
+    return _download_jsonl(REGRESSION_FILE)
+
+
+def run_regression_check() -> str:
+    """Compare latest benchmark run against the previous snapshot for each rule."""
+    cases = load_benchmark()
+    if not cases:
+        return "No benchmark cases found. Add cases and run a benchmark first."
+
+    rules_map = {r["rule_id"]: r for r in _download_jsonl("rules.jsonl") if "rule_id" in r}
+
+    # Score per rule: pass_rate
+    rule_scores: dict[str, dict] = {}
+    for c in cases:
+        rid = c.get("rule_id", "")
+        rule = rules_map.get(rid)
+        if not rule:
+            continue
+        triggered = _rule_triggers_on(rule, c["input_text"])
+        expected = c.get("should_trigger", True)
+        entry = rule_scores.setdefault(rid, {"passed": 0, "total": 0, "name": rule.get("name", rid)})
+        entry["total"] += 1
+        if triggered == expected:
+            entry["passed"] += 1
+
+    now = datetime.utcnow().isoformat()
+    log = _load_regression_log()
+
+    # Build index: rule_id -> sorted snapshots
+    history: dict[str, list[dict]] = {}
+    for entry in log:
+        history.setdefault(entry["rule_id"], []).append(entry)
+
+    regressions: list[str] = []
+    improvements: list[str] = []
+    new_entries: list[dict] = []
+
+    for rid, score_data in rule_scores.items():
+        total = score_data["total"]
+        passed = score_data["passed"]
+        pct = round(passed / total * 100, 1) if total else 0.0
+        name = score_data["name"]
+
+        prev_snapshots = sorted(history.get(rid, []), key=lambda x: x.get("timestamp", ""))
+        prev_pct = prev_snapshots[-1]["pass_rate"] if prev_snapshots else None
+
+        status = "stable"
+        delta = None
+        if prev_pct is not None:
+            delta = round(pct - prev_pct, 1)
+            if delta < -5:
+                status = "regression"
+                regressions.append(f"- **{name}** (`{rid[:8]}`): {prev_pct}% → {pct}% (Δ{delta}%)")
+            elif delta > 5:
+                status = "improvement"
+                improvements.append(f"- **{name}** (`{rid[:8]}`): {prev_pct}% → {pct}% (Δ+{delta}%)")
+
+        new_entries.append({
+            "rule_id": rid,
+            "rule_name": name,
+            "pass_rate": pct,
+            "passed": passed,
+            "total": total,
+            "delta": delta,
+            "status": status,
+            "timestamp": now,
+        })
+
+    # Persist
+    log.extend(new_entries)
+    _upload_jsonl(REGRESSION_FILE, log)
+
+    lines = ["## Regression Detection Report", f"_Run at {now[:19]}_", ""]
+    if regressions:
+        lines += [f"### Regressions Detected ({len(regressions)})", ""] + regressions + [""]
+    else:
+        lines.append("No regressions detected.")
+    if improvements:
+        lines += [f"### Improvements ({len(improvements)})", ""] + improvements + [""]
+
+    lines += [f"", f"_Checked {len(rule_scores)} rule(s) across {sum(v['total'] for v in rule_scores.values())} cases._"]
+    return "\n".join(lines)
+
+
+def build_regression_table() -> pd.DataFrame:
+    log = _load_regression_log()
+    if not log:
+        return pd.DataFrame(columns=["Rule", "Pass Rate", "Delta", "Status", "Timestamp"])
+    # Latest snapshot per rule
+    latest: dict[str, dict] = {}
+    for entry in log:
+        rid = entry["rule_id"]
+        if rid not in latest or entry.get("timestamp", "") > latest[rid].get("timestamp", ""):
+            latest[rid] = entry
+    rows = []
+    for entry in latest.values():
+        delta_str = (f"+{entry['delta']}%" if entry.get("delta", 0) >= 0 else f"{entry['delta']}%") if entry.get("delta") is not None else "N/A (first run)"
+        rows.append({
+            "Rule": entry.get("rule_name", entry["rule_id"])[:40],
+            "Pass Rate": f"{entry['pass_rate']}%",
+            "Delta": delta_str,
+            "Status": entry.get("status", "stable"),
+            "Timestamp": entry.get("timestamp", "")[:16],
+        })
+    return pd.DataFrame(rows)
+
+
+# ---------------------------------------------------------------------------
+# #44 REPUTATION TRACKING
+# ---------------------------------------------------------------------------
+
+REPUTATION_FILE = "reputation.jsonl"
+REPUTATION_WINDOWS = [7, 30, 90]  # days
+
+
+def _load_reputation() -> list[dict]:
+    return _download_jsonl(REPUTATION_FILE)
+
+
+def snapshot_reputation() -> str:
+    """Take a compliance snapshot per rule for reputation tracking."""
+    rules = [r for r in _download_jsonl("rules.jsonl") if "rule_id" in r]
+    if not rules:
+        return "No rules found."
+
+    now = datetime.utcnow().isoformat()
+    rep_log = _load_reputation()
+
+    new_entries: list[dict] = []
+    for rule in rules:
+        rid = rule["rule_id"]
+        history = rule.get("score_history", [])
+        avg_score = round(sum(history) / len(history) * 100, 1) if history else 0.0
+        new_entries.append({
+            "rule_id": rid,
+            "rule_name": rule.get("name", rid),
+            "compliance_score": avg_score,
+            "timestamp": now,
+        })
+
+    rep_log.extend(new_entries)
+    _upload_jsonl(REPUTATION_FILE, rep_log)
+    return f"Reputation snapshot taken for {len(new_entries)} rule(s) at {now[:19]}."
+
+
+def compute_reputation_summary() -> list[dict]:
+    """For each rule compute avg compliance over 7/30/90 day windows."""
+    rep_log = _load_reputation()
+    if not rep_log:
+        return []
+
+    from datetime import timedelta
+    now = datetime.utcnow()
+    cutoffs = {d: (now - timedelta(days=d)).isoformat() for d in REPUTATION_WINDOWS}
+
+    # Group by rule_id
+    by_rule: dict[str, list[dict]] = {}
+    for e in rep_log:
+        by_rule.setdefault(e["rule_id"], []).append(e)
+
+    summary = []
+    for rid, entries in by_rule.items():
+        row: dict = {"rule_id": rid, "rule_name": entries[-1].get("rule_name", rid)}
+        for days in REPUTATION_WINDOWS:
+            cut = cutoffs[days]
+            window_entries = [e for e in entries if e.get("timestamp", "") >= cut]
+            if window_entries:
+                avg = round(sum(e["compliance_score"] for e in window_entries) / len(window_entries), 1)
+            else:
+                avg = None
+            row[f"{days}d_avg"] = avg
+        summary.append(row)
+    return summary
+
+
+def build_reputation_table() -> pd.DataFrame:
+    summary = compute_reputation_summary()
+    if not summary:
+        return pd.DataFrame(columns=["Rule", "7d Avg", "30d Avg", "90d Avg"])
+    rows = []
+    for r in summary:
+        rows.append({
+            "Rule": r.get("rule_name", r["rule_id"])[:40],
+            "7d Avg": f"{r['7d_avg']}%" if r.get("7d_avg") is not None else "—",
+            "30d Avg": f"{r['30d_avg']}%" if r.get("30d_avg") is not None else "—",
+            "90d Avg": f"{r['90d_avg']}%" if r.get("90d_avg") is not None else "—",
+        })
+    return pd.DataFrame(rows)
+
+
+def build_reputation_chart() -> Any:
+    summary = compute_reputation_summary()
+    if not summary:
+        fig = go.Figure()
+        fig.update_layout(title="No reputation data yet", template="plotly_dark", height=300)
+        return fig
+
+    names = [r.get("rule_name", r["rule_id"])[:30] for r in summary]
+    fig = go.Figure()
+    colors = {"7d_avg": "#4fc3f7", "30d_avg": "#81c784", "90d_avg": "#ffb74d"}
+    for key, label in [("7d_avg", "7 days"), ("30d_avg", "30 days"), ("90d_avg", "90 days")]:
+        vals = [r.get(key) for r in summary]
+        fig.add_trace(go.Bar(name=label, x=names, y=vals, marker_color=colors[key]))
+
+    fig.update_layout(
+        title="Rule Compliance Reputation by Time Window",
+        barmode="group",
+        template="plotly_dark",
+        height=350,
+        yaxis=dict(title="Avg Compliance %", range=[0, 105]),
+        legend=dict(orientation="h"),
+    )
+    return fig
+
+
+# ---------------------------------------------------------------------------
+# #48 GOAL ALIGNMENT MONITORING
+# ---------------------------------------------------------------------------
+
+GOAL_FILE = "goals.jsonl"
+
+
+def _load_goals() -> list[dict]:
+    return _download_jsonl(GOAL_FILE)
+
+
+def add_goal(objective_name: str, business_outcome: str, rule_ids_csv: str, target_score: float) -> str:
+    """Define a business goal and map it to rules."""
+    if not objective_name:
+        return "Objective name is required."
+    goals = _load_goals()
+    rid_list = [r.strip() for r in rule_ids_csv.split(",") if r.strip()]
+    goal = {
+        "goal_id": f"goal_{datetime.utcnow().strftime('%Y%m%d%H%M%S')}_{objective_name[:8].replace(' ', '_')}",
+        "objective": objective_name,
+        "business_outcome": business_outcome,
+        "linked_rule_ids": rid_list,
+        "target_score": float(target_score),
+        "created_at": datetime.utcnow().isoformat(),
+    }
+    goals.append(goal)
+    _upload_jsonl(GOAL_FILE, goals)
+    return f"Goal '{objective_name}' created with {len(rid_list)} linked rule(s)."
+
+
+def compute_goal_alignment() -> list[dict]:
+    """For each goal compute alignment score = avg compliance of linked rules vs target."""
+    goals = _load_goals()
+    if not goals:
+        return []
+    rules_map = {r["rule_id"]: r for r in _download_jsonl("rules.jsonl") if "rule_id" in r}
+
+    results = []
+    for g in goals:
+        linked = g.get("linked_rule_ids", [])
+        scores = []
+        for rid in linked:
+            rule = rules_map.get(rid)
+            if not rule:
+                continue
+            history = rule.get("score_history", [])
+            if history:
+                scores.append(sum(history) / len(history) * 100)
+        actual = round(sum(scores) / len(scores), 1) if scores else 0.0
+        target = g.get("target_score", 80.0)
+        gap = round(actual - target, 1)
+        status = "aligned" if actual >= target else ("warning" if actual >= target * 0.85 else "misaligned")
+        results.append({
+            **g,
+            "actual_score": actual,
+            "gap": gap,
+            "alignment_status": status,
+            "linked_count": len(linked),
+            "scored_rules": len(scores),
+        })
+    return results
+
+
+def build_goal_table() -> pd.DataFrame:
+    results = compute_goal_alignment()
+    if not results:
+        return pd.DataFrame(columns=["Goal", "Outcome", "Rules", "Target", "Actual", "Gap", "Status"])
+    rows = []
+    for r in results:
+        rows.append({
+            "Goal": r.get("objective", "")[:40],
+            "Outcome": r.get("business_outcome", "")[:40],
+            "Rules": r["linked_count"],
+            "Target": f"{r['target_score']}%",
+            "Actual": f"{r['actual_score']}%",
+            "Gap": f"{r['gap']:+.1f}%",
+            "Status": r["alignment_status"],
+        })
+    return pd.DataFrame(rows)
+
+
+def build_goal_chart() -> Any:
+    results = compute_goal_alignment()
+    if not results:
+        fig = go.Figure()
+        fig.update_layout(title="No goal data yet", template="plotly_dark", height=300)
+        return fig
+
+    names = [r.get("objective", r["goal_id"])[:30] for r in results]
+    actuals = [r["actual_score"] for r in results]
+    targets = [r["target_score"] for r in results]
+    colors = ["#81c784" if r["alignment_status"] == "aligned" else "#ffb74d" if r["alignment_status"] == "warning" else "#e57373" for r in results]
+
+    fig = go.Figure()
+    fig.add_trace(go.Bar(name="Actual", x=names, y=actuals, marker_color=colors))
+    fig.add_trace(go.Scatter(name="Target", x=names, y=targets, mode="markers+lines",
+                             marker=dict(symbol="diamond", size=10, color="#fff176"), line=dict(dash="dot", color="#fff176")))
+    fig.update_layout(
+        title="Goal Alignment: Actual vs Target",
+        template="plotly_dark",
+        height=350,
+        yaxis=dict(title="Compliance %", range=[0, 110]),
+        legend=dict(orientation="h"),
+    )
+    return fig
+
+
+# ---------------------------------------------------------------------------
+# #49 CONTROL MAPPING
+# ---------------------------------------------------------------------------
+
+CONTROL_FILE = "controls.jsonl"
+
+CONTROL_CATEGORIES = ["technical", "operational", "managerial", "physical"]
+RISK_LEVELS = ["critical", "high", "medium", "low"]
+
+
+def _load_controls() -> list[dict]:
+    return _download_jsonl(CONTROL_FILE)
+
+
+def add_control(control_name: str, category: str, risk_level: str, description: str,
+                rule_ids_csv: str, audit_reference: str) -> str:
+    """Register a governance control and map it to rules."""
+    if not control_name:
+        return "Control name is required."
+    controls = _load_controls()
+    rid_list = [r.strip() for r in rule_ids_csv.split(",") if r.strip()]
+    control = {
+        "control_id": f"ctrl_{datetime.utcnow().strftime('%Y%m%d%H%M%S')}",
+        "name": control_name,
+        "category": category,
+        "risk_level": risk_level,
+        "description": description,
+        "linked_rule_ids": rid_list,
+        "audit_reference": audit_reference,
+        "created_at": datetime.utcnow().isoformat(),
+    }
+    controls.append(control)
+    _upload_jsonl(CONTROL_FILE, controls)
+    return f"Control '{control_name}' added (id={control['control_id']}, {len(rid_list)} rules mapped)."
+
+
+def compute_control_coverage() -> list[dict]:
+    """For each control compute effectiveness = avg compliance of linked rules."""
+    controls = _load_controls()
+    if not controls:
+        return []
+    rules_map = {r["rule_id"]: r for r in _download_jsonl("rules.jsonl") if "rule_id" in r}
+
+    results = []
+    for ctrl in controls:
+        linked = ctrl.get("linked_rule_ids", [])
+        scores = []
+        for rid in linked:
+            rule = rules_map.get(rid)
+            if not rule:
+                continue
+            history = rule.get("score_history", [])
+            if history:
+                scores.append(sum(history) / len(history) * 100)
+        effectiveness = round(sum(scores) / len(scores), 1) if scores else 0.0
+        results.append({
+            **ctrl,
+            "effectiveness": effectiveness,
+            "rule_count": len(linked),
+            "scored_count": len(scores),
+        })
+    return results
+
+
+def build_control_table() -> pd.DataFrame:
+    results = compute_control_coverage()
+    if not results:
+        return pd.DataFrame(columns=["ID", "Name", "Category", "Risk", "Rules", "Effectiveness", "Audit Ref"])
+    rows = []
+    for r in results:
+        rows.append({
+            "ID": r["control_id"][-8:],
+            "Name": r.get("name", "")[:40],
+            "Category": r.get("category", ""),
+            "Risk": r.get("risk_level", ""),
+            "Rules": r["rule_count"],
+            "Effectiveness": f"{r['effectiveness']}%",
+            "Audit Ref": r.get("audit_reference", "")[:30],
+        })
+    return pd.DataFrame(rows)
+
+
+def build_control_chart() -> Any:
+    results = compute_control_coverage()
+    if not results:
+        fig = go.Figure()
+        fig.update_layout(title="No control data yet", template="plotly_dark", height=300)
+        return fig
+
+    # Group by risk level
+    risk_order = ["critical", "high", "medium", "low"]
+    risk_colors = {"critical": "#e57373", "high": "#ffb74d", "medium": "#fff176", "low": "#81c784"}
+    by_risk: dict[str, list] = {r: [] for r in risk_order}
+    for ctrl in results:
+        rl = ctrl.get("risk_level", "low")
+        by_risk.setdefault(rl, []).append(ctrl)
+
+    fig = go.Figure()
+    for rl in risk_order:
+        items = by_risk.get(rl, [])
+        if not items:
+            continue
+        names = [c.get("name", c["control_id"])[:25] for c in items]
+        vals = [c["effectiveness"] for c in items]
+        fig.add_trace(go.Bar(name=rl.capitalize(), x=names, y=vals, marker_color=risk_colors[rl]))
+
+    fig.update_layout(
+        title="Control Effectiveness by Risk Level",
+        template="plotly_dark",
+        height=350,
+        yaxis=dict(title="Effectiveness %", range=[0, 110]),
+        barmode="group",
+        legend=dict(orientation="h"),
+    )
+    return fig
+
+
+def build_control_heatmap() -> Any:
+    """Rule × Control mapping heatmap."""
+    controls = compute_control_coverage()
+    rules_map = {r["rule_id"]: r.get("name", r["rule_id"]) for r in _download_jsonl("rules.jsonl") if "rule_id" in r}
+
+    if not controls:
+        fig = go.Figure()
+        fig.update_layout(title="No control mapping data", template="plotly_dark", height=300)
+        return fig
+
+    all_rules = list(rules_map.keys())
+    ctrl_names = [c.get("name", c["control_id"])[:20] for c in controls]
+    rule_names = [rules_map.get(r, r)[:20] for r in all_rules]
+
+    z = []
+    for rule_id in all_rules:
+        row = []
+        for ctrl in controls:
+            row.append(1 if rule_id in ctrl.get("linked_rule_ids", []) else 0)
+        z.append(row)
+
+    fig = go.Figure(go.Heatmap(
+        z=z, x=ctrl_names, y=rule_names,
+        colorscale=[[0, "#1a1a2e"], [1, "#4fc3f7"]],
+        showscale=False,
+    ))
+    fig.update_layout(
+        title="Rule × Control Mapping",
+        template="plotly_dark",
+        height=max(300, 40 * len(all_rules)),
+        xaxis=dict(tickangle=-30),
+    )
+    return fig
 
 
 if __name__ == "__main__":
