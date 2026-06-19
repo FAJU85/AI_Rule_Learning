@@ -4183,7 +4183,8 @@ def build_incident_chart() -> Any:
     fig = go.Figure()
     for status in statuses:
         y_vals = [counts.get((sev, status), 0) for sev in INCIDENT_SEVERITIES]
-        fig.add_trace(go.Bar(name=status, x=INCIDENT_SEVERITIES, y=y_vals))
+        fig.add_trace(go.Bar(name=status, x=INCIDENT_SEVERITIES, y=y_vals,
+                             hovertemplate="<b>%{x}</b><br>" + status + ": %{y}<extra></extra>"))
     fig.update_layout(
         barmode="stack",
         paper_bgcolor="#ffffff", plot_bgcolor="#f8fafc",
@@ -6156,6 +6157,7 @@ def build_cluster_chart() -> Any:
             x=contexts,
             y=[cluster_gaps[ctx].get(gtype, 0) for ctx in contexts],
             marker_color=palette[i % len(palette)],
+            hovertemplate="<b>%{x}</b><br>" + gtype.replace("_", " ").title() + ": %{y}<extra></extra>",
         ))
     fig.update_layout(
         barmode="stack",
@@ -6565,7 +6567,8 @@ def build_reputation_chart() -> Any:
     colors = {"7d_avg": "#38bdf8", "30d_avg": "#34d399", "90d_avg": "#fbbf24"}
     for key, label in [("7d_avg", "7 days"), ("30d_avg", "30 days"), ("90d_avg", "90 days")]:
         vals = [r.get(key) for r in summary]
-        fig.add_trace(go.Bar(name=label, x=names, y=vals, marker_color=colors[key]))
+        fig.add_trace(go.Bar(name=label, x=names, y=vals, marker_color=colors[key],
+                             hovertemplate="<b>%{x}</b><br>" + label + ": %{y:.1f}%<extra></extra>"))
 
     fig.update_layout(
         title="Rule Compliance Reputation by Time Window",
@@ -6671,9 +6674,11 @@ def build_goal_chart() -> Any:
     colors = ["#10b981" if r["alignment_status"] == "aligned" else "#f59e0b" if r["alignment_status"] == "warning" else "#ef4444" for r in results]
 
     fig = go.Figure()
-    fig.add_trace(go.Bar(name="Actual", x=names, y=actuals, marker_color=colors))
+    fig.add_trace(go.Bar(name="Actual", x=names, y=actuals, marker_color=colors,
+                         hovertemplate="<b>%{x}</b><br>Actual: %{y:.1f}%<extra></extra>"))
     fig.add_trace(go.Scatter(name="Target", x=names, y=targets, mode="markers+lines",
-                             marker=dict(symbol="diamond", size=10, color="#4f46e5"), line=dict(dash="dot", color="#4f46e5")))
+                             marker=dict(symbol="diamond", size=10, color="#4f46e5"), line=dict(dash="dot", color="#4f46e5"),
+                             hovertemplate="<b>%{x}</b><br>Target: %{y:.1f}%<extra></extra>"))
     fig.update_layout(
         title="Goal Alignment: Actual vs Target",
         height=350,
