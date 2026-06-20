@@ -10353,8 +10353,8 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     conflict_scan_btn = gr.Button("🔍 Run Conflict Scan (LLM)", variant="primary", size="sm")
                 conflict_log = gr.Textbox(label="Scan log", lines=6, interactive=False, autoscroll=True)
                 with gr.Row():
-                    conflict_resolve_id = gr.Textbox(label="Conflict ID prefix to resolve", scale=2)
-                    conflict_resolution = gr.Textbox(label="Resolution note", scale=4)
+                    conflict_resolve_id = gr.Textbox(label="Conflict ID prefix to resolve", placeholder="e.g. cnf_abc123", scale=2)
+                    conflict_resolution = gr.Textbox(label="Resolution note", placeholder="e.g. Removed overlapping rule, merged conditions", scale=4)
                 conflict_resolve_btn = gr.Button("✅ Mark Resolved", variant="secondary", size="sm")
                 conflict_resolve_status = gr.Markdown()
 
@@ -10497,7 +10497,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                                         placeholder="What the user said")
             enf_agent_resp = gr.Textbox(label="Agent response", lines=3,
                                         placeholder="What the AI responded")
-            enf_context = gr.Textbox(label="Context (optional)")
+            enf_context = gr.Textbox(label="Context (optional)", placeholder="Additional context about this turn, e.g. project name or conversation stage")
             enf_run_btn = gr.Button("🛡️ Validate & Log", variant="primary", size="sm")
             enf_result = gr.Markdown()
 
@@ -10551,14 +10551,14 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     ov_conv_refresh = gr.Button("↻", variant="secondary", size="sm", scale=0)
                     ov_turn_no = gr.Number(label="Turn #", value=1, minimum=1, scale=1)
                 with gr.Row():
-                    ov_ai_dec = gr.Textbox(label="AI Decision", scale=3)
-                    ov_human_dec = gr.Textbox(label="Human Decision", scale=3)
-                ov_reason = gr.Textbox(label="Override Reason")
+                    ov_ai_dec = gr.Textbox(label="AI Decision", placeholder="What the AI decided to do", scale=3)
+                    ov_human_dec = gr.Textbox(label="Human Decision", placeholder="What you overrode it to", scale=3)
+                ov_reason = gr.Textbox(label="Override Reason", placeholder="Why this override was necessary")
                 ov_log_btn = gr.Button("📝 Log Override", variant="secondary", size="sm")
                 ov_log_status = gr.Markdown()
                 gr.HTML('<div class="rl-group-label" style="margin-top:10px">Rate an existing override</div>')
                 with gr.Row():
-                    ov_rate_id = gr.Textbox(label="Override ID prefix to rate", scale=2)
+                    ov_rate_id = gr.Textbox(label="Override ID prefix to rate", placeholder="e.g. ovr_abc123", scale=2)
                     ov_was_correct = gr.Checkbox(label="Was override correct?", value=True, scale=1)
                     ov_rate_btn = gr.Button("⭐ Mark Accuracy", variant="secondary", size="sm", scale=1)
                 ov_rate_status = gr.Markdown()
@@ -10593,12 +10593,12 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     esc_turn_no = gr.Number(label="Turn #", value=1, minimum=1, scale=1)
                     esc_type = gr.Textbox(label="Escalation type", placeholder="e.g. safety, compliance", scale=2)
                 with gr.Row():
-                    esc_ai_action = gr.Textbox(label="AI action taken", scale=3)
-                    esc_expected = gr.Textbox(label="Expected action", scale=3)
+                    esc_ai_action = gr.Textbox(label="AI action taken", placeholder="What the AI did in response", scale=3)
+                    esc_expected = gr.Textbox(label="Expected action", placeholder="What should have happened instead", scale=3)
                 with gr.Row():
                     esc_outcome = gr.Dropdown(
                         label="Outcome", choices=ESCALATION_OUTCOMES, value="correct_escalation", scale=2)
-                    esc_notes = gr.Textbox(label="Notes", scale=3)
+                    esc_notes = gr.Textbox(label="Notes", placeholder="Additional context or evidence", scale=3)
                 esc_log_btn = gr.Button("📋 Log Escalation", variant="secondary", size="sm")
                 esc_log_status = gr.Markdown()
 
@@ -10651,13 +10651,13 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     data_prov_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm", scale=1)
 
                 with gr.Row():
-                    dp_name = gr.Textbox(label="Source name", scale=3)
+                    dp_name = gr.Textbox(label="Source name", placeholder="e.g. Claude Code sessions", scale=3)
                     dp_type = gr.Textbox(label="Type (e.g. dataset, api, file)", scale=2)
                 with gr.Row():
                     dp_trust = gr.Dropdown(label="Trust level", choices=DATA_TRUST_LEVELS,
                                            value="medium", scale=2)
-                    dp_owner = gr.Textbox(label="Owner", scale=2)
-                dp_desc = gr.Textbox(label="Description")
+                    dp_owner = gr.Textbox(label="Owner", placeholder="e.g. data-team", scale=2)
+                dp_desc = gr.Textbox(label="Description", placeholder="Brief description of this data source and how it's used")
                 dp_add_btn = gr.Button("+ Register Source", variant="secondary", size="sm")
                 dp_add_status = gr.Markdown()
 
@@ -10684,12 +10684,12 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 gr.HTML('<div class="rl-group-label" style="margin-top:14px">Store new evidence</div>')
                 with gr.Row():
                     ev_type = gr.Dropdown(label="Type", choices=EVIDENCE_TYPES, value="log", scale=2)
-                    ev_title = gr.Textbox(label="Title", scale=3)
-                ev_content = gr.Textbox(label="Content / body", lines=4)
+                    ev_title = gr.Textbox(label="Title", placeholder="Brief title for this evidence item", scale=3)
+                ev_content = gr.Textbox(label="Content / body", lines=4, placeholder="Paste the log excerpt, screenshot description, or audit note…")
                 with gr.Row():
                     ev_rule_id = gr.Dropdown(label="Related rule (optional)", choices=[], scale=2)
                     ev_rule_refresh = gr.Button("↻", variant="secondary", size="sm", scale=0)
-                    ev_incident_id = gr.Textbox(label="Related incident ID (optional)", scale=2)
+                    ev_incident_id = gr.Textbox(label="Related incident ID (optional)", placeholder="e.g. inc_abc123", scale=2)
                 with gr.Row():
                     ev_store_btn = gr.Button("💾 Store Evidence", variant="secondary", size="sm")
                     ev_export_btn = gr.Button("📦 Export Audit Bundle", variant="primary", size="sm")
@@ -10735,7 +10735,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 with gr.Row():
                     beh_tone        = gr.Slider(label="Tone",              minimum=0, maximum=1, value=0.8, step=0.05, scale=2)
                     beh_verbosity   = gr.Slider(label="Verbosity",         minimum=0, maximum=1, value=0.8, step=0.05, scale=2)
-                    beh_notes       = gr.Textbox(label="Notes",            scale=2)
+                    beh_notes       = gr.Textbox(label="Notes", placeholder="Optional context for this measurement", scale=2)
                 beh_record_btn = gr.Button("📊 Record Metrics", variant="secondary", size="sm")
                 beh_record_status = gr.Markdown()
 
@@ -10947,8 +10947,8 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 rca_status = gr.Markdown()
                 gr.HTML('<div class="rl-group-label" style="margin-top:14px">Resolve an existing RCA</div>')
                 with gr.Row():
-                    rca_close_id = gr.Textbox(label="RCA ID prefix to resolve", scale=2)
-                    rca_resolution = gr.Textbox(label="Resolution note", scale=3)
+                    rca_close_id = gr.Textbox(label="RCA ID prefix to resolve", placeholder="e.g. rca_abc123", scale=2)
+                    rca_resolution = gr.Textbox(label="Resolution note", placeholder="What was done to fix this root cause", scale=3)
                     rca_close_btn = gr.Button("✅ Mark Resolved", variant="secondary", size="sm")
                 rca_close_status = gr.Markdown()
 
@@ -10982,16 +10982,16 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     inc_severity = gr.Dropdown(
                         label="Severity", choices=INCIDENT_SEVERITIES, value="P2_medium", scale=2)
                 inc_title = gr.Textbox(label="Title", placeholder="e.g. bypass_rate spiked to 0.6")
-                inc_desc = gr.Textbox(label="Description", lines=2)
+                inc_desc = gr.Textbox(label="Description", lines=2, placeholder="What happened, root cause hypothesis, and initial impact assessment…")
                 inc_open_btn = gr.Button("🚨 Open Incident", variant="stop", size="sm")
                 inc_open_status = gr.Markdown()
 
                 gr.HTML('<div class="rl-group-label" style="margin-top:14px">Update incident status</div>')
                 with gr.Row():
-                    inc_update_id = gr.Textbox(label="Incident ID prefix", scale=2)
+                    inc_update_id = gr.Textbox(label="Incident ID prefix", placeholder="e.g. inc_abc123", scale=2)
                     inc_new_status = gr.Dropdown(
                         label="New status", choices=INCIDENT_STATUSES, value="investigating", scale=2)
-                    inc_note = gr.Textbox(label="Note", scale=3)
+                    inc_note = gr.Textbox(label="Note", placeholder="Status update, findings, or next steps", scale=3)
                 inc_update_btn = gr.Button("→ Update Status", variant="secondary", size="sm")
                 inc_update_status = gr.Markdown()
 
@@ -11169,8 +11169,8 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 imp_desc = gr.Textbox(label="Description", lines=2, placeholder="What went wrong and why")
                 with gr.Row():
                     imp_open_btn = gr.Button("▶ Open Cycle", variant="primary", size="sm")
-                    imp_cycle_id = gr.Textbox(label="Cycle ID prefix to advance", scale=2)
-                    imp_notes = gr.Textbox(label="Advance notes", scale=3)
+                    imp_cycle_id = gr.Textbox(label="Cycle ID prefix to advance", placeholder="e.g. imp_abc123", scale=2)
+                    imp_notes = gr.Textbox(label="Advance notes", placeholder="What was done in this stage", scale=3)
                     imp_advance_btn = gr.Button("→ Advance Stage", variant="secondary", size="sm")
                 imp_status = gr.Markdown()
 
