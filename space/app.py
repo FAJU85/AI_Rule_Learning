@@ -11213,9 +11213,9 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
 
                 gr.HTML('<div class="rl-group-label" style="margin-top:14px">Add an edge</div>')
                 with gr.Row():
-                    kg_from_id = gr.Textbox(label="From node ID prefix", scale=2)
+                    kg_from_id = gr.Textbox(label="From node ID prefix", placeholder="e.g. pol_abc123", scale=2)
                     kg_edge_type = gr.Dropdown(label="Edge type", choices=KG_EDGE_TYPES, value="implements", scale=2)
-                    kg_to_id = gr.Textbox(label="To node ID prefix", scale=2)
+                    kg_to_id = gr.Textbox(label="To node ID prefix", placeholder="e.g. rul_xyz456", scale=2)
                 kg_add_edge_btn = gr.Button("→ Add Edge", variant="secondary", size="sm")
                 kg_edge_status = gr.Markdown()
 
@@ -11425,27 +11425,27 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
 
                 gr.HTML('<div class="rl-group-label" style="margin-top:14px">Assign role</div>')
                 with gr.Row():
-                    meta_user_id = gr.Textbox(label="User ID", scale=2)
+                    meta_user_id = gr.Textbox(label="User ID", placeholder="e.g. alice@company.com", scale=2)
                     meta_role = gr.Dropdown(label="Role", choices=META_ROLES, value="observer", scale=2)
-                    meta_granted_by = gr.Textbox(label="Granted by", scale=2)
+                    meta_granted_by = gr.Textbox(label="Granted by", placeholder="e.g. CISO", scale=2)
                 meta_perms = gr.CheckboxGroup(label="Permissions", choices=META_ACTIONS)
                 meta_assign_btn = gr.Button("Assign Role", variant="secondary", size="sm")
                 meta_assign_status = gr.Markdown()
 
                 gr.HTML('<div class="rl-group-label" style="margin-top:14px">Log governance action</div>')
                 with gr.Row():
-                    meta_log_user = gr.Textbox(label="User ID", scale=2)
+                    meta_log_user = gr.Textbox(label="User ID", placeholder="e.g. alice@company.com", scale=2)
                     meta_log_action = gr.Dropdown(label="Action", choices=META_ACTIONS, value="create_rule", scale=2)
                     meta_log_outcome = gr.Dropdown(label="Outcome", choices=["approved", "rejected", "pending"], value="approved", scale=2)
                 with gr.Row():
-                    meta_log_target = gr.Textbox(label="Target (rule ID / audit ID)", scale=3)
-                    meta_log_notes = gr.Textbox(label="Notes", scale=3)
+                    meta_log_target = gr.Textbox(label="Target (rule ID / audit ID)", placeholder="e.g. rul_abc123 or aud_xyz456", scale=3)
+                    meta_log_notes = gr.Textbox(label="Notes", placeholder="Additional context for the audit trail", scale=3)
                 meta_log_btn = gr.Button("Log Action", variant="secondary", size="sm")
                 meta_log_status = gr.Markdown()
 
                 gr.HTML('<div class="rl-group-label" style="margin-top:14px">Permission check</div>')
                 with gr.Row():
-                    meta_check_user = gr.Textbox(label="User ID", scale=2)
+                    meta_check_user = gr.Textbox(label="User ID", placeholder="e.g. alice@company.com", scale=2)
                     meta_check_action = gr.Dropdown(label="Action", choices=META_ACTIONS, value="approve_rule", scale=2)
                 meta_check_btn = gr.Button("Check Permission", variant="secondary", size="sm")
                 meta_check_result = gr.Markdown()
@@ -11503,8 +11503,8 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     cert_type = gr.Dropdown(label="Type", choices=CERT_TYPES, value="iso_27001", scale=2)
                     cert_issuer = gr.Textbox(label="Issuing body", scale=2)
                 with gr.Row():
-                    cert_issue = gr.Textbox(label="Issue date (YYYY-MM-DD)", scale=2)
-                    cert_expiry = gr.Textbox(label="Expiry date (YYYY-MM-DD)", scale=2)
+                    cert_issue = gr.Textbox(label="Issue date", placeholder="YYYY-MM-DD", scale=2)
+                    cert_expiry = gr.Textbox(label="Expiry date", placeholder="YYYY-MM-DD", scale=2)
                     cert_scope = gr.Textbox(label="Scope", scale=3)
                 with gr.Row():
                     cert_rules_csv = gr.Dropdown(label="Linked rules (optional)", choices=[], multiselect=True, scale=4)
@@ -11569,7 +11569,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     cal_type = gr.Dropdown(label="Type", choices=CALENDAR_ITEM_TYPES, value="review", scale=2)
                     cal_priority = gr.Dropdown(label="Priority", choices=CALENDAR_PRIORITIES, value="medium", scale=2)
                 with gr.Row():
-                    cal_due = gr.Textbox(label="Due date (YYYY-MM-DD)", scale=2)
+                    cal_due = gr.Textbox(label="Due date", placeholder="YYYY-MM-DD", scale=2)
                     cal_owner = gr.Textbox(label="Owner", scale=2)
                     cal_rule_csv = gr.Dropdown(label="Linked rules (optional)", choices=[], multiselect=True, scale=3)
                     cal_rules_refresh = gr.Button("↻", variant="secondary", size="sm", scale=0)
