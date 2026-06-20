@@ -7000,7 +7000,7 @@ def build_ratings_trend() -> Any:
     return _dark_fig(fig)
 
 
-def build_ratings_table() -> pd.DataFrame:
+def build_ratings_table(query: str = "") -> pd.DataFrame:
     ratings = sorted(
         _download_jsonl(RATINGS_FILE),
         key=lambda r: r.get("rated_at", ""),
@@ -7008,15 +7008,21 @@ def build_ratings_table() -> pd.DataFrame:
     )
     if not ratings:
         return pd.DataFrame(columns=["Date", "Session", "Rating", "Rules Active", "Friction", "Helped"])
+    q = query.strip().lower()
     rows = []
-    for r in ratings[:50]:
+    for r in ratings[:100]:
+        session = r.get("conversation_id", "")[:30]
+        friction = r.get("friction_notes", "")[:60]
+        helped = r.get("helped_notes", "")[:60]
+        if q and not any(q in s.lower() for s in (session, friction, helped)):
+            continue
         rows.append({
             "Date": r.get("rated_at", "")[:10],
-            "Session": r.get("conversation_id", "")[:30],
+            "Session": session,
             "Rating": f"{r.get('rating', '?')}/5",
             "Rules Active": r.get("active_rule_count", 0),
-            "Friction": r.get("friction_notes", "")[:60],
-            "Helped": r.get("helped_notes", "")[:60],
+            "Friction": friction,
+            "Helped": helped,
         })
     return pd.DataFrame(rows)
 
@@ -7088,14 +7094,18 @@ def compute_reputation_summary() -> list[dict]:
     return summary
 
 
-def build_reputation_table() -> pd.DataFrame:
+def build_reputation_table(query: str = "") -> pd.DataFrame:
     summary = compute_reputation_summary()
     if not summary:
         return pd.DataFrame(columns=["Rule", "7d Avg", "30d Avg", "90d Avg"])
+    q = query.strip().lower()
     rows = []
     for r in summary:
+        rule_name = r.get("rule_name", r.get("rule_id", ""))[:40]
+        if q and q not in rule_name.lower():
+            continue
         rows.append({
-            "Rule": r.get("rule_name", r["rule_id"])[:40],
+            "Rule": rule_name,
             "7d Avg": f"{r['7d_avg']}%" if r.get("7d_avg") is not None else "—",
             "30d Avg": f"{r['30d_avg']}%" if r.get("30d_avg") is not None else "—",
             "90d Avg": f"{r['90d_avg']}%" if r.get("90d_avg") is not None else "—",
@@ -7192,20 +7202,26 @@ def compute_goal_alignment() -> list[dict]:
     return results
 
 
-def build_goal_table() -> pd.DataFrame:
+def build_goal_table(query: str = "") -> pd.DataFrame:
     results = compute_goal_alignment()
     if not results:
         return pd.DataFrame(columns=["Goal", "Outcome", "Rules", "Target", "Actual", "Gap", "Status"])
+    q = query.strip().lower()
     rows = []
     for r in results:
+        goal = r.get("objective", "")[:40]
+        outcome = r.get("business_outcome", "")[:40]
+        status = r["alignment_status"]
+        if q and not any(q in s.lower() for s in (goal, outcome, status)):
+            continue
         rows.append({
-            "Goal": r.get("objective", "")[:40],
-            "Outcome": r.get("business_outcome", "")[:40],
+            "Goal": goal,
+            "Outcome": outcome,
             "Rules": r["linked_count"],
             "Target": f"{r['target_score']}%",
             "Actual": f"{r['actual_score']}%",
             "Gap": f"{r['gap']:+.1f}%",
-            "Status": r["alignment_status"],
+            "Status": status,
         })
     return pd.DataFrame(rows)
 
@@ -7460,7 +7476,7 @@ def detect_rule_learning() -> str:
     return "\n".join(lines)
 
 
-def build_learning_table() -> pd.DataFrame:
+def build_learning_table(query: str = "") -> pd.DataFrame:
     log = _load_learning_log()
     if not log:
         return pd.DataFrame(columns=["Rule", "Status", "Slope", "History Points", "Timestamp"])
@@ -7472,13 +7488,20 @@ def build_learning_table() -> pd.DataFrame:
             continue
         if rid not in latest or e.get("timestamp", "") > latest[rid].get("timestamp", ""):
             latest[rid] = e
-    rows = [{
-        "Rule": e.get("rule_name", e.get("rule_id", ""))[:40],
-        "Status": e.get("status", ""),
-        "Slope": f"{e['slope']:+.4f}" if e.get("slope") is not None else "N/A",
-        "History Points": e.get("history_len", 0),
-        "Timestamp": e.get("timestamp", "")[:16],
-    } for e in latest.values()]
+    q = query.strip().lower()
+    rows = []
+    for e in latest.values():
+        rule_name = e.get("rule_name", e.get("rule_id", ""))[:40]
+        status = e.get("status", "")
+        if q and not any(q in s.lower() for s in (rule_name, status)):
+            continue
+        rows.append({
+            "Rule": rule_name,
+            "Status": status,
+            "Slope": f"{e['slope']:+.4f}" if e.get("slope") is not None else "N/A",
+            "History Points": e.get("history_len", 0),
+            "Timestamp": e.get("timestamp", "")[:16],
+        })
     return pd.DataFrame(rows)
 
 
@@ -7561,18 +7584,25 @@ def auto_scan_gaming(conversation_id: str = "") -> str:
     return "\n".join(lines)
 
 
-def build_gaming_table() -> pd.DataFrame:
+def build_gaming_table(query: str = "") -> pd.DataFrame:
     log = _download_jsonl(GAMING_FILE)
     if not log:
         return pd.DataFrame(columns=["ID", "Conv", "Turn", "Patterns", "Confirmed", "Timestamp"])
-    rows = [{
-        "ID": e.get("gaming_id", "")[:12],
-        "Conv": e.get("conv_id", "")[:12],
-        "Turn": e.get("turn_number", ""),
-        "Patterns": ", ".join(e.get("patterns_matched", [])) or "manual",
-        "Confirmed": "yes" if e.get("confirmed") else "no",
-        "Timestamp": e.get("timestamp", "")[:16],
-    } for e in log]
+    q = query.strip().lower()
+    rows = []
+    for e in log:
+        patterns = ", ".join(e.get("patterns_matched", [])) or "manual"
+        confirmed = "yes" if e.get("confirmed") else "no"
+        if q and not any(q in s.lower() for s in (patterns, confirmed)):
+            continue
+        rows.append({
+            "ID": e.get("gaming_id", "")[:12],
+            "Conv": e.get("conv_id", "")[:12],
+            "Turn": e.get("turn_number", ""),
+            "Patterns": patterns,
+            "Confirmed": confirmed,
+            "Timestamp": e.get("timestamp", "")[:16],
+        })
     return pd.DataFrame(rows)
 
 
@@ -7665,18 +7695,27 @@ def check_permission(user_id: str, action: str) -> tuple[bool, str]:
     return False, f"Denied: role '{role_name}' lacks '{action}' permission."
 
 
-def build_meta_gov_table() -> pd.DataFrame:
+def build_meta_gov_table(query: str = "") -> pd.DataFrame:
     entries = _load_meta_gov()
     roles = [e for e in entries if e.get("type") == "role"]
     if not roles:
         return pd.DataFrame(columns=["User", "Role", "Permissions", "Granted By", "Granted At"])
-    rows = [{
-        "User": e.get("user_id", ""),
-        "Role": e.get("role", ""),
-        "Permissions": ", ".join(e.get("permissions", [])),
-        "Granted By": e.get("granted_by", ""),
-        "Granted At": e.get("granted_at", "")[:16],
-    } for e in roles]
+    q = query.strip().lower()
+    rows = []
+    for e in roles:
+        user = e.get("user_id", "")
+        role = e.get("role", "")
+        permissions = ", ".join(e.get("permissions", []))
+        granted_by = e.get("granted_by", "")
+        if q and not any(q in s.lower() for s in (user, role, permissions, granted_by)):
+            continue
+        rows.append({
+            "User": user,
+            "Role": role,
+            "Permissions": permissions,
+            "Granted By": granted_by,
+            "Granted At": e.get("granted_at", "")[:16],
+        })
     return pd.DataFrame(rows)
 
 
@@ -7842,19 +7881,26 @@ def compute_cert_status() -> list[dict]:
     return results
 
 
-def build_cert_table() -> pd.DataFrame:
+def build_cert_table(query: str = "") -> pd.DataFrame:
     certs = compute_cert_status()
     if not certs:
         return pd.DataFrame(columns=["Name", "Type", "Issuer", "Expires", "Status", "Days Left"])
+    q = query.strip().lower()
     rows = []
     for c in certs:
+        name = c.get("name", "")[:40]
+        ctype = c.get("type", "")
+        issuer = c.get("issuing_body", "")[:30]
+        status = c.get("current_status", "")
+        if q and not any(q in s.lower() for s in (name, ctype, issuer, status)):
+            continue
         days = c.get("days_until_expiry")
         rows.append({
-            "Name": c.get("name", "")[:40],
-            "Type": c.get("type", ""),
-            "Issuer": c.get("issuing_body", "")[:30],
+            "Name": name,
+            "Type": ctype,
+            "Issuer": issuer,
             "Expires": c.get("expiry_date", "")[:10],
-            "Status": c.get("current_status", ""),
+            "Status": status,
             "Days Left": days if days is not None else "—",
         })
     return pd.DataFrame(rows)
@@ -8318,7 +8364,7 @@ def run_robustness_test(rule_id: str) -> str:
     return "\n".join(lines)
 
 
-def build_robustness_table() -> pd.DataFrame:
+def build_robustness_table(query: str = "") -> pd.DataFrame:
     log = _download_jsonl(ROBUSTNESS_FILE)
     if not log:
         return pd.DataFrame(columns=["Rule", "Score", "Resisted", "Bypassed", "Tested", "Timestamp"])
@@ -8329,14 +8375,20 @@ def build_robustness_table() -> pd.DataFrame:
             continue
         if rid not in latest or e.get("timestamp", "") > latest[rid].get("timestamp", ""):
             latest[rid] = e
-    rows = [{
-        "Rule": e.get("rule_name", e.get("rule_id", ""))[:40],
-        "Score": f"{e.get('robustness_score', 0)}%",
-        "Resisted": e.get("attacks_resisted", 0),
-        "Bypassed": e.get("attacks_bypassed", 0),
-        "Tested": e.get("attacks_tested", 0),
-        "Timestamp": e.get("timestamp", "")[:16],
-    } for e in latest.values()]
+    q = query.strip().lower()
+    rows = []
+    for e in latest.values():
+        rule_name = e.get("rule_name", e.get("rule_id", ""))[:40]
+        if q and q not in rule_name.lower():
+            continue
+        rows.append({
+            "Rule": rule_name,
+            "Score": f"{e.get('robustness_score', 0)}%",
+            "Resisted": e.get("attacks_resisted", 0),
+            "Bypassed": e.get("attacks_bypassed", 0),
+            "Tested": e.get("attacks_tested", 0),
+            "Timestamp": e.get("timestamp", "")[:16],
+        })
     return pd.DataFrame(rows)
 
 
@@ -8410,20 +8462,29 @@ def log_bias_analysis(rule_id: str, group_a: str, group_b: str,
             f"Severity: {result['severity']}")
 
 
-def build_bias_table() -> pd.DataFrame:
+def build_bias_table(query: str = "") -> pd.DataFrame:
     log = _download_jsonl(BIAS_FILE)
     if not log:
         return pd.DataFrame(columns=["Rule", "Group A", "Rate A", "Group B", "Rate B", "Disparity", "Bias", "Severity"])
-    rows = [{
-        "Rule": e.get("rule_name", e.get("rule_id", ""))[:30],
-        "Group A": e.get("group_a", ""),
-        "Rate A": f"{e.get('rate_a', 0)}%",
-        "Group B": e.get("group_b", ""),
-        "Rate B": f"{e.get('rate_b', 0)}%",
-        "Disparity": f"{e.get('disparity', 0)}%",
-        "Bias": "yes" if e.get("bias_detected") else "no",
-        "Severity": e.get("severity", ""),
-    } for e in log]
+    q = query.strip().lower()
+    rows = []
+    for e in log:
+        rule = e.get("rule_name", e.get("rule_id", ""))[:30]
+        group_a = e.get("group_a", "")
+        group_b = e.get("group_b", "")
+        severity = e.get("severity", "")
+        if q and not any(q in s.lower() for s in (rule, group_a, group_b, severity)):
+            continue
+        rows.append({
+            "Rule": rule,
+            "Group A": group_a,
+            "Rate A": f"{e.get('rate_a', 0)}%",
+            "Group B": group_b,
+            "Rate B": f"{e.get('rate_b', 0)}%",
+            "Disparity": f"{e.get('disparity', 0)}%",
+            "Bias": "yes" if e.get("bias_detected") else "no",
+            "Severity": severity,
+        })
     return pd.DataFrame(rows)
 
 
@@ -8502,18 +8563,26 @@ def verify_audit_chain() -> str:
     return f"## Audit Chain Verified\n\nAll {len(chain)} entries are intact. Chain is tamper-evident and unbroken."
 
 
-def build_audit_chain_table() -> pd.DataFrame:
+def build_audit_chain_table(query: str = "") -> pd.DataFrame:
     chain = _download_jsonl(AUDIT_CHAIN_FILE)
     if not chain:
         return pd.DataFrame(columns=["Seq", "Action", "Actor", "Target", "Hash", "Timestamp"])
-    rows = [{
-        "Seq": e.get("seq", ""),
-        "Action": e.get("action", "")[:30],
-        "Actor": e.get("actor", "")[:20],
-        "Target": e.get("target", "")[:30],
-        "Hash": e.get("entry_hash", "")[:12] + "…",
-        "Timestamp": e.get("timestamp", "")[:16],
-    } for e in chain[-50:]]
+    q = query.strip().lower()
+    rows = []
+    for e in chain[-200:]:
+        action = e.get("action", "")[:30]
+        actor = e.get("actor", "")[:20]
+        target = e.get("target", "")[:30]
+        if q and not any(q in s.lower() for s in (action, actor, target)):
+            continue
+        rows.append({
+            "Seq": e.get("seq", ""),
+            "Action": action,
+            "Actor": actor,
+            "Target": target,
+            "Hash": e.get("entry_hash", "")[:12] + "…",
+            "Timestamp": e.get("timestamp", "")[:16],
+        })
     return pd.DataFrame(rows)
 
 
@@ -9789,8 +9858,10 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 with gr.Row():
                     rating_before_after = gr.Plot(scale=2)
                     rating_trend = gr.Plot(scale=2)
+                with gr.Row():
+                    rating_search = gr.Textbox(label="Search ratings", placeholder="Filter by session, friction notes, or helped notes…", scale=4)
+                    rating_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm", scale=1)
                 rating_table = gr.Dataframe(interactive=False, wrap=True)
-                rating_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
 
                 gr.Markdown("**Submit a rating**")
                 with gr.Row():
@@ -9812,6 +9883,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 )
                 rating_submit_btn.click(_refresh_ratings, outputs=[rating_before_after, rating_trend, rating_table])
                 rating_refresh_btn.click(_refresh_ratings, outputs=[rating_before_after, rating_trend, rating_table])
+                rating_search.change(build_ratings_table, inputs=[rating_search], outputs=[rating_table])
                 analytics_tab.select(_refresh_ratings, outputs=[rating_before_after, rating_trend, rating_table])
 
         with gr.Tab("⚖️ Governance") as gov_tab:
@@ -9958,10 +10030,12 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 gr.HTML('<div class="section-title">Reputation Tracking</div>')
                 gr.Markdown("Track per-rule compliance reputation over 7, 30, and 90 day windows.")
                 rep_chart = gr.Plot()
+                with gr.Row():
+                    rep_search = gr.Textbox(label="Search reputation", placeholder="Filter by rule name…", scale=4)
+                    rep_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm", scale=1)
                 rep_table = gr.Dataframe(interactive=False, wrap=True)
                 rep_snap_btn = gr.Button("Take Snapshot", variant="primary", size="sm")
                 rep_snap_status = gr.Markdown()
-                rep_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
 
                 def _refresh_reputation():
                     return build_reputation_chart(), build_reputation_table()
@@ -9969,14 +10043,17 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 rep_snap_btn.click(snapshot_reputation, outputs=rep_snap_status)
                 rep_snap_btn.click(_refresh_reputation, outputs=[rep_chart, rep_table])
                 rep_refresh_btn.click(_refresh_reputation, outputs=[rep_chart, rep_table])
+                rep_search.change(build_reputation_table, inputs=[rep_search], outputs=[rep_table])
                 gov_tab.select(_refresh_reputation, outputs=[rep_chart, rep_table])
 
             with gr.Accordion('🎯 Goals & Controls', open=False):
                 gr.HTML('<div class="section-title">Goal Alignment Monitoring</div>')
                 gr.Markdown("Map business objectives → rules and monitor alignment vs targets.")
                 goal_chart = gr.Plot()
+                with gr.Row():
+                    goal_search = gr.Textbox(label="Search goals", placeholder="Filter by objective, outcome, or status…", scale=4)
+                    goal_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm", scale=1)
                 goal_table = gr.Dataframe(interactive=False, wrap=True)
-                goal_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
 
                 gr.Markdown("**Define a Goal**")
                 with gr.Row():
@@ -9998,6 +10075,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 )
                 goal_add_btn.click(_refresh_goals, outputs=[goal_chart, goal_table])
                 goal_refresh_btn.click(_refresh_goals, outputs=[goal_chart, goal_table])
+                goal_search.change(build_goal_table, inputs=[goal_search], outputs=[goal_table])
                 gov_tab.select(_refresh_goals, outputs=[goal_chart, goal_table])
 
                 gr.HTML('<div class="section-title">Control Mapping</div>')
@@ -10036,9 +10114,11 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 gr.HTML('<div class="section-title">Rule Learning Detection</div>')
                 gr.Markdown("Detect whether the AI is learning (improving compliance) or degrading over time using score_history slope analysis.")
                 learning_report = gr.Markdown()
+                with gr.Row():
+                    learning_search = gr.Textbox(label="Search learning log", placeholder="Filter by rule name or status…", scale=4)
+                    learning_refresh_btn = gr.Button("↻ Refresh History", variant="secondary", size="sm", scale=1)
                 learning_table = gr.Dataframe(interactive=False, wrap=True)
                 learning_run_btn = gr.Button("Detect Learning Trends", variant="primary", size="sm")
-                learning_refresh_btn = gr.Button("↻ Refresh History", variant="secondary", size="sm")
 
                 def _refresh_learning():
                     return build_learning_table()
@@ -10046,11 +10126,15 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 learning_run_btn.click(detect_rule_learning, outputs=learning_report)
                 learning_run_btn.click(_refresh_learning, outputs=learning_table)
                 learning_refresh_btn.click(_refresh_learning, outputs=learning_table)
+                learning_search.change(build_learning_table, inputs=[learning_search], outputs=[learning_table])
                 gov_tab.select(_refresh_learning, outputs=learning_table)
 
                 gr.HTML('<div class="section-title">Rule Gaming Detection</div>')
                 gr.Markdown("Detect adversarial inputs attempting to bypass, jailbreak, or circumvent governance rules.")
                 gaming_summary_md = gr.Markdown()
+                with gr.Row():
+                    gaming_search = gr.Textbox(label="Search gaming log", placeholder="Filter by pattern or confirmed status…", scale=4)
+                    gaming_search_clear_btn = gr.Button("✕", variant="secondary", size="sm", scale=0)
                 gaming_table = gr.Dataframe(interactive=False, wrap=True)
 
                 gr.Markdown("**Auto-scan a conversation**")
@@ -10081,15 +10165,19 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 )
                 gaming_log_btn.click(_refresh_gaming, outputs=[gaming_summary_md, gaming_table])
                 gaming_refresh_btn.click(_refresh_gaming, outputs=[gaming_summary_md, gaming_table])
+                gaming_search.change(build_gaming_table, inputs=[gaming_search], outputs=[gaming_table])
+                gaming_search_clear_btn.click(lambda: ("", build_gaming_table()), outputs=[gaming_search, gaming_table])
                 gov_tab.select(_refresh_gaming, outputs=[gaming_summary_md, gaming_table])
 
             with gr.Accordion('🔑 Meta-Governance', open=False):
                 gr.HTML('<div class="section-title">Meta-Governance</div>')
                 gr.Markdown("Define who can create, approve, audit, and manage rules — governance of the governance system.")
                 with gr.Row():
+                    meta_search = gr.Textbox(label="Search roles", placeholder="Filter by user, role, or permissions…", scale=4)
+                    meta_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm", scale=1)
+                with gr.Row():
                     meta_role_table = gr.Dataframe(label="Role Assignments", interactive=False, wrap=True, scale=3)
                     meta_audit_table = gr.Dataframe(label="Action Audit Log", interactive=False, wrap=True, scale=3)
-                meta_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
 
                 gr.Markdown("**Assign Role**")
                 with gr.Row():
@@ -10141,6 +10229,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 meta_log_btn.click(_refresh_meta, outputs=[meta_role_table, meta_audit_table])
                 meta_check_btn.click(_check_perm, inputs=[meta_check_user, meta_check_action], outputs=meta_check_result)
                 meta_refresh_btn.click(_refresh_meta, outputs=[meta_role_table, meta_audit_table])
+                meta_search.change(build_meta_gov_table, inputs=[meta_search], outputs=[meta_role_table])
                 gov_tab.select(_refresh_meta, outputs=[meta_role_table, meta_audit_table])
 
             with gr.Accordion('📋 Compliance, Reporting & Calendar', open=False):
@@ -10159,8 +10248,10 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 gr.HTML('<div class="section-title">Certification &amp; Accreditation</div>')
                 gr.Markdown("Track certifications (ISO 27001, SOC2, GDPR, etc.) with expiry dates and renewal alerts.")
                 cert_summary_md = gr.Markdown()
+                with gr.Row():
+                    cert_search = gr.Textbox(label="Search certs", placeholder="Filter by name, type, issuer, or status…", scale=4)
+                    cert_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm", scale=1)
                 cert_table = gr.Dataframe(interactive=False, wrap=True)
-                cert_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
 
                 gr.Markdown("**Register Certification**")
                 with gr.Row():
@@ -10185,6 +10276,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 )
                 cert_add_btn.click(_refresh_certs, outputs=[cert_summary_md, cert_table])
                 cert_refresh_btn.click(_refresh_certs, outputs=[cert_summary_md, cert_table])
+                cert_search.change(build_cert_table, inputs=[cert_search], outputs=[cert_table])
                 gov_tab.select(_refresh_certs, outputs=[cert_summary_md, cert_table])
 
                 gr.HTML('<div class="section-title">Stakeholder Report</div>')
@@ -10260,11 +10352,13 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
             gr.HTML('<div class="section-title">Adversarial Robustness Testing</div>')
             gr.Markdown("Run structured adversarial attacks (role-play escape, authority claim, encoding evasion, etc.) against a rule to measure robustness.")
             rob_report = gr.Markdown()
+            with gr.Row():
+                rob_search = gr.Textbox(label="Search robustness results", placeholder="Filter by rule name…", scale=4)
+                rob_refresh_btn = gr.Button("↻ Refresh History", variant="secondary", size="sm", scale=1)
             rob_table = gr.Dataframe(interactive=False, wrap=True)
             with gr.Row():
                 rob_rule_id = gr.Textbox(label="Rule ID", scale=4)
                 rob_run_btn = gr.Button("Run Robustness Test", variant="primary", size="sm", scale=1)
-            rob_refresh_btn = gr.Button("↻ Refresh History", variant="secondary", size="sm")
 
             def _refresh_robustness():
                 return build_robustness_table()
@@ -10272,14 +10366,17 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
             rob_run_btn.click(run_robustness_test, inputs=rob_rule_id, outputs=rob_report)
             rob_run_btn.click(_refresh_robustness, outputs=rob_table)
             rob_refresh_btn.click(_refresh_robustness, outputs=rob_table)
+            rob_search.change(build_robustness_table, inputs=[rob_search], outputs=[rob_table])
             testing_tab.select(_refresh_robustness, outputs=rob_table)
 
             with gr.Accordion('⚖️ Fairness & Audit', open=True):
                 gr.HTML('<div class="section-title">Fairness &amp; Bias Detection</div>')
                 gr.Markdown("Compare rule trigger rates across demographic groups to detect disparate treatment (>10% disparity = bias).")
                 bias_summary_md = gr.Markdown()
+                with gr.Row():
+                    bias_search = gr.Textbox(label="Search bias log", placeholder="Filter by rule, group, or severity…", scale=4)
+                    bias_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm", scale=1)
                 bias_table = gr.Dataframe(interactive=False, wrap=True)
-                bias_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
 
                 gr.Markdown("**Run Bias Analysis** (separate multiple inputs with `|`)")
                 with gr.Row():
@@ -10301,14 +10398,17 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 )
                 bias_run_btn.click(_refresh_bias, outputs=[bias_summary_md, bias_table])
                 bias_refresh_btn.click(_refresh_bias, outputs=[bias_summary_md, bias_table])
+                bias_search.change(build_bias_table, inputs=[bias_search], outputs=[bias_table])
                 testing_tab.select(_refresh_bias, outputs=[bias_summary_md, bias_table])
 
                 gr.HTML('<div class="section-title">Audit Trail Integrity</div>')
                 gr.Markdown("Tamper-evident hash chain for governance actions. Each entry hashes itself + the previous entry's hash.")
                 audit_chain_report = gr.Markdown()
+                with gr.Row():
+                    audit_chain_search = gr.Textbox(label="Search audit chain", placeholder="Filter by action, actor, or target…", scale=4)
+                    audit_chain_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm", scale=1)
                 audit_chain_table = gr.Dataframe(interactive=False, wrap=True)
                 audit_verify_btn = gr.Button("Verify Chain Integrity", variant="primary", size="sm")
-                audit_chain_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
 
                 gr.Markdown("**Append Audit Entry**")
                 with gr.Row():
@@ -10330,6 +10430,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 )
                 audit_append_btn.click(_refresh_chain, outputs=audit_chain_table)
                 audit_chain_refresh_btn.click(_refresh_chain, outputs=audit_chain_table)
+                audit_chain_search.change(build_audit_chain_table, inputs=[audit_chain_search], outputs=[audit_chain_table])
                 testing_tab.select(_refresh_chain, outputs=audit_chain_table)
 
             with gr.Accordion('📊 Analytics & Simulation', open=False):
