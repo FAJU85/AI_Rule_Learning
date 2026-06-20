@@ -5949,16 +5949,26 @@ label, label.gr-form { color: #475569 !important; font-size: 0.8rem !important; 
 .gr-row, [data-testid="row"] { flex-wrap: wrap !important; gap: 12px; }
 .gr-column, [data-testid="column"] { min-width: 0; }
 
-/* Accordion */
-.gr-accordion { border: 1px solid #e2e8f0 !important; border-radius: 10px !important; overflow: hidden; }
-.gr-accordion > .label-wrap {
+/* Accordion — target both Gradio 4 (.gr-accordion) and Gradio 5 ([data-testid="accordion"]) */
+.gr-accordion,
+[data-testid="accordion"] {
+    border: 1px solid #e2e8f0 !important; border-radius: 10px !important;
+    overflow: hidden; margin-bottom: 8px !important;
+}
+.gr-accordion > .label-wrap,
+[data-testid="accordion"] > button,
+[data-testid="accordion"] > .label-wrap {
     background: #f8fafc !important; border-bottom: 1px solid #e2e8f0 !important;
     color: #334155 !important; padding: 12px 16px !important;
     font-weight: 600 !important; font-size: 0.85rem !important;
     cursor: pointer; min-height: 44px; align-items: center;
+    width: 100% !important; text-align: left !important;
 }
-.gr-accordion > .label-wrap span { color: #334155 !important; }
-.gr-accordion > .label-wrap:hover { background: #f1f5f9 !important; }
+.gr-accordion > .label-wrap span,
+[data-testid="accordion"] > button span,
+[data-testid="accordion"] > .label-wrap span { color: #334155 !important; }
+.gr-accordion > .label-wrap:hover,
+[data-testid="accordion"] > button:hover { background: #f1f5f9 !important; }
 
 /* Dropdown */
 .gr-dropdown, select {
@@ -6101,9 +6111,12 @@ img, video, canvas, iframe { max-width: 100%; height: auto; }
     textarea, input[type="text"], input[type="number"] { min-height: 44px; font-size: 16px !important; }
 
     /* Accordion */
-    .gr-accordion > .label-wrap { padding: 10px 14px !important; }
+    .gr-accordion > .label-wrap,
+    [data-testid="accordion"] > button,
+    [data-testid="accordion"] > .label-wrap { padding: 10px 14px !important; }
     /* Accordion inner content: tighten padding on mobile */
-    .gr-accordion > div:last-child { padding: 8px 6px !important; }
+    .gr-accordion > div:last-child,
+    [data-testid="accordion"] > div:last-child { padding: 8px 6px !important; }
 }
 
 /* ── Small phone (≤ 480 px) ─────────────────────────────────────────── */
