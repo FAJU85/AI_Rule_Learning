@@ -2762,7 +2762,7 @@ def build_exceptions_table(query: str = "") -> str:
     rules = load_rules()
     exceptions = [r for r in rules if r.get("status") == "exception"]
     if not exceptions:
-        return '<div class="rl-empty">No active exceptions.</div>'
+        return '<div class="rl-empty">No active exceptions — go to <b>📋 Rules → Exceptions</b>, select a rule, fill in the reason and approver, then click <b>⚠️ Create Exception</b>.</div>'
     q = query.strip().lower()
     now = datetime.utcnow().isoformat()
     matched = []
@@ -2888,7 +2888,7 @@ def build_dependency_table(query: str = "") -> str:
     """Tabular view: rule → depends_on count, blocks count."""
     rules = _download_jsonl("rules.jsonl")
     if not rules:
-        return '<div class="rl-empty">No rules with dependencies found.</div>'
+        return '<div class="rl-empty">No rules with dependencies found — go to <b>📋 Rules → Dependencies</b>, select a rule and choose which rules it depends on or blocks, then click <b>💾 Save Dependencies</b>.</div>'
     q = query.strip().lower()
     matched = []
     for r in rules:
@@ -5063,7 +5063,7 @@ def run_ai_audit(conversation_id: str = "", max_turns: int = 3) -> str:
 def build_audit_table(query: str = "") -> str:
     entries = _download_jsonl(AUDIT_FILE)
     if not entries:
-        return '<div class="rl-empty">No audit entries yet.</div>'
+        return '<div class="rl-empty">No audit entries yet — go to <b>🛡️ Governance → Audit</b>, fill in the action, actor and target, then click <b>📝 Append Entry</b> to record the first governance event.</div>'
     q = query.strip().lower()
     matched = []
     for e in sorted(entries, key=lambda x: x.get("audited_at",""), reverse=True)[:200]:
@@ -5400,7 +5400,7 @@ def build_provenance_table(conversation_id: str = "") -> str:
     if conversation_id:
         entries = [e for e in entries if e.get("conversation_id") == conversation_id]
     if not entries:
-        return '<div class="rl-empty">No provenance entries yet.</div>'
+        return '<div class="rl-empty">No provenance entries yet — provenance is recorded automatically when you run enforcement (🔍 Enforcement → Enforce) or trace (🔍 Enforcement → Trace) actions.</div>'
     rows_html = ""
     for e in sorted(entries, key=lambda x: x.get("recorded_at", ""), reverse=True)[:100]:
         lineage = e.get("lineage", {})
@@ -5464,7 +5464,7 @@ def register_data_source(
 def build_data_provenance_table(query: str = "") -> str:
     entries = _download_jsonl(DATA_PROVENANCE_FILE)
     if not entries:
-        return '<div class="rl-empty">No data sources registered yet.</div>'
+        return '<div class="rl-empty">No data sources registered yet — go to <b>🗄️ Data → Sources</b>, fill in the name, type and owner, then click <b>➕ Register Source</b>.</div>'
     q = query.strip().lower()
     matched = []
     for e in entries:
@@ -5609,7 +5609,7 @@ def build_evidence_table(evidence_type: str = "") -> str:
     if evidence_type:
         entries = [e for e in entries if e.get("evidence_type") == evidence_type]
     if not entries:
-        return '<div class="rl-empty">No evidence stored yet.</div>'
+        return '<div class="rl-empty">No evidence stored yet — go to <b>📁 Evidence → Store</b>, choose a type, fill in the title and content, then click <b>💾 Store Evidence</b>.</div>'
     _type_colors = {
         "log":          ("background:#e0e7ff", "color:#3730a3"),
         "screenshot":   ("background:#dcfce7", "color:#166534"),
@@ -8106,7 +8106,7 @@ def compute_goal_alignment() -> list[dict]:
 def build_goal_table(query: str = "") -> str:
     results = compute_goal_alignment()
     if not results:
-        return '<div class="rl-empty">No goal alignment data yet.</div>'
+        return '<div class="rl-empty">No goal alignment data yet — go to <b>🎯 Goals → Add Goal</b>, define a goal name and target outcome, then click <b>➕ Add Goal</b> to start tracking alignment.</div>'
     q = query.strip().lower()
     matched = []
     for r in results:
@@ -8244,7 +8244,7 @@ def compute_control_coverage() -> list[dict]:
 def build_control_table(query: str = "") -> str:
     results = compute_control_coverage()
     if not results:
-        return '<div class="rl-empty">No controls defined yet.</div>'
+        return '<div class="rl-empty">No controls defined yet — go to <b>🛡️ Controls → Add Control</b>, fill in the name, category and risk level, then click <b>➕ Add Control</b>.</div>'
     q = query.strip().lower()
     matched = []
     for r in results:
@@ -8437,7 +8437,7 @@ def detect_rule_learning() -> str:
 def build_learning_table(query: str = "") -> str:
     log = _load_learning_log()
     if not log:
-        return '<div class="rl-empty">No learning log entries yet.</div>'
+        return '<div class="rl-empty">No learning log entries yet — learning events are captured automatically when you run improvement cycles in <b>⚠️ Incidents → Improvement</b>.</div>'
     latest: dict = {}
     for e in log:
         rid = e.get("rule_id", "")
@@ -8698,7 +8698,7 @@ def build_meta_gov_table(query: str = "") -> str:
     entries = _load_meta_gov()
     roles = [e for e in entries if e.get("type") == "role"]
     if not roles:
-        return '<div class="rl-empty">No role assignments yet.</div>'
+        return '<div class="rl-empty">No role assignments yet — go to <b>🏛️ Meta-Gov → Roles</b>, fill in a user ID and select a role, then click <b>👤 Assign Role</b>.</div>'
     q = query.strip().lower()
     matched = []
     for e in roles:
@@ -8741,7 +8741,7 @@ def build_governance_audit_log() -> str:
     entries = _load_meta_gov()
     actions = [e for e in entries if e.get("type") == "action_log"]
     if not actions:
-        return '<div class="rl-empty">No governance actions logged yet.</div>'
+        return '<div class="rl-empty">No governance actions logged yet — go to <b>🏛️ Meta-Gov → Action Log</b>, fill in the user, action type and outcome, then click <b>📝 Log Action</b>.</div>'
     _outcome_badge = {
         "success": '<span class="rl-badge rl-badge-active">success</span>',
         "denied":  '<span class="rl-badge rl-badge-deprecated">denied</span>',
@@ -9289,7 +9289,7 @@ def compute_calendar_status() -> list[dict]:
 def build_calendar_table(query: str = "") -> str:
     items = compute_calendar_status()
     if not items:
-        return '<div class="rl-empty">No compliance calendar items yet.</div>'
+        return '<div class="rl-empty">No compliance calendar items yet — go to <b>📅 Calendar → Add Item</b>, fill in the title, type and due date, then click <b>➕ Add Item</b>.</div>'
     q = query.strip().lower()
     matched = []
     for item in items:
@@ -9458,7 +9458,7 @@ def run_robustness_test(rule_id: str) -> str:
 def build_robustness_table(query: str = "") -> str:
     log = _download_jsonl(ROBUSTNESS_FILE)
     if not log:
-        return '<div class="rl-empty">No robustness tests run yet.</div>'
+        return '<div class="rl-empty">No robustness tests run yet — go to <b>🧪 Testing → Robustness</b>, select a rule and click <b>▶ Run Robustness Test</b> to evaluate rule stability.</div>'
     latest: dict = {}
     for e in log:
         rid = e.get("rule_id", "")
@@ -9584,7 +9584,7 @@ def log_bias_analysis(rule_id: str, group_a: str, group_b: str,
 def build_bias_table(query: str = "") -> str:
     log = _download_jsonl(BIAS_FILE)
     if not log:
-        return '<div class="rl-empty">No bias analyses run yet.</div>'
+        return '<div class="rl-empty">No bias analyses run yet — go to <b>🧪 Testing → Bias</b>, select a rule and enter two demographic groups to compare, then click <b>▶ Run Bias Analysis</b>.</div>'
     q = query.strip().lower()
     matched = []
     for e in log:
@@ -9712,7 +9712,7 @@ def verify_audit_chain() -> str:
 def build_audit_chain_table(query: str = "") -> str:
     chain = _download_jsonl(AUDIT_CHAIN_FILE)
     if not chain:
-        return '<div class="rl-empty">No audit chain entries yet.</div>'
+        return '<div class="rl-empty">No audit chain entries yet — go to <b>🔗 Audit Chain → Append</b>, select an action and fill in the actor and target, then click <b>🔗 Append to Chain</b>.</div>'
     q = query.strip().lower()
     matched = []
     for e in chain[-200:]:
