@@ -3353,18 +3353,26 @@ def explain_rule_decision(rule_id: str, user_input: str, agent_response: str) ->
     return f"**{'Rule fired' if fired else 'Rule did not fire'}** (matched: {matched_kws or 'none'})\n\n{explanation}"
 
 
-def build_explanations_table() -> pd.DataFrame:
+def build_explanations_table(query: str = "") -> pd.DataFrame:
     entries = _download_jsonl(EXPLAIN_FILE)
     if not entries:
         return pd.DataFrame(columns=["Explain ID", "Rule", "Fired", "Keywords Matched", "Explanation", "Date"])
-    rows = [{
-        "Explain ID": e.get("explain_id", "")[:8],
-        "Rule": e.get("rule_name", "")[:30],
-        "Fired": "Yes" if e.get("fired") else "No",
-        "Keywords Matched": ", ".join(e.get("matched_keywords", [])) or "—",
-        "Explanation": e.get("explanation", "")[:100],
-        "Date": e.get("explained_at", "")[:10],
-    } for e in sorted(entries, key=lambda x: x.get("explained_at", ""), reverse=True)[:100]]
+    q = query.strip().lower()
+    rows = []
+    for e in sorted(entries, key=lambda x: x.get("explained_at", ""), reverse=True)[:100]:
+        rule = e.get("rule_name", "")
+        explanation = e.get("explanation", "")
+        keywords = ", ".join(e.get("matched_keywords", [])) or "—"
+        if q and not any(q in s.lower() for s in (rule, explanation, keywords)):
+            continue
+        rows.append({
+            "Explain ID": e.get("explain_id", "")[:8],
+            "Rule": rule[:30],
+            "Fired": "Yes" if e.get("fired") else "No",
+            "Keywords Matched": keywords,
+            "Explanation": explanation[:100],
+            "Date": e.get("explained_at", "")[:10],
+        })
     return pd.DataFrame(rows)
 
 
@@ -3477,18 +3485,26 @@ def build_kg_graph() -> Any:
     return _dark_fig(fig)
 
 
-def build_kg_table() -> pd.DataFrame:
+def build_kg_table(query: str = "") -> pd.DataFrame:
     nodes = _download_jsonl(KG_FILE)
     if not nodes:
         return pd.DataFrame(columns=["Node ID", "Type", "Name", "Description", "Edges", "Created"])
-    rows = [{
-        "Node ID": n.get("node_id", "")[:8],
-        "Type": n.get("node_type", ""),
-        "Name": n.get("name", ""),
-        "Description": n.get("description", "")[:60],
-        "Edges": len(n.get("edges", [])),
-        "Created": n.get("created_at", "")[:10],
-    } for n in nodes]
+    q = query.strip().lower()
+    rows = []
+    for n in nodes:
+        name = n.get("name", "")
+        node_type = n.get("node_type", "")
+        description = n.get("description", "")
+        if q and not any(q in s.lower() for s in (name, node_type, description)):
+            continue
+        rows.append({
+            "Node ID": n.get("node_id", "")[:8],
+            "Type": node_type,
+            "Name": name,
+            "Description": description[:60],
+            "Edges": len(n.get("edges", [])),
+            "Created": n.get("created_at", "")[:10],
+        })
     return pd.DataFrame(rows)
 
 
@@ -4991,19 +5007,28 @@ def register_data_source(
     return f"Data source registered: {source_name} (trust={trust_level}, id={entry['source_id'][:8]}…)"
 
 
-def build_data_provenance_table() -> pd.DataFrame:
+def build_data_provenance_table(query: str = "") -> pd.DataFrame:
     entries = _download_jsonl(DATA_PROVENANCE_FILE)
     if not entries:
         return pd.DataFrame(columns=["ID", "Name", "Type", "Trust Level", "Owner", "Uses", "Registered"])
-    rows = [{
-        "ID":           e.get("source_id", "")[:8],
-        "Name":         e.get("source_name", ""),
-        "Type":         e.get("source_type", ""),
-        "Trust Level":  e.get("trust_level", ""),
-        "Owner":        e.get("owner", ""),
-        "Uses":         e.get("use_count", 0),
-        "Registered":   e.get("registered_at", "")[:10],
-    } for e in entries]
+    q = query.strip().lower()
+    rows = []
+    for e in entries:
+        name = e.get("source_name", "")
+        src_type = e.get("source_type", "")
+        trust = e.get("trust_level", "")
+        owner = e.get("owner", "")
+        if q and not any(q in s.lower() for s in (name, src_type, trust, owner)):
+            continue
+        rows.append({
+            "ID":           e.get("source_id", "")[:8],
+            "Name":         name,
+            "Type":         src_type,
+            "Trust Level":  trust,
+            "Owner":        owner,
+            "Uses":         e.get("use_count", 0),
+            "Registered":   e.get("registered_at", "")[:10],
+        })
     return pd.DataFrame(rows)
 
 
@@ -7499,20 +7524,27 @@ def compute_control_coverage() -> list[dict]:
     return results
 
 
-def build_control_table() -> pd.DataFrame:
+def build_control_table(query: str = "") -> pd.DataFrame:
     results = compute_control_coverage()
     if not results:
         return pd.DataFrame(columns=["ID", "Name", "Category", "Risk", "Rules", "Effectiveness", "Audit Ref"])
+    q = query.strip().lower()
     rows = []
     for r in results:
+        name = r.get("name", "")
+        category = r.get("category", "")
+        risk = r.get("risk_level", "")
+        audit_ref = r.get("audit_reference", "")
+        if q and not any(q in s.lower() for s in (name, category, risk, audit_ref)):
+            continue
         rows.append({
             "ID": r.get("control_id", "")[-8:],
-            "Name": r.get("name", "")[:40],
-            "Category": r.get("category", ""),
-            "Risk": r.get("risk_level", ""),
+            "Name": name[:40],
+            "Category": category,
+            "Risk": risk,
             "Rules": r["rule_count"],
             "Effectiveness": f"{r['effectiveness']}%",
-            "Audit Ref": r.get("audit_reference", "")[:30],
+            "Audit Ref": audit_ref[:30],
         })
     return pd.DataFrame(rows)
 
@@ -8412,20 +8444,28 @@ def compute_calendar_status() -> list[dict]:
     return sorted(results, key=lambda x: x.get("due_date", ""))
 
 
-def build_calendar_table() -> pd.DataFrame:
+def build_calendar_table(query: str = "") -> pd.DataFrame:
     items = compute_calendar_status()
     if not items:
         return pd.DataFrame(columns=["Title", "Type", "Due", "Priority", "Owner", "Status", "Urgency"])
+    q = query.strip().lower()
     rows = []
     for item in items:
+        title = item.get("title", "")
+        item_type = item.get("type", "")
+        priority = item.get("priority", "")
+        owner = item.get("owner", "")
+        status = item.get("status", "")
+        if q and not any(q in s.lower() for s in (title, item_type, priority, owner, status)):
+            continue
         rows.append({
-            "Title": item.get("title", "")[:40],
-            "Type": item.get("type", ""),
+            "Title": title[:40],
+            "Type": item_type,
             "Due": item.get("due_date", "")[:10],
-            "Priority": item.get("priority", ""),
-            "Owner": item.get("owner", "")[:20],
-            "Status": item.get("status", ""),
-            "Urgency": item.get("urgency", "") if item.get("status") == "pending" else "—",
+            "Priority": priority,
+            "Owner": owner[:20],
+            "Status": status,
+            "Urgency": item.get("urgency", "") if status == "pending" else "—",
         })
     return pd.DataFrame(rows)
 
@@ -9642,7 +9682,9 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 with gr.Row():
                     data_prov_chart = gr.Plot(scale=1)
                     data_prov_table = gr.Dataframe(interactive=False, wrap=True, scale=2)
-                data_prov_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
+                with gr.Row():
+                    data_prov_search = gr.Textbox(label="Search data sources", placeholder="Filter by name, type, trust level, or owner…", scale=4)
+                    data_prov_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm", scale=1)
 
                 with gr.Row():
                     dp_name = gr.Textbox(label="Source name", scale=3)
@@ -9659,6 +9701,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     return build_data_trust_chart(), build_data_provenance_table()
 
                 data_prov_refresh_btn.click(_refresh_data_prov, outputs=[data_prov_chart, data_prov_table])
+                data_prov_search.change(build_data_provenance_table, inputs=[data_prov_search], outputs=[data_prov_table])
                 monitoring_tab.select(_refresh_data_prov, outputs=[data_prov_chart, data_prov_table])
                 dp_add_btn.click(
                     register_data_source,
@@ -10026,8 +10069,10 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                                                 placeholder="What the AI replied")
                 exp_run_btn = gr.Button("🔍 Explain Decision", variant="primary", size="sm")
                 exp_result = gr.Markdown()
+                with gr.Row():
+                    exp_search = gr.Textbox(label="Search explanations", placeholder="Filter by rule, keyword, or explanation…", scale=4)
+                    exp_hist_refresh = gr.Button("↻ Refresh history", variant="secondary", size="sm", scale=1)
                 exp_table = gr.Dataframe(interactive=False, wrap=True, label="Explanation History")
-                exp_hist_refresh = gr.Button("↻ Refresh history", variant="secondary", size="sm")
 
                 def _refresh_exp_sel():
                     return gr.update(choices=get_rule_ids())
@@ -10037,6 +10082,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
 
                 exp_refresh_sel.click(_refresh_exp_sel, outputs=exp_rule_sel)
                 exp_hist_refresh.click(_refresh_exp_table, outputs=exp_table)
+                exp_search.change(build_explanations_table, inputs=[exp_search], outputs=[exp_table])
                 analytics_tab.select(_refresh_exp_sel, outputs=exp_rule_sel)
                 analytics_tab.select(_refresh_exp_table, outputs=exp_table)
                 exp_run_btn.click(
@@ -10170,8 +10216,10 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 gr.HTML('<div class="section-title">Knowledge Graph</div>')
                 gr.Markdown("Map policies → requirements → controls → KPIs → audit findings → rules.")
                 kg_graph = gr.Plot()
+                with gr.Row():
+                    kg_search = gr.Textbox(label="Search knowledge graph", placeholder="Filter by name, type, or description…", scale=4)
+                    kg_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm", scale=1)
                 kg_table = gr.Dataframe(interactive=False, wrap=True)
-                kg_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
 
                 gr.Markdown("**Add a node**")
                 with gr.Row():
@@ -10194,6 +10242,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     return build_kg_graph(), build_kg_table()
 
                 kg_refresh_btn.click(_refresh_kg, outputs=[kg_graph, kg_table])
+                kg_search.change(build_kg_table, inputs=[kg_search], outputs=[kg_table])
                 gov_tab.select(_refresh_kg, outputs=[kg_graph, kg_table])
                 kg_add_node_btn.click(
                     add_kg_node,
@@ -10280,8 +10329,10 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 with gr.Row():
                     ctrl_chart = gr.Plot()
                     ctrl_heatmap = gr.Plot()
+                with gr.Row():
+                    ctrl_search = gr.Textbox(label="Search controls", placeholder="Filter by name, category, risk, or audit ref…", scale=4)
+                    ctrl_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm", scale=1)
                 ctrl_table = gr.Dataframe(interactive=False, wrap=True)
-                ctrl_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
 
                 gr.Markdown("**Add a Control**")
                 with gr.Row():
@@ -10305,6 +10356,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 )
                 ctrl_add_btn.click(_refresh_controls, outputs=[ctrl_chart, ctrl_heatmap, ctrl_table])
                 ctrl_refresh_btn.click(_refresh_controls, outputs=[ctrl_chart, ctrl_heatmap, ctrl_table])
+                ctrl_search.change(build_control_table, inputs=[ctrl_search], outputs=[ctrl_table])
                 gov_tab.select(_refresh_controls, outputs=[ctrl_chart, ctrl_heatmap, ctrl_table])
 
             with gr.Accordion('🔍 Learning & Gaming Detection', open=False):
@@ -10507,8 +10559,10 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 gr.HTML('<div class="section-title">Compliance Calendar</div>')
                 gr.Markdown("Schedule and track governance tasks: audits, reviews, renewals, training, assessments.")
                 cal_summary_md = gr.Markdown()
+                with gr.Row():
+                    cal_search = gr.Textbox(label="Search calendar", placeholder="Filter by title, type, priority, owner, or status…", scale=4)
+                    cal_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm", scale=1)
                 cal_table = gr.Dataframe(interactive=False, wrap=True)
-                cal_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
 
                 gr.Markdown("**Add Calendar Item**")
                 with gr.Row():
@@ -10542,6 +10596,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 cal_complete_btn.click(complete_calendar_item, inputs=[cal_complete_id, cal_complete_notes], outputs=cal_complete_status)
                 cal_complete_btn.click(_refresh_calendar, outputs=[cal_summary_md, cal_table])
                 cal_refresh_btn.click(_refresh_calendar, outputs=[cal_summary_md, cal_table])
+                cal_search.change(build_calendar_table, inputs=[cal_search], outputs=[cal_table])
                 gov_tab.select(_refresh_calendar, outputs=[cal_summary_md, cal_table])
 
         with gr.Tab("🧪 Testing") as testing_tab:
