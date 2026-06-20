@@ -7405,10 +7405,8 @@ def run_regression_check() -> str:
     return "\n".join(lines)
 
 
-def build_regression_table(query: str = "") -> pd.DataFrame:
+def build_regression_table(query: str = "") -> str:
     log = _load_regression_log()
-    if not log:
-        return pd.DataFrame(columns=["Rule", "Pass Rate", "Delta", "Status", "Timestamp"])
     # Latest snapshot per rule
     latest: dict[str, dict] = {}
     for entry in log:
@@ -7418,22 +7416,47 @@ def build_regression_table(query: str = "") -> pd.DataFrame:
         if rid not in latest or entry.get("timestamp", "") > latest[rid].get("timestamp", ""):
             latest[rid] = entry
     q = query.strip().lower()
-    rows = []
+    matched = []
     for entry in latest.values():
-        delta = entry.get("delta")
-        delta_str = (f"+{delta}%" if delta >= 0 else f"{delta}%") if delta is not None else "N/A (first run)"
-        rule_name = entry.get("rule_name", entry.get("rule_id", ""))[:40]
+        rule_name = entry.get("rule_name", entry.get("rule_id", ""))
         status = entry.get("status", "stable")
         if q and not any(q in s.lower() for s in (rule_name, status)):
             continue
-        rows.append({
-            "Rule": rule_name,
-            "Pass Rate": f"{entry.get('pass_rate', 0)}%",
-            "Delta": delta_str,
-            "Status": status,
-            "Timestamp": entry.get("timestamp", "")[:16],
-        })
-    return pd.DataFrame(rows)
+        matched.append(entry)
+    if not matched:
+        msg = "No regression data yet." if not log else f'No entries match "<b>{query}</b>".'
+        return f'<div class="rl-empty">{msg}</div>'
+    rows_html = ""
+    for entry in matched:
+        delta = entry.get("delta")
+        status = entry.get("status", "stable")
+        if status == "regression":
+            st_badge = '<span class="rl-badge rl-badge-deprecated">regression</span>'
+        elif status == "improved":
+            st_badge = '<span class="rl-badge rl-badge-active">improved</span>'
+        else:
+            st_badge = '<span class="rl-badge rl-badge-inactive">stable</span>'
+        if delta is None:
+            delta_html = '<span style="color:#94a3b8">first run</span>'
+        elif delta >= 0:
+            delta_html = f'<span style="color:#059669;font-weight:600">+{delta}%</span>'
+        else:
+            delta_html = f'<span style="color:#dc2626;font-weight:600">{delta}%</span>'
+        rule_name = entry.get("rule_name", entry.get("rule_id", ""))
+        rows_html += (
+            f"<tr>"
+            f"<td style='max-width:200px'>{rule_name[:36]}</td>"
+            f"<td style='text-align:right'>{entry.get('pass_rate', 0)}%</td>"
+            f"<td style='text-align:right'>{delta_html}</td>"
+            f"<td>{st_badge}</td>"
+            f"<td style='font-size:0.75rem;color:#94a3b8'>{entry.get('timestamp','')[:16]}</td>"
+            f"</tr>"
+        )
+    return (
+        f'<div class="rl-table-wrap"><table class="rl-table">'
+        f"<thead><tr><th>Rule</th><th>Pass Rate</th><th>Delta</th><th>Status</th><th>Timestamp</th></tr></thead>"
+        f"<tbody>{rows_html}</tbody></table></div>"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -7550,31 +7573,47 @@ def build_ratings_trend() -> Any:
     return _dark_fig(fig)
 
 
-def build_ratings_table(query: str = "") -> pd.DataFrame:
+def build_ratings_table(query: str = "") -> str:
     ratings = sorted(
         _download_jsonl(RATINGS_FILE),
         key=lambda r: r.get("rated_at", ""),
         reverse=True,
     )
-    if not ratings:
-        return pd.DataFrame(columns=["Date", "Session", "Rating", "Rules Active", "Friction", "Helped"])
     q = query.strip().lower()
-    rows = []
+    matched = []
     for r in ratings[:100]:
-        session = r.get("conversation_id", "")[:30]
-        friction = r.get("friction_notes", "")[:60]
-        helped = r.get("helped_notes", "")[:60]
+        session = r.get("conversation_id", "")
+        friction = r.get("friction_notes", "")
+        helped = r.get("helped_notes", "")
         if q and not any(q in s.lower() for s in (session, friction, helped)):
             continue
-        rows.append({
-            "Date": r.get("rated_at", "")[:10],
-            "Session": session,
-            "Rating": f"{r.get('rating', '?')}/5",
-            "Rules Active": r.get("active_rule_count", 0),
-            "Friction": friction,
-            "Helped": helped,
-        })
-    return pd.DataFrame(rows)
+        matched.append(r)
+    if not matched:
+        msg = "No session ratings yet." if not ratings else f'No ratings match "<b>{query}</b>".'
+        return f'<div class="rl-empty">{msg}</div>'
+    rows_html = ""
+    for r in matched:
+        score = r.get("rating", 0)
+        stars = "★" * int(score) + "☆" * (5 - int(score))
+        score_color = "#059669" if score >= 4 else "#d97706" if score >= 3 else "#dc2626"
+        rows_html += (
+            f"<tr>"
+            f"<td style='font-size:0.75rem;color:#94a3b8'>{r.get('rated_at','')[:10]}</td>"
+            f"<td style='font-family:monospace;font-size:0.75rem'>{r.get('conversation_id','')[:22]}</td>"
+            f"<td style='text-align:center'>"
+            f"<span style='color:{score_color};font-weight:700'>{score}/5</span>"
+            f"<span style='color:{score_color};font-size:0.7rem;margin-left:4px'>{stars}</span></td>"
+            f"<td style='text-align:center'>{r.get('active_rule_count',0)}</td>"
+            f"<td style='max-width:160px;font-size:0.78rem;color:#64748b'>{r.get('friction_notes','')[:55]}</td>"
+            f"<td style='max-width:160px;font-size:0.78rem;color:#475569'>{r.get('helped_notes','')[:55]}</td>"
+            f"</tr>"
+        )
+    return (
+        f'<div class="rl-table-wrap"><table class="rl-table">'
+        f"<thead><tr><th>Date</th><th>Session</th><th>Rating</th>"
+        f"<th>Rules Active</th><th>Friction</th><th>Helped</th></tr></thead>"
+        f"<tbody>{rows_html}</tbody></table></div>"
+    )
 
 
 REPUTATION_FILE = "reputation.jsonl"
@@ -7644,23 +7683,41 @@ def compute_reputation_summary() -> list[dict]:
     return summary
 
 
-def build_reputation_table(query: str = "") -> pd.DataFrame:
+def build_reputation_table(query: str = "") -> str:
     summary = compute_reputation_summary()
-    if not summary:
-        return pd.DataFrame(columns=["Rule", "7d Avg", "30d Avg", "90d Avg"])
     q = query.strip().lower()
-    rows = []
+    matched = []
     for r in summary:
-        rule_name = r.get("rule_name", r.get("rule_id", ""))[:40]
+        rule_name = r.get("rule_name", r.get("rule_id", ""))
         if q and q not in rule_name.lower():
             continue
-        rows.append({
-            "Rule": rule_name,
-            "7d Avg": f"{r['7d_avg']}%" if r.get("7d_avg") is not None else "—",
-            "30d Avg": f"{r['30d_avg']}%" if r.get("30d_avg") is not None else "—",
-            "90d Avg": f"{r['90d_avg']}%" if r.get("90d_avg") is not None else "—",
-        })
-    return pd.DataFrame(rows)
+        matched.append(r)
+    if not matched:
+        msg = "No reputation data yet — take a snapshot first." if not summary else f'No rules match "<b>{query}</b>".'
+        return f'<div class="rl-empty">{msg}</div>'
+
+    def _avg_cell(val) -> str:
+        if val is None:
+            return '<span style="color:#94a3b8">—</span>'
+        color = "#059669" if val >= 70 else "#d97706" if val >= 40 else "#dc2626"
+        return f'<span style="color:{color};font-weight:600">{val}%</span>'
+
+    rows_html = ""
+    for r in matched:
+        rule_name = r.get("rule_name", r.get("rule_id", ""))
+        rows_html += (
+            f"<tr>"
+            f"<td style='max-width:220px'>{rule_name[:38]}</td>"
+            f"<td style='text-align:right'>{_avg_cell(r.get('7d_avg'))}</td>"
+            f"<td style='text-align:right'>{_avg_cell(r.get('30d_avg'))}</td>"
+            f"<td style='text-align:right'>{_avg_cell(r.get('90d_avg'))}</td>"
+            f"</tr>"
+        )
+    return (
+        f'<div class="rl-table-wrap"><table class="rl-table">'
+        f"<thead><tr><th>Rule</th><th>7d Avg</th><th>30d Avg</th><th>90d Avg</th></tr></thead>"
+        f"<tbody>{rows_html}</tbody></table></div>"
+    )
 
 
 def build_reputation_chart() -> Any:
@@ -8141,26 +8198,43 @@ def auto_scan_gaming(conversation_id: str = "") -> str:
     return "\n".join(lines)
 
 
-def build_gaming_table(query: str = "") -> pd.DataFrame:
+def build_gaming_table(query: str = "") -> str:
     log = _download_jsonl(GAMING_FILE)
-    if not log:
-        return pd.DataFrame(columns=["ID", "Conv", "Turn", "Patterns", "Confirmed", "Timestamp"])
     q = query.strip().lower()
-    rows = []
+    matched = []
     for e in log:
         patterns = ", ".join(e.get("patterns_matched", [])) or "manual"
         confirmed = "yes" if e.get("confirmed") else "no"
         if q and not any(q in s.lower() for s in (patterns, confirmed)):
             continue
-        rows.append({
-            "ID": e.get("gaming_id", "")[:12],
-            "Conv": e.get("conv_id", "")[:12],
-            "Turn": e.get("turn_number", ""),
-            "Patterns": patterns,
-            "Confirmed": confirmed,
-            "Timestamp": e.get("timestamp", "")[:16],
-        })
-    return pd.DataFrame(rows)
+        matched.append((e, patterns))
+    if not matched:
+        msg = "No gaming attempts logged." if not log else f'No entries match "<b>{query}</b>".'
+        return f'<div class="rl-empty">{msg}</div>'
+    rows_html = ""
+    for e, patterns in matched:
+        confirmed = e.get("confirmed")
+        conf_badge = (
+            '<span class="rl-badge rl-badge-deprecated">confirmed</span>'
+            if confirmed else
+            '<span class="rl-badge rl-badge-pending">suspected</span>'
+        )
+        rows_html += (
+            f"<tr>"
+            f"<td style='font-family:monospace;font-size:0.75rem'>{e.get('gaming_id','')[:10]}</td>"
+            f"<td style='font-family:monospace;font-size:0.75rem;color:#94a3b8'>{e.get('conv_id','')[:10]}</td>"
+            f"<td style='text-align:center'>{e.get('turn_number','')}</td>"
+            f"<td style='font-size:0.78rem;color:#475569;max-width:200px'>{patterns[:60]}</td>"
+            f"<td>{conf_badge}</td>"
+            f"<td style='font-size:0.75rem;color:#94a3b8'>{e.get('timestamp','')[:16]}</td>"
+            f"</tr>"
+        )
+    return (
+        f'<div class="rl-table-wrap"><table class="rl-table">'
+        f"<thead><tr><th>ID</th><th>Conv</th><th>Turn</th>"
+        f"<th>Patterns</th><th>Confirmed</th><th>Timestamp</th></tr></thead>"
+        f"<tbody>{rows_html}</tbody></table></div>"
+    )
 
 
 def build_gaming_summary() -> str:
@@ -10474,7 +10548,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 with gr.Row():
                     rating_search = gr.Textbox(label="Search ratings", placeholder="Filter by session, friction notes, or helped notes…", scale=4)
                     rating_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm", scale=1)
-                rating_table = gr.Dataframe(interactive=False, wrap=True)
+                rating_table = gr.HTML()
 
                 gr.Markdown("**Submit a rating**")
                 with gr.Row():
@@ -10633,7 +10707,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 with gr.Row():
                     reg_search = gr.Textbox(label="Search regressions", placeholder="Filter by rule name or status…", scale=4)
                     reg_refresh_btn = gr.Button("↻ Refresh History", variant="secondary", size="sm", scale=1)
-                reg_table = gr.Dataframe(interactive=False, wrap=True)
+                reg_table = gr.HTML()
                 reg_run_btn = gr.Button("Run Regression Check", variant="primary", size="sm")
 
                 def _refresh_regression():
@@ -10651,7 +10725,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 with gr.Row():
                     rep_search = gr.Textbox(label="Search reputation", placeholder="Filter by rule name…", scale=4)
                     rep_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm", scale=1)
-                rep_table = gr.Dataframe(interactive=False, wrap=True)
+                rep_table = gr.HTML()
                 rep_snap_btn = gr.Button("Take Snapshot", variant="primary", size="sm")
                 rep_snap_status = gr.Markdown()
 
@@ -10756,7 +10830,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 with gr.Row():
                     gaming_search = gr.Textbox(label="Search gaming log", placeholder="Filter by pattern or confirmed status…", scale=4)
                     gaming_search_clear_btn = gr.Button("✕", variant="secondary", size="sm", scale=0)
-                gaming_table = gr.Dataframe(interactive=False, wrap=True)
+                gaming_table = gr.HTML()
 
                 gr.Markdown("**Auto-scan a conversation**")
                 with gr.Row():
