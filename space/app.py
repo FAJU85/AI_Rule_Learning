@@ -10116,7 +10116,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
 
             # ── Section 4: Maturity drill-down (progressive disclosure) ────────
             with gr.Accordion("Maturity Assessment Detail", open=False):
-                maturity_report_md = gr.Markdown()
+                maturity_report_md = gr.Markdown(min_height=28)
                 maturity_refresh_btn = gr.Button("↻ Re-assess", variant="secondary", size="sm")
 
             # ── Section 5: Activity feed (last 5) ─────────────────────────────
@@ -10169,7 +10169,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
             with gr.Row():
                 rule_selector = gr.Dropdown(label="Select rule", choices=[], scale=4)
                 rule_selector_refresh = gr.Button("↻", variant="secondary", size="sm", scale=0)
-            rule_detail = gr.Markdown()
+            rule_detail = gr.Markdown(min_height=28)
 
             gr.HTML('<div class="section-title">Effectiveness Trend</div>')
             gr.Markdown("Compliance effectiveness score over time for the selected rule.")
@@ -10203,12 +10203,12 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 with gr.Row():
                     pending_selector = gr.Dropdown(label="Select pending rule", choices=[], scale=4)
                     pending_refresh_btn2 = gr.Button("↻", variant="secondary", size="sm", scale=0)
-                pending_detail = gr.Markdown()
+                pending_detail = gr.Markdown(min_height=28)
 
                 with gr.Row():
                     approve_btn = gr.Button("✅ Approve & Activate", variant="primary")
                     reject_btn = gr.Button("🗑️ Reject", variant="stop")
-                review_status = gr.Markdown()
+                review_status = gr.Markdown(min_height=28)
 
                 def refresh_pending():
                     return build_pending_rules_table(), gr.update(choices=get_pending_rule_ids())
@@ -10233,8 +10233,8 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     ab_rule_selector = gr.Dropdown(label="Select rule to test", choices=[], scale=4)
                     ab_refresh_btn = gr.Button("↻", variant="secondary", size="sm", scale=0)
                     ab_create_btn = gr.Button("🧪 Create A/B Variant", variant="primary", scale=1)
-                ab_status = gr.Markdown()
-                ab_comparison = gr.Markdown()
+                ab_status = gr.Markdown(min_height=28)
+                ab_comparison = gr.Markdown(min_height=28)
 
                 def _refresh_ab_rules():
                     return gr.update(choices=get_rule_names())
@@ -10255,7 +10255,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     owner_team = gr.Textbox(label="Team", placeholder="e.g. Security", scale=2)
                     owner_contact = gr.Textbox(label="Contact", placeholder="e.g. security@company.com", scale=2)
                 owner_save_btn = gr.Button("💾 Save Ownership", variant="primary", size="sm")
-                owner_status = gr.Markdown()
+                owner_status = gr.Markdown(min_height=28)
 
                 def _refresh_owner_rules():
                     return gr.update(choices=get_rule_names())
@@ -10284,7 +10284,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     )
                 lc_reason = gr.Textbox(label="Reason (optional)", placeholder="e.g. Superseded by Rule #22")
                 lc_transition_btn = gr.Button("▶ Apply Transition", variant="primary", size="sm")
-                lc_status = gr.Markdown()
+                lc_status = gr.Markdown(min_height=28)
 
                 def _refresh_lc():
                     return build_lifecycle_table(), gr.update(choices=get_rule_names())
@@ -10315,7 +10315,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 with gr.Row():
                     exc_create_btn = gr.Button("⚠️ Create Exception", variant="stop")
                     exc_restore_btn = gr.Button("✅ Restore Rule", variant="primary")
-                exc_status = gr.Markdown()
+                exc_status = gr.Markdown(min_height=28)
 
                 def _refresh_exc():
                     return build_exceptions_table(), gr.update(choices=get_rule_names())
@@ -10350,7 +10350,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     )
                     dep_blocks_refresh = gr.Button("↻", variant="secondary", size="sm", scale=0)
                 dep_save_btn = gr.Button("💾 Save Dependencies", variant="primary", size="sm")
-                dep_status = gr.Markdown()
+                dep_status = gr.Markdown(min_height=28)
 
                 def _refresh_dep_sel():
                     return gr.update(choices=get_rule_ids())
@@ -10370,7 +10370,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
 
                 gr.HTML('<div class="section-title">Conflict Detection</div>')
                 gr.Markdown("Detect contradictions, overlaps, and duplicates across active rules.")
-                conflict_summary_md = gr.Markdown()
+                conflict_summary_md = gr.Markdown(min_height=28)
                 with gr.Row(elem_classes=["search-row-wrapper"]):
                     conflict_search = gr.Textbox(label="Search conflicts", placeholder="Filter by rule, type, severity, or status…", scale=4, show_clear_button=True)
                     conflict_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm", scale=1)
@@ -10382,7 +10382,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     conflict_resolve_id = gr.Textbox(label="Conflict ID prefix to resolve", placeholder="e.g. cnf_abc123", scale=2)
                     conflict_resolution = gr.Textbox(label="Resolution note", placeholder="e.g. Removed overlapping rule, merged conditions", scale=4)
                 conflict_resolve_btn = gr.Button("✅ Mark Resolved", variant="primary", size="sm")
-                conflict_resolve_status = gr.Markdown()
+                conflict_resolve_status = gr.Markdown(min_height=28)
 
                 def _refresh_conflicts():
                     return build_conflict_summary(), build_conflicts_table()
@@ -10404,10 +10404,12 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     yaml_export_btn = gr.Button("Export as YAML", variant="secondary", size="sm")
                 system_prompt_output = gr.Textbox(
                     label="System prompt",
+                    placeholder="Click 'Export as System Prompt' above to generate…",
                     lines=15, max_lines=30, interactive=True, show_copy_button=True,
                 )
                 yaml_output = gr.Textbox(
                     label="YAML",
+                    placeholder="Click 'Export as YAML' above to generate…",
                     lines=15, max_lines=30, interactive=True, show_copy_button=True,
                 )
                 export_btn.click(export_system_prompt, outputs=system_prompt_output)
@@ -10439,7 +10441,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     upload_btn = gr.Button("Upload", variant="primary")
 
             import_log = gr.Textbox(label="Import log", lines=6, max_lines=16, interactive=False, autoscroll=True, show_copy_button=True)
-            upload_status = gr.Markdown()
+            upload_status = gr.Markdown(min_height=28)
 
             import_btn.click(run_import_sessions, inputs=session_files_input, outputs=import_log).then(
                 build_sessions_stat_bar, outputs=sessions_stat_bar,
@@ -10507,7 +10509,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
             gr.HTML('<div class="section-title">Conversation Clusters</div>')
             gr.Markdown("Gap frequency grouped by project context — shows where problems concentrate.")
             cluster_chart = gr.Plot()
-            cluster_summary = gr.Markdown()
+            cluster_summary = gr.Markdown(min_height=28)
             cluster_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
 
             def _refresh_clusters():
@@ -10519,7 +10521,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
 
             gr.HTML('<div class="section-title">Rule Enforcement Validator</div>')
             gr.Markdown("Validate a user/agent turn against all active rules in real time.")
-            enf_summary_md = gr.Markdown()
+            enf_summary_md = gr.Markdown(min_height=28)
             with gr.Row(elem_classes=["search-row-wrapper"]):
                 enf_search = gr.Textbox(label="Search enforcement log", placeholder="Filter by verdict or failed rules…", scale=4, show_clear_button=True)
                 enf_refresh_btn = gr.Button("↻ Refresh log", variant="secondary", size="sm", scale=1)
@@ -10544,7 +10546,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 label="Example turns (click to load)",
             )
             enf_run_btn = gr.Button("🛡️ Validate & Log", variant="primary", size="sm")
-            enf_result = gr.Markdown()
+            enf_result = gr.Markdown(min_height=28)
 
             def _refresh_enf():
                 return build_enforcement_summary(), build_enforcement_log_table()
@@ -10584,7 +10586,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
 
                 gr.HTML('<div class="section-title">Human Override Tracking</div>')
                 gr.Markdown("Record and assess human overrides of AI decisions.")
-                override_summary_md = gr.Markdown()
+                override_summary_md = gr.Markdown(min_height=28)
                 with gr.Row(elem_classes=["search-row-wrapper"]):
                     override_search = gr.Textbox(label="Search overrides", placeholder="Filter by AI decision, human decision, or reason…", scale=4, show_clear_button=True)
                     override_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm", scale=1)
@@ -10600,13 +10602,13 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     ov_human_dec = gr.Textbox(label="Human Decision", placeholder="What you overrode it to", scale=3)
                 ov_reason = gr.Textbox(label="Override Reason", placeholder="Why this override was necessary")
                 ov_log_btn = gr.Button("📝 Log Override", variant="primary", size="sm")
-                ov_log_status = gr.Markdown()
+                ov_log_status = gr.Markdown(min_height=28)
                 gr.HTML('<div class="rl-group-label" style="margin-top:10px">Rate an existing override</div>')
                 with gr.Row():
                     ov_rate_id = gr.Textbox(label="Override ID prefix to rate", placeholder="e.g. ovr_abc123", scale=2)
                     ov_was_correct = gr.Checkbox(label="Was override correct?", value=True, scale=1, info="Did the override produce the right outcome?")
                     ov_rate_btn = gr.Button("⭐ Mark Accuracy", variant="primary", size="sm", scale=1)
-                ov_rate_status = gr.Markdown()
+                ov_rate_status = gr.Markdown(min_height=28)
 
                 def _refresh_overrides():
                     return build_override_summary(), build_overrides_table()
@@ -10625,7 +10627,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
 
                 gr.HTML('<div class="section-title">Escalation Quality</div>')
                 gr.Markdown("Track correct, missed, and false escalations. Compute precision, recall, and F1.")
-                esc_metrics_md = gr.Markdown()
+                esc_metrics_md = gr.Markdown(min_height=28)
                 with gr.Row(elem_classes=["search-row-wrapper"]):
                     esc_search = gr.Textbox(label="Search escalations", placeholder="Filter by type, outcome, or action…", scale=4, show_clear_button=True)
                     esc_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm", scale=1)
@@ -10645,7 +10647,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                         label="Outcome", choices=ESCALATION_OUTCOMES, value="correct_escalation", scale=2)
                     esc_notes = gr.Textbox(label="Notes", placeholder="Additional context or evidence", scale=3)
                 esc_log_btn = gr.Button("📋 Log Escalation", variant="primary", size="sm")
-                esc_log_status = gr.Markdown()
+                esc_log_status = gr.Markdown(min_height=28)
 
                 def _refresh_esc():
                     return build_escalation_metrics(), build_escalations_table()
@@ -10672,7 +10674,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 with gr.Row():
                     prov_auto_btn = gr.Button("▶ Auto-Record Provenance", variant="primary", size="sm")
                     prov_refresh_btn = gr.Button("↻ Refresh table", variant="secondary", size="sm")
-                prov_status = gr.Markdown()
+                prov_status = gr.Markdown(min_height=28)
 
                 def _refresh_prov_sel():
                     return gr.update(choices=get_conversation_ids())
@@ -10705,7 +10707,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     dp_owner = gr.Textbox(label="Owner", placeholder="e.g. data-team", scale=2)
                 dp_desc = gr.Textbox(label="Description", placeholder="Brief description of this data source and how it's used")
                 dp_add_btn = gr.Button("+ Register Source", variant="primary", size="sm")
-                dp_add_status = gr.Markdown()
+                dp_add_status = gr.Markdown(min_height=28)
 
                 def _refresh_data_prov():
                     return build_data_trust_chart(), build_data_provenance_table()
@@ -10737,14 +10739,14 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     ev_rule_refresh = gr.Button("↻", variant="secondary", size="sm", scale=0)
                     ev_incident_id = gr.Textbox(label="Related incident ID (optional)", placeholder="e.g. inc_abc123", scale=2)
                 ev_store_btn = gr.Button("💾 Store Evidence", variant="primary", size="sm")
-                ev_store_status = gr.Markdown()
+                ev_store_status = gr.Markdown(min_height=28)
 
                 gr.HTML('<div class="rl-group-label" style="margin-top:14px">Export audit bundle</div>')
                 with gr.Row():
                     ev_export_rule = gr.Dropdown(label="Rule filter (blank=all)", choices=[], scale=2)
                     ev_export_refresh = gr.Button("↻", variant="secondary", size="sm", scale=0)
                     ev_export_btn = gr.Button("📦 Export Bundle", variant="primary", size="sm", scale=1)
-                ev_export_status = gr.Markdown()
+                ev_export_status = gr.Markdown(min_height=28)
 
                 def _refresh_ev(t):
                     return build_evidence_table(t)
@@ -10767,7 +10769,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 gr.Markdown("Monitor hallucination rate, accuracy, consistency, refusal quality, tone, and verbosity.")
                 with gr.Row():
                     beh_radar = gr.Plot(scale=1)
-                    beh_summary_md = gr.Markdown()
+                    beh_summary_md = gr.Markdown(min_height=28)
                 beh_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
 
                 gr.HTML('<div class="rl-group-label" style="margin-top:14px">Record metrics for a turn</div>')
@@ -10785,7 +10787,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     beh_verbosity   = gr.Slider(label="Verbosity",         minimum=0, maximum=1, value=0.8, step=0.05, scale=2, info="0 = too terse/verbose, 1 = just right")
                     beh_notes       = gr.Textbox(label="Notes", placeholder="Optional context for this measurement", scale=2)
                 beh_record_btn = gr.Button("📊 Record Metrics", variant="primary", size="sm")
-                beh_record_status = gr.Markdown()
+                beh_record_status = gr.Markdown(min_height=28)
 
                 def _refresh_beh():
                     return build_behavior_radar(), build_behavior_summary()
@@ -10826,7 +10828,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
             with gr.Row():
                 compass_gauge = gr.Plot()
                 compass_timeline = gr.Plot()
-            compass_alerts = gr.Markdown()
+            compass_alerts = gr.Markdown(min_height=28)
 
             def refresh_compass_list():
                 return gr.update(choices=get_conversation_ids())
@@ -10860,7 +10862,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 gr.HTML('<div class="section-title">Compliance Drift</div>')
                 gr.Markdown("Rules whose effectiveness is declining over time — flag for investigation.")
                 drift_chart = gr.Plot()
-                drift_report = gr.Markdown()
+                drift_report = gr.Markdown(min_height=28)
                 drift_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
 
                 def _refresh_drift():
@@ -10872,7 +10874,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 gr.HTML('<div class="section-title">Predictive Compliance</div>')
                 gr.Markdown("Linear forecast of each rule's effectiveness over the next N measurements. Red = at risk.")
                 forecast_chart = gr.Plot()
-                forecast_report_md = gr.Markdown()
+                forecast_report_md = gr.Markdown(min_height=28)
                 with gr.Row():
                     forecast_horizon = gr.Slider(label="Horizon (measurements ahead)", minimum=1, maximum=10,
                                                  value=3, step=1, scale=3, info="How many future measurements to predict")
@@ -10893,7 +10895,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 with gr.Row():
                     proj_gauge = gr.Plot()
                     proj_metrics = gr.Plot()
-                proj_summary = gr.Markdown()
+                proj_summary = gr.Markdown(min_height=28)
                 proj_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
                 proj_refresh_btn.click(build_project_compass, outputs=[proj_gauge, proj_metrics, proj_summary])
                 analytics_tab.select(build_project_compass, outputs=[proj_gauge, proj_metrics, proj_summary])
@@ -10902,7 +10904,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 gr.Markdown("What percentage of conversation gap turns are covered by at least one active rule?")
                 with gr.Row():
                     coverage_chart = gr.Plot(scale=1)
-                    coverage_report_md = gr.Markdown()
+                    coverage_report_md = gr.Markdown(min_height=28)
                 coverage_refresh_btn = gr.Button("↻ Refresh Coverage", variant="secondary", size="sm")
 
                 def _refresh_coverage():
@@ -10932,7 +10934,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 with gr.Row():
                     bench_run_btn = gr.Button("▶ Run Benchmark", variant="primary", size="sm")
                     bench_refresh_btn = gr.Button("↻ Refresh Cases", variant="secondary", size="sm")
-                bench_result = gr.Markdown()
+                bench_result = gr.Markdown(min_height=28)
                 with gr.Row(elem_classes=["search-row-wrapper"]):
                     bench_search = gr.Textbox(label="Search cases", placeholder="Filter by rule ID, input, or expected outcome…", scale=4, show_clear_button=True)
                 bench_table = gr.HTML()
@@ -10947,7 +10949,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 with gr.Row():
                     bench_add_btn = gr.Button("+ Add Case", variant="primary", size="sm")
                     bench_gen_btn = gr.Button("🤖 Auto-generate cases (LLM)", variant="secondary", size="sm")
-                bench_add_status = gr.Markdown()
+                bench_add_status = gr.Markdown(min_height=28)
 
                 def _refresh_bench():
                     return build_benchmark_table(), gr.update(choices=get_rule_ids())
@@ -10975,7 +10977,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
 
                 gr.HTML('<div class="section-title">Root Cause Analysis (RCA)</div>')
                 gr.Markdown("Log and track root causes of rule violations. LLM auto-categorises each entry.")
-                rca_summary_md = gr.Markdown()
+                rca_summary_md = gr.Markdown(min_height=28)
                 with gr.Row(elem_classes=["search-row-wrapper"]):
                     rca_search = gr.Textbox(label="Search RCA log", placeholder="Filter by rule, category, root cause, or status…", scale=4, show_clear_button=True)
                     rca_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm", scale=1)
@@ -10996,13 +10998,13 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 rca_user_input = gr.Textbox(label="User input (optional)",
                                             placeholder="The message that triggered the issue")
                 rca_log_btn = gr.Button("📋 Log RCA", variant="primary", size="sm")
-                rca_status = gr.Markdown()
+                rca_status = gr.Markdown(min_height=28)
                 gr.HTML('<div class="rl-group-label" style="margin-top:14px">Resolve an existing RCA</div>')
                 with gr.Row():
                     rca_close_id = gr.Textbox(label="RCA ID prefix to resolve", placeholder="e.g. rca_abc123", scale=2)
                     rca_resolution = gr.Textbox(label="Resolution note", placeholder="What was done to fix this root cause", scale=3)
                     rca_close_btn = gr.Button("✅ Mark Resolved", variant="primary", size="sm")
-                rca_close_status = gr.Markdown()
+                rca_close_status = gr.Markdown(min_height=28)
 
                 def _refresh_rca():
                     return build_rca_summary(), build_rca_table(), gr.update(choices=get_rule_ids())
@@ -11021,7 +11023,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
             with gr.Accordion('🚨 Incidents & Tracing', open=False):
                 gr.HTML('<div class="section-title">Incident Management</div>')
                 gr.Markdown("Track violations by severity (P0–P3), status, MTTR, and recurrence rate.")
-                inc_summary_md = gr.Markdown()
+                inc_summary_md = gr.Markdown(min_height=28)
                 with gr.Row():
                     inc_chart = gr.Plot(scale=2)
                 with gr.Row(elem_classes=["search-row-wrapper"]):
@@ -11038,7 +11040,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 inc_title = gr.Textbox(label="Title", placeholder="e.g. bypass_rate spiked to 0.6")
                 inc_desc = gr.Textbox(label="Description", lines=2, placeholder="What happened, root cause hypothesis, and initial impact assessment…")
                 inc_open_btn = gr.Button("🚨 Open Incident", variant="stop", size="sm")
-                inc_open_status = gr.Markdown()
+                inc_open_status = gr.Markdown(min_height=28)
 
                 gr.HTML('<div class="rl-group-label" style="margin-top:14px">Update incident status</div>')
                 with gr.Row():
@@ -11047,7 +11049,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                         label="New status", choices=INCIDENT_STATUSES, value="investigating", scale=2)
                     inc_note = gr.Textbox(label="Note", placeholder="Status update, findings, or next steps", scale=3)
                 inc_update_btn = gr.Button("→ Update Status", variant="primary", size="sm")
-                inc_update_status = gr.Markdown()
+                inc_update_status = gr.Markdown(min_height=28)
 
                 def _refresh_inc():
                     return build_incident_summary(), build_incident_chart(), build_incidents_table(), gr.update(choices=get_rule_ids())
@@ -11075,7 +11077,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     trace_conv_sel = gr.Dropdown(label="Conversation", choices=[], scale=3)
                     trace_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
                     trace_run_btn = gr.Button("▶ Trace Conversation", variant="primary", size="sm")
-                trace_status = gr.Markdown()
+                trace_status = gr.Markdown(min_height=28)
 
                 def _refresh_traces():
                     return build_trace_heatmap(), build_trace_table(), gr.update(choices=get_conversation_ids())
@@ -11099,7 +11101,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 exp_agent_response = gr.Textbox(label="Agent response (optional)", lines=2,
                                                 placeholder="What the AI replied")
                 exp_run_btn = gr.Button("🔍 Explain Decision", variant="primary", size="sm")
-                exp_result = gr.Markdown()
+                exp_result = gr.Markdown(min_height=28)
                 with gr.Row(elem_classes=["search-row-wrapper"]):
                     exp_search = gr.Textbox(label="Search explanations", placeholder="Filter by rule, keyword, or explanation…", scale=4, show_clear_button=True)
                     exp_hist_refresh = gr.Button("↻ Refresh history", variant="secondary", size="sm", scale=1)
@@ -11144,7 +11146,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     rating_friction = gr.Textbox(label="What caused friction / what went wrong?", lines=2, placeholder="e.g. AI repeated itself, wrong tone…", scale=3)
                     rating_helped = gr.Textbox(label="What rules helped (if any)?", lines=2, placeholder="e.g. 'always show code examples' rule worked well", scale=3)
                 rating_submit_btn = gr.Button("Submit Rating", variant="primary", size="sm")
-                rating_status = gr.Markdown()
+                rating_status = gr.Markdown(min_height=28)
 
                 def _refresh_ratings():
                     return build_ratings_before_after(), build_ratings_trend(), build_ratings_table()
@@ -11170,7 +11172,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
             with gr.Row():
                 trust_gauge = gr.Plot(scale=1)
                 trust_breakdown = gr.Plot(scale=2)
-            gov_dash_md = gr.Markdown()
+            gov_dash_md = gr.Markdown(min_height=28)
             gov_dash_btn = gr.Button("↻ Refresh Dashboard", variant="secondary", size="sm")
 
             def _refresh_gov_dash():
@@ -11197,7 +11199,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     slo_window = gr.Number(label="Window (days)", value=30, minimum=1, maximum=365, scale=1, info="Rolling measurement window")
                 slo_name_in = gr.Textbox(label="SLO name", placeholder="e.g. Effectiveness ≥ 90%")
                 slo_add_btn = gr.Button("+ Add SLO", variant="primary", size="sm")
-                slo_status = gr.Markdown()
+                slo_status = gr.Markdown(min_height=28)
 
                 def _refresh_slo():
                     return build_slo_chart(), build_slo_table(), gr.update(choices=get_rule_ids())
@@ -11227,14 +11229,14 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     imp_trigger = gr.Textbox(label="Trigger event", placeholder="e.g. bypass_rate > 0.4", scale=3)
                 imp_desc = gr.Textbox(label="Description", lines=2, placeholder="What went wrong and why")
                 imp_open_btn = gr.Button("▶ Open Cycle", variant="primary", size="sm")
-                imp_open_status = gr.Markdown()
+                imp_open_status = gr.Markdown(min_height=28)
 
                 gr.HTML('<div class="rl-group-label" style="margin-top:14px">Advance an existing cycle</div>')
                 with gr.Row():
                     imp_cycle_id = gr.Textbox(label="Cycle ID prefix", placeholder="e.g. imp_abc123", scale=2)
                     imp_notes = gr.Textbox(label="Notes", placeholder="What was done in this stage", scale=3)
                     imp_advance_btn = gr.Button("→ Advance Stage", variant="primary", size="sm")
-                imp_status = gr.Markdown()
+                imp_status = gr.Markdown(min_height=28)
 
                 def _refresh_imp():
                     return build_improvement_funnel(), build_improvement_table(), gr.update(choices=get_rule_ids())
@@ -11272,7 +11274,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     kg_node_rule = gr.Dropdown(label="Linked rule (optional)", choices=[], scale=3)
                     kg_node_rule_refresh = gr.Button("↻", variant="secondary", size="sm", scale=0)
                 kg_add_node_btn = gr.Button("+ Add Node", variant="primary", size="sm")
-                kg_node_status = gr.Markdown()
+                kg_node_status = gr.Markdown(min_height=28)
 
                 gr.HTML('<div class="rl-group-label" style="margin-top:14px">Add an edge</div>')
                 with gr.Row():
@@ -11280,7 +11282,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     kg_edge_type = gr.Dropdown(label="Edge type", choices=KG_EDGE_TYPES, value="implements", scale=2)
                     kg_to_id = gr.Textbox(label="To node ID prefix", placeholder="e.g. rul_xyz456", scale=2)
                 kg_add_edge_btn = gr.Button("→ Add Edge", variant="primary", size="sm")
-                kg_edge_status = gr.Markdown()
+                kg_edge_status = gr.Markdown(min_height=28)
 
                 def _refresh_kg():
                     return build_kg_graph(), build_kg_table()
@@ -11303,7 +11305,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
 
                 gr.HTML('<div class="section-title">Regression Detection</div>')
                 gr.Markdown("Detect when a new benchmark run scores lower than the previous snapshot for a rule (Δ < -5% = regression).")
-                reg_report = gr.Markdown()
+                reg_report = gr.Markdown(min_height=28)
                 with gr.Row(elem_classes=["search-row-wrapper"]):
                     reg_search = gr.Textbox(label="Search regressions", placeholder="Filter by rule name or status…", scale=4, show_clear_button=True)
                     reg_refresh_btn = gr.Button("↻ Refresh History", variant="secondary", size="sm", scale=1)
@@ -11327,7 +11329,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     rep_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm", scale=1)
                 rep_table = gr.HTML()
                 rep_snap_btn = gr.Button("Take Snapshot", variant="primary", size="sm")
-                rep_snap_status = gr.Markdown()
+                rep_snap_status = gr.Markdown(min_height=28)
 
                 def _refresh_reputation():
                     return build_reputation_chart(), build_reputation_table()
@@ -11356,7 +11358,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     goal_rules_refresh = gr.Button("↻", variant="secondary", size="sm", scale=0)
                     goal_target = gr.Number(label="Target score %", value=80, minimum=0, maximum=100, scale=1, info="0–100 %")
                 goal_add_btn = gr.Button("+ Add Goal", variant="primary", size="sm")
-                goal_status = gr.Markdown()
+                goal_status = gr.Markdown(min_height=28)
 
                 def _refresh_goals():
                     return build_goal_chart(), build_goal_table()
@@ -11394,7 +11396,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     ctrl_rules_refresh = gr.Button("↻", variant="secondary", size="sm", scale=0)
                     ctrl_audit_ref = gr.Textbox(label="Audit reference", placeholder="e.g. ISO 27001 A.5.1", scale=3)
                 ctrl_add_btn = gr.Button("+ Add Control", variant="primary", size="sm")
-                ctrl_status = gr.Markdown()
+                ctrl_status = gr.Markdown(min_height=28)
 
                 def _refresh_controls():
                     return build_control_chart(), build_control_heatmap(), build_control_table()
@@ -11414,7 +11416,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
             with gr.Accordion('🔍 Learning & Gaming Detection', open=False):
                 gr.HTML('<div class="section-title">Rule Learning Detection</div>')
                 gr.Markdown("Detect whether the AI is learning (improving compliance) or degrading over time using score_history slope analysis.")
-                learning_report = gr.Markdown()
+                learning_report = gr.Markdown(min_height=28)
                 with gr.Row(elem_classes=["search-row-wrapper"]):
                     learning_search = gr.Textbox(label="Search learning log", placeholder="Filter by rule name or status…", scale=4, show_clear_button=True)
                     learning_refresh_btn = gr.Button("↻ Refresh History", variant="secondary", size="sm", scale=1)
@@ -11432,7 +11434,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
 
                 gr.HTML('<div class="section-title">Rule Gaming Detection</div>')
                 gr.Markdown("Detect adversarial inputs attempting to bypass, jailbreak, or circumvent governance rules.")
-                gaming_summary_md = gr.Markdown()
+                gaming_summary_md = gr.Markdown(min_height=28)
                 with gr.Row(elem_classes=["search-row-wrapper"]):
                     gaming_search = gr.Textbox(label="Search gaming log", placeholder="Filter by pattern or confirmed status…", scale=4, show_clear_button=True)
                 gaming_table = gr.HTML()
@@ -11442,7 +11444,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     gaming_conv_id = gr.Dropdown(label="Conversation (leave blank to scan all)", choices=[], scale=3)
                     gaming_conv_refresh = gr.Button("↻", variant="secondary", size="sm", scale=0)
                     gaming_scan_btn = gr.Button("Scan for Gaming", variant="primary", size="sm", scale=1)
-                gaming_scan_report = gr.Markdown()
+                gaming_scan_report = gr.Markdown(min_height=28)
 
                 gr.HTML('<div class="rl-group-label" style="margin-top:14px">Manual log</div>')
                 with gr.Row():
@@ -11453,7 +11455,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 gaming_log_input = gr.Textbox(label="User input", lines=2, scale=4, placeholder="The message that attempted to bypass the rule")
                 gaming_log_notes = gr.Textbox(label="Notes", placeholder="Any context about this gaming attempt", scale=3)
                 gaming_log_btn = gr.Button("Log Gaming Attempt", variant="primary", size="sm")
-                gaming_log_status = gr.Markdown()
+                gaming_log_status = gr.Markdown(min_height=28)
                 gaming_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
 
                 def _refresh_gaming():
@@ -11491,7 +11493,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     meta_granted_by = gr.Textbox(label="Granted by", placeholder="e.g. CISO", scale=2)
                 meta_perms = gr.CheckboxGroup(label="Permissions", choices=META_ACTIONS, info="Leave blank to use the role's default permissions")
                 meta_assign_btn = gr.Button("Assign Role", variant="primary", size="sm")
-                meta_assign_status = gr.Markdown()
+                meta_assign_status = gr.Markdown(min_height=28)
 
                 gr.HTML('<div class="rl-group-label" style="margin-top:14px">Log governance action</div>')
                 with gr.Row():
@@ -11502,14 +11504,14 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     meta_log_target = gr.Textbox(label="Target (rule ID / audit ID)", placeholder="e.g. rul_abc123 or aud_xyz456", scale=3)
                     meta_log_notes = gr.Textbox(label="Notes", placeholder="Additional context for the audit trail", scale=3)
                 meta_log_btn = gr.Button("Log Action", variant="primary", size="sm")
-                meta_log_status = gr.Markdown()
+                meta_log_status = gr.Markdown(min_height=28)
 
                 gr.HTML('<div class="rl-group-label" style="margin-top:14px">Permission check</div>')
                 with gr.Row():
                     meta_check_user = gr.Textbox(label="User ID", placeholder="e.g. alice@company.com", scale=2)
                     meta_check_action = gr.Dropdown(label="Action", choices=META_ACTIONS, value="approve_rule", scale=2)
                 meta_check_btn = gr.Button("Check Permission", variant="secondary", size="sm")
-                meta_check_result = gr.Markdown()
+                meta_check_result = gr.Markdown(min_height=28)
 
                 def _perms_csv(perms_list):
                     return ",".join(perms_list) if perms_list else ""
@@ -11545,14 +11547,14 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 with gr.Row():
                     policy_yaml_btn = gr.Button("Export YAML", variant="primary", size="sm")
                     policy_json_btn = gr.Button("Export JSON", variant="secondary", size="sm")
-                policy_output = gr.Markdown()
+                policy_output = gr.Markdown(min_height=28)
 
                 policy_yaml_btn.click(export_policy_yaml, inputs=policy_rule_filter, outputs=policy_output)
                 policy_json_btn.click(export_policy_json, inputs=policy_rule_filter, outputs=policy_output)
 
                 gr.HTML('<div class="section-title">Certification &amp; Accreditation</div>')
                 gr.Markdown("Track certifications (ISO 27001, SOC2, GDPR, etc.) with expiry dates and renewal alerts.")
-                cert_summary_md = gr.Markdown()
+                cert_summary_md = gr.Markdown(min_height=28)
                 with gr.Row(elem_classes=["search-row-wrapper"]):
                     cert_search = gr.Textbox(label="Search certs", placeholder="Filter by name, type, issuer, or status…", scale=4, show_clear_button=True)
                     cert_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm", scale=1)
@@ -11571,7 +11573,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     cert_rules_csv = gr.Dropdown(label="Linked rules (optional)", choices=[], multiselect=True, scale=4)
                     cert_rules_refresh = gr.Button("↻", variant="secondary", size="sm", scale=0)
                 cert_add_btn = gr.Button("+ Add Certification", variant="primary", size="sm")
-                cert_status_md = gr.Markdown()
+                cert_status_md = gr.Markdown(min_height=28)
 
                 def _refresh_certs():
                     return build_cert_summary(), build_cert_table()
@@ -11594,7 +11596,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     report_period = gr.Dropdown(label="Period", choices=["monthly", "quarterly", "annual", "ad-hoc"], value="monthly", scale=2)
                     report_sections = gr.Textbox(label="Sections to include (optional)", placeholder="e.g. summary, incidents, slos — comma-separated", scale=4)
                 report_gen_btn = gr.Button("Generate Report", variant="primary", size="sm")
-                report_output = gr.Markdown()
+                report_output = gr.Markdown(min_height=28)
 
                 report_gen_btn.click(
                     generate_stakeholder_report,
@@ -11607,7 +11609,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 with gr.Row():
                     health_gauge = gr.Plot(scale=1)
                     health_breakdown = gr.Plot(scale=2)
-                health_report_md = gr.Markdown()
+                health_report_md = gr.Markdown(min_height=28)
                 health_refresh_btn = gr.Button("↻ Refresh Health", variant="secondary", size="sm")
 
                 def _refresh_health():
@@ -11618,7 +11620,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
 
                 gr.HTML('<div class="section-title">Compliance Calendar</div>')
                 gr.Markdown("Schedule and track governance tasks: audits, reviews, renewals, training, assessments.")
-                cal_summary_md = gr.Markdown()
+                cal_summary_md = gr.Markdown(min_height=28)
                 with gr.Row(elem_classes=["search-row-wrapper"]):
                     cal_search = gr.Textbox(label="Search calendar", placeholder="Filter by title, type, priority, owner, or status…", scale=4, show_clear_button=True)
                     cal_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm", scale=1)
@@ -11636,14 +11638,14 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     cal_rules_refresh = gr.Button("↻", variant="secondary", size="sm", scale=0)
                 cal_desc = gr.Textbox(label="Description", placeholder="What needs to be done and why", scale=4)
                 cal_add_btn = gr.Button("+ Add Item", variant="primary", size="sm")
-                cal_add_status = gr.Markdown()
+                cal_add_status = gr.Markdown(min_height=28)
 
                 gr.HTML('<div class="rl-group-label" style="margin-top:14px">Mark item complete</div>')
                 with gr.Row():
                     cal_complete_id = gr.Textbox(label="Item ID prefix", placeholder="e.g. cal_abc123", scale=3)
                     cal_complete_notes = gr.Textbox(label="Completion notes", placeholder="What was done to complete this item", scale=4)
                 cal_complete_btn = gr.Button("Mark Complete", variant="primary", size="sm")
-                cal_complete_status = gr.Markdown()
+                cal_complete_status = gr.Markdown(min_height=28)
 
                 def _refresh_calendar():
                     return build_calendar_summary(), build_calendar_table()
@@ -11668,7 +11670,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
             gr.HTML('<div class="rl-section-nav"><strong>Sections:</strong> Adversarial Robustness · ⚖️ Fairness & Audit · 📊 Analytics & Simulation</div>')
             gr.HTML('<div class="section-title">Adversarial Robustness Testing</div>')
             gr.Markdown("Run structured adversarial attacks (role-play escape, authority claim, encoding evasion, etc.) against a rule to measure robustness.")
-            rob_report = gr.Markdown()
+            rob_report = gr.Markdown(min_height=28)
             with gr.Row(elem_classes=["search-row-wrapper"]):
                 rob_search = gr.Textbox(label="Search robustness results", placeholder="Filter by rule name…", scale=4, show_clear_button=True)
                 rob_refresh_btn = gr.Button("↻ Refresh History", variant="secondary", size="sm", scale=1)
@@ -11699,7 +11701,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
             with gr.Accordion('⚖️ Fairness & Audit', open=False):
                 gr.HTML('<div class="section-title">Fairness &amp; Bias Detection</div>')
                 gr.Markdown("Compare rule trigger rates across demographic groups to detect disparate treatment (>10% disparity = bias).")
-                bias_summary_md = gr.Markdown()
+                bias_summary_md = gr.Markdown(min_height=28)
                 with gr.Row(elem_classes=["search-row-wrapper"]):
                     bias_search = gr.Textbox(label="Search bias log", placeholder="Filter by rule, group, or severity…", scale=4, show_clear_button=True)
                     bias_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm", scale=1)
@@ -11715,7 +11717,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 bias_inputs_a = gr.Textbox(label="Group A inputs", placeholder="e.g. What time is it? | Tell me a joke", lines=2, scale=4)
                 bias_inputs_b = gr.Textbox(label="Group B inputs", placeholder="e.g. Who are you? | What can you do?", lines=2, scale=4)
                 bias_run_btn = gr.Button("Run Bias Analysis", variant="primary", size="sm")
-                bias_result_md = gr.Markdown()
+                bias_result_md = gr.Markdown(min_height=28)
 
                 def _refresh_bias():
                     return build_bias_summary(), build_bias_table()
@@ -11736,7 +11738,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
 
                 gr.HTML('<div class="section-title">Audit Trail Integrity</div>')
                 gr.Markdown("Tamper-evident hash chain for governance actions. Each entry hashes itself + the previous entry's hash.")
-                audit_chain_report = gr.Markdown()
+                audit_chain_report = gr.Markdown(min_height=28)
                 with gr.Row(elem_classes=["search-row-wrapper"]):
                     audit_chain_search = gr.Textbox(label="Search audit chain", placeholder="Filter by action, actor, or target…", scale=4, show_clear_button=True)
                     audit_chain_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm", scale=1)
@@ -11750,7 +11752,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     audit_target = gr.Textbox(label="Target", placeholder="e.g. rul_abc123 or policy_name", scale=2)
                 audit_details = gr.Textbox(label="Details", placeholder="What was done and why this audit entry matters", scale=4)
                 audit_append_btn = gr.Button("Append to Chain", variant="primary", size="sm")
-                audit_append_status = gr.Markdown()
+                audit_append_status = gr.Markdown(min_height=28)
 
                 def _refresh_chain():
                     return build_audit_chain_table()
@@ -11770,7 +11772,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 gr.HTML('<div class="section-title">Compliance Trend Analytics</div>')
                 gr.Markdown("Time-series compliance trends per rule (uses reputation snapshots). Take snapshots regularly to build trend data.")
                 trend_chart = gr.Plot()
-                trend_summary_md = gr.Markdown()
+                trend_summary_md = gr.Markdown(min_height=28)
                 with gr.Row():
                     trend_window = gr.Slider(label="Time window (days)", minimum=7, maximum=90, step=7, value=30, scale=4, info="Lookback period for the effectiveness trend chart")
                     trend_refresh_btn = gr.Button("↻ Refresh Trends", variant="secondary", size="sm", scale=1)
@@ -11791,8 +11793,8 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 )
                 sim_btn = gr.Button("Simulate", variant="primary", size="sm")
                 with gr.Row():
-                    gap_output = gr.Markdown()
-                    prompt_output = gr.Markdown()
+                    gap_output = gr.Markdown(min_height=28)
+                    prompt_output = gr.Markdown(min_height=28)
                 sim_btn.click(simulate_gap, inputs=sim_input, outputs=[gap_output, prompt_output])
                 sim_input.submit(simulate_gap, inputs=sim_input, outputs=[gap_output, prompt_output])
                 gr.Examples(
