@@ -7257,11 +7257,13 @@ def build_learning_table() -> pd.DataFrame:
     # Latest per rule
     latest: dict = {}
     for e in log:
-        rid = e["rule_id"]
+        rid = e.get("rule_id", "")
+        if not rid:
+            continue
         if rid not in latest or e.get("timestamp", "") > latest[rid].get("timestamp", ""):
             latest[rid] = e
     rows = [{
-        "Rule": e.get("rule_name", e["rule_id"])[:40],
+        "Rule": e.get("rule_name", e.get("rule_id", ""))[:40],
         "Status": e.get("status", ""),
         "Slope": f"{e['slope']:+.4f}" if e.get("slope") is not None else "N/A",
         "History Points": e.get("history_len", 0),
