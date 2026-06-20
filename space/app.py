@@ -11794,6 +11794,11 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     inputs=[gaming_log_conv, gaming_log_turn, gaming_log_input, gaming_log_confirmed, gaming_log_notes],
                     outputs=gaming_log_status,
                 )
+                gaming_log_notes.submit(
+                    lambda cid, turn, inp, conf, notes: log_gaming_attempt(cid or "", turn, inp, conf, notes),
+                    inputs=[gaming_log_conv, gaming_log_turn, gaming_log_input, gaming_log_confirmed, gaming_log_notes],
+                    outputs=gaming_log_status,
+                )
                 gaming_refresh_btn.click(_refresh_gaming, outputs=[gaming_summary_md, gaming_table])
                 gaming_search.change(build_gaming_table, inputs=[gaming_search], outputs=[gaming_table])
                 gov_tab.select(_refresh_gaming, outputs=[gaming_summary_md, gaming_table])
@@ -11898,6 +11903,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
 
                 policy_yaml_btn.click(export_policy_yaml, inputs=policy_rule_filter, outputs=policy_output)
                 policy_json_btn.click(export_policy_json, inputs=policy_rule_filter, outputs=policy_output)
+                policy_rule_filter.submit(export_policy_yaml, inputs=policy_rule_filter, outputs=policy_output)
 
                 gr.HTML('<div class="section-title">Certification &amp; Accreditation</div>')
                 gr.Markdown("Track certifications (ISO 27001, SOC2, GDPR, etc.) with expiry dates and renewal alerts.")
@@ -11960,6 +11966,11 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 report_output = gr.Markdown(min_height=28)
 
                 report_gen_btn.click(
+                    generate_stakeholder_report,
+                    inputs=[report_period, report_sections],
+                    outputs=report_output,
+                )
+                report_sections.submit(
                     generate_stakeholder_report,
                     inputs=[report_period, report_sections],
                     outputs=report_output,
