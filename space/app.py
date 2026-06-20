@@ -10147,7 +10147,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
 
             rules_stat_bar = gr.HTML()
             gr.HTML('<div class="section-title">Active Rules</div>')
-            with gr.Row():
+            with gr.Row(elem_classes=["search-row-wrapper"]):
                 rules_search = gr.Textbox(
                     label="Search rules",
                     placeholder="Filter by name, layer, or status…",
@@ -10188,7 +10188,10 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     pending_search = gr.Textbox(label="Search queue", placeholder="Filter by name, priority, gap type, or instruction…", scale=4, show_clear_button=True)
                     refresh_pending_btn = gr.Button("↻ Refresh queue", variant="secondary", size="sm", scale=1)
                 pending_table = gr.HTML()
-                pending_selector = gr.Dropdown(label="Select pending rule", choices=[])
+                gr.HTML('<div class="rl-group-label" style="margin-top:10px">Approve or reject a rule</div>')
+                with gr.Row():
+                    pending_selector = gr.Dropdown(label="Select pending rule", choices=[], scale=4)
+                    pending_refresh_btn2 = gr.Button("↻", variant="secondary", size="sm", scale=0)
                 pending_detail = gr.Markdown()
 
                 with gr.Row():
@@ -10202,6 +10205,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 refresh_pending_btn.click(refresh_pending, outputs=[pending_table, pending_selector])
                 pending_search.change(build_pending_rules_table, inputs=[pending_search], outputs=[pending_table])
                 rules_tab.select(refresh_pending, outputs=[pending_table, pending_selector])
+                pending_refresh_btn2.click(lambda: gr.update(choices=get_pending_rule_ids()), outputs=pending_selector)
                 pending_selector.change(get_pending_rule_detail, inputs=pending_selector, outputs=pending_detail)
                 approve_btn.click(approve_rule, inputs=pending_selector, outputs=review_status).then(
                     refresh_pending, outputs=[pending_table, pending_selector],
@@ -10500,6 +10504,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 enf_refresh_btn = gr.Button("↻ Refresh log", variant="secondary", size="sm", scale=1)
             enf_log_table = gr.HTML()
             gr.HTML('<div class="rl-group-label" style="margin-top:16px">Validate a new turn</div>')
+            gr.HTML('<div class="rl-step2-hint" style="margin-bottom:8px">Paste a user message and the AI\'s reply from any real conversation — the validator checks them against all active rules and logs the result.</div>')
             enf_user_input = gr.Textbox(label="User input", lines=2,
                                         placeholder="What the user said")
             enf_agent_resp = gr.Textbox(label="Agent response", lines=3,
