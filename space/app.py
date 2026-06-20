@@ -2904,17 +2904,25 @@ def run_benchmark() -> str:
     return "\n".join(lines)
 
 
-def build_benchmark_table() -> pd.DataFrame:
+def build_benchmark_table(query: str = "") -> pd.DataFrame:
     cases = load_benchmark()
     if not cases:
         return pd.DataFrame(columns=["Case ID", "Rule ID", "Input", "Expected", "Created"])
-    rows = [{
-        "Case ID": c.get("case_id", "")[:8],
-        "Rule ID": c.get("rule_id", "")[:20],
-        "Input": c.get("input_text", "")[:60],
-        "Expected": "trigger" if c.get("should_trigger") else "no trigger",
-        "Created": c.get("created_at", "")[:10],
-    } for c in cases]
+    q = query.strip().lower()
+    rows = []
+    for c in cases:
+        rule_id = c.get("rule_id", "")
+        input_text = c.get("input_text", "")
+        expected = "trigger" if c.get("should_trigger") else "no trigger"
+        if q and not any(q in s.lower() for s in (rule_id, input_text, expected)):
+            continue
+        rows.append({
+            "Case ID": c.get("case_id", "")[:8],
+            "Rule ID": rule_id[:20],
+            "Input": input_text[:60],
+            "Expected": expected,
+            "Created": c.get("created_at", "")[:10],
+        })
     return pd.DataFrame(rows)
 
 
@@ -9506,6 +9514,9 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     bench_run_btn = gr.Button("▶ Run Benchmark", variant="primary", size="sm")
                     bench_refresh_btn = gr.Button("↻ Refresh Cases", variant="secondary", size="sm")
                 bench_result = gr.Markdown()
+                with gr.Row():
+                    bench_search = gr.Textbox(label="Search cases", placeholder="Filter by rule ID, input, or expected outcome…", scale=4)
+                    bench_search_clear = gr.Button("✕ Clear", variant="secondary", size="sm", scale=1)
                 bench_table = gr.Dataframe(interactive=False, wrap=True)
 
                 gr.Markdown("**Add a golden test case**")
@@ -9529,6 +9540,8 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
 
                 bench_run_btn.click(_run_and_refresh, outputs=[bench_result, bench_table])
                 bench_refresh_btn.click(_refresh_bench, outputs=[bench_table, bench_rule_sel])
+                bench_search.change(build_benchmark_table, inputs=[bench_search], outputs=[bench_table])
+                bench_search_clear.click(lambda: ("", build_benchmark_table()), outputs=[bench_search, bench_table])
                 analytics_tab.select(_refresh_bench, outputs=[bench_table, bench_rule_sel])
                 bench_add_btn.click(
                     add_benchmark_case,
