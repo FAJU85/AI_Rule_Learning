@@ -6102,6 +6102,8 @@ img, video, canvas, iframe { max-width: 100%; height: auto; }
 
     /* Accordion */
     .gr-accordion > .label-wrap { padding: 10px 14px !important; }
+    /* Accordion inner content: tighten padding on mobile */
+    .gr-accordion > div:last-child { padding: 8px 6px !important; }
 }
 
 /* ── Small phone (≤ 480 px) ─────────────────────────────────────────── */
