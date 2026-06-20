@@ -10189,6 +10189,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
 
             with gr.Accordion('📋 Review Queue & A/B Testing', open=True):
                 gr.HTML('<div class="section-title">Review Queue</div>')
+                gr.Markdown("Rules proposed by the analyser but not yet approved — review each one and accept or reject.")
                 with gr.Row(elem_classes=["search-row-wrapper"]):
                     pending_search = gr.Textbox(label="Search queue", placeholder="Filter by name, priority, gap type, or instruction…", scale=4, show_clear_button=True)
                     refresh_pending_btn = gr.Button("↻ Refresh queue", variant="secondary", size="sm", scale=1)
@@ -10412,6 +10413,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
 
             sessions_stat_bar = gr.HTML()
             gr.HTML('<div class="section-title">Step 1 — Import Sessions</div>')
+            gr.Markdown("Upload Claude Code session files (.jsonl) to feed the rule analyser.")
             with gr.Row():
                 with gr.Column():
                     gr.HTML('<div class="rl-group-label">Upload Claude Code session files (.jsonl)</div>')
