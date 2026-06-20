@@ -10424,7 +10424,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     conflict_scan_btn = gr.Button("🔍 Run Conflict Scan (LLM)", variant="primary", size="sm")
                 conflict_log = gr.Textbox(label="Scan log", lines=6, max_lines=14, interactive=False, autoscroll=True, show_copy_button=True)
                 with gr.Row():
-                    conflict_resolve_id = gr.Textbox(label="Conflict ID prefix to resolve", placeholder="e.g. cnf_abc123", scale=2)
+                    conflict_resolve_id = gr.Textbox(label="Conflict ID prefix to resolve", placeholder="e.g. cnf_abc123", scale=2, info="Copy the first 8 characters of the ID from the table above")
                     conflict_resolution = gr.Textbox(label="Resolution note", placeholder="e.g. Removed overlapping rule, merged conditions", scale=4)
                 gr.Examples(
                     examples=[
@@ -10678,7 +10678,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 ov_log_status = gr.Markdown(min_height=28)
                 gr.HTML('<div class="rl-group-label" style="margin-top:10px">Rate an existing override</div>')
                 with gr.Row():
-                    ov_rate_id = gr.Textbox(label="Override ID prefix to rate", placeholder="e.g. ovr_abc123", scale=2)
+                    ov_rate_id = gr.Textbox(label="Override ID prefix to rate", placeholder="e.g. ovr_abc123", scale=2, info="Copy the first 8 characters of the override ID from the table above")
                     ov_was_correct = gr.Checkbox(label="Was override correct?", value=True, scale=1, info="Did the override produce the right outcome?")
                     ov_rate_btn = gr.Button("⭐ Mark Accuracy", variant="primary", size="sm", scale=1)
                 ov_rate_status = gr.Markdown(min_height=28)
@@ -10847,7 +10847,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 with gr.Row():
                     ev_rule_id = gr.Dropdown(label="Related rule (optional)", choices=[], scale=2)
                     ev_rule_refresh = gr.Button("↻", variant="secondary", size="sm", scale=0)
-                    ev_incident_id = gr.Textbox(label="Related incident ID (optional)", placeholder="e.g. inc_abc123", scale=2)
+                    ev_incident_id = gr.Textbox(label="Related incident ID (optional)", placeholder="e.g. inc_abc123", scale=2, info="Paste the first 8 characters of the incident ID to link this evidence to an open incident")
                 gr.Examples(
                     examples=[
                         ["log", "Pytest run: 100% pass", "All 47 unit tests passed on 2026-06-20. Coverage: 84%. No regressions detected."],
@@ -11155,7 +11155,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 rca_status = gr.Markdown(min_height=28)
                 gr.HTML('<div class="rl-group-label" style="margin-top:14px">Resolve an existing RCA</div>')
                 with gr.Row():
-                    rca_close_id = gr.Textbox(label="RCA ID prefix to resolve", placeholder="e.g. rca_abc123", scale=2)
+                    rca_close_id = gr.Textbox(label="RCA ID prefix to resolve", placeholder="e.g. rca_abc123", scale=2, info="Copy the first 8 characters of the RCA ID from the table above")
                     rca_resolution = gr.Textbox(label="Resolution note", placeholder="What was done to fix this root cause", scale=3)
                     rca_close_btn = gr.Button("✅ Mark Resolved", variant="primary", size="sm")
                 rca_close_status = gr.Markdown(min_height=28)
@@ -11214,7 +11214,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
 
                 gr.HTML('<div class="rl-group-label" style="margin-top:14px">Update incident status</div>')
                 with gr.Row():
-                    inc_update_id = gr.Textbox(label="Incident ID prefix", placeholder="e.g. inc_abc123", scale=2)
+                    inc_update_id = gr.Textbox(label="Incident ID prefix", placeholder="e.g. inc_abc123", scale=2, info="Copy the first 8 characters of the incident ID from the table above")
                     inc_new_status = gr.Dropdown(
                         label="New status", choices=INCIDENT_STATUSES, value="investigating", scale=2,
                         info="open → investigating → mitigating → resolved → closed")
@@ -11474,7 +11474,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
 
                 gr.HTML('<div class="rl-group-label" style="margin-top:14px">Advance an existing cycle</div>')
                 with gr.Row():
-                    imp_cycle_id = gr.Textbox(label="Cycle ID prefix", placeholder="e.g. imp_abc123", scale=2)
+                    imp_cycle_id = gr.Textbox(label="Cycle ID prefix", placeholder="e.g. imp_abc123", scale=2, info="Copy the first 8 characters of the improvement cycle ID from the table above")
                     imp_notes = gr.Textbox(label="Notes", placeholder="What was done in this stage", scale=3)
                     imp_advance_btn = gr.Button("→ Advance Stage", variant="primary", size="sm")
                 imp_status = gr.Markdown(min_height=28)
@@ -11533,9 +11533,9 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
 
                 gr.HTML('<div class="rl-group-label" style="margin-top:14px">Add an edge</div>')
                 with gr.Row():
-                    kg_from_id = gr.Textbox(label="From node ID prefix", placeholder="e.g. pol_abc123", scale=2)
+                    kg_from_id = gr.Textbox(label="From node ID prefix", placeholder="e.g. pol_abc123", scale=2, info="Copy the first 8 characters of the source node ID from the graph or table above")
                     kg_edge_type = gr.Dropdown(label="Edge type", choices=KG_EDGE_TYPES, value="implements", scale=2, info="implements · satisfies · measures · evidences · linked_to")
-                    kg_to_id = gr.Textbox(label="To node ID prefix", placeholder="e.g. rul_xyz456", scale=2)
+                    kg_to_id = gr.Textbox(label="To node ID prefix", placeholder="e.g. rul_xyz456", scale=2, info="Copy the first 8 characters of the target node ID from the graph or table above")
                 gr.Examples(
                     examples=[
                         ["gdpr", "implements", "no_pii"],
@@ -12002,7 +12002,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
 
                 gr.HTML('<div class="rl-group-label" style="margin-top:14px">Mark item complete</div>')
                 with gr.Row():
-                    cal_complete_id = gr.Textbox(label="Item ID prefix", placeholder="e.g. cal_abc123", scale=3)
+                    cal_complete_id = gr.Textbox(label="Item ID prefix", placeholder="e.g. cal_abc123", scale=3, info="Copy the first 8 characters of the calendar item ID from the table above")
                     cal_complete_notes = gr.Textbox(label="Completion notes", placeholder="What was done to complete this item", scale=4)
                 cal_complete_btn = gr.Button("Mark Complete", variant="primary", size="sm")
                 cal_complete_status = gr.Markdown(min_height=28)
