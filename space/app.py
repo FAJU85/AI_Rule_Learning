@@ -11567,20 +11567,27 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 rob_search = gr.Textbox(label="Search robustness results", placeholder="Filter by rule name…", scale=4)
                 rob_refresh_btn = gr.Button("↻ Refresh History", variant="secondary", size="sm", scale=1)
             rob_table = gr.HTML()
+            gr.HTML('<div class="rl-group-label" style="margin-top:14px">Run a new test</div>')
             with gr.Row():
-                rob_rule_id = gr.Textbox(label="Rule ID", scale=4)
+                rob_rule_sel = gr.Dropdown(label="Select rule", choices=[], scale=4)
+                rob_rule_refresh = gr.Button("↻", variant="secondary", size="sm", scale=0)
                 rob_run_btn = gr.Button("Run Robustness Test", variant="primary", size="sm", scale=1)
 
             def _refresh_robustness():
                 return build_robustness_table()
 
-            rob_run_btn.click(run_robustness_test, inputs=rob_rule_id, outputs=rob_report)
+            def _refresh_rob_rules():
+                return gr.update(choices=get_rule_ids())
+
+            rob_run_btn.click(run_robustness_test, inputs=rob_rule_sel, outputs=rob_report)
             rob_run_btn.click(_refresh_robustness, outputs=rob_table).then(
                 build_testing_stat_bar, outputs=testing_stat_bar,
             )
+            rob_rule_refresh.click(_refresh_rob_rules, outputs=rob_rule_sel)
             rob_refresh_btn.click(_refresh_robustness, outputs=rob_table)
             rob_search.change(build_robustness_table, inputs=[rob_search], outputs=[rob_table])
             testing_tab.select(_refresh_robustness, outputs=rob_table)
+            testing_tab.select(_refresh_rob_rules, outputs=rob_rule_sel)
             testing_tab.select(build_testing_stat_bar, outputs=testing_stat_bar)
 
             with gr.Accordion('⚖️ Fairness & Audit', open=True):
@@ -11595,7 +11602,8 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 gr.HTML('<div class="rl-group-label" style="margin-top:14px">Run bias analysis</div>')
                 gr.HTML('<div class="rl-step2-hint" style="margin-bottom:8px">Separate multiple inputs with <code>|</code> — e.g. <em>What time is it? | Tell me a joke</em></div>')
                 with gr.Row():
-                    bias_rule_id = gr.Textbox(label="Rule ID", scale=2)
+                    bias_rule_id = gr.Dropdown(label="Rule", choices=[], scale=2)
+                    bias_rule_refresh = gr.Button("↻", variant="secondary", size="sm", scale=0)
                     bias_group_a = gr.Textbox(label="Group A label", placeholder="e.g. male", scale=2)
                     bias_group_b = gr.Textbox(label="Group B label", placeholder="e.g. female", scale=2)
                 bias_inputs_a = gr.Textbox(label="Group A inputs (| separated)", lines=2, scale=4)
@@ -11615,8 +11623,10 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     build_testing_stat_bar, outputs=testing_stat_bar,
                 )
                 bias_refresh_btn.click(_refresh_bias, outputs=[bias_summary_md, bias_table])
+                bias_rule_refresh.click(lambda: gr.update(choices=get_rule_ids()), outputs=bias_rule_id)
                 bias_search.change(build_bias_table, inputs=[bias_search], outputs=[bias_table])
                 testing_tab.select(_refresh_bias, outputs=[bias_summary_md, bias_table])
+                testing_tab.select(lambda: gr.update(choices=get_rule_ids()), outputs=bias_rule_id)
 
                 gr.HTML('<div class="section-title">Audit Trail Integrity</div>')
                 gr.Markdown("Tamper-evident hash chain for governance actions. Each entry hashes itself + the previous entry's hash.")
