@@ -6185,6 +6185,12 @@ img, video, canvas, iframe { max-width: 100%; height: auto; }
 /* Textbox auto-grow */
 .gr-textbox { min-width: 0; }
 
+/* Tab stat bar — row of chips at top of each tab */
+.tab-stat-bar {
+    display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+    padding: 10px 4px 14px; margin-bottom: 4px;
+}
+
 /* ── Tablet (≤ 960 px) ───────────────────────────────────────────────── */
 @media (max-width: 960px) {
     .arl-header h1 { font-size: 1.3rem; }
@@ -6436,6 +6442,102 @@ def build_activity_html() -> str:
             f'<span class="activity-time">{time}</span></div>'
         )
     return f'<div class="activity-feed">{"".join(items)}</div>'
+
+
+def _stat_chip(label: str, value: str, color: str = "#4f46e5") -> str:
+    return (
+        f'<span style="display:inline-flex;align-items:center;gap:5px;'
+        f'background:{color}18;border:1px solid {color}44;border-radius:20px;'
+        f'padding:4px 12px;font-size:0.78rem;color:{color};font-weight:600;white-space:nowrap;">'
+        f'<span style="font-size:1rem;font-weight:700">{value}</span>'
+        f'<span style="font-weight:400;color:#64748b">{label}</span></span>'
+    )
+
+
+def build_rules_stat_bar() -> str:
+    """Compact stat bar for the Rules tab."""
+    rules = load_rules()
+    if not rules:
+        return '<div class="tab-stat-bar">No rules yet.</div>'
+    active = sum(1 for r in rules if r.get("status") == "active")
+    pending = sum(1 for r in rules if r.get("status") == "pending_review")
+    deprecated = sum(1 for r in rules if r.get("status") in ("deprecated", "retired"))
+    exceptions = sum(1 for r in rules if r.get("status") == "exception")
+    low_eff = sum(1 for r in rules if r.get("is_active") and r.get("effectiveness_score", 1) < 0.3 and r.get("times_triggered", 0) >= 3)
+    chips = [
+        _stat_chip("active", str(active), "#059669"),
+        _stat_chip("pending review", str(pending), "#f59e0b" if pending else "#94a3b8"),
+        _stat_chip("deprecated/retired", str(deprecated), "#94a3b8"),
+    ]
+    if exceptions:
+        chips.append(_stat_chip("exceptions", str(exceptions), "#ef4444"))
+    if low_eff:
+        chips.append(_stat_chip("low effectiveness", str(low_eff), "#f97316"))
+    chips_html = " ".join(chips)
+    return f'<div class="tab-stat-bar">{chips_html}</div>'
+
+
+def build_monitoring_stat_bar() -> str:
+    """Compact stat bar for the Monitoring tab."""
+    try:
+        entries = _download_jsonl(ENFORCEMENT_FILE)
+        total_enf = len(entries)
+        from datetime import timedelta
+        cutoff = (datetime.utcnow() - timedelta(hours=24)).isoformat()
+        recent = sum(1 for e in entries if e.get("enforced_at", "") >= cutoff)
+        failed_recent = sum(1 for e in entries
+                            if e.get("enforced_at", "") >= cutoff and e.get("verdict") != "pass")
+    except Exception:
+        total_enf = recent = failed_recent = 0
+    try:
+        incidents = _download_jsonl(INCIDENT_FILE)
+        open_inc = sum(1 for i in incidents if i.get("status") not in ("resolved", "closed"))
+        crit_inc = sum(1 for i in incidents if i.get("status") not in ("resolved", "closed")
+                       and i.get("severity") in ("P0_critical", "P1_high"))
+    except Exception:
+        open_inc = crit_inc = 0
+    chips = [
+        _stat_chip("total enforcements", str(total_enf), "#4f46e5"),
+        _stat_chip("last 24h", str(recent), "#0ea5e9"),
+        _stat_chip("violations 24h", str(failed_recent), "#ef4444" if failed_recent else "#94a3b8"),
+        _stat_chip("open incidents", str(open_inc), "#f59e0b" if open_inc else "#94a3b8"),
+    ]
+    if crit_inc:
+        chips.append(_stat_chip("critical/high", str(crit_inc), "#ef4444"))
+    return f'<div class="tab-stat-bar">{"  ".join(chips)}</div>'
+
+
+def build_governance_stat_bar() -> str:
+    """Compact stat bar for the Governance tab."""
+    try:
+        trust = compute_trust_score()
+        trust_val = f"{trust.get('score', 0):.0f}"
+        trust_color = "#059669" if trust.get("score", 0) >= 70 else "#f59e0b" if trust.get("score", 0) >= 40 else "#ef4444"
+    except Exception:
+        trust_val = "?"
+        trust_color = "#94a3b8"
+    try:
+        slos = compute_slo_status()
+        breached = sum(1 for s in slos if s.get("status") == "breached")
+        slo_total = len(slos)
+    except Exception:
+        breached = slo_total = 0
+    try:
+        certs = compute_cert_status()
+        expiring = sum(1 for c in certs if c.get("current_status") == "pending_renewal")
+        expired = sum(1 for c in certs if c.get("current_status") == "expired")
+    except Exception:
+        expiring = expired = 0
+    chips = [
+        _stat_chip("trust score", f"{trust_val}/100", trust_color),
+        _stat_chip("slos defined", str(slo_total), "#4f46e5"),
+        _stat_chip("slos breached", str(breached), "#ef4444" if breached else "#94a3b8"),
+    ]
+    if expiring:
+        chips.append(_stat_chip("certs expiring", str(expiring), "#f59e0b"))
+    if expired:
+        chips.append(_stat_chip("certs expired", str(expired), "#ef4444"))
+    return f'<div class="tab-stat-bar">{"  ".join(chips)}</div>'
 
 
 def build_action_items_html() -> str:
@@ -9017,6 +9119,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
         # ── Rules ────────────────────────────────────────────────────────────
         with gr.Tab("📋 Rules") as rules_tab:
 
+            rules_stat_bar = gr.HTML()
             gr.HTML('<div class="section-title">Active Rules</div>')
             with gr.Row():
                 rules_search = gr.Textbox(
@@ -9040,7 +9143,9 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 return build_rules_table(), gr.update(choices=get_rule_names())
 
             refresh_rules_btn.click(refresh_rules, outputs=[rules_table, rule_selector])
+            refresh_rules_btn.click(build_rules_stat_bar, outputs=[rules_stat_bar])
             rules_tab.select(refresh_rules, outputs=[rules_table, rule_selector])
+            rules_tab.select(build_rules_stat_bar, outputs=[rules_stat_bar])
             rules_search.change(build_rules_table, inputs=[rules_search], outputs=[rules_table])
             rule_selector.change(get_rule_detail, inputs=rule_selector, outputs=rule_detail)
             rule_selector.change(build_rule_score_trend, inputs=rule_selector, outputs=score_trend_chart)
@@ -9327,6 +9432,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
         # ── Insights ─────────────────────────────────────────────────────────
         with gr.Tab("🔍 Monitoring") as monitoring_tab:
 
+            monitoring_stat_bar = gr.HTML()
             gr.HTML('<div class="section-title">Conversation Clusters</div>')
             gr.Markdown("Gap frequency grouped by project context — shows where problems concentrate.")
             cluster_chart = gr.Plot()
@@ -9338,6 +9444,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
 
             cluster_refresh_btn.click(_refresh_clusters, outputs=[cluster_chart, cluster_summary])
             monitoring_tab.select(_refresh_clusters, outputs=[cluster_chart, cluster_summary])
+            monitoring_tab.select(build_monitoring_stat_bar, outputs=[monitoring_stat_bar])
 
             gr.HTML('<div class="section-title">Rule Enforcement Validator</div>')
             gr.Markdown("Validate a user/agent turn against all active rules in real time.")
@@ -9922,6 +10029,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
 
         with gr.Tab("⚖️ Governance") as gov_tab:
 
+            governance_stat_bar = gr.HTML()
             gr.HTML('<div class="section-title">Governance Dashboard & Trust Score</div>')
             gr.Markdown("Composite Trust Score (0–100) and executive-level governance metrics.")
             with gr.Row():
@@ -9935,6 +10043,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
 
             gov_dash_btn.click(_refresh_gov_dash, outputs=[trust_gauge, trust_breakdown, gov_dash_md])
             gov_tab.select(_refresh_gov_dash, outputs=[trust_gauge, trust_breakdown, gov_dash_md])
+            gov_tab.select(build_governance_stat_bar, outputs=[governance_stat_bar])
 
             with gr.Accordion('📐 SLOs & Continuous Improvement', open=True):
                 gr.HTML('<div class="section-title">Rule Observability (SLOs)</div>')
