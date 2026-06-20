@@ -10390,7 +10390,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
             gr.HTML('<div class="section-title">Step 1 — Import Sessions</div>')
             with gr.Row():
                 with gr.Column():
-                    gr.Markdown("**Upload Claude Code session files (.jsonl)**")
+                    gr.HTML('<div class="rl-group-label">Upload Claude Code session files (.jsonl)</div>')
                     session_files_input = gr.File(
                         label="Session files",
                         file_types=[".jsonl"],
@@ -10399,7 +10399,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     import_btn = gr.Button("Import", variant="primary")
 
                 with gr.Column():
-                    gr.Markdown("**Upload conversation history (JSON or CSV)**")
+                    gr.HTML('<div class="rl-group-label">Upload conversation history (JSON or CSV)</div>')
                     upload_file = gr.File(
                         label="Conversation file",
                         file_types=[".json", ".csv"],
@@ -11276,7 +11276,8 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     goal_name = gr.Textbox(label="Objective name", scale=3)
                     goal_outcome = gr.Textbox(label="Business outcome", scale=3)
                 with gr.Row():
-                    goal_rules_csv = gr.Textbox(label="Rule IDs (comma-separated)", scale=4)
+                    goal_rules_csv = gr.Dropdown(label="Linked rules", choices=[], multiselect=True, scale=3)
+                    goal_rules_refresh = gr.Button("↻", variant="secondary", size="sm", scale=0)
                     goal_target = gr.Number(label="Target score %", value=80, scale=1)
                 goal_add_btn = gr.Button("+ Add Goal", variant="secondary", size="sm")
                 goal_status = gr.Markdown()
@@ -11285,7 +11286,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     return build_goal_chart(), build_goal_table()
 
                 goal_add_btn.click(
-                    add_goal,
+                    lambda name, outcome, rules, target: add_goal(name, outcome, ",".join(rules or []), target),
                     inputs=[goal_name, goal_outcome, goal_rules_csv, goal_target],
                     outputs=goal_status,
                 )
@@ -11293,6 +11294,8 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 goal_refresh_btn.click(_refresh_goals, outputs=[goal_chart, goal_table])
                 goal_search.change(build_goal_table, inputs=[goal_search], outputs=[goal_table])
                 gov_tab.select(_refresh_goals, outputs=[goal_chart, goal_table])
+                goal_rules_refresh.click(lambda: gr.update(choices=get_rule_ids()), outputs=goal_rules_csv)
+                gov_tab.select(lambda: gr.update(choices=get_rule_ids()), outputs=goal_rules_csv)
 
                 gr.HTML('<div class="section-title">Control Mapping</div>')
                 gr.Markdown("Map governance controls (technical/operational/managerial) to rules and track their effectiveness.")
@@ -11311,7 +11314,8 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     ctrl_risk = gr.Dropdown(label="Risk level", choices=RISK_LEVELS, value="medium", scale=2)
                 ctrl_desc = gr.Textbox(label="Description", scale=4)
                 with gr.Row():
-                    ctrl_rule_csv = gr.Textbox(label="Rule IDs (comma-separated)", scale=4)
+                    ctrl_rule_csv = gr.Dropdown(label="Linked rules", choices=[], multiselect=True, scale=3)
+                    ctrl_rules_refresh = gr.Button("↻", variant="secondary", size="sm", scale=0)
                     ctrl_audit_ref = gr.Textbox(label="Audit reference (e.g. ISO 27001 A.5.1)", scale=3)
                 ctrl_add_btn = gr.Button("+ Add Control", variant="secondary", size="sm")
                 ctrl_status = gr.Markdown()
@@ -11320,7 +11324,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     return build_control_chart(), build_control_heatmap(), build_control_table()
 
                 ctrl_add_btn.click(
-                    add_control,
+                    lambda name, cat, risk, desc, rules, ref: add_control(name, cat, risk, desc, ",".join(rules or []), ref),
                     inputs=[ctrl_name, ctrl_cat, ctrl_risk, ctrl_desc, ctrl_rule_csv, ctrl_audit_ref],
                     outputs=ctrl_status,
                 )
@@ -11328,6 +11332,8 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 ctrl_refresh_btn.click(_refresh_controls, outputs=[ctrl_chart, ctrl_heatmap, ctrl_table])
                 ctrl_search.change(build_control_table, inputs=[ctrl_search], outputs=[ctrl_table])
                 gov_tab.select(_refresh_controls, outputs=[ctrl_chart, ctrl_heatmap, ctrl_table])
+                ctrl_rules_refresh.click(lambda: gr.update(choices=get_rule_ids()), outputs=ctrl_rule_csv)
+                gov_tab.select(lambda: gr.update(choices=get_rule_ids()), outputs=ctrl_rule_csv)
 
             with gr.Accordion('🔍 Learning & Gaming Detection', open=False):
                 gr.HTML('<div class="section-title">Rule Learning Detection</div>')
@@ -11358,13 +11364,15 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
 
                 gr.HTML('<div class="rl-group-label" style="margin-top:14px">Auto-scan a conversation</div>')
                 with gr.Row():
-                    gaming_conv_id = gr.Textbox(label="Conversation ID (leave blank for all)", scale=4)
+                    gaming_conv_id = gr.Dropdown(label="Conversation (leave blank to scan all)", choices=[], scale=3)
+                    gaming_conv_refresh = gr.Button("↻", variant="secondary", size="sm", scale=0)
                     gaming_scan_btn = gr.Button("Scan for Gaming", variant="primary", size="sm", scale=1)
                 gaming_scan_report = gr.Markdown()
 
                 gr.HTML('<div class="rl-group-label" style="margin-top:14px">Manual log</div>')
                 with gr.Row():
-                    gaming_log_conv = gr.Textbox(label="Conv ID", scale=2)
+                    gaming_log_conv = gr.Dropdown(label="Conv ID", choices=[], scale=2)
+                    gaming_log_conv_refresh = gr.Button("↻", variant="secondary", size="sm", scale=0)
                     gaming_log_turn = gr.Number(label="Turn #", value=1, scale=1)
                     gaming_log_confirmed = gr.Checkbox(label="Confirmed?", scale=1)
                 gaming_log_input = gr.Textbox(label="User input", lines=2, scale=4)
@@ -11376,9 +11384,9 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 def _refresh_gaming():
                     return build_gaming_summary(), build_gaming_table()
 
-                gaming_scan_btn.click(auto_scan_gaming, inputs=gaming_conv_id, outputs=gaming_scan_report)
+                gaming_scan_btn.click(lambda cid: auto_scan_gaming(cid or ""), inputs=gaming_conv_id, outputs=gaming_scan_report)
                 gaming_log_btn.click(
-                    log_gaming_attempt,
+                    lambda cid, turn, inp, conf, notes: log_gaming_attempt(cid or "", turn, inp, conf, notes),
                     inputs=[gaming_log_conv, gaming_log_turn, gaming_log_input, gaming_log_confirmed, gaming_log_notes],
                     outputs=gaming_log_status,
                 )
@@ -11387,6 +11395,10 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 gaming_search.change(build_gaming_table, inputs=[gaming_search], outputs=[gaming_table])
                 gaming_search_clear_btn.click(lambda: ("", build_gaming_table()), outputs=[gaming_search, gaming_table])
                 gov_tab.select(_refresh_gaming, outputs=[gaming_summary_md, gaming_table])
+                gaming_conv_refresh.click(lambda: gr.update(choices=get_conversation_ids()), outputs=gaming_conv_id)
+                gaming_log_conv_refresh.click(lambda: gr.update(choices=get_conversation_ids()), outputs=gaming_log_conv)
+                gov_tab.select(lambda: gr.update(choices=get_conversation_ids()), outputs=gaming_conv_id)
+                gov_tab.select(lambda: gr.update(choices=get_conversation_ids()), outputs=gaming_log_conv)
 
             with gr.Accordion('🔑 Meta-Governance', open=False):
                 gr.HTML('<div class="section-title">Meta-Governance</div>')
@@ -11481,7 +11493,9 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     cert_issue = gr.Textbox(label="Issue date (YYYY-MM-DD)", scale=2)
                     cert_expiry = gr.Textbox(label="Expiry date (YYYY-MM-DD)", scale=2)
                     cert_scope = gr.Textbox(label="Scope", scale=3)
-                cert_rules_csv = gr.Textbox(label="Linked Rule IDs (comma-separated, optional)")
+                with gr.Row():
+                    cert_rules_csv = gr.Dropdown(label="Linked rules (optional)", choices=[], multiselect=True, scale=4)
+                    cert_rules_refresh = gr.Button("↻", variant="secondary", size="sm", scale=0)
                 cert_add_btn = gr.Button("+ Add Certification", variant="secondary", size="sm")
                 cert_status_md = gr.Markdown()
 
@@ -11489,7 +11503,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     return build_cert_summary(), build_cert_table()
 
                 cert_add_btn.click(
-                    add_certification,
+                    lambda name, typ, issuer, issue, expiry, scope, rules: add_certification(name, typ, issuer, issue, expiry, scope, ",".join(rules or [])),
                     inputs=[cert_name, cert_type, cert_issuer, cert_issue, cert_expiry, cert_scope, cert_rules_csv],
                     outputs=cert_status_md,
                 )
@@ -11497,6 +11511,8 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 cert_refresh_btn.click(_refresh_certs, outputs=[cert_summary_md, cert_table])
                 cert_search.change(build_cert_table, inputs=[cert_search], outputs=[cert_table])
                 gov_tab.select(_refresh_certs, outputs=[cert_summary_md, cert_table])
+                cert_rules_refresh.click(lambda: gr.update(choices=get_rule_ids()), outputs=cert_rules_csv)
+                gov_tab.select(lambda: gr.update(choices=get_rule_ids()), outputs=cert_rules_csv)
 
                 gr.HTML('<div class="section-title">Stakeholder Report</div>')
                 gr.Markdown("Generate a comprehensive compliance report for stakeholders (CTO, board, auditors).")
@@ -11542,7 +11558,8 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 with gr.Row():
                     cal_due = gr.Textbox(label="Due date (YYYY-MM-DD)", scale=2)
                     cal_owner = gr.Textbox(label="Owner", scale=2)
-                    cal_rule_csv = gr.Textbox(label="Linked Rule IDs (optional)", scale=3)
+                    cal_rule_csv = gr.Dropdown(label="Linked rules (optional)", choices=[], multiselect=True, scale=3)
+                    cal_rules_refresh = gr.Button("↻", variant="secondary", size="sm", scale=0)
                 cal_desc = gr.Textbox(label="Description", scale=4)
                 cal_add_btn = gr.Button("+ Add Item", variant="secondary", size="sm")
                 cal_add_status = gr.Markdown()
@@ -11558,7 +11575,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     return build_calendar_summary(), build_calendar_table()
 
                 cal_add_btn.click(
-                    add_calendar_item,
+                    lambda title, typ, due, pri, desc, owner, rules: add_calendar_item(title, typ, due, pri, desc, owner, ",".join(rules or [])),
                     inputs=[cal_title, cal_type, cal_due, cal_priority, cal_desc, cal_owner, cal_rule_csv],
                     outputs=cal_add_status,
                 )
@@ -11568,6 +11585,8 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 cal_refresh_btn.click(_refresh_calendar, outputs=[cal_summary_md, cal_table])
                 cal_search.change(build_calendar_table, inputs=[cal_search], outputs=[cal_table])
                 gov_tab.select(_refresh_calendar, outputs=[cal_summary_md, cal_table])
+                cal_rules_refresh.click(lambda: gr.update(choices=get_rule_ids()), outputs=cal_rule_csv)
+                gov_tab.select(lambda: gr.update(choices=get_rule_ids()), outputs=cal_rule_csv)
 
         with gr.Tab("🧪 Testing") as testing_tab:
 
