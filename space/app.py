@@ -3795,31 +3795,53 @@ def run_conflict_detection_llm(max_pairs: int = 10) -> str:
     yield f"\n✅ Scan complete — {found} conflict(s) found and saved."
 
 
-def build_conflicts_table(query: str = "") -> pd.DataFrame:
+def build_conflicts_table(query: str = "") -> str:
     conflicts = _download_jsonl("conflicts.jsonl")
-    if not conflicts:
-        return pd.DataFrame(columns=["ID", "Rule A", "Rule B", "Type", "Severity", "Explanation", "Status"])
     q = query.strip().lower()
-    rows = []
+    _sev_badge = {
+        "critical": '<span class="rl-badge" style="background:#fee2e2;color:#991b1b">critical</span>',
+        "high":     '<span class="rl-badge" style="background:#fef3c7;color:#92400e">high</span>',
+        "medium":   '<span class="rl-badge" style="background:#ede9fe;color:#5b21b6">medium</span>',
+        "low":      '<span class="rl-badge" style="background:#f0fdf4;color:#166534">low</span>',
+    }
+    _st_badge = {
+        "open":     '<span class="rl-badge rl-badge-deprecated">open</span>',
+        "resolved": '<span class="rl-badge rl-badge-active">resolved</span>',
+    }
+    matched = []
     for c in conflicts:
-        rule_a = c.get("rule_name_a", "")[:25]
-        rule_b = c.get("rule_name_b", "")[:25]
+        rule_a = c.get("rule_name_a", "")
+        rule_b = c.get("rule_name_b", "")
         ctype = c.get("conflict_type", "")
         severity = c.get("severity", "")
         status = c.get("status", "open")
-        explanation = c.get("explanation", "")[:80]
         if q and not any(q in s.lower() for s in (rule_a, rule_b, ctype, severity, status)):
             continue
-        rows.append({
-            "ID": c.get("conflict_id", "")[:8],
-            "Rule A": rule_a,
-            "Rule B": rule_b,
-            "Type": ctype,
-            "Severity": severity,
-            "Explanation": explanation,
-            "Status": status,
-        })
-    return pd.DataFrame(rows)
+        matched.append(c)
+    if not matched:
+        msg = "No conflicts detected." if not conflicts else f'No conflicts match "<b>{query}</b>".'
+        return f'<div class="rl-empty">{msg}</div>'
+    rows_html = ""
+    for c in matched:
+        sev = c.get("severity", "")
+        st = c.get("status", "open")
+        rows_html += (
+            f"<tr>"
+            f"<td style='font-family:monospace;font-size:0.75rem'>{c.get('conflict_id','')[:8]}</td>"
+            f"<td style='font-size:0.8rem'>{c.get('rule_name_a','')[:22]}</td>"
+            f"<td style='font-size:0.8rem'>{c.get('rule_name_b','')[:22]}</td>"
+            f"<td style='font-size:0.78rem;color:#475569'>{c.get('conflict_type','')}</td>"
+            f"<td>{_sev_badge.get(sev.lower(), f'<span class=\"rl-badge rl-badge-inactive\">{sev}</span>')}</td>"
+            f"<td style='max-width:200px;font-size:0.78rem;color:#64748b'>{c.get('explanation','')[:70]}</td>"
+            f"<td>{_st_badge.get(st, f'<span class=\"rl-badge rl-badge-inactive\">{st}</span>')}</td>"
+            f"</tr>"
+        )
+    return (
+        f'<div class="rl-table-wrap"><table class="rl-table">'
+        f"<thead><tr><th>ID</th><th>Rule A</th><th>Rule B</th><th>Type</th>"
+        f"<th>Severity</th><th>Explanation</th><th>Status</th></tr></thead>"
+        f"<tbody>{rows_html}</tbody></table></div>"
+    )
 
 
 def resolve_conflict(conflict_id: str, resolution: str) -> str:
@@ -4963,29 +4985,46 @@ def build_override_summary() -> str:
     return "\n".join(lines)
 
 
-def build_overrides_table(query: str = "") -> pd.DataFrame:
+def build_overrides_table(query: str = "") -> str:
     entries = _download_jsonl(OVERRIDE_FILE)
-    if not entries:
-        return pd.DataFrame(columns=["ID","Conv","Turn","AI Decision","Human Decision","Reason","Correct","Date"])
     q = query.strip().lower()
-    rows = []
+    matched = []
     for e in sorted(entries, key=lambda x: x.get("logged_at", ""), reverse=True)[:200]:
-        ai_dec = e.get("ai_decision", "")[:30]
-        human_dec = e.get("human_decision", "")[:30]
-        reason = e.get("override_reason", "")[:40]
+        ai_dec = e.get("ai_decision", "")
+        human_dec = e.get("human_decision", "")
+        reason = e.get("override_reason", "")
         if q and not any(q in s.lower() for s in (ai_dec, human_dec, reason)):
             continue
-        rows.append({
-            "ID":             e.get("override_id", "")[:8],
-            "Conv":           e.get("conversation_id", "")[-8:],
-            "Turn":           e.get("turn_number", 0),
-            "AI Decision":    ai_dec,
-            "Human Decision": human_dec,
-            "Reason":         reason,
-            "Correct":        {"True": "Yes", "False": "No", None: "—"}.get(str(e.get("correct")), "—"),
-            "Date":           e.get("logged_at", "")[:10],
-        })
-    return pd.DataFrame(rows)
+        matched.append(e)
+    if not matched:
+        msg = "No overrides logged yet." if not entries else f'No overrides match "<b>{query}</b>".'
+        return f'<div class="rl-empty">{msg}</div>'
+    rows_html = ""
+    for e in matched:
+        correct = str(e.get("correct"))
+        correct_badge = (
+            '<span class="rl-badge rl-badge-active">Yes</span>' if correct == "True" else
+            '<span class="rl-badge rl-badge-deprecated">No</span>' if correct == "False" else
+            '<span class="rl-badge rl-badge-inactive">—</span>'
+        )
+        rows_html += (
+            f"<tr>"
+            f"<td style='font-family:monospace;font-size:0.75rem'>{e.get('override_id','')[:8]}</td>"
+            f"<td style='font-family:monospace;font-size:0.75rem;color:#94a3b8'>{e.get('conversation_id','')[-8:]}</td>"
+            f"<td style='text-align:center'>{e.get('turn_number',0)}</td>"
+            f"<td style='max-width:140px;font-size:0.8rem'>{e.get('ai_decision','')[:28]}</td>"
+            f"<td style='max-width:140px;font-size:0.8rem'>{e.get('human_decision','')[:28]}</td>"
+            f"<td style='max-width:160px;font-size:0.78rem;color:#64748b'>{e.get('override_reason','')[:38]}</td>"
+            f"<td>{correct_badge}</td>"
+            f"<td style='font-size:0.75rem;color:#94a3b8'>{e.get('logged_at','')[:10]}</td>"
+            f"</tr>"
+        )
+    return (
+        f'<div class="rl-table-wrap"><table class="rl-table">'
+        f"<thead><tr><th>ID</th><th>Conv</th><th>Turn</th><th>AI Decision</th>"
+        f"<th>Human Decision</th><th>Reason</th><th>Correct</th><th>Date</th></tr></thead>"
+        f"<tbody>{rows_html}</tbody></table></div>"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -5054,30 +5093,48 @@ def build_escalation_metrics() -> str:
     return "\n".join(lines)
 
 
-def build_escalations_table(query: str = "") -> pd.DataFrame:
+def build_escalations_table(query: str = "") -> str:
     entries = _download_jsonl(ESCALATION_FILE)
-    if not entries:
-        return pd.DataFrame(columns=["ID","Conv","Turn","Type","Outcome","AI Action","Expected","Date"])
     q = query.strip().lower()
-    rows = []
+    _outcome_badge = {
+        "correct_escalation": '<span class="rl-badge rl-badge-active">correct</span>',
+        "missed_escalation":  '<span class="rl-badge rl-badge-deprecated">missed</span>',
+        "false_escalation":   '<span class="rl-badge rl-badge-pending">false alarm</span>',
+    }
+    matched = []
     for e in sorted(entries, key=lambda x: x.get("logged_at", ""), reverse=True)[:200]:
-        esc_type = e.get("escalation_type", "")[:20]
+        esc_type = e.get("escalation_type", "")
         outcome = e.get("outcome", "")
-        ai_action = e.get("ai_action", "")[:30]
-        expected = e.get("expected_action", "")[:30]
+        ai_action = e.get("ai_action", "")
+        expected = e.get("expected_action", "")
         if q and not any(q in s.lower() for s in (esc_type, outcome, ai_action, expected)):
             continue
-        rows.append({
-            "ID":        e.get("escalation_id", "")[:8],
-            "Conv":      e.get("conversation_id", "")[-8:],
-            "Turn":      e.get("turn_number", 0),
-            "Type":      esc_type,
-            "Outcome":   outcome,
-            "AI Action": ai_action,
-            "Expected":  expected,
-            "Date":      e.get("logged_at", "")[:10],
-        })
-    return pd.DataFrame(rows)
+        matched.append(e)
+    if not matched:
+        msg = "No escalations logged yet." if not entries else f'No escalations match "<b>{query}</b>".'
+        return f'<div class="rl-empty">{msg}</div>'
+    rows_html = ""
+    for e in matched:
+        outcome = e.get("outcome", "")
+        badge = _outcome_badge.get(outcome, f'<span class="rl-badge rl-badge-inactive">{outcome}</span>')
+        rows_html += (
+            f"<tr>"
+            f"<td style='font-family:monospace;font-size:0.75rem'>{e.get('escalation_id','')[:8]}</td>"
+            f"<td style='font-family:monospace;font-size:0.75rem;color:#94a3b8'>{e.get('conversation_id','')[-8:]}</td>"
+            f"<td style='text-align:center'>{e.get('turn_number',0)}</td>"
+            f"<td style='font-size:0.78rem;color:#475569'>{e.get('escalation_type','')[:20]}</td>"
+            f"<td>{badge}</td>"
+            f"<td style='max-width:140px;font-size:0.8rem'>{e.get('ai_action','')[:28]}</td>"
+            f"<td style='max-width:140px;font-size:0.8rem;color:#64748b'>{e.get('expected_action','')[:28]}</td>"
+            f"<td style='font-size:0.75rem;color:#94a3b8'>{e.get('logged_at','')[:10]}</td>"
+            f"</tr>"
+        )
+    return (
+        f'<div class="rl-table-wrap"><table class="rl-table">'
+        f"<thead><tr><th>ID</th><th>Conv</th><th>Turn</th><th>Type</th>"
+        f"<th>Outcome</th><th>AI Action</th><th>Expected</th><th>Date</th></tr></thead>"
+        f"<tbody>{rows_html}</tbody></table></div>"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -8381,29 +8438,50 @@ def compute_cert_status() -> list[dict]:
     return results
 
 
-def build_cert_table(query: str = "") -> pd.DataFrame:
+def build_cert_table(query: str = "") -> str:
     certs = compute_cert_status()
-    if not certs:
-        return pd.DataFrame(columns=["Name", "Type", "Issuer", "Expires", "Status", "Days Left"])
     q = query.strip().lower()
-    rows = []
+    _cert_badge = {
+        "active":          '<span class="rl-badge rl-badge-active">active</span>',
+        "pending_renewal": '<span class="rl-badge rl-badge-pending">expiring soon</span>',
+        "expired":         '<span class="rl-badge rl-badge-deprecated">expired</span>',
+        "revoked":         '<span class="rl-badge rl-badge-deprecated">revoked</span>',
+    }
+    matched = []
     for c in certs:
-        name = c.get("name", "")[:40]
+        name = c.get("name", "")
         ctype = c.get("type", "")
-        issuer = c.get("issuing_body", "")[:30]
+        issuer = c.get("issuing_body", "")
         status = c.get("current_status", "")
         if q and not any(q in s.lower() for s in (name, ctype, issuer, status)):
             continue
+        matched.append(c)
+    if not matched:
+        msg = "No certifications registered." if not certs else f'No certs match "<b>{query}</b>".'
+        return f'<div class="rl-empty">{msg}</div>'
+    rows_html = ""
+    for c in matched:
+        status = c.get("current_status", "")
         days = c.get("days_until_expiry")
-        rows.append({
-            "Name": name,
-            "Type": ctype,
-            "Issuer": issuer,
-            "Expires": c.get("expiry_date", "")[:10],
-            "Status": status,
-            "Days Left": days if days is not None else "—",
-        })
-    return pd.DataFrame(rows)
+        days_color = "#dc2626" if days is not None and days <= 7 else "#d97706" if days is not None and days <= 30 else "#334155"
+        badge = _cert_badge.get(status, f'<span class="rl-badge rl-badge-inactive">{status}</span>')
+        rows_html += (
+            f"<tr>"
+            f"<td style='max-width:180px'>{c.get('name','')[:35]}</td>"
+            f"<td style='font-size:0.78rem;color:#475569'>{c.get('type','')}</td>"
+            f"<td style='font-size:0.78rem;color:#64748b'>{c.get('issuing_body','')[:25]}</td>"
+            f"<td style='font-size:0.78rem;color:#475569'>{c.get('expiry_date','')[:10]}</td>"
+            f"<td>{badge}</td>"
+            f"<td style='text-align:right;color:{days_color};font-weight:600'>"
+            f"{'—' if days is None else str(days)}</td>"
+            f"</tr>"
+        )
+    return (
+        f'<div class="rl-table-wrap"><table class="rl-table">'
+        f"<thead><tr><th>Name</th><th>Type</th><th>Issuer</th>"
+        f"<th>Expires</th><th>Status</th><th>Days Left</th></tr></thead>"
+        f"<tbody>{rows_html}</tbody></table></div>"
+    )
 
 
 def build_cert_summary() -> str:
@@ -9694,7 +9772,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 with gr.Row():
                     conflict_search = gr.Textbox(label="Search conflicts", placeholder="Filter by rule, type, severity, or status…", scale=4)
                     conflict_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm", scale=1)
-                conflicts_table = gr.Dataframe(interactive=False, wrap=True)
+                conflicts_table = gr.HTML()
                 with gr.Row():
                     conflict_scan_btn = gr.Button("🔍 Run Conflict Scan (LLM)", variant="primary", size="sm")
                 conflict_log = gr.Textbox(label="Scan log", lines=6, interactive=False, autoscroll=True)
@@ -9882,7 +9960,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 with gr.Row():
                     override_search = gr.Textbox(label="Search overrides", placeholder="Filter by AI decision, human decision, or reason…", scale=4)
                     override_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm", scale=1)
-                overrides_table = gr.Dataframe(interactive=False, wrap=True)
+                overrides_table = gr.HTML()
 
                 with gr.Row():
                     ov_conv_id = gr.Textbox(label="Conversation ID", scale=2)
@@ -9918,7 +9996,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 with gr.Row():
                     esc_search = gr.Textbox(label="Search escalations", placeholder="Filter by type, outcome, or action…", scale=4)
                     esc_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm", scale=1)
-                esc_table = gr.Dataframe(interactive=False, wrap=True)
+                esc_table = gr.HTML()
 
                 with gr.Row():
                     esc_conv_id = gr.Textbox(label="Conversation ID", scale=2)
@@ -10794,7 +10872,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 with gr.Row():
                     cert_search = gr.Textbox(label="Search certs", placeholder="Filter by name, type, issuer, or status…", scale=4)
                     cert_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm", scale=1)
-                cert_table = gr.Dataframe(interactive=False, wrap=True)
+                cert_table = gr.HTML()
 
                 gr.Markdown("**Register Certification**")
                 with gr.Row():
