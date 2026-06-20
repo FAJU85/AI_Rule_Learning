@@ -10387,6 +10387,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 )
 
                 gr.HTML('<div class="section-title">Export</div>')
+                gr.Markdown("Export all active rules for use in other tools — as a system prompt (paste into Claude) or structured YAML.")
                 with gr.Row():
                     export_btn = gr.Button("Export as System Prompt", variant="secondary", size="sm")
                     yaml_export_btn = gr.Button("Export as YAML", variant="secondary", size="sm")
@@ -10718,12 +10719,15 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     ev_rule_id = gr.Dropdown(label="Related rule (optional)", choices=[], scale=2)
                     ev_rule_refresh = gr.Button("↻", variant="secondary", size="sm", scale=0)
                     ev_incident_id = gr.Textbox(label="Related incident ID (optional)", placeholder="e.g. inc_abc123", scale=2)
+                ev_store_btn = gr.Button("💾 Store Evidence", variant="secondary", size="sm")
+                ev_store_status = gr.Markdown()
+
+                gr.HTML('<div class="rl-group-label" style="margin-top:14px">Export audit bundle</div>')
                 with gr.Row():
-                    ev_store_btn = gr.Button("💾 Store Evidence", variant="secondary", size="sm")
-                    ev_export_btn = gr.Button("📦 Export Audit Bundle", variant="primary", size="sm")
                     ev_export_rule = gr.Dropdown(label="Rule filter (blank=all)", choices=[], scale=2)
                     ev_export_refresh = gr.Button("↻", variant="secondary", size="sm", scale=0)
-                ev_store_status = gr.Markdown()
+                    ev_export_btn = gr.Button("📦 Export Bundle", variant="primary", size="sm", scale=1)
+                ev_export_status = gr.Markdown()
 
                 def _refresh_ev(t):
                     return build_evidence_table(t)
@@ -10736,7 +10740,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     inputs=[ev_type, ev_title, ev_content, ev_rule_id, ev_incident_id],
                     outputs=ev_store_status,
                 )
-                ev_export_btn.click(lambda rid: export_audit_evidence(rid or ""), inputs=ev_export_rule, outputs=ev_store_status)
+                ev_export_btn.click(lambda rid: export_audit_evidence(rid or ""), inputs=ev_export_rule, outputs=ev_export_status)
                 ev_rule_refresh.click(lambda: gr.update(choices=get_rule_ids()), outputs=ev_rule_id)
                 ev_export_refresh.click(lambda: gr.update(choices=get_rule_ids()), outputs=ev_export_rule)
                 monitoring_tab.select(lambda: gr.update(choices=get_rule_ids()), outputs=ev_rule_id)
@@ -11330,7 +11334,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 with gr.Row():
                     goal_rules_csv = gr.Dropdown(label="Linked rules", choices=[], multiselect=True, scale=3)
                     goal_rules_refresh = gr.Button("↻", variant="secondary", size="sm", scale=0)
-                    goal_target = gr.Number(label="Target score %", value=80, scale=1)
+                    goal_target = gr.Number(label="Target score %", value=80, minimum=0, maximum=100, scale=1)
                 goal_add_btn = gr.Button("+ Add Goal", variant="secondary", size="sm")
                 goal_status = gr.Markdown()
 
@@ -11424,7 +11428,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 with gr.Row():
                     gaming_log_conv = gr.Dropdown(label="Conv ID", choices=[], scale=2)
                     gaming_log_conv_refresh = gr.Button("↻", variant="secondary", size="sm", scale=0)
-                    gaming_log_turn = gr.Number(label="Turn #", value=1, scale=1)
+                    gaming_log_turn = gr.Number(label="Turn #", value=1, minimum=1, scale=1)
                     gaming_log_confirmed = gr.Checkbox(label="Confirmed?", scale=1)
                 gaming_log_input = gr.Textbox(label="User input", lines=2, scale=4)
                 gaming_log_notes = gr.Textbox(label="Notes", placeholder="Any context about this gaming attempt", scale=3)
