@@ -10717,7 +10717,12 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     esc_conv_id = gr.Dropdown(label="Conversation ID", choices=[], scale=2)
                     esc_conv_refresh = gr.Button("↻", variant="secondary", size="sm", scale=0)
                     esc_turn_no = gr.Number(label="Turn #", value=1, minimum=1, scale=1, info="Conversation turn index")
-                    esc_type = gr.Textbox(label="Escalation type", placeholder="e.g. safety, compliance", scale=2)
+                    esc_type = gr.Dropdown(
+                        label="Escalation type",
+                        choices=["safety", "compliance", "tone", "legal", "privacy", "accuracy", "other"],
+                        value="safety", scale=2,
+                        info="safety = harmful content · compliance = rule violation · tone = inappropriate response · legal = legal risk · privacy = PII/data issue · accuracy = factual error · other = uncategorised",
+                    )
                 with gr.Row():
                     esc_ai_action = gr.Textbox(label="AI action taken", placeholder="What the AI did in response", scale=3)
                     esc_expected = gr.Textbox(label="Expected action", placeholder="What should have happened instead", scale=3)
