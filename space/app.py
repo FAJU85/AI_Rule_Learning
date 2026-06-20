@@ -10103,6 +10103,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
 
             # ── Section 3: Analytics charts (3:2 ratio) ───────────────────────
             gr.HTML('<div class="section-title">Analytics</div>')
+            gr.Markdown("Rule effectiveness trend over time and AI governance maturity assessment.")
             with gr.Row():
                 with gr.Column(scale=3):
                     dash_eff_chart = gr.Plot()
@@ -10116,6 +10117,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
 
             # ── Section 5: Activity feed (last 5) ─────────────────────────────
             gr.HTML('<div class="section-title">Recent Activity</div>')
+            gr.Markdown("The 5 most recent events across rules, incidents, and benchmarks.")
             activity_html = gr.HTML()
 
             def refresh_dashboard():
@@ -10147,6 +10149,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
 
             rules_stat_bar = gr.HTML()
             gr.HTML('<div class="section-title">Active Rules</div>')
+            gr.Markdown("All rules currently in force — search by name, layer, or status.")
             with gr.Row(elem_classes=["search-row-wrapper"]):
                 rules_search = gr.Textbox(
                     label="Search rules",
@@ -10164,9 +10167,11 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
             rule_detail = gr.Markdown()
 
             gr.HTML('<div class="section-title">Effectiveness Trend</div>')
+            gr.Markdown("Compliance effectiveness score over time for the selected rule.")
             score_trend_chart = gr.Plot()
 
             gr.HTML('<div class="section-title">Version History</div>')
+            gr.Markdown("All revisions to the selected rule's instruction and conditions.")
             version_history_table = gr.HTML()
 
             def refresh_rules():
@@ -10789,6 +10794,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
 
             analytics_stat_bar = gr.HTML()
             gr.HTML('<div class="section-title">Conversations</div>')
+            gr.Markdown("All imported AI sessions — search by session name or ID.")
             with gr.Row(elem_classes=["search-row-wrapper"]):
                 convs_search = gr.Textbox(label="Search sessions", placeholder="Filter by session name or ID…", scale=4, show_clear_button=True)
                 refresh_convs_btn = gr.Button("↻ Refresh", variant="secondary", size="sm", scale=1)
@@ -10871,6 +10877,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
 
             with gr.Accordion('📈 Performance & Coverage', open=False):
                 gr.HTML('<div class="section-title">System Health</div>')
+                gr.Markdown("Project compass showing overall AI maturity, coverage, and compliance health.")
                 with gr.Row():
                     proj_gauge = gr.Plot()
                     proj_metrics = gr.Plot()
