@@ -10700,6 +10700,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     outputs=ov_log_status,
                 )
                 ov_rate_btn.click(mark_override_accuracy, inputs=[ov_rate_id, ov_was_correct], outputs=ov_rate_status)
+                ov_rate_id.submit(mark_override_accuracy, inputs=[ov_rate_id, ov_was_correct], outputs=ov_rate_status)
                 ov_conv_refresh.click(lambda: gr.update(choices=get_conversation_ids()), outputs=ov_conv_id)
                 monitoring_tab.select(lambda: gr.update(choices=get_conversation_ids()), outputs=ov_conv_id)
 
@@ -10918,6 +10919,12 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 beh_refresh_btn.click(_refresh_beh, outputs=[beh_radar, beh_summary_md])
                 monitoring_tab.select(_refresh_beh, outputs=[beh_radar, beh_summary_md])
                 beh_record_btn.click(
+                    record_behavior_metrics,
+                    inputs=[beh_conv_id, beh_turn_no, beh_hallu, beh_accuracy,
+                            beh_consistency, beh_refusal, beh_tone, beh_verbosity, beh_notes],
+                    outputs=beh_record_status,
+                )
+                beh_notes.submit(
                     record_behavior_metrics,
                     inputs=[beh_conv_id, beh_turn_no, beh_hallu, beh_accuracy,
                             beh_consistency, beh_refusal, beh_tone, beh_verbosity, beh_notes],
@@ -11560,6 +11567,11 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 kg_node_rule_refresh.click(lambda: gr.update(choices=get_rule_ids()), outputs=kg_node_rule)
                 gov_tab.select(lambda: gr.update(choices=get_rule_ids()), outputs=kg_node_rule)
                 kg_add_edge_btn.click(
+                    add_kg_edge,
+                    inputs=[kg_from_id, kg_edge_type, kg_to_id],
+                    outputs=kg_edge_status,
+                )
+                kg_to_id.submit(
                     add_kg_edge,
                     inputs=[kg_from_id, kg_edge_type, kg_to_id],
                     outputs=kg_edge_status,
