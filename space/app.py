@@ -374,31 +374,57 @@ def build_rule_score_trend(rule_name: str) -> Any:
     return _dark_fig(fig)
 
 
-def build_rule_version_history(rule_name: str) -> pd.DataFrame:
-    """Return a DataFrame of all recorded state changes for a rule."""
+def build_rule_version_history(rule_name: str) -> str:
+    """Return styled HTML table of all recorded state changes for a rule."""
     if not rule_name:
-        return pd.DataFrame(columns=["Date", "Event", "Score", "Triggered", "Success", "Instruction"])
+        return '<div class="rl-empty">Select a rule to view its version history.</div>'
     rules = load_rules()
     rule = next(
         (r for r in rules if r.get("name") == rule_name or r.get("rule_id") == rule_name), None
     )
     if not rule:
-        return pd.DataFrame(columns=["Date", "Event", "Score", "Triggered", "Success", "Instruction"])
+        return '<div class="rl-empty">Rule not found.</div>'
     rid = rule.get("rule_id")
     versions = [v for v in load_rule_versions() if v.get("rule_id") == rid]
     if not versions:
-        return pd.DataFrame({"Info": ["No version history recorded yet. History is captured on approve, reject, score, and evolve events."]})
-    rows = []
+        return '<div class="rl-empty">No version history yet — captured on approve, reject, score, and evolve events.</div>'
+    _event_badge = {
+        "approved":  '<span class="rl-badge rl-badge-active">approved</span>',
+        "rejected":  '<span class="rl-badge rl-badge-deprecated">rejected</span>',
+        "evolved":   '<span class="rl-badge" style="background:#e0e7ff;color:#3730a3">evolved</span>',
+        "scored":    '<span class="rl-badge rl-badge-pending">scored</span>',
+        "created":   '<span class="rl-badge rl-badge-inactive">created</span>',
+        "activated": '<span class="rl-badge rl-badge-active">activated</span>',
+        "deactivated": '<span class="rl-badge rl-badge-inactive">deactivated</span>',
+    }
+    rows_html = ""
     for v in sorted(versions, key=lambda x: x.get("timestamp", ""), reverse=True):
-        rows.append({
-            "Date": v.get("timestamp", "")[:16],
-            "Event": v.get("event", "?"),
-            "Score": f"{v.get('effectiveness_score', 0):.0%}" if v.get("effectiveness_score") is not None else "—",
-            "Triggered": v.get("times_triggered", 0),
-            "Success": v.get("success_count", 0),
-            "Instruction": (v.get("instruction", "") or "")[:80],
-        })
-    return pd.DataFrame(rows)
+        event = v.get("event", "?")
+        badge = _event_badge.get(event, f'<span class="rl-badge rl-badge-inactive">{event}</span>')
+        score = v.get("effectiveness_score")
+        if score is not None:
+            score_pct = int(score * 100) if score <= 1 else int(score)
+            score_color = "#166534" if score_pct >= 70 else "#d97706" if score_pct >= 40 else "#dc2626"
+            score_html = f'<span style="color:{score_color};font-weight:700">{score_pct}%</span>'
+        else:
+            score_html = '<span style="color:#94a3b8">—</span>'
+        triggered = v.get("times_triggered", 0)
+        success = v.get("success_count", 0)
+        rows_html += (
+            f"<tr>"
+            f"<td style='font-size:0.75rem;color:#94a3b8'>{v.get('timestamp','')[:16]}</td>"
+            f"<td>{badge}</td>"
+            f"<td>{score_html}</td>"
+            f"<td style='text-align:center;color:#4f46e5'>{triggered}</td>"
+            f"<td style='text-align:center;color:#166534'>{success}</td>"
+            f"<td style='font-size:0.78rem;color:#475569;max-width:240px'>{(v.get('instruction','') or '')[:80]}</td>"
+            f"</tr>"
+        )
+    return (
+        f'<div class="rl-table-wrap"><table class="rl-table">'
+        f"<thead><tr><th>Date</th><th>Event</th><th>Score</th><th>Triggered</th><th>Success</th><th>Instruction</th></tr></thead>"
+        f"<tbody>{rows_html}</tbody></table></div>"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -10077,7 +10103,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
             score_trend_chart = gr.Plot()
 
             gr.HTML('<div class="section-title">Version History</div>')
-            version_history_table = gr.Dataframe(interactive=False, wrap=True)
+            version_history_table = gr.HTML()
 
             def refresh_rules():
                 return build_rules_table(), gr.update(choices=get_rule_names())
