@@ -10653,6 +10653,15 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                         label="Outcome", choices=ESCALATION_OUTCOMES, value="correct_escalation", scale=2,
                         info="correct = AI escalated correctly · missed = should have escalated · false = unnecessary escalation")
                     esc_notes = gr.Textbox(label="Notes", placeholder="Additional context or evidence", scale=3)
+                gr.Examples(
+                    examples=[
+                        ["safety", "AI declined to provide instructions", "AI should have provided the information with a safety caveat", "correct_escalation"],
+                        ["compliance", "AI answered without citing applicable rules", "AI should have flagged the GDPR implication and paused for review", "missed_escalation"],
+                        ["tone", "AI refused a benign creative writing request", "AI should have complied — no rule applies here", "false_escalation"],
+                    ],
+                    inputs=[esc_type, esc_ai_action, esc_expected, esc_outcome],
+                    label="Example escalations (click to load)",
+                )
                 esc_log_btn = gr.Button("📋 Log Escalation", variant="primary", size="sm")
                 esc_log_status = gr.Markdown(min_height=28)
 
@@ -11388,6 +11397,15 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 with gr.Row():
                     kg_node_rule = gr.Dropdown(label="Linked rule (optional)", choices=[], scale=3)
                     kg_node_rule_refresh = gr.Button("↻", variant="secondary", size="sm", scale=0)
+                gr.Examples(
+                    examples=[
+                        ["policy", "GDPR Compliance Policy", "Ensures all AI outputs comply with GDPR data minimisation and purpose limitation principles"],
+                        ["requirement", "No PII in AI responses", "AI must never include personal identifiable information in any response or log"],
+                        ["control", "Rule version control gate", "All rule changes must pass peer review before activation"],
+                    ],
+                    inputs=[kg_node_type, kg_node_name, kg_node_desc],
+                    label="Example nodes (click to load)",
+                )
                 kg_add_node_btn = gr.Button("+ Add Node", variant="primary", size="sm")
                 kg_node_status = gr.Markdown(min_height=28)
 
@@ -11477,6 +11495,15 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     goal_rules_csv = gr.Dropdown(label="Linked rules", choices=[], multiselect=True, scale=3)
                     goal_rules_refresh = gr.Button("↻", variant="secondary", size="sm", scale=0)
                     goal_target = gr.Number(label="Target score %", value=80, minimum=0, maximum=100, scale=1, info="0–100 %")
+                gr.Examples(
+                    examples=[
+                        ["Improve rule compliance rate", "Reduce AI violations by 30% over next quarter", 90],
+                        ["Eliminate P0 incidents", "Zero critical incidents in 90-day window", 100],
+                        ["Reduce false-positive rate", "Keep unnecessary rule triggers below 5%", 95],
+                    ],
+                    inputs=[goal_name, goal_outcome, goal_target],
+                    label="Example goals (click to load)",
+                )
                 goal_add_btn = gr.Button("+ Add Goal", variant="primary", size="sm")
                 goal_status = gr.Markdown(min_height=28)
 
@@ -11520,6 +11547,15 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     ctrl_rule_csv = gr.Dropdown(label="Linked rules", choices=[], multiselect=True, scale=3)
                     ctrl_rules_refresh = gr.Button("↻", variant="secondary", size="sm", scale=0)
                     ctrl_audit_ref = gr.Textbox(label="Audit reference", placeholder="e.g. ISO 27001 A.5.1", scale=3)
+                gr.Examples(
+                    examples=[
+                        ["Rule version control gate", "technical", "high", "All rule changes require peer review and are versioned before activation", "ISO 27001 A.8.32"],
+                        ["Mandatory escalation log", "operational", "medium", "All AI escalation events must be logged within 24 hours with outcome classification", "SOC 2 CC7.2"],
+                        ["Quarterly rule review board", "managerial", "low", "Governance board reviews all active rules quarterly for relevance and accuracy", "NIST CSF RS.IM-1"],
+                    ],
+                    inputs=[ctrl_name, ctrl_cat, ctrl_risk, ctrl_desc, ctrl_audit_ref],
+                    label="Example controls (click to load)",
+                )
                 ctrl_add_btn = gr.Button("+ Add Control", variant="primary", size="sm")
                 ctrl_status = gr.Markdown(min_height=28)
 
