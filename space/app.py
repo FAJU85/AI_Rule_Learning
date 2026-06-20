@@ -10254,6 +10254,15 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     owner_name = gr.Textbox(label="Owner name", placeholder="e.g. Jane Smith", scale=2)
                     owner_team = gr.Textbox(label="Team", placeholder="e.g. Security", scale=2)
                     owner_contact = gr.Textbox(label="Contact", placeholder="e.g. security@company.com", scale=2)
+                gr.Examples(
+                    examples=[
+                        ["Alice Chen", "AI Platform", "alice@company.com"],
+                        ["Bob Kumar", "Security", "security@company.com"],
+                        ["Carol Davies", "Compliance", "compliance@company.com"],
+                    ],
+                    inputs=[owner_name, owner_team, owner_contact],
+                    label="Example owners (click to load)",
+                )
                 owner_save_btn = gr.Button("💾 Save Ownership", variant="primary", size="sm")
                 owner_status = gr.Markdown(min_height=28)
 
@@ -10263,6 +10272,11 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 owner_refresh_btn.click(_refresh_owner_rules, outputs=owner_rule_selector)
                 rules_tab.select(_refresh_owner_rules, outputs=owner_rule_selector)
                 owner_save_btn.click(
+                    set_rule_owner,
+                    inputs=[owner_rule_selector, owner_name, owner_team, owner_contact],
+                    outputs=owner_status,
+                )
+                owner_name.submit(
                     set_rule_owner,
                     inputs=[owner_rule_selector, owner_name, owner_team, owner_contact],
                     outputs=owner_status,
@@ -10284,6 +10298,15 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                         info="draft → pending_review → active → deprecated → retired",
                     )
                 lc_reason = gr.Textbox(label="Reason (optional)", placeholder="e.g. Superseded by Rule #22")
+                gr.Examples(
+                    examples=[
+                        ["pending_review", "Rule authored and ready for governance board review"],
+                        ["active", "Approved by CISO — activating for production enforcement"],
+                        ["deprecated", "Superseded by broader policy update — keeping for audit history"],
+                    ],
+                    inputs=[lc_new_state, lc_reason],
+                    label="Example transitions (click to load)",
+                )
                 lc_transition_btn = gr.Button("▶ Apply Transition", variant="primary", size="sm")
                 lc_status = gr.Markdown(min_height=28)
 
@@ -10295,6 +10318,11 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 rules_tab.select(_refresh_lc, outputs=[lifecycle_table, lc_rule_selector])
                 lc_refresh_btn2.click(lambda: gr.update(choices=get_rule_names()), outputs=lc_rule_selector)
                 lc_transition_btn.click(
+                    transition_rule_lifecycle,
+                    inputs=[lc_rule_selector, lc_new_state, lc_reason],
+                    outputs=lc_status,
+                )
+                lc_reason.submit(
                     transition_rule_lifecycle,
                     inputs=[lc_rule_selector, lc_new_state, lc_reason],
                     outputs=lc_status,
@@ -10313,6 +10341,15 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 with gr.Row():
                     exc_reason = gr.Textbox(label="Reason", placeholder="e.g. Emergency incident response", scale=3)
                     exc_approver = gr.Textbox(label="Approved by", placeholder="e.g. CISO", scale=2)
+                gr.Examples(
+                    examples=[
+                        ["Emergency incident response — rule causing false positives under load", "CISO", 4],
+                        ["Scheduled maintenance window — rule incompatible with migration scripts", "Platform Lead", 8],
+                        ["A/B test requires rule to be inactive for control group", "AI Platform Lead", 48],
+                    ],
+                    inputs=[exc_reason, exc_approver, exc_duration],
+                    label="Example exceptions (click to load)",
+                )
                 with gr.Row():
                     exc_create_btn = gr.Button("⚠️ Create Exception", variant="stop")
                     exc_restore_btn = gr.Button("✅ Restore Rule", variant="primary")
@@ -10331,6 +10368,11 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     outputs=exc_status,
                 )
                 exc_restore_btn.click(restore_from_exception, inputs=exc_rule_selector, outputs=exc_status)
+                exc_reason.submit(
+                    create_exception,
+                    inputs=[exc_rule_selector, exc_reason, exc_approver, exc_duration],
+                    outputs=exc_status,
+                )
 
             with gr.Accordion('🔗 Dependencies, Conflicts & Export', open=False):
                 gr.HTML('<div class="section-title">Rule Dependencies</div>')
