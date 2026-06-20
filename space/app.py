@@ -3317,7 +3317,7 @@ def close_rca(rca_id: str, resolution: str) -> str:
 def build_rca_table(query: str = "") -> str:
     entries = _download_jsonl(RCA_FILE)
     if not entries:
-        return '<div class="rl-empty">No RCA entries yet.</div>'
+        return '<div class="rl-empty">No RCA entries yet — go to <b>⚠️ Incidents → RCA</b>, fill in the violation text and click <b>📋 Log RCA</b> to create the first entry.</div>'
     q = query.strip().lower()
     matched = []
     for e in entries:
@@ -3413,7 +3413,7 @@ def build_trace_table(conversation_id: str = "") -> str:
     if conversation_id:
         traces = [t for t in traces if t.get("conversation_id") == conversation_id]
     if not traces:
-        return '<div class="rl-empty">No traces recorded yet.</div>'
+        return '<div class="rl-empty">No traces recorded yet — go to <b>🔍 Enforcement → Trace</b>, enter a conversation ID and click <b>📡 Record Trace</b> to log the first turn.</div>'
     rows_html = ""
     for t in sorted(traces, key=lambda x: x.get("traced_at", ""), reverse=True)[:200]:
         fired = t.get("rules_fired", [])
@@ -3587,7 +3587,7 @@ def explain_rule_decision(rule_id: str, user_input: str, agent_response: str) ->
 def build_explanations_table(query: str = "") -> str:
     entries = _download_jsonl(EXPLAIN_FILE)
     if not entries:
-        return '<div class="rl-empty">No explanations logged yet.</div>'
+        return '<div class="rl-empty">No explanations logged yet — go to <b>🔍 Enforcement → Explainability</b>, select a rule, paste a turn, and click <b>🔎 Explain Decision</b> to log the first explanation.</div>'
     q = query.strip().lower()
     matched = []
     for e in sorted(entries, key=lambda x: x.get("explained_at", ""), reverse=True)[:100]:
@@ -3737,7 +3737,7 @@ def build_kg_graph() -> Any:
 def build_kg_table(query: str = "") -> str:
     nodes = _download_jsonl(KG_FILE)
     if not nodes:
-        return '<div class="rl-empty">No knowledge graph nodes yet.</div>'
+        return '<div class="rl-empty">No knowledge graph nodes yet — go to <b>🕸️ Knowledge Graph → Add Node</b>, choose a node type and name, then click <b>➕ Add Node</b> to build the governance graph.</div>'
     q = query.strip().lower()
     matched = []
     for n in nodes:
@@ -10384,12 +10384,14 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     dep_depends_on = gr.Dropdown(
                         label="Depends On (must fire before this rule)",
                         choices=[], multiselect=True, scale=3,
+                        info="Rules that must trigger first — this rule won't evaluate unless all selected rules have fired",
                     )
                     dep_depends_refresh = gr.Button("↻", variant="secondary", size="sm", scale=0)
                 with gr.Row():
                     dep_blocks = gr.Dropdown(
                         label="Blocks (this rule prevents these from firing)",
                         choices=[], multiselect=True, scale=3,
+                        info="Rules suppressed when this rule fires — use to avoid contradictory rules triggering together",
                     )
                     dep_blocks_refresh = gr.Button("↻", variant="secondary", size="sm", scale=0)
                 dep_save_btn = gr.Button("💾 Save Dependencies", variant="primary", size="sm")
