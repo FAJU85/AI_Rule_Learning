@@ -10167,7 +10167,8 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
 
             gr.HTML('<div class="rl-group-label" style="margin-top:14px">View rule details</div>')
             with gr.Row():
-                rule_selector = gr.Dropdown(label="Select rule", choices=[], scale=4)
+                rule_selector = gr.Dropdown(label="Select rule", choices=[], scale=4,
+                    info="Choose a rule to view its full definition, status, and enforcement metrics")
                 rule_selector_refresh = gr.Button("↻", variant="secondary", size="sm", scale=0)
             rule_detail = gr.Markdown(min_height=28)
 
@@ -10201,7 +10202,8 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 pending_table = gr.HTML()
                 gr.HTML('<div class="rl-group-label" style="margin-top:10px">Approve or reject a rule</div>')
                 with gr.Row():
-                    pending_selector = gr.Dropdown(label="Select pending rule", choices=[], scale=4)
+                    pending_selector = gr.Dropdown(label="Select pending rule", choices=[], scale=4,
+                        info="Rules awaiting governance board review — select one to approve or reject below")
                     pending_refresh_btn2 = gr.Button("↻", variant="secondary", size="sm", scale=0)
                 pending_detail = gr.Markdown(min_height=28)
 
@@ -10230,7 +10232,8 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 gr.HTML('<div class="section-title">A/B Testing</div>')
                 gr.Markdown("Create a keyword variant of a rule to compare effectiveness after real sessions.")
                 with gr.Row():
-                    ab_rule_selector = gr.Dropdown(label="Select rule to test", choices=[], scale=4)
+                    ab_rule_selector = gr.Dropdown(label="Select rule to test", choices=[], scale=4,
+                        info="Pick an active rule — a keyword variant will be created for side-by-side comparison")
                     ab_refresh_btn = gr.Button("↻", variant="secondary", size="sm", scale=0)
                     ab_create_btn = gr.Button("🧪 Create A/B Variant", variant="primary", scale=1)
                 ab_status = gr.Markdown(min_height=28)
@@ -10248,7 +10251,8 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 gr.HTML('<div class="section-title">Ownership</div>')
                 gr.Markdown("Assign accountability to every rule — required for audit trails.")
                 with gr.Row():
-                    owner_rule_selector = gr.Dropdown(label="Rule", choices=[], scale=3)
+                    owner_rule_selector = gr.Dropdown(label="Rule", choices=[], scale=3,
+                        info="Rule to assign an accountable owner — required for audit trails")
                     owner_refresh_btn = gr.Button("↻", variant="secondary", size="sm", scale=1)
                 with gr.Row():
                     owner_name = gr.Textbox(label="Owner name", placeholder="e.g. Jane Smith", scale=2)
@@ -10289,7 +10293,8 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     lifecycle_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm", scale=1)
                 lifecycle_table = gr.HTML()
                 with gr.Row():
-                    lc_rule_selector = gr.Dropdown(label="Rule", choices=[], scale=3)
+                    lc_rule_selector = gr.Dropdown(label="Rule", choices=[], scale=3,
+                        info="Rule whose lifecycle state will be changed — see table above for current state")
                     lc_refresh_btn2 = gr.Button("↻", variant="secondary", size="sm", scale=0)
                     lc_new_state = gr.Dropdown(
                         label="New state",
@@ -10335,7 +10340,8 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     exc_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm", scale=1)
                 exceptions_table = gr.HTML()
                 with gr.Row():
-                    exc_rule_selector = gr.Dropdown(label="Rule to disable", choices=[], scale=3)
+                    exc_rule_selector = gr.Dropdown(label="Rule to disable", choices=[], scale=3,
+                        info="Active rule to temporarily suspend — will be re-enabled after the duration below")
                     exc_refresh_btn2 = gr.Button("↻", variant="secondary", size="sm", scale=0)
                     exc_duration = gr.Number(label="Duration (hours)", value=24, minimum=1, maximum=720, scale=1, info="1–720 h (max 30 days)")
                 with gr.Row():
@@ -10378,7 +10384,8 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 gr.HTML('<div class="section-title">Rule Dependencies</div>')
                 gr.Markdown("Define which rules must fire before others, or which rules block each other.")
                 with gr.Row():
-                    dep_rule_sel = gr.Dropdown(label="Rule to configure", choices=[], scale=3)
+                    dep_rule_sel = gr.Dropdown(label="Rule to configure", choices=[], scale=3,
+                        info="Rule whose dependency and blocking relationships you want to set")
                     dep_refresh_sel_btn = gr.Button("↻", variant="secondary", size="sm", scale=0)
                 with gr.Row():
                     dep_depends_on = gr.Dropdown(
@@ -10658,7 +10665,8 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
 
                 gr.HTML('<div class="rl-group-label" style="margin-top:14px">Log a new override</div>')
                 with gr.Row():
-                    ov_conv_id = gr.Dropdown(label="Conversation ID", choices=[], scale=2)
+                    ov_conv_id = gr.Dropdown(label="Conversation ID", choices=[], scale=2,
+                        info="Conversation where the AI made a decision you are overriding")
                     ov_conv_refresh = gr.Button("↻", variant="secondary", size="sm", scale=0)
                     ov_turn_no = gr.Number(label="Turn #", value=1, minimum=1, scale=1, info="Conversation turn index")
                 with gr.Row():
@@ -10800,7 +10808,12 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 gr.HTML('<div class="rl-group-label" style="margin-top:14px">Register a data source</div>')
                 with gr.Row():
                     dp_name = gr.Textbox(label="Source name", placeholder="e.g. Claude Code sessions", scale=3)
-                    dp_type = gr.Textbox(label="Type", placeholder="e.g. dataset, api, file", scale=2)
+                    dp_type = gr.Dropdown(
+                        label="Type",
+                        choices=["dataset", "api", "file"],
+                        value="dataset", scale=2,
+                        info="dataset = structured data file · api = live endpoint · file = document or log",
+                    )
                 with gr.Row():
                     dp_trust = gr.Dropdown(label="Trust level", choices=DATA_TRUST_LEVELS,
                                            value="medium", scale=2,
@@ -10850,7 +10863,8 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     ev_title = gr.Textbox(label="Title", placeholder="Brief title for this evidence item", scale=3)
                 ev_content = gr.Textbox(label="Content / body", lines=4, max_lines=12, placeholder="Paste the log excerpt, screenshot description, or audit note…")
                 with gr.Row():
-                    ev_rule_id = gr.Dropdown(label="Related rule (optional)", choices=[], scale=2)
+                    ev_rule_id = gr.Dropdown(label="Related rule (optional)", choices=[], scale=2,
+                        info="Link this evidence to a specific rule — leave blank if the evidence is not rule-specific")
                     ev_rule_refresh = gr.Button("↻", variant="secondary", size="sm", scale=0)
                     ev_incident_id = gr.Textbox(label="Related incident ID (optional)", placeholder="e.g. inc_abc123", scale=2, info="Paste the first 8 characters of the incident ID to link this evidence to an open incident")
                 gr.Examples(
@@ -10867,7 +10881,8 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
 
                 gr.HTML('<div class="rl-group-label" style="margin-top:14px">Export audit bundle</div>')
                 with gr.Row():
-                    ev_export_rule = gr.Dropdown(label="Rule filter (blank=all)", choices=[], scale=2)
+                    ev_export_rule = gr.Dropdown(label="Rule filter (blank=all)", choices=[], scale=2,
+                        info="Limit the export to evidence linked to one rule — leave blank to export all evidence")
                     ev_export_refresh = gr.Button("↻", variant="secondary", size="sm", scale=0)
                     ev_export_btn = gr.Button("📦 Export Bundle", variant="primary", size="sm", scale=1)
                 ev_export_status = gr.Markdown(min_height=28)
@@ -11532,7 +11547,8 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     kg_node_name = gr.Textbox(label="Name", placeholder="e.g. GDPR Compliance Policy", scale=3)
                 kg_node_desc = gr.Textbox(label="Description (optional)", placeholder="What this node represents in the governance graph", scale=3)
                 with gr.Row():
-                    kg_node_rule = gr.Dropdown(label="Linked rule (optional)", choices=[], scale=3)
+                    kg_node_rule = gr.Dropdown(label="Linked rule (optional)", choices=[], scale=3,
+                        info="Associate this governance node with the rule that enforces or implements it")
                     kg_node_rule_refresh = gr.Button("↻", variant="secondary", size="sm", scale=0)
                 gr.Examples(
                     examples=[
@@ -11643,7 +11659,8 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     goal_name = gr.Textbox(label="Objective name", placeholder="e.g. Improve rule compliance rate", scale=3)
                     goal_outcome = gr.Textbox(label="Business outcome", placeholder="e.g. Reduce AI violations by 30%", scale=3)
                 with gr.Row():
-                    goal_rules_csv = gr.Dropdown(label="Linked rules", choices=[], multiselect=True, scale=3)
+                    goal_rules_csv = gr.Dropdown(label="Linked rules", choices=[], multiselect=True, scale=3,
+                        info="Select one or more rules whose performance determines progress toward this goal")
                     goal_rules_refresh = gr.Button("↻", variant="secondary", size="sm", scale=0)
                     goal_target = gr.Number(label="Target score %", value=80, minimum=0, maximum=100, scale=1, info="0–100 %")
                 gr.Examples(
@@ -11695,7 +11712,8 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     ctrl_risk = gr.Dropdown(label="Risk level", choices=RISK_LEVELS, value="medium", scale=2, info="Severity of the risk this control mitigates")
                 ctrl_desc = gr.Textbox(label="Description", placeholder="What this control does and how it mitigates risk", scale=4)
                 with gr.Row():
-                    ctrl_rule_csv = gr.Dropdown(label="Linked rules", choices=[], multiselect=True, scale=3)
+                    ctrl_rule_csv = gr.Dropdown(label="Linked rules", choices=[], multiselect=True, scale=3,
+                        info="Rules this control is designed to enforce or protect — used in compliance reporting")
                     ctrl_rules_refresh = gr.Button("↻", variant="secondary", size="sm", scale=0)
                     ctrl_audit_ref = gr.Textbox(label="Audit reference", placeholder="e.g. ISO 27001 A.5.1", scale=3)
                 gr.Examples(
@@ -11928,7 +11946,8 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     cert_expiry = gr.Textbox(label="Expiry date", placeholder="YYYY-MM-DD", scale=2)
                     cert_scope = gr.Textbox(label="Scope", placeholder="e.g. AI governance and rule enforcement systems", scale=3)
                 with gr.Row():
-                    cert_rules_csv = gr.Dropdown(label="Linked rules (optional)", choices=[], multiselect=True, scale=4)
+                    cert_rules_csv = gr.Dropdown(label="Linked rules (optional)", choices=[], multiselect=True, scale=4,
+                        info="Rules whose compliance is evidenced or audited by this certification")
                     cert_rules_refresh = gr.Button("↻", variant="secondary", size="sm", scale=0)
                 gr.Examples(
                     examples=[
