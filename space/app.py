@@ -10376,7 +10376,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 conflicts_table = gr.HTML()
                 with gr.Row():
                     conflict_scan_btn = gr.Button("🔍 Run Conflict Scan (LLM)", variant="primary", size="sm")
-                conflict_log = gr.Textbox(label="Scan log", lines=6, max_lines=14, interactive=False, autoscroll=True)
+                conflict_log = gr.Textbox(label="Scan log", lines=6, max_lines=14, interactive=False, autoscroll=True, show_copy_button=True)
                 with gr.Row():
                     conflict_resolve_id = gr.Textbox(label="Conflict ID prefix to resolve", placeholder="e.g. cnf_abc123", scale=2)
                     conflict_resolution = gr.Textbox(label="Resolution note", placeholder="e.g. Removed overlapping rule, merged conditions", scale=4)
@@ -10436,7 +10436,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     )
                     upload_btn = gr.Button("Upload", variant="primary")
 
-            import_log = gr.Textbox(label="Import log", lines=6, max_lines=16, interactive=False, autoscroll=True)
+            import_log = gr.Textbox(label="Import log", lines=6, max_lines=16, interactive=False, autoscroll=True, show_copy_button=True)
             upload_status = gr.Markdown()
 
             import_btn.click(run_import_sessions, inputs=session_files_input, outputs=import_log).then(
@@ -10472,7 +10472,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 value=False,
             )
             analysis_log = gr.Textbox(
-                label="Analysis log", lines=10, max_lines=18, interactive=False, autoscroll=True,
+                label="Analysis log", lines=10, max_lines=18, interactive=False, autoscroll=True, show_copy_button=True,
             )
 
             # After analysis/seed — auto-update the dashboard pending alert so the KPI stays current
@@ -10566,7 +10566,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     audit_refresh_sel = gr.Button("↻ Refresh list", variant="secondary", size="sm", scale=1)
                 with gr.Row():
                     audit_run_btn = gr.Button("🤖 Run AI Audit", variant="primary", size="sm")
-                audit_log = gr.Textbox(label="Audit log", lines=6, max_lines=16, interactive=False, autoscroll=True)
+                audit_log = gr.Textbox(label="Audit log", lines=6, max_lines=16, interactive=False, autoscroll=True, show_copy_button=True)
 
                 def _refresh_audit_sel():
                     return gr.update(choices=[""] + get_conversation_ids())
@@ -10843,7 +10843,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 risk_table = gr.HTML()
                 with gr.Row():
                     risk_update_btn = gr.Button("🔢 Recompute Risk Scores", variant="primary", size="sm")
-                risk_log = gr.Textbox(label="Risk log", lines=4, max_lines=12, interactive=False, autoscroll=True)
+                risk_log = gr.Textbox(label="Risk log", lines=4, max_lines=12, interactive=False, autoscroll=True, show_copy_button=True)
 
                 def _refresh_risk():
                     return build_risk_table()
