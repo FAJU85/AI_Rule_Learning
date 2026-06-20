@@ -2355,19 +2355,25 @@ def transition_rule_lifecycle(rule_id: str, new_status: str, reason: str = "") -
         return f"❌ Failed to save: {exc}"
 
 
-def build_lifecycle_table() -> pd.DataFrame:
+def build_lifecycle_table(query: str = "") -> pd.DataFrame:
     rules = load_rules()
     if not rules:
         return pd.DataFrame(columns=["State", "Name", "Owner", "Team", "Priority", "Created", "Last Changed"])
+    q = query.strip().lower()
     rows = []
     for r in rules:
         status = r.get("status", "active")
         icon = LIFECYCLE_ICONS.get(status, "?")
+        name = r.get("name", r.get("rule_id", "?"))
+        owner = r.get("owner", "—")
+        team = r.get("team", "—")
+        if q and not any(q in s.lower() for s in (status, name, owner, team)):
+            continue
         rows.append({
             "State": f"{icon} {status}",
-            "Name": r.get("name", r.get("rule_id", "?")),
-            "Owner": r.get("owner", "—"),
-            "Team": r.get("team", "—"),
+            "Name": name,
+            "Owner": owner,
+            "Team": team,
             "Priority": r.get("priority", "?"),
             "Created": str(r.get("created_at", ""))[:10],
             "Last Changed": str(r.get(f"{status}_at", r.get("created_at", "")))[:10],
@@ -3733,18 +3739,27 @@ def compute_slo_status() -> list[dict]:
     return results
 
 
-def build_slo_table() -> pd.DataFrame:
+def build_slo_table(query: str = "") -> pd.DataFrame:
     rows = compute_slo_status()
     if not rows:
         return pd.DataFrame(columns=["Rule", "SLO", "Target %", "SLI %", "Error Budget", "Status"])
-    return pd.DataFrame([{
-        "Rule": r["rule_name"][:30],
-        "SLO": r["slo_name"],
-        "Target %": r["target_pct"],
-        "SLI %": r["sli_pct"] if r["sli_pct"] is not None else "n/a",
-        "Error Budget": r["error_budget_remaining"] if r["error_budget_remaining"] is not None else "n/a",
-        "Status": r["status"],
-    } for r in rows])
+    q = query.strip().lower()
+    result = []
+    for r in rows:
+        rule_name = r["rule_name"][:30]
+        slo_name = r["slo_name"]
+        status = r["status"]
+        if q and not any(q in s.lower() for s in (rule_name, slo_name, status)):
+            continue
+        result.append({
+            "Rule": rule_name,
+            "SLO": slo_name,
+            "Target %": r["target_pct"],
+            "SLI %": r["sli_pct"] if r["sli_pct"] is not None else "n/a",
+            "Error Budget": r["error_budget_remaining"] if r["error_budget_remaining"] is not None else "n/a",
+            "Status": status,
+        })
+    return pd.DataFrame(result)
 
 
 def build_slo_chart() -> Any:
@@ -6814,7 +6829,7 @@ def run_regression_check() -> str:
     return "\n".join(lines)
 
 
-def build_regression_table() -> pd.DataFrame:
+def build_regression_table(query: str = "") -> pd.DataFrame:
     log = _load_regression_log()
     if not log:
         return pd.DataFrame(columns=["Rule", "Pass Rate", "Delta", "Status", "Timestamp"])
@@ -6826,15 +6841,20 @@ def build_regression_table() -> pd.DataFrame:
             continue
         if rid not in latest or entry.get("timestamp", "") > latest[rid].get("timestamp", ""):
             latest[rid] = entry
+    q = query.strip().lower()
     rows = []
     for entry in latest.values():
         delta = entry.get("delta")
         delta_str = (f"+{delta}%" if delta >= 0 else f"{delta}%") if delta is not None else "N/A (first run)"
+        rule_name = entry.get("rule_name", entry.get("rule_id", ""))[:40]
+        status = entry.get("status", "stable")
+        if q and not any(q in s.lower() for s in (rule_name, status)):
+            continue
         rows.append({
-            "Rule": entry.get("rule_name", entry.get("rule_id", ""))[:40],
+            "Rule": rule_name,
             "Pass Rate": f"{entry.get('pass_rate', 0)}%",
             "Delta": delta_str,
-            "Status": entry.get("status", "stable"),
+            "Status": status,
             "Timestamp": entry.get("timestamp", "")[:16],
         })
     return pd.DataFrame(rows)
@@ -8966,8 +8986,10 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
 
                 gr.HTML('<div class="section-title">Lifecycle Management</div>')
                 gr.Markdown("Move rules through: `draft → pending_review → active → deprecated → retired`")
+                with gr.Row():
+                    lifecycle_search = gr.Textbox(label="Search lifecycle", placeholder="Filter by status, name, owner, or team…", scale=4)
+                    lifecycle_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm", scale=1)
                 lifecycle_table = gr.Dataframe(interactive=False, wrap=True)
-                lifecycle_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
                 with gr.Row():
                     lc_rule_selector = gr.Dropdown(label="Rule", choices=[], scale=3)
                     lc_new_state = gr.Dropdown(
@@ -8983,6 +9005,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     return build_lifecycle_table(), gr.update(choices=get_rule_names())
 
                 lifecycle_refresh_btn.click(_refresh_lc, outputs=[lifecycle_table, lc_rule_selector])
+                lifecycle_search.change(build_lifecycle_table, inputs=[lifecycle_search], outputs=[lifecycle_table])
                 rules_tab.select(_refresh_lc, outputs=[lifecycle_table, lc_rule_selector])
                 lc_transition_btn.click(
                     transition_rule_lifecycle,
@@ -9779,8 +9802,10 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 gr.HTML('<div class="section-title">Rule Observability (SLOs)</div>')
                 gr.Markdown("Define effectiveness SLOs per rule and track error budgets in real time.")
                 slo_chart = gr.Plot()
+                with gr.Row():
+                    slo_search = gr.Textbox(label="Search SLOs", placeholder="Filter by rule, SLO name, or status…", scale=4)
+                    slo_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm", scale=1)
                 slo_table = gr.Dataframe(interactive=False, wrap=True)
-                slo_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
 
                 gr.Markdown("**Define a new SLO**")
                 with gr.Row():
@@ -9795,6 +9820,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     return build_slo_chart(), build_slo_table(), gr.update(choices=get_rule_ids())
 
                 slo_refresh_btn.click(_refresh_slo, outputs=[slo_chart, slo_table, slo_rule_sel])
+                slo_search.change(build_slo_table, inputs=[slo_search], outputs=[slo_table])
                 gov_tab.select(_refresh_slo, outputs=[slo_chart, slo_table, slo_rule_sel])
                 slo_add_btn.click(
                     define_slo,
@@ -9879,9 +9905,11 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 gr.HTML('<div class="section-title">Regression Detection</div>')
                 gr.Markdown("Detect when a new benchmark run scores lower than the previous snapshot for a rule (Δ < -5% = regression).")
                 reg_report = gr.Markdown()
+                with gr.Row():
+                    reg_search = gr.Textbox(label="Search regressions", placeholder="Filter by rule name or status…", scale=4)
+                    reg_refresh_btn = gr.Button("↻ Refresh History", variant="secondary", size="sm", scale=1)
                 reg_table = gr.Dataframe(interactive=False, wrap=True)
                 reg_run_btn = gr.Button("Run Regression Check", variant="primary", size="sm")
-                reg_refresh_btn = gr.Button("↻ Refresh History", variant="secondary", size="sm")
 
                 def _refresh_regression():
                     return build_regression_table()
@@ -9889,6 +9917,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 reg_run_btn.click(run_regression_check, outputs=reg_report)
                 reg_run_btn.click(_refresh_regression, outputs=reg_table)
                 reg_refresh_btn.click(_refresh_regression, outputs=reg_table)
+                reg_search.change(build_regression_table, inputs=[reg_search], outputs=[reg_table])
                 gov_tab.select(_refresh_regression, outputs=reg_table)
 
                 gr.HTML('<div class="section-title">Reputation Tracking</div>')
