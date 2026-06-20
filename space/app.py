@@ -6755,6 +6755,17 @@ img, video, canvas, iframe { max-width: 100%; height: auto; }
     padding: 10px 14px; font-size: 0.82rem; color: #0369a1; margin-bottom: 10px; line-height: 1.5; }
 .rl-group-label { font-size: 0.68rem; font-weight: 700; text-transform: uppercase;
     letter-spacing: 0.08em; color: #64748b; margin: 12px 0 4px 2px; }
+.rl-onboard-card { background: linear-gradient(135deg,#f8faff 0%,#f0f9ff 100%);
+    border: 1px solid #c7d2fe; border-radius: 12px; padding: 20px 24px; margin-top: 14px; }
+.rl-onboard-title { font-size: 1rem; font-weight: 700; color: #3730a3; margin-bottom: 14px; }
+.rl-onboard-steps { display: flex; flex-direction: column; gap: 10px; }
+.rl-onboard-step { display: flex; align-items: flex-start; gap: 12px; }
+.rl-onboard-num { flex-shrink: 0; width: 26px; height: 26px; border-radius: 50%;
+    background: #4f46e5; color: #fff; font-size: 0.78rem; font-weight: 800;
+    display: flex; align-items: center; justify-content: center; }
+.rl-onboard-step > div { display: flex; flex-direction: column; gap: 2px; }
+.rl-onboard-step strong { font-size: 0.88rem; color: #1e293b; }
+.rl-onboard-step span { font-size: 0.8rem; color: #64748b; line-height: 1.45; }
 
 /* ── Tablet (≤ 960 px) ───────────────────────────────────────────────── */
 @media (max-width: 960px) {
@@ -7250,6 +7261,27 @@ def build_action_items_html() -> str:
         pass
 
     if not items:
+        conversations = load_conversations()
+        if not rules and not conversations:
+            return (
+                '<div class="action-items-panel all-clear"><span>No data yet — follow the steps below to get started.</span></div>'
+                '<div class="rl-onboard-card">'
+                '<div class="rl-onboard-title">👋 Welcome — get started in 3 steps</div>'
+                '<div class="rl-onboard-steps">'
+                '<div class="rl-onboard-step"><span class="rl-onboard-num">1</span><div>'
+                '<strong>Import sessions</strong>'
+                '<span>Go to <em>🔄 Sessions → Step 1</em> and upload your Claude Code .jsonl files (or any JSON/CSV conversation export).</span>'
+                '</div></div>'
+                '<div class="rl-onboard-step"><span class="rl-onboard-num">2</span><div>'
+                '<strong>Run analysis</strong>'
+                '<span>In <em>Step 2</em>, click <em>🌱 Load Starter Rules</em> then <em>▶ Run Analysis</em> to detect gaps and generate rules.</span>'
+                '</div></div>'
+                '<div class="rl-onboard-step"><span class="rl-onboard-num">3</span><div>'
+                '<strong>Review &amp; activate rules</strong>'
+                '<span>Open <em>📋 Rules → Review Queue</em> and approve the rules you want to activate. The dashboard will update automatically.</span>'
+                '</div></div>'
+                '</div></div>'
+            )
         return '<div class="action-items-panel all-clear"><span>✅ Nothing needs attention right now — all systems nominal.</span></div>'
 
     priority_order = {"critical": 0, "warning": 1, "info": 2}
