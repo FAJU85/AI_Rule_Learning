@@ -10560,6 +10560,11 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 inputs=[enf_user_input, enf_agent_resp, enf_context],
                 outputs=enf_result,
             )
+            enf_user_input.submit(
+                enforce_and_log,
+                inputs=[enf_user_input, enf_agent_resp, enf_context],
+                outputs=enf_result,
+            )
 
             with gr.Accordion('🤖 AI Audit & Human Oversight', open=False):
                 gr.HTML('<div class="section-title">AI Audit (Worker → Auditor)</div>')
@@ -10981,6 +10986,11 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     inputs=[bench_rule_sel, bench_input_text, bench_expected, bench_should_trigger],
                     outputs=bench_add_status,
                 )
+                bench_input_text.submit(
+                    add_benchmark_case,
+                    inputs=[bench_rule_sel, bench_input_text, bench_expected, bench_should_trigger],
+                    outputs=bench_add_status,
+                )
                 bench_gen_btn.click(
                     generate_benchmark_cases_llm,
                     inputs=[bench_rule_sel],
@@ -11151,6 +11161,11 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 analytics_tab.select(_refresh_exp_sel, outputs=exp_rule_sel)
                 analytics_tab.select(_refresh_exp_table, outputs=exp_table)
                 exp_run_btn.click(
+                    explain_rule_decision,
+                    inputs=[exp_rule_sel, exp_user_input, exp_agent_response],
+                    outputs=exp_result,
+                )
+                exp_user_input.submit(
                     explain_rule_decision,
                     inputs=[exp_rule_sel, exp_user_input, exp_agent_response],
                     outputs=exp_result,
