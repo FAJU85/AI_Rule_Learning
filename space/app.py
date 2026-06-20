@@ -11254,6 +11254,15 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 with gr.Row():
                     rating_friction = gr.Textbox(label="What caused friction / what went wrong?", lines=2, placeholder="e.g. AI repeated itself, wrong tone…", scale=3)
                     rating_helped = gr.Textbox(label="What rules helped (if any)?", lines=2, placeholder="e.g. 'always show code examples' rule worked well", scale=3)
+                gr.Examples(
+                    examples=[
+                        [4, "AI occasionally repeated the same answer twice when asked to clarify", "Code quality rule helped — AI consistently added error handling examples"],
+                        [2, "AI refused a legitimate request citing a rule that didn't apply — frustrating false positive", ""],
+                        [5, "Excellent session — AI stayed on-topic, gave concise answers, escalated appropriately once", "Tone rule and escalation rule both fired correctly"],
+                    ],
+                    inputs=[rating_score, rating_friction, rating_helped],
+                    label="Example session ratings (click to load)",
+                )
                 rating_submit_btn = gr.Button("Submit Rating", variant="primary", size="sm")
                 rating_status = gr.Markdown(min_height=28)
 
@@ -11356,6 +11365,15 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     imp_rule_refresh = gr.Button("↻", variant="secondary", size="sm", scale=0)
                     imp_trigger = gr.Textbox(label="Trigger event", placeholder="e.g. bypass_rate > 0.4", scale=3)
                 imp_desc = gr.Textbox(label="Description", lines=2, placeholder="What went wrong and why")
+                gr.Examples(
+                    examples=[
+                        ["bypass_rate > 0.4", "Bypass rate on code-quality rule spiked to 0.6 — AI is ignoring the rule in 40% of sessions"],
+                        ["false_positive_rate > 0.15", "Over-broad trigger matching benign requests — needs tighter condition expression"],
+                        ["effectiveness_score < 0.7", "Rule effectiveness dropped below threshold after model update — may need re-tuning"],
+                    ],
+                    inputs=[imp_trigger, imp_desc],
+                    label="Example improvement triggers (click to load)",
+                )
                 imp_open_btn = gr.Button("▶ Open Cycle", variant="primary", size="sm")
                 imp_open_status = gr.Markdown(min_height=28)
 
