@@ -10544,7 +10544,8 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
 
                 gr.HTML('<div class="rl-group-label" style="margin-top:14px">Log a new override</div>')
                 with gr.Row():
-                    ov_conv_id = gr.Textbox(label="Conversation ID", scale=2)
+                    ov_conv_id = gr.Dropdown(label="Conversation ID", choices=[], scale=2)
+                    ov_conv_refresh = gr.Button("↻", variant="secondary", size="sm", scale=0)
                     ov_turn_no = gr.Number(label="Turn #", value=1, minimum=1, scale=1)
                 with gr.Row():
                     ov_ai_dec = gr.Textbox(label="AI Decision", scale=3)
@@ -10571,6 +10572,8 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     outputs=ov_log_status,
                 )
                 ov_rate_btn.click(mark_override_accuracy, inputs=[ov_rate_id, ov_was_correct], outputs=ov_rate_status)
+                ov_conv_refresh.click(lambda: gr.update(choices=get_conversation_ids()), outputs=ov_conv_id)
+                monitoring_tab.select(lambda: gr.update(choices=get_conversation_ids()), outputs=ov_conv_id)
 
                 gr.HTML('<div class="section-title">Escalation Quality</div>')
                 gr.Markdown("Track correct, missed, and false escalations. Compute precision, recall, and F1.")
@@ -10582,7 +10585,8 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
 
                 gr.HTML('<div class="rl-group-label" style="margin-top:14px">Log a new escalation</div>')
                 with gr.Row():
-                    esc_conv_id = gr.Textbox(label="Conversation ID", scale=2)
+                    esc_conv_id = gr.Dropdown(label="Conversation ID", choices=[], scale=2)
+                    esc_conv_refresh = gr.Button("↻", variant="secondary", size="sm", scale=0)
                     esc_turn_no = gr.Number(label="Turn #", value=1, minimum=1, scale=1)
                     esc_type = gr.Textbox(label="Escalation type", placeholder="e.g. safety, compliance", scale=2)
                 with gr.Row():
@@ -10607,6 +10611,8 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                             esc_outcome, esc_notes],
                     outputs=esc_log_status,
                 )
+                esc_conv_refresh.click(lambda: gr.update(choices=get_conversation_ids()), outputs=esc_conv_id)
+                monitoring_tab.select(lambda: gr.update(choices=get_conversation_ids()), outputs=esc_conv_id)
 
             with gr.Accordion('📋 Provenance & Evidence', open=False):
                 gr.HTML('<div class="section-title">Decision Provenance</div>')
@@ -10709,7 +10715,8 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
 
                 gr.HTML('<div class="rl-group-label" style="margin-top:14px">Record metrics for a turn</div>')
                 with gr.Row():
-                    beh_conv_id = gr.Textbox(label="Conversation ID", scale=2)
+                    beh_conv_id = gr.Dropdown(label="Conversation ID", choices=[], scale=2)
+                    beh_conv_refresh = gr.Button("↻", variant="secondary", size="sm", scale=0)
                     beh_turn_no = gr.Number(label="Turn #", value=1, minimum=1, scale=1)
                     beh_hallu = gr.Checkbox(label="Hallucination detected?", value=False, scale=1)
                 with gr.Row():
@@ -10734,6 +10741,8 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                             beh_consistency, beh_refusal, beh_tone, beh_verbosity, beh_notes],
                     outputs=beh_record_status,
                 )
+                beh_conv_refresh.click(lambda: gr.update(choices=get_conversation_ids()), outputs=beh_conv_id)
+                monitoring_tab.select(lambda: gr.update(choices=get_conversation_ids()), outputs=beh_conv_id)
 
         with gr.Tab("📈 Analytics") as analytics_tab:
 
@@ -11064,7 +11073,8 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
 
                 gr.HTML('<div class="rl-group-label" style="margin-top:14px">Submit a rating</div>')
                 with gr.Row():
-                    rating_conv_id = gr.Textbox(label="Conversation ID", placeholder="e.g. conv_20240101", scale=3)
+                    rating_conv_id = gr.Dropdown(label="Conversation ID", choices=[], scale=3)
+                    rating_conv_refresh = gr.Button("↻", variant="secondary", size="sm", scale=0)
                     rating_score = gr.Slider(label="Session quality (1 = poor, 5 = excellent)", minimum=1, maximum=5, step=1, value=3, scale=2)
                 with gr.Row():
                     rating_friction = gr.Textbox(label="What caused friction / what went wrong?", lines=2, placeholder="e.g. AI repeated itself, wrong tone…", scale=3)
@@ -11084,6 +11094,8 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 rating_refresh_btn.click(_refresh_ratings, outputs=[rating_before_after, rating_trend, rating_table])
                 rating_search.change(build_ratings_table, inputs=[rating_search], outputs=[rating_table])
                 analytics_tab.select(_refresh_ratings, outputs=[rating_before_after, rating_trend, rating_table])
+                rating_conv_refresh.click(lambda: gr.update(choices=get_conversation_ids()), outputs=rating_conv_id)
+                analytics_tab.select(lambda: gr.update(choices=get_conversation_ids()), outputs=rating_conv_id)
 
         with gr.Tab("⚖️ Governance") as gov_tab:
 
