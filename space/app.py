@@ -190,31 +190,77 @@ def _is_too_similar_to_rejected(new_rule: dict, rejected: list[dict], threshold:
 # Rules
 # ---------------------------------------------------------------------------
 
-def build_rules_table(query: str = "") -> pd.DataFrame:
+def build_rules_table(query: str = "") -> str:
     rules = load_rules()
-    if not rules:
-        return pd.DataFrame(
-            columns=["✓", "Name", "Layer", "Pri", "Hits", "Score"]
-        )
     q = query.strip().lower()
-    rows = []
+
+    def _status_badge(r: dict) -> str:
+        if r.get("is_active"):
+            return '<span class="rl-badge rl-badge-active">active</span>'
+        st = r.get("status", "")
+        if st == "pending_review":
+            return '<span class="rl-badge rl-badge-pending">pending</span>'
+        if st in ("deprecated", "retired"):
+            return '<span class="rl-badge rl-badge-deprecated">deprecated</span>'
+        return '<span class="rl-badge rl-badge-inactive">inactive</span>'
+
+    def _pri_cell(p) -> str:
+        p_str = str(p)
+        cls = {"critical": "rl-pri-critical", "high": "rl-pri-high",
+               "medium": "rl-pri-medium", "low": "rl-pri-low"}.get(str(p).lower(), "rl-pri-medium")
+        return f'<span class="{cls}">{p_str}</span>'
+
+    def _score_cell(score: float) -> str:
+        pct = int(score * 100)
+        bar_w = max(2, min(80, pct))
+        color = "#10b981" if pct >= 70 else "#f59e0b" if pct >= 40 else "#ef4444"
+        return (
+            f'<div class="rl-score-bar">'
+            f'<div class="rl-score-fill" style="width:{bar_w}px;background:{color}"></div>'
+            f'<span style="font-size:0.78rem;color:#334155">{pct}%</span></div>'
+        )
+
+    matched = []
     for r in rules:
         name = r.get("name", r.get("rule_id", "?"))
         layer = _infer_rule_layer(r).replace("_", " ").title()
         status = "active" if r.get("is_active") else r.get("status", "")
         if q and not any(q in s.lower() for s in (name, layer, status)):
             continue
-        rows.append(
-            {
-                "✓": "✅" if r.get("is_active") else "⛔",
-                "Name": name[:40] + ("…" if len(name) > 40 else ""),
-                "Layer": layer,
-                "Pri": r.get("priority", 0),
-                "Hits": r.get("times_triggered", 0),
-                "Score": f"{r.get('effectiveness_score', 0):.0%}",
-            }
+        matched.append(r)
+
+    if not matched:
+        msg = "No rules yet." if not rules else f'No rules match "<b>{query}</b>".'
+        return f'<div class="rl-empty">{msg}</div>'
+
+    rows_html = ""
+    for r in matched:
+        name = r.get("name", r.get("rule_id", "?"))
+        display_name = (name[:42] + "…") if len(name) > 42 else name
+        layer = _infer_rule_layer(r).replace("_", " ").title()
+        hits = r.get("times_triggered", 0)
+        score = r.get("effectiveness_score", 0)
+        pri = r.get("priority", 0)
+        rows_html += (
+            f"<tr>"
+            f"<td>{_status_badge(r)}</td>"
+            f"<td style='max-width:240px'>{display_name}</td>"
+            f"<td>{layer}</td>"
+            f"<td>{_pri_cell(pri)}</td>"
+            f"<td style='text-align:right'>{hits}</td>"
+            f"<td>{_score_cell(score)}</td>"
+            f"</tr>"
         )
-    return pd.DataFrame(rows)
+
+    return (
+        f'<div class="rl-table-wrap">'
+        f'<table class="rl-table">'
+        f"<thead><tr>"
+        f"<th>Status</th><th>Name</th><th>Layer</th><th>Priority</th><th>Hits</th><th>Score</th>"
+        f"</tr></thead>"
+        f"<tbody>{rows_html}</tbody>"
+        f"</table></div>"
+    )
 
 
 def get_rule_names() -> list[str]:
@@ -4245,12 +4291,24 @@ def update_incident(incident_id: str, new_status: str, note: str = "") -> str:
     return f"Incident {incident_id[:8]} → [{new_status}]"
 
 
-def build_incidents_table(query: str = "") -> pd.DataFrame:
+def build_incidents_table(query: str = "") -> str:
     incidents = _download_jsonl(INCIDENT_FILE)
-    if not incidents:
-        return pd.DataFrame(columns=["ID", "Rule", "Title", "Severity", "Status", "Recurrences", "Opened"])
     q = query.strip().lower()
-    rows = []
+
+    _sev_badge = {
+        "P0_critical": '<span class="rl-badge" style="background:#fee2e2;color:#991b1b">P0 critical</span>',
+        "P1_high":     '<span class="rl-badge" style="background:#fef3c7;color:#92400e">P1 high</span>',
+        "P2_medium":   '<span class="rl-badge" style="background:#ede9fe;color:#5b21b6">P2 medium</span>',
+        "P3_low":      '<span class="rl-badge" style="background:#f1f5f9;color:#475569">P3 low</span>',
+    }
+    _status_badge = {
+        "open":     '<span class="rl-badge rl-badge-deprecated">open</span>',
+        "resolved": '<span class="rl-badge rl-badge-active">resolved</span>',
+        "closed":   '<span class="rl-badge rl-badge-inactive">closed</span>',
+        "investigating": '<span class="rl-badge rl-badge-pending">investigating</span>',
+    }
+
+    matched = []
     for i in sorted(incidents, key=lambda x: x.get("opened_at", ""), reverse=True):
         title = i.get("title", "")
         rule = i.get("rule_name", "")
@@ -4258,16 +4316,37 @@ def build_incidents_table(query: str = "") -> pd.DataFrame:
         status = i.get("status", "")
         if q and not any(q in s.lower() for s in (title, rule, severity, status)):
             continue
-        rows.append({
-            "ID":          i.get("incident_id", "")[:8],
-            "Rule":        rule[:25],
-            "Title":       title[:40],
-            "Severity":    severity,
-            "Status":      status,
-            "Recurrences": i.get("recurrence_count", 0),
-            "Opened":      i.get("opened_at", "")[:10],
-        })
-    return pd.DataFrame(rows)
+        matched.append(i)
+
+    if not matched:
+        msg = "No incidents recorded." if not incidents else f'No incidents match "<b>{query}</b>".'
+        return f'<div class="rl-empty">{msg}</div>'
+
+    rows_html = ""
+    for i in matched:
+        sev = i.get("severity", "")
+        st = i.get("status", "")
+        sev_html = _sev_badge.get(sev, f'<span class="rl-badge rl-badge-inactive">{sev}</span>')
+        st_html = _status_badge.get(st, f'<span class="rl-badge rl-badge-inactive">{st}</span>')
+        rec = i.get("recurrence_count", 0)
+        rec_html = f'<span style="color:#ef4444;font-weight:700">{rec}</span>' if rec > 0 else "0"
+        rows_html += (
+            f"<tr>"
+            f"<td style='font-family:monospace;font-size:0.75rem'>{i.get('incident_id','')[:8]}</td>"
+            f"<td style='font-size:0.8rem;color:#475569'>{i.get('rule_name','')[:22]}</td>"
+            f"<td style='max-width:200px'>{i.get('title','')[:38]}</td>"
+            f"<td>{sev_html}</td>"
+            f"<td>{st_html}</td>"
+            f"<td style='text-align:center'>{rec_html}</td>"
+            f"<td style='font-size:0.75rem;color:#94a3b8'>{i.get('opened_at','')[:10]}</td>"
+            f"</tr>"
+        )
+    return (
+        f'<div class="rl-table-wrap"><table class="rl-table">'
+        f"<thead><tr><th>ID</th><th>Rule</th><th>Title</th><th>Severity</th>"
+        f"<th>Status</th><th>Recurs</th><th>Opened</th></tr></thead>"
+        f"<tbody>{rows_html}</tbody></table></div>"
+    )
 
 
 def build_incident_summary() -> str:
@@ -4516,27 +4595,48 @@ def enforce_and_log(user_input: str, agent_response: str, context: str = "") -> 
     return "\n".join(lines)
 
 
-def build_enforcement_log_table(query: str = "") -> pd.DataFrame:
+def build_enforcement_log_table(query: str = "") -> str:
     entries = _download_jsonl(ENFORCEMENT_FILE)
-    if not entries:
-        return pd.DataFrame(columns=["ID", "Verdict", "Passed", "Failed", "Warnings", "Failed Rules", "Date"])
     q = query.strip().lower()
-    rows = []
+
+    _verdict_badge = {
+        "pass": '<span class="rl-badge rl-badge-active">pass</span>',
+        "warn": '<span class="rl-badge rl-badge-pending">warn</span>',
+        "fail": '<span class="rl-badge rl-badge-deprecated">fail</span>',
+    }
+
+    matched = []
     for e in sorted(entries, key=lambda x: x.get("enforced_at", ""), reverse=True)[:200]:
         verdict = e.get("verdict", "")
-        failed_rules = ", ".join(e.get("failed_rules", []))[:50] or "—"
+        failed_rules = ", ".join(e.get("failed_rules", []))[:60] or "—"
         if q and not any(q in s.lower() for s in (verdict, failed_rules)):
             continue
-        rows.append({
-            "ID":           e.get("enforcement_id", "")[:8],
-            "Verdict":      verdict,
-            "Passed":       e.get("passed_count", 0),
-            "Failed":       e.get("failed_count", 0),
-            "Warnings":     e.get("warning_count", 0),
-            "Failed Rules": failed_rules,
-            "Date":         e.get("enforced_at", "")[:19],
-        })
-    return pd.DataFrame(rows)
+        matched.append((e, verdict, failed_rules))
+
+    if not matched:
+        msg = "No enforcement runs yet." if not entries else f'No entries match "<b>{query}</b>".'
+        return f'<div class="rl-empty">{msg}</div>'
+
+    rows_html = ""
+    for e, verdict, failed_rules in matched:
+        badge = _verdict_badge.get(verdict, f'<span class="rl-badge rl-badge-inactive">{verdict}</span>')
+        rows_html += (
+            f"<tr>"
+            f"<td style='font-family:monospace;font-size:0.75rem'>{e.get('enforcement_id','')[:8]}</td>"
+            f"<td>{badge}</td>"
+            f"<td style='text-align:center;color:#059669'>{e.get('passed_count', 0)}</td>"
+            f"<td style='text-align:center;color:#dc2626'>{e.get('failed_count', 0)}</td>"
+            f"<td style='text-align:center;color:#d97706'>{e.get('warning_count', 0)}</td>"
+            f"<td style='font-size:0.78rem;color:#64748b'>{failed_rules}</td>"
+            f"<td style='font-size:0.75rem;color:#94a3b8'>{e.get('enforced_at','')[:19]}</td>"
+            f"</tr>"
+        )
+    return (
+        f'<div class="rl-table-wrap"><table class="rl-table">'
+        f"<thead><tr><th>ID</th><th>Verdict</th><th>Pass</th><th>Fail</th><th>Warn</th>"
+        f"<th>Failed Rules</th><th>Date</th></tr></thead>"
+        f"<tbody>{rows_html}</tbody></table></div>"
+    )
 
 
 def build_enforcement_summary() -> str:
@@ -6235,6 +6335,36 @@ img, video, canvas, iframe { max-width: 100%; height: auto; }
     display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
     padding: 10px 4px 14px; margin-bottom: 4px;
 }
+
+/* ── Styled rules table ──────────────────────────────────────────────── */
+.rl-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: 10px; border: 1px solid #e2e8f0; }
+.rl-table { width: 100%; border-collapse: collapse; font-size: 0.83rem; }
+.rl-table thead tr { background: #f8fafc; }
+.rl-table th {
+    padding: 9px 12px; text-align: left; font-size: 0.7rem; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.07em; color: #64748b;
+    border-bottom: 1px solid #e2e8f0; position: sticky; top: 0; background: #f8fafc; z-index: 2;
+}
+.rl-table td { padding: 9px 12px; border-bottom: 1px solid #f1f5f9; color: #334155; vertical-align: middle; }
+.rl-table tr:last-child td { border-bottom: none; }
+.rl-table tr:hover td { background: #f8fafc; }
+.rl-table tr:nth-child(even) td { background: #fafafa; }
+.rl-table tr:nth-child(even):hover td { background: #f1f5f9; }
+.rl-badge {
+    display: inline-block; border-radius: 20px; padding: 2px 9px;
+    font-size: 0.68rem; font-weight: 700; white-space: nowrap; letter-spacing: 0.04em;
+}
+.rl-badge-active   { background: #dcfce7; color: #166534; }
+.rl-badge-pending  { background: #fef3c7; color: #92400e; }
+.rl-badge-inactive { background: #f1f5f9; color: #64748b; }
+.rl-badge-deprecated { background: #fee2e2; color: #991b1b; }
+.rl-pri-critical { color: #dc2626; font-weight: 700; }
+.rl-pri-high     { color: #d97706; font-weight: 700; }
+.rl-pri-medium   { color: #4f46e5; font-weight: 600; }
+.rl-pri-low      { color: #94a3b8; }
+.rl-score-bar { display: flex; align-items: center; gap: 6px; }
+.rl-score-fill { height: 6px; border-radius: 4px; min-width: 2px; background: #4f46e5; }
+.rl-empty { padding: 24px; text-align: center; color: #94a3b8; font-size: 0.85rem; }
 
 /* ── Tablet (≤ 960 px) ───────────────────────────────────────────────── */
 @media (max-width: 960px) {
@@ -9272,7 +9402,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     scale=4,
                 )
                 refresh_rules_btn = gr.Button("↻ Refresh", variant="secondary", size="sm", scale=1)
-            rules_table = gr.Dataframe(interactive=False, wrap=True)
+            rules_table = gr.HTML()
 
             rule_selector = gr.Dropdown(label="Select rule", choices=[])
             rule_detail = gr.Markdown()
@@ -9603,7 +9733,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
             with gr.Row():
                 enf_search = gr.Textbox(label="Search enforcement log", placeholder="Filter by verdict or failed rules…", scale=4)
                 enf_refresh_btn = gr.Button("↻ Refresh log", variant="secondary", size="sm", scale=1)
-            enf_log_table = gr.Dataframe(interactive=False, wrap=True)
+            enf_log_table = gr.HTML()
             enf_user_input = gr.Textbox(label="User input", lines=2,
                                         placeholder="What the user said")
             enf_agent_resp = gr.Textbox(label="Agent response", lines=3,
@@ -10064,7 +10194,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 with gr.Row():
                     inc_search = gr.Textbox(label="Search incidents", placeholder="Filter by title, rule, severity, or status…", scale=4)
                     inc_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm", scale=1)
-                inc_table = gr.Dataframe(interactive=False, wrap=True)
+                inc_table = gr.HTML()
 
                 gr.Markdown("**Open a new incident**")
                 with gr.Row():
