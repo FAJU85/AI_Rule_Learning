@@ -6870,6 +6870,13 @@ img, video, canvas, iframe { max-width: 100%; height: auto; }
     /* Action items panel: compact on mobile */
     .action-item { padding: 8px 12px; font-size: 0.8rem; }
     .action-items-panel.all-clear { padding: 10px 12px; }
+
+    /* Onboarding card */
+    .rl-onboard-card { padding: 14px 16px; }
+    .rl-onboard-title { font-size: 0.92rem; }
+    .rl-onboard-step strong { font-size: 0.82rem; }
+    .rl-onboard-step span { font-size: 0.75rem; }
+    .rl-step2-hint { font-size: 0.76rem; padding: 8px 12px; }
 }
 
 /* ── Small phone (≤ 480 px) ─────────────────────────────────────────── */
@@ -6898,6 +6905,10 @@ img, video, canvas, iframe { max-width: 100%; height: auto; }
     .tab-nav button { padding: 8px 8px !important; font-size: 0.72rem !important; }
     /* On tiny screens, hide emoji in tab labels to save space */
     .tab-nav button { letter-spacing: -0.01em; }
+    .rl-onboard-card { padding: 12px; }
+    .rl-onboard-title { font-size: 0.85rem; }
+    .rl-onboard-num { width: 22px; height: 22px; font-size: 0.72rem; }
+    .rl-step2-hint { font-size: 0.72rem; }
 }
 """
 
@@ -10477,6 +10488,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 enf_search = gr.Textbox(label="Search enforcement log", placeholder="Filter by verdict or failed rules…", scale=4)
                 enf_refresh_btn = gr.Button("↻ Refresh log", variant="secondary", size="sm", scale=1)
             enf_log_table = gr.HTML()
+            gr.HTML('<div class="rl-group-label" style="margin-top:16px">Validate a new turn</div>')
             enf_user_input = gr.Textbox(label="User input", lines=2,
                                         placeholder="What the user said")
             enf_agent_resp = gr.Textbox(label="Agent response", lines=3,
@@ -10529,6 +10541,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     override_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm", scale=1)
                 overrides_table = gr.HTML()
 
+                gr.HTML('<div class="rl-group-label" style="margin-top:14px">Log a new override</div>')
                 with gr.Row():
                     ov_conv_id = gr.Textbox(label="Conversation ID", scale=2)
                     ov_turn_no = gr.Number(label="Turn #", value=1, minimum=1, scale=1)
@@ -10538,6 +10551,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 ov_reason = gr.Textbox(label="Override Reason", lines=1)
                 ov_log_btn = gr.Button("📝 Log Override", variant="secondary", size="sm")
                 ov_log_status = gr.Markdown()
+                gr.HTML('<div class="rl-group-label" style="margin-top:10px">Rate an existing override</div>')
                 with gr.Row():
                     ov_rate_id = gr.Textbox(label="Override ID prefix to rate", scale=2)
                     ov_was_correct = gr.Checkbox(label="Was override correct?", value=True, scale=1)
@@ -10565,6 +10579,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     esc_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm", scale=1)
                 esc_table = gr.HTML()
 
+                gr.HTML('<div class="rl-group-label" style="margin-top:14px">Log a new escalation</div>')
                 with gr.Row():
                     esc_conv_id = gr.Textbox(label="Conversation ID", scale=2)
                     esc_turn_no = gr.Number(label="Turn #", value=1, minimum=1, scale=1)
