@@ -2867,7 +2867,7 @@ def run_benchmark() -> str:
             failed += 1
             label = "SHOULD trigger" if expected else "should NOT trigger"
             got = "triggered" if triggered else "not triggered"
-            failures.append(f"- Rule `{rule.get('name', rid)}`: {label} but {got}  \n  Input: _{c['input_text'][:80]}_")
+            failures.append(f"- Rule `{rule.get('name', rid)}`: {label} but {got}  \n  Input: _{c.get('input_text', '')[:80]}_")
 
     total = passed + failed + skipped
     pct = round(passed / max(total - skipped, 1) * 100, 1)
@@ -2892,7 +2892,7 @@ def build_benchmark_table() -> pd.DataFrame:
     if not cases:
         return pd.DataFrame(columns=["Case ID", "Rule ID", "Input", "Expected", "Created"])
     rows = [{
-        "Case ID": c["case_id"][:8],
+        "Case ID": c.get("case_id", "")[:8],
         "Rule ID": c.get("rule_id", "")[:20],
         "Input": c.get("input_text", "")[:60],
         "Expected": "trigger" if c.get("should_trigger") else "no trigger",
@@ -6102,6 +6102,8 @@ img, video, canvas, iframe { max-width: 100%; height: auto; }
 
     /* Accordion */
     .gr-accordion > .label-wrap { padding: 10px 14px !important; }
+    /* Accordion inner content: tighten padding on mobile */
+    .gr-accordion > div:last-child { padding: 8px 6px !important; }
 }
 
 /* ── Small phone (≤ 480 px) ─────────────────────────────────────────── */
