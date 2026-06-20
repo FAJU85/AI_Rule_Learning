@@ -10265,6 +10265,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 lifecycle_table = gr.HTML()
                 with gr.Row():
                     lc_rule_selector = gr.Dropdown(label="Rule", choices=[], scale=3)
+                    lc_refresh_btn2 = gr.Button("↻", variant="secondary", size="sm", scale=0)
                     lc_new_state = gr.Dropdown(
                         label="New state",
                         choices=LIFECYCLE_STATES,
@@ -10280,6 +10281,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 lifecycle_refresh_btn.click(_refresh_lc, outputs=[lifecycle_table, lc_rule_selector])
                 lifecycle_search.change(build_lifecycle_table, inputs=[lifecycle_search], outputs=[lifecycle_table])
                 rules_tab.select(_refresh_lc, outputs=[lifecycle_table, lc_rule_selector])
+                lc_refresh_btn2.click(lambda: gr.update(choices=get_rule_names()), outputs=lc_rule_selector)
                 lc_transition_btn.click(
                     transition_rule_lifecycle,
                     inputs=[lc_rule_selector, lc_new_state, lc_reason],
@@ -10294,6 +10296,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 exceptions_table = gr.HTML()
                 with gr.Row():
                     exc_rule_selector = gr.Dropdown(label="Rule to disable", choices=[], scale=3)
+                    exc_refresh_btn2 = gr.Button("↻", variant="secondary", size="sm", scale=0)
                     exc_duration = gr.Number(label="Duration (hours)", value=24, minimum=1, maximum=720, scale=1)
                 with gr.Row():
                     exc_reason = gr.Textbox(label="Reason", placeholder="e.g. Emergency incident response", scale=3)
@@ -10309,6 +10312,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 exc_refresh_btn.click(_refresh_exc, outputs=[exceptions_table, exc_rule_selector])
                 exc_search.change(build_exceptions_table, inputs=[exc_search], outputs=[exceptions_table])
                 rules_tab.select(_refresh_exc, outputs=[exceptions_table, exc_rule_selector])
+                exc_refresh_btn2.click(lambda: gr.update(choices=get_rule_names()), outputs=exc_rule_selector)
                 exc_create_btn.click(
                     create_exception,
                     inputs=[exc_rule_selector, exc_reason, exc_approver, exc_duration],
