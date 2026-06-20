@@ -10495,6 +10495,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
         with gr.Tab("🔍 Monitoring") as monitoring_tab:
 
             monitoring_stat_bar = gr.HTML()
+            gr.Markdown("**Sections:** Conversation Clusters · Rule Enforcement Validator · 🤖 AI Audit & Human Oversight · 📋 Provenance & Evidence · 🧠 Behavioral Tracking")
             gr.HTML('<div class="section-title">Conversation Clusters</div>')
             gr.Markdown("Gap frequency grouped by project context — shows where problems concentrate.")
             cluster_chart = gr.Plot()
@@ -10794,6 +10795,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
         with gr.Tab("📈 Analytics") as analytics_tab:
 
             analytics_stat_bar = gr.HTML()
+            gr.Markdown("**Sections:** Conversations · Alignment Sensor · ⚠️ Risk & Compliance · 📈 Performance & Coverage · 🧪 Benchmarks & Root Cause · 🚨 Incidents & Tracing · 💡 Explainability & Feedback")
             gr.HTML('<div class="section-title">Conversations</div>')
             gr.Markdown("All imported AI sessions — search by session name or ID.")
             with gr.Row(elem_classes=["search-row-wrapper"]):
@@ -11153,6 +11155,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
         with gr.Tab("⚖️ Governance") as gov_tab:
 
             governance_stat_bar = gr.HTML()
+            gr.Markdown("**Sections:** Trust Score · 📐 SLOs & Improvement · 🗺️ Knowledge & Reputation · 🎯 Goals & Controls · 🔍 Learning & Gaming Detection · 🔑 Meta-Governance · 📋 Compliance, Reporting & Calendar")
             gr.HTML('<div class="section-title">Governance Dashboard & Trust Score</div>')
             gr.Markdown("Composite Trust Score (0–100) and executive-level governance metrics.")
             with gr.Row():
