@@ -11127,6 +11127,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                         choices=[""] + _RCA_CATEGORIES,
                         value="",
                         scale=2,
+                        info="rule_too_narrow · rule_too_broad · missing_rule · keyword_mismatch · model_hallucination · edge_case · data_quality · other",
                     )
                 rca_violation = gr.Textbox(label="Violation description", lines=2,
                                            placeholder="Describe what went wrong")
@@ -11168,6 +11169,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     outputs=rca_status,
                 )
                 rca_close_btn.click(close_rca, inputs=[rca_close_id, rca_resolution], outputs=rca_close_status)
+                rca_resolution.submit(close_rca, inputs=[rca_close_id, rca_resolution], outputs=rca_close_status)
 
             with gr.Accordion('🚨 Incidents & Tracing', open=False):
                 gr.HTML('<div class="section-title">Incident Management</div>')
@@ -11229,6 +11231,11 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     outputs=inc_open_status,
                 )
                 inc_update_btn.click(
+                    update_incident,
+                    inputs=[inc_update_id, inc_new_status, inc_note],
+                    outputs=inc_update_status,
+                )
+                inc_note.submit(
                     update_incident,
                     inputs=[inc_update_id, inc_new_status, inc_note],
                     outputs=inc_update_status,
