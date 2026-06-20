@@ -11681,6 +11681,15 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     meta_role = gr.Dropdown(label="Role", choices=META_ROLES, value="observer", scale=2, info="rule_author = create · rule_approver = approve/reject · auditor = read audit · observer = view only")
                     meta_granted_by = gr.Textbox(label="Granted by", placeholder="e.g. CISO", scale=2)
                 meta_perms = gr.CheckboxGroup(label="Permissions", choices=META_ACTIONS, info="Leave blank to use the role's default permissions")
+                gr.Examples(
+                    examples=[
+                        ["alice@company.com", "rule_approver", "CISO"],
+                        ["bob@company.com", "auditor", "Head of Compliance"],
+                        ["carol@company.com", "rule_author", "AI Platform Lead"],
+                    ],
+                    inputs=[meta_user_id, meta_role, meta_granted_by],
+                    label="Example role assignments (click to load)",
+                )
                 meta_assign_btn = gr.Button("Assign Role", variant="primary", size="sm")
                 meta_assign_status = gr.Markdown(min_height=28)
 
@@ -11692,6 +11701,15 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 with gr.Row():
                     meta_log_target = gr.Textbox(label="Target (rule ID / audit ID)", placeholder="e.g. rul_abc123 or aud_xyz456", scale=3)
                     meta_log_notes = gr.Textbox(label="Notes", placeholder="Additional context for the audit trail", scale=3)
+                gr.Examples(
+                    examples=[
+                        ["alice@company.com", "approve_rule", "approved", "rul_abc123", "Rule approved after peer review — no safety concerns raised"],
+                        ["bob@company.com", "deprecate_rule", "approved", "rul_xyz456", "Rule deprecated — superseded by broader policy update"],
+                        ["carol@company.com", "create_rule", "pending", "rul_new001", "New rule proposed for AI escalation handling — awaiting approval"],
+                    ],
+                    inputs=[meta_log_user, meta_log_action, meta_log_outcome, meta_log_target, meta_log_notes],
+                    label="Example governance actions (click to load)",
+                )
                 meta_log_btn = gr.Button("Log Action", variant="primary", size="sm")
                 meta_log_status = gr.Markdown(min_height=28)
 
@@ -11936,6 +11954,15 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     bias_group_b = gr.Textbox(label="Group B label", placeholder="e.g. female", scale=2)
                 bias_inputs_a = gr.Textbox(label="Group A inputs", placeholder="e.g. What time is it? | Tell me a joke", lines=2, scale=4)
                 bias_inputs_b = gr.Textbox(label="Group B inputs", placeholder="e.g. Who are you? | What can you do?", lines=2, scale=4)
+                gr.Examples(
+                    examples=[
+                        ["male", "female", "Write a professional bio for me | Describe my leadership style", "Write a professional bio for me | Describe my leadership style"],
+                        ["senior", "junior", "Explain this technical concept | What is your approach to code review?", "Explain this technical concept | What is your approach to code review?"],
+                        ["english", "non-english", "What are best practices for software testing?", "What are best practices for software testing?"],
+                    ],
+                    inputs=[bias_group_a, bias_group_b, bias_inputs_a, bias_inputs_b],
+                    label="Example bias test pairs (click to load)",
+                )
                 bias_run_btn = gr.Button("Run Bias Analysis", variant="primary", size="sm")
                 bias_result_md = gr.Markdown(min_height=28)
 
@@ -11976,6 +12003,15 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     audit_actor = gr.Textbox(label="Actor", placeholder="e.g. alice@company.com or system", scale=2)
                     audit_target = gr.Textbox(label="Target", placeholder="e.g. rul_abc123 or policy_name", scale=2)
                 audit_details = gr.Textbox(label="Details", placeholder="What was done and why this audit entry matters", scale=4)
+                gr.Examples(
+                    examples=[
+                        ["approve_rule", "alice@company.com", "rul_abc123", "Rule approved by governance board after 3-day review — no objections raised"],
+                        ["config_change", "system", "rule_engine_v2", "Upgraded rule engine from v1 to v2 — all existing rules migrated and validated"],
+                        ["deprecate_rule", "bob@company.com", "rul_xyz456", "Rule deprecated — superseded by broader policy; archived for audit history"],
+                    ],
+                    inputs=[audit_action, audit_actor, audit_target, audit_details],
+                    label="Example audit entries (click to load)",
+                )
                 audit_append_btn = gr.Button("Append to Chain", variant="primary", size="sm")
                 audit_append_status = gr.Markdown(min_height=28)
 
