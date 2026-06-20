@@ -10911,6 +10911,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     rca_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm", scale=1)
                 rca_table = gr.HTML()
 
+                gr.HTML('<div class="rl-group-label" style="margin-top:14px">Log a new RCA</div>')
                 with gr.Row():
                     rca_rule_sel = gr.Dropdown(label="Rule", choices=[], scale=3)
                     rca_cat_sel = gr.Dropdown(
@@ -10923,12 +10924,14 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                                            placeholder="Describe what went wrong")
                 rca_user_input = gr.Textbox(label="User input (optional)", lines=1,
                                             placeholder="The message that triggered the issue")
+                rca_log_btn = gr.Button("📋 Log RCA", variant="primary", size="sm")
+                rca_status = gr.Markdown()
+                gr.HTML('<div class="rl-group-label" style="margin-top:14px">Resolve an existing RCA</div>')
                 with gr.Row():
-                    rca_log_btn = gr.Button("📋 Log RCA", variant="primary", size="sm")
                     rca_close_id = gr.Textbox(label="RCA ID prefix to resolve", scale=2)
                     rca_resolution = gr.Textbox(label="Resolution note", scale=3)
                     rca_close_btn = gr.Button("✅ Mark Resolved", variant="secondary", size="sm")
-                rca_status = gr.Markdown()
+                rca_close_status = gr.Markdown()
 
                 def _refresh_rca():
                     return build_rca_summary(), build_rca_table(), gr.update(choices=get_rule_ids())
@@ -10941,7 +10944,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     inputs=[rca_rule_sel, rca_violation, rca_user_input, rca_cat_sel],
                     outputs=rca_status,
                 )
-                rca_close_btn.click(close_rca, inputs=[rca_close_id, rca_resolution], outputs=rca_status)
+                rca_close_btn.click(close_rca, inputs=[rca_close_id, rca_resolution], outputs=rca_close_status)
 
             with gr.Accordion('🚨 Incidents & Tracing', open=False):
                 gr.HTML('<div class="section-title">Incident Management</div>')
