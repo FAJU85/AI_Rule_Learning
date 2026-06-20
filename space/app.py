@@ -10778,6 +10778,11 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     inputs=[ev_type, ev_title, ev_content, ev_rule_id, ev_incident_id],
                     outputs=ev_store_status,
                 )
+                ev_title.submit(
+                    store_evidence,
+                    inputs=[ev_type, ev_title, ev_content, ev_rule_id, ev_incident_id],
+                    outputs=ev_store_status,
+                )
                 ev_export_btn.click(lambda rid: export_audit_evidence(rid or ""), inputs=ev_export_rule, outputs=ev_export_status)
                 ev_rule_refresh.click(lambda: gr.update(choices=get_rule_ids()), outputs=ev_rule_id)
                 ev_export_refresh.click(lambda: gr.update(choices=get_rule_ids()), outputs=ev_export_rule)
@@ -11225,6 +11230,11 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     outputs=rating_status,
                 )
                 rating_submit_btn.click(_refresh_ratings, outputs=[rating_before_after, rating_trend, rating_table])
+                rating_friction.submit(
+                    submit_session_rating,
+                    inputs=[rating_conv_id, rating_score, rating_friction, rating_helped],
+                    outputs=rating_status,
+                )
                 rating_refresh_btn.click(_refresh_ratings, outputs=[rating_before_after, rating_trend, rating_table])
                 rating_search.change(build_ratings_table, inputs=[rating_search], outputs=[rating_table])
                 analytics_tab.select(_refresh_ratings, outputs=[rating_before_after, rating_trend, rating_table])
@@ -11834,6 +11844,11 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     return build_bias_summary(), build_bias_table()
 
                 bias_run_btn.click(
+                    log_bias_analysis,
+                    inputs=[bias_rule_id, bias_group_a, bias_group_b, bias_inputs_a, bias_inputs_b],
+                    outputs=bias_result_md,
+                )
+                bias_group_a.submit(
                     log_bias_analysis,
                     inputs=[bias_rule_id, bias_group_a, bias_group_b, bias_inputs_a, bias_inputs_b],
                     outputs=bias_result_md,
