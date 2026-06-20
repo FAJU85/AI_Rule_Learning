@@ -10668,6 +10668,12 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                             esc_outcome, esc_notes],
                     outputs=esc_log_status,
                 )
+                esc_type.submit(
+                    log_escalation,
+                    inputs=[esc_conv_id, esc_turn_no, esc_type, esc_ai_action, esc_expected,
+                            esc_outcome, esc_notes],
+                    outputs=esc_log_status,
+                )
                 esc_conv_refresh.click(lambda: gr.update(choices=get_conversation_ids()), outputs=esc_conv_id)
                 monitoring_tab.select(lambda: gr.update(choices=get_conversation_ids()), outputs=esc_conv_id)
 
@@ -10724,6 +10730,11 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 data_prov_search.change(build_data_provenance_table, inputs=[data_prov_search], outputs=[data_prov_table])
                 monitoring_tab.select(_refresh_data_prov, outputs=[data_prov_chart, data_prov_table])
                 dp_add_btn.click(
+                    register_data_source,
+                    inputs=[dp_name, dp_type, dp_trust, dp_owner, dp_desc],
+                    outputs=dp_add_status,
+                )
+                dp_name.submit(
                     register_data_source,
                     inputs=[dp_name, dp_type, dp_trust, dp_owner, dp_desc],
                     outputs=dp_add_status,
@@ -11312,6 +11323,11 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     inputs=[imp_rule_sel, imp_trigger, imp_desc],
                     outputs=imp_open_status,
                 )
+                imp_trigger.submit(
+                    start_improvement_cycle,
+                    inputs=[imp_rule_sel, imp_trigger, imp_desc],
+                    outputs=imp_open_status,
+                )
                 imp_advance_btn.click(
                     advance_improvement_cycle,
                     inputs=[imp_cycle_id, imp_notes],
@@ -11353,6 +11369,11 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 kg_search.change(build_kg_table, inputs=[kg_search], outputs=[kg_table])
                 gov_tab.select(_refresh_kg, outputs=[kg_graph, kg_table])
                 kg_add_node_btn.click(
+                    lambda typ, name, desc, rule: add_kg_node(typ, name, desc, rule or ""),
+                    inputs=[kg_node_type, kg_node_name, kg_node_desc, kg_node_rule],
+                    outputs=kg_node_status,
+                )
+                kg_node_name.submit(
                     lambda typ, name, desc, rule: add_kg_node(typ, name, desc, rule or ""),
                     inputs=[kg_node_type, kg_node_name, kg_node_desc, kg_node_rule],
                     outputs=kg_node_status,
@@ -11431,6 +11452,11 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     outputs=goal_status,
                 )
                 goal_add_btn.click(_refresh_goals, outputs=[goal_chart, goal_table])
+                goal_name.submit(
+                    lambda name, outcome, rules, target: add_goal(name, outcome, ",".join(rules or []), target),
+                    inputs=[goal_name, goal_outcome, goal_rules_csv, goal_target],
+                    outputs=goal_status,
+                )
                 goal_refresh_btn.click(_refresh_goals, outputs=[goal_chart, goal_table])
                 goal_search.change(build_goal_table, inputs=[goal_search], outputs=[goal_table])
                 gov_tab.select(_refresh_goals, outputs=[goal_chart, goal_table])
@@ -11469,6 +11495,11 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     outputs=ctrl_status,
                 )
                 ctrl_add_btn.click(_refresh_controls, outputs=[ctrl_chart, ctrl_heatmap, ctrl_table])
+                ctrl_name.submit(
+                    lambda name, cat, risk, desc, rules, ref: add_control(name, cat, risk, desc, ",".join(rules or []), ref),
+                    inputs=[ctrl_name, ctrl_cat, ctrl_risk, ctrl_desc, ctrl_rule_csv, ctrl_audit_ref],
+                    outputs=ctrl_status,
+                )
                 ctrl_refresh_btn.click(_refresh_controls, outputs=[ctrl_chart, ctrl_heatmap, ctrl_table])
                 ctrl_search.change(build_control_table, inputs=[ctrl_search], outputs=[ctrl_table])
                 gov_tab.select(_refresh_controls, outputs=[ctrl_chart, ctrl_heatmap, ctrl_table])
@@ -11530,6 +11561,11 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     outputs=gaming_log_status,
                 )
                 gaming_log_btn.click(_refresh_gaming, outputs=[gaming_summary_md, gaming_table])
+                gaming_log_input.submit(
+                    lambda cid, turn, inp, conf, notes: log_gaming_attempt(cid or "", turn, inp, conf, notes),
+                    inputs=[gaming_log_conv, gaming_log_turn, gaming_log_input, gaming_log_confirmed, gaming_log_notes],
+                    outputs=gaming_log_status,
+                )
                 gaming_refresh_btn.click(_refresh_gaming, outputs=[gaming_summary_md, gaming_table])
                 gaming_search.change(build_gaming_table, inputs=[gaming_search], outputs=[gaming_table])
                 gov_tab.select(_refresh_gaming, outputs=[gaming_summary_md, gaming_table])
@@ -11594,9 +11630,12 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
 
                 meta_assign_btn.click(_assign_meta_role, inputs=[meta_user_id, meta_role, meta_granted_by, meta_perms], outputs=meta_assign_status)
                 meta_assign_btn.click(_refresh_meta, outputs=[meta_role_table, meta_audit_table])
+                meta_user_id.submit(_assign_meta_role, inputs=[meta_user_id, meta_role, meta_granted_by, meta_perms], outputs=meta_assign_status)
                 meta_log_btn.click(_log_gov_action, inputs=[meta_log_user, meta_log_action, meta_log_target, meta_log_outcome, meta_log_notes], outputs=meta_log_status)
                 meta_log_btn.click(_refresh_meta, outputs=[meta_role_table, meta_audit_table])
+                meta_log_user.submit(_log_gov_action, inputs=[meta_log_user, meta_log_action, meta_log_target, meta_log_outcome, meta_log_notes], outputs=meta_log_status)
                 meta_check_btn.click(_check_perm, inputs=[meta_check_user, meta_check_action], outputs=meta_check_result)
+                meta_check_user.submit(_check_perm, inputs=[meta_check_user, meta_check_action], outputs=meta_check_result)
                 meta_refresh_btn.click(_refresh_meta, outputs=[meta_role_table, meta_audit_table])
                 meta_search.change(build_meta_gov_table, inputs=[meta_search], outputs=[meta_role_table])
                 gov_tab.select(_refresh_meta, outputs=[meta_role_table, meta_audit_table])
@@ -11646,6 +11685,11 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     outputs=cert_status_md,
                 )
                 cert_add_btn.click(_refresh_certs, outputs=[cert_summary_md, cert_table])
+                cert_name.submit(
+                    lambda name, typ, issuer, issue, expiry, scope, rules: add_certification(name, typ, issuer, issue, expiry, scope, ",".join(rules or [])),
+                    inputs=[cert_name, cert_type, cert_issuer, cert_issue, cert_expiry, cert_scope, cert_rules_csv],
+                    outputs=cert_status_md,
+                )
                 cert_refresh_btn.click(_refresh_certs, outputs=[cert_summary_md, cert_table])
                 cert_search.change(build_cert_table, inputs=[cert_search], outputs=[cert_table])
                 gov_tab.select(_refresh_certs, outputs=[cert_summary_md, cert_table])
@@ -11718,6 +11762,11 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     outputs=cal_add_status,
                 )
                 cal_add_btn.click(_refresh_calendar, outputs=[cal_summary_md, cal_table])
+                cal_title.submit(
+                    lambda title, typ, due, pri, desc, owner, rules: add_calendar_item(title, typ, due, pri, desc, owner, ",".join(rules or [])),
+                    inputs=[cal_title, cal_type, cal_due, cal_priority, cal_desc, cal_owner, cal_rule_csv],
+                    outputs=cal_add_status,
+                )
                 cal_complete_btn.click(complete_calendar_item, inputs=[cal_complete_id, cal_complete_notes], outputs=cal_complete_status)
                 cal_complete_btn.click(_refresh_calendar, outputs=[cal_summary_md, cal_table])
                 cal_refresh_btn.click(_refresh_calendar, outputs=[cal_summary_md, cal_table])
@@ -11826,6 +11875,11 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     outputs=audit_append_status,
                 )
                 audit_append_btn.click(_refresh_chain, outputs=audit_chain_table)
+                audit_actor.submit(
+                    append_audit_entry,
+                    inputs=[audit_action, audit_actor, audit_target, audit_details],
+                    outputs=audit_append_status,
+                )
                 audit_chain_refresh_btn.click(_refresh_chain, outputs=audit_chain_table)
                 audit_chain_search.change(build_audit_chain_table, inputs=[audit_chain_search], outputs=[audit_chain_table])
                 testing_tab.select(_refresh_chain, outputs=audit_chain_table)
