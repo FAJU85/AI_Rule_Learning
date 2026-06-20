@@ -10883,6 +10883,11 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     inputs=[ev_type, ev_title, ev_content, ev_rule_id, ev_incident_id],
                     outputs=ev_store_status,
                 )
+                ev_incident_id.submit(
+                    store_evidence,
+                    inputs=[ev_type, ev_title, ev_content, ev_rule_id, ev_incident_id],
+                    outputs=ev_store_status,
+                )
                 ev_export_btn.click(lambda rid: export_audit_evidence(rid or ""), inputs=ev_export_rule, outputs=ev_export_status)
                 ev_rule_refresh.click(lambda: gr.update(choices=get_rule_ids()), outputs=ev_rule_id)
                 ev_export_refresh.click(lambda: gr.update(choices=get_rule_ids()), outputs=ev_export_rule)
@@ -11501,6 +11506,11 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     inputs=[imp_cycle_id, imp_notes],
                     outputs=imp_status,
                 )
+                imp_notes.submit(
+                    advance_improvement_cycle,
+                    inputs=[imp_cycle_id, imp_notes],
+                    outputs=imp_status,
+                )
 
             with gr.Accordion('🗺️ Knowledge, Regression & Reputation', open=False):
                 gr.HTML('<div class="section-title">Knowledge Graph</div>')
@@ -12023,6 +12033,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 )
                 cal_complete_btn.click(complete_calendar_item, inputs=[cal_complete_id, cal_complete_notes], outputs=cal_complete_status)
                 cal_complete_btn.click(_refresh_calendar, outputs=[cal_summary_md, cal_table])
+                cal_complete_notes.submit(complete_calendar_item, inputs=[cal_complete_id, cal_complete_notes], outputs=cal_complete_status)
                 cal_refresh_btn.click(_refresh_calendar, outputs=[cal_summary_md, cal_table])
                 cal_search.change(build_calendar_table, inputs=[cal_search], outputs=[cal_table])
                 gov_tab.select(_refresh_calendar, outputs=[cal_summary_md, cal_table])
