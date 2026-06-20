@@ -10206,9 +10206,10 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
 
                 gr.HTML('<div class="section-title">A/B Testing</div>')
                 gr.Markdown("Create a keyword variant of a rule to compare effectiveness after real sessions.")
-                ab_rule_selector = gr.Dropdown(label="Select rule to test", choices=[])
-                ab_refresh_btn = gr.Button("↻ Refresh rule list", variant="secondary", size="sm")
-                ab_create_btn = gr.Button("🧪 Create A/B Variant", variant="secondary")
+                with gr.Row():
+                    ab_rule_selector = gr.Dropdown(label="Select rule to test", choices=[], scale=4)
+                    ab_refresh_btn = gr.Button("↻", variant="secondary", size="sm", scale=0)
+                    ab_create_btn = gr.Button("🧪 Create A/B Variant", variant="secondary", scale=1)
                 ab_status = gr.Markdown()
                 ab_comparison = gr.Markdown()
 
@@ -10306,19 +10307,21 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
             with gr.Accordion('🔗 Dependencies, Conflicts & Export', open=False):
                 gr.HTML('<div class="section-title">Rule Dependencies</div>')
                 gr.Markdown("Define which rules must fire before others, or which rules block each other.")
-                dep_rule_sel = gr.Dropdown(label="Rule to configure", choices=[], scale=3)
-                dep_refresh_sel_btn = gr.Button("↻ Refresh list", variant="secondary", size="sm")
                 with gr.Row():
-                    dep_depends_on = gr.Textbox(
-                        label="Depends On (rule IDs, comma-separated)",
-                        placeholder="e.g. abc123, def456",
-                        scale=3,
+                    dep_rule_sel = gr.Dropdown(label="Rule to configure", choices=[], scale=3)
+                    dep_refresh_sel_btn = gr.Button("↻", variant="secondary", size="sm", scale=0)
+                with gr.Row():
+                    dep_depends_on = gr.Dropdown(
+                        label="Depends On (must fire before this rule)",
+                        choices=[], multiselect=True, scale=3,
                     )
-                    dep_blocks = gr.Textbox(
-                        label="Blocks (rule IDs, comma-separated)",
-                        placeholder="e.g. ghi789",
-                        scale=3,
+                    dep_depends_refresh = gr.Button("↻", variant="secondary", size="sm", scale=0)
+                with gr.Row():
+                    dep_blocks = gr.Dropdown(
+                        label="Blocks (this rule prevents these from firing)",
+                        choices=[], multiselect=True, scale=3,
                     )
+                    dep_blocks_refresh = gr.Button("↻", variant="secondary", size="sm", scale=0)
                 dep_save_btn = gr.Button("💾 Save Dependencies", variant="primary", size="sm")
                 dep_status = gr.Markdown()
 
@@ -10327,14 +10330,13 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
 
                 dep_refresh_sel_btn.click(_refresh_dep_sel, outputs=dep_rule_sel)
                 rules_tab.select(_refresh_dep_sel, outputs=dep_rule_sel)
-
-                def _save_deps(rule_id, depends_str, blocks_str):
-                    dep_list = [x.strip() for x in depends_str.split(",") if x.strip()]
-                    blk_list = [x.strip() for x in blocks_str.split(",") if x.strip()]
-                    return set_rule_dependencies(rule_id, dep_list, blk_list)
+                dep_depends_refresh.click(lambda: gr.update(choices=get_rule_ids()), outputs=dep_depends_on)
+                dep_blocks_refresh.click(lambda: gr.update(choices=get_rule_ids()), outputs=dep_blocks)
+                rules_tab.select(lambda: gr.update(choices=get_rule_ids()), outputs=dep_depends_on)
+                rules_tab.select(lambda: gr.update(choices=get_rule_ids()), outputs=dep_blocks)
 
                 dep_save_btn.click(
-                    _save_deps,
+                    lambda rule_id, deps, blks: set_rule_dependencies(rule_id, deps or [], blks or []),
                     inputs=[dep_rule_sel, dep_depends_on, dep_blocks],
                     outputs=dep_status,
                 )
