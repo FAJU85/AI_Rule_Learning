@@ -7107,7 +7107,7 @@ def build_control_table() -> pd.DataFrame:
     rows = []
     for r in results:
         rows.append({
-            "ID": r["control_id"][-8:],
+            "ID": r.get("control_id", "")[-8:],
             "Name": r.get("name", "")[:40],
             "Category": r.get("category", ""),
             "Risk": r.get("risk_level", ""),
@@ -8016,11 +8016,11 @@ def build_calendar_summary() -> str:
         "",
     ]
     if overdue:
-        lines += [f"**Overdue ({len(overdue)}):**"] + [f"- ❌ {i['title']} (due {i.get('due_date','')[:10]})" for i in overdue] + [""]
+        lines += [f"**Overdue ({len(overdue)}):**"] + [f"- ❌ {i.get('title', '(no title)')} (due {i.get('due_date','')[:10]})" for i in overdue] + [""]
     if urgent:
-        lines += [f"**Urgent — within 7 days ({len(urgent)}):**"] + [f"- ⚠️ {i['title']} (due {i.get('due_date','')[:10]})" for i in urgent] + [""]
+        lines += [f"**Urgent — within 7 days ({len(urgent)}):**"] + [f"- ⚠️ {i.get('title', '(no title)')} (due {i.get('due_date','')[:10]})" for i in urgent] + [""]
     if upcoming:
-        lines += [f"**Upcoming — within 30 days ({len(upcoming)}):**"] + [f"- 📅 {i['title']} (due {i.get('due_date','')[:10]})" for i in upcoming]
+        lines += [f"**Upcoming — within 30 days ({len(upcoming)}):**"] + [f"- 📅 {i.get('title', '(no title)')} (due {i.get('due_date','')[:10]})" for i in upcoming]
     return "\n".join(lines)
 
 
