@@ -4145,19 +4145,28 @@ def update_incident(incident_id: str, new_status: str, note: str = "") -> str:
     return f"Incident {incident_id[:8]} → [{new_status}]"
 
 
-def build_incidents_table() -> pd.DataFrame:
+def build_incidents_table(query: str = "") -> pd.DataFrame:
     incidents = _download_jsonl(INCIDENT_FILE)
     if not incidents:
         return pd.DataFrame(columns=["ID", "Rule", "Title", "Severity", "Status", "Recurrences", "Opened"])
-    rows = [{
-        "ID":          i.get("incident_id", "")[:8],
-        "Rule":        i.get("rule_name", "")[:25],
-        "Title":       i.get("title", "")[:40],
-        "Severity":    i.get("severity", ""),
-        "Status":      i.get("status", ""),
-        "Recurrences": i.get("recurrence_count", 0),
-        "Opened":      i.get("opened_at", "")[:10],
-    } for i in sorted(incidents, key=lambda x: x.get("opened_at", ""), reverse=True)]
+    q = query.strip().lower()
+    rows = []
+    for i in sorted(incidents, key=lambda x: x.get("opened_at", ""), reverse=True):
+        title = i.get("title", "")
+        rule = i.get("rule_name", "")
+        severity = i.get("severity", "")
+        status = i.get("status", "")
+        if q and not any(q in s.lower() for s in (title, rule, severity, status)):
+            continue
+        rows.append({
+            "ID":          i.get("incident_id", "")[:8],
+            "Rule":        rule[:25],
+            "Title":       title[:40],
+            "Severity":    severity,
+            "Status":      status,
+            "Recurrences": i.get("recurrence_count", 0),
+            "Opened":      i.get("opened_at", "")[:10],
+        })
     return pd.DataFrame(rows)
 
 
@@ -4560,20 +4569,28 @@ def run_ai_audit(conversation_id: str = "", max_turns: int = 3) -> str:
     yield f"\n✅ Audit complete — {audited} turns assessed."
 
 
-def build_audit_table() -> pd.DataFrame:
+def build_audit_table(query: str = "") -> pd.DataFrame:
     entries = _download_jsonl(AUDIT_FILE)
     if not entries:
         return pd.DataFrame(columns=["Audit ID","Conv","Turn","Worker","Auditor","Agreed","Note","Date"])
-    rows = [{
-        "Audit ID":  e.get("audit_id","")[:8],
-        "Conv":      e.get("conversation_id","")[-8:],
-        "Turn":      e.get("turn_number",0),
-        "Worker":    e.get("worker_verdict",""),
-        "Auditor":   e.get("auditor_verdict",""),
-        "Agreed":    "Yes" if e.get("auditor_agreed") else "No",
-        "Note":      e.get("auditor_note","")[:60],
-        "Date":      e.get("audited_at","")[:10],
-    } for e in sorted(entries, key=lambda x: x.get("audited_at",""), reverse=True)[:100]]
+    q = query.strip().lower()
+    rows = []
+    for e in sorted(entries, key=lambda x: x.get("audited_at",""), reverse=True)[:200]:
+        worker = e.get("worker_verdict","")
+        auditor = e.get("auditor_verdict","")
+        note = e.get("auditor_note","")
+        if q and not any(q in s.lower() for s in (worker, auditor, note)):
+            continue
+        rows.append({
+            "Audit ID":  e.get("audit_id","")[:8],
+            "Conv":      e.get("conversation_id","")[-8:],
+            "Turn":      e.get("turn_number",0),
+            "Worker":    worker,
+            "Auditor":   auditor,
+            "Agreed":    "Yes" if e.get("auditor_agreed") else "No",
+            "Note":      note[:60],
+            "Date":      e.get("audited_at","")[:10],
+        })
     return pd.DataFrame(rows)
 
 
@@ -9057,13 +9074,15 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
             with gr.Accordion('🤖 AI Audit & Human Oversight', open=True):
                 gr.HTML('<div class="section-title">AI Audit (Worker → Auditor)</div>')
                 gr.Markdown("Worker AI assesses rule compliance; Auditor AI independently reviews. Two-layer AI audit.")
+                with gr.Row():
+                    audit_search = gr.Textbox(label="Search audit log", placeholder="Filter by verdict or note…", scale=4)
+                    audit_refresh_btn = gr.Button("↻ Refresh table", variant="secondary", size="sm", scale=1)
                 audit_table = gr.Dataframe(interactive=False, wrap=True)
                 with gr.Row():
                     audit_conv_sel = gr.Dropdown(label="Conversation to audit (blank = all)", choices=[], scale=3)
                     audit_refresh_sel = gr.Button("↻ Refresh list", variant="secondary", size="sm", scale=1)
                 with gr.Row():
                     audit_run_btn = gr.Button("🤖 Run AI Audit", variant="primary", size="sm")
-                    audit_refresh_btn = gr.Button("↻ Refresh table", variant="secondary", size="sm")
                 audit_log = gr.Textbox(label="Audit log", lines=8, interactive=False, autoscroll=True)
 
                 def _refresh_audit_sel():
@@ -9071,6 +9090,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
 
                 audit_refresh_sel.click(_refresh_audit_sel, outputs=audit_conv_sel)
                 audit_refresh_btn.click(lambda: build_audit_table(), outputs=audit_table)
+                audit_search.change(build_audit_table, inputs=[audit_search], outputs=audit_table)
                 monitoring_tab.select(lambda: (build_audit_table(), gr.update(choices=[""] + get_conversation_ids())),
                           outputs=[audit_table, audit_conv_sel])
                 audit_run_btn.click(run_ai_audit, inputs=audit_conv_sel, outputs=audit_log)
@@ -9459,8 +9479,10 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 inc_summary_md = gr.Markdown()
                 with gr.Row():
                     inc_chart = gr.Plot(scale=2)
+                with gr.Row():
+                    inc_search = gr.Textbox(label="Search incidents", placeholder="Filter by title, rule, severity, or status…", scale=4)
+                    inc_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm", scale=1)
                 inc_table = gr.Dataframe(interactive=False, wrap=True)
-                inc_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
 
                 gr.Markdown("**Open a new incident**")
                 with gr.Row():
@@ -9486,6 +9508,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
 
                 inc_refresh_btn.click(_refresh_inc, outputs=[inc_summary_md, inc_chart, inc_table, inc_rule_sel])
                 analytics_tab.select(_refresh_inc, outputs=[inc_summary_md, inc_chart, inc_table, inc_rule_sel])
+                inc_search.change(build_incidents_table, inputs=[inc_search], outputs=inc_table)
                 inc_open_btn.click(
                     open_incident,
                     inputs=[inc_rule_sel, inc_title, inc_severity, inc_desc],
