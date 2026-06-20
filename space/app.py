@@ -2660,32 +2660,49 @@ def restore_from_exception(rule_id: str) -> str:
         return f"❌ Failed to restore: {exc}"
 
 
-def build_exceptions_table(query: str = "") -> pd.DataFrame:
+def build_exceptions_table(query: str = "") -> str:
     """Show all active exceptions and recently expired ones."""
     rules = load_rules()
     exceptions = [r for r in rules if r.get("status") == "exception"]
     if not exceptions:
-        return pd.DataFrame({"Info": ["No active exceptions."]})
+        return '<div class="rl-empty">No active exceptions.</div>'
     q = query.strip().lower()
-    rows = []
     now = datetime.utcnow().isoformat()
+    matched = []
     for r in exceptions:
         exc = r.get("exception") or {}
         expires = exc.get("expires_at", "?")
-        expired = expires < now if expires != "?" else False
+        expired = expires != "?" and expires < now
         rule_name = r.get("name", r.get("rule_id", "?"))
-        reason = exc.get("reason", "?")[:60]
+        reason = exc.get("reason", "?")
         approved_by = exc.get("approved_by", "?")
         if q and not any(q in s.lower() for s in (rule_name, reason, approved_by)):
             continue
-        rows.append({
-            "Rule": rule_name,
-            "Reason": reason,
-            "Approved By": approved_by,
-            "Expires": expires[:16].replace("T", " ") if expires != "?" else "?",
-            "Status": "🔴 EXPIRED" if expired else "⏳ Active",
-        })
-    return pd.DataFrame(rows)
+        matched.append((r, exc, expires, expired, rule_name, reason, approved_by))
+    if not matched:
+        return f'<div class="rl-empty">No exceptions match "<b>{query}</b>".</div>'
+    rows_html = ""
+    for r, exc, expires, expired, rule_name, reason, approved_by in matched:
+        st_badge = (
+            '<span class="rl-badge rl-badge-deprecated">expired</span>'
+            if expired else
+            '<span class="rl-badge rl-badge-pending">active</span>'
+        )
+        exp_display = expires[:16].replace("T", " ") if expires != "?" else "?"
+        rows_html += (
+            f"<tr>"
+            f"<td style='max-width:160px'>{rule_name[:30]}</td>"
+            f"<td style='max-width:200px;font-size:0.8rem'>{reason[:55]}</td>"
+            f"<td style='font-size:0.8rem'>{approved_by}</td>"
+            f"<td style='font-size:0.78rem;color:#475569'>{exp_display}</td>"
+            f"<td>{st_badge}</td>"
+            f"</tr>"
+        )
+    return (
+        f'<div class="rl-table-wrap"><table class="rl-table">'
+        f"<thead><tr><th>Rule</th><th>Reason</th><th>Approved By</th><th>Expires</th><th>Status</th></tr></thead>"
+        f"<tbody>{rows_html}</tbody></table></div>"
+    )
 
 
 def load_exceptions() -> list[dict]:
@@ -2982,26 +2999,41 @@ def run_benchmark() -> str:
     return "\n".join(lines)
 
 
-def build_benchmark_table(query: str = "") -> pd.DataFrame:
+def build_benchmark_table(query: str = "") -> str:
     cases = load_benchmark()
-    if not cases:
-        return pd.DataFrame(columns=["Case ID", "Rule ID", "Input", "Expected", "Created"])
     q = query.strip().lower()
-    rows = []
+    matched = []
     for c in cases:
         rule_id = c.get("rule_id", "")
         input_text = c.get("input_text", "")
         expected = "trigger" if c.get("should_trigger") else "no trigger"
         if q and not any(q in s.lower() for s in (rule_id, input_text, expected)):
             continue
-        rows.append({
-            "Case ID": c.get("case_id", "")[:8],
-            "Rule ID": rule_id[:20],
-            "Input": input_text[:60],
-            "Expected": expected,
-            "Created": c.get("created_at", "")[:10],
-        })
-    return pd.DataFrame(rows)
+        matched.append((c, rule_id, input_text, expected))
+    if not matched:
+        msg = "No benchmark cases yet." if not cases else f'No cases match "<b>{query}</b>".'
+        return f'<div class="rl-empty">{msg}</div>'
+    rows_html = ""
+    for c, rule_id, input_text, expected in matched:
+        exp_badge = (
+            '<span class="rl-badge" style="background:#dcfce7;color:#166534">trigger</span>'
+            if c.get("should_trigger") else
+            '<span class="rl-badge" style="background:#f1f5f9;color:#475569">no trigger</span>'
+        )
+        rows_html += (
+            f"<tr>"
+            f"<td style='font-family:monospace;font-size:0.75rem'>{c.get('case_id','')[:8]}</td>"
+            f"<td style='font-size:0.78rem;color:#475569'>{rule_id[:22]}</td>"
+            f"<td style='max-width:240px;font-size:0.8rem'>{input_text[:65]}</td>"
+            f"<td>{exp_badge}</td>"
+            f"<td style='font-size:0.75rem;color:#94a3b8'>{c.get('created_at','')[:10]}</td>"
+            f"</tr>"
+        )
+    return (
+        f'<div class="rl-table-wrap"><table class="rl-table">'
+        f"<thead><tr><th>Case ID</th><th>Rule ID</th><th>Input</th><th>Expected</th><th>Created</th></tr></thead>"
+        f"<tbody>{rows_html}</tbody></table></div>"
+    )
 
 
 def generate_benchmark_cases_llm(rule_id: str, n: int = 5) -> str:
@@ -3838,27 +3870,52 @@ def compute_slo_status() -> list[dict]:
     return results
 
 
-def build_slo_table(query: str = "") -> pd.DataFrame:
+def build_slo_table(query: str = "") -> str:
     rows = compute_slo_status()
-    if not rows:
-        return pd.DataFrame(columns=["Rule", "SLO", "Target %", "SLI %", "Error Budget", "Status"])
     q = query.strip().lower()
-    result = []
+    matched = []
     for r in rows:
-        rule_name = r["rule_name"][:30]
+        rule_name = r["rule_name"]
         slo_name = r["slo_name"]
         status = r["status"]
         if q and not any(q in s.lower() for s in (rule_name, slo_name, status)):
             continue
-        result.append({
-            "Rule": rule_name,
-            "SLO": slo_name,
-            "Target %": r["target_pct"],
-            "SLI %": r["sli_pct"] if r["sli_pct"] is not None else "n/a",
-            "Error Budget": r["error_budget_remaining"] if r["error_budget_remaining"] is not None else "n/a",
-            "Status": status,
-        })
-    return pd.DataFrame(result)
+        matched.append(r)
+    if not matched:
+        msg = "No SLOs defined yet." if not rows else f'No SLOs match "<b>{query}</b>".'
+        return f'<div class="rl-empty">{msg}</div>'
+    rows_html = ""
+    for r in matched:
+        status = r["status"]
+        sli = r["sli_pct"]
+        budget = r["error_budget_remaining"]
+        if status == "ok":
+            st_badge = '<span class="rl-badge rl-badge-active">ok</span>'
+        elif status == "breached":
+            st_badge = '<span class="rl-badge rl-badge-deprecated">breached</span>'
+        else:
+            st_badge = '<span class="rl-badge rl-badge-inactive">unknown</span>'
+        sli_html = f"{sli}%" if sli is not None else '<span style="color:#94a3b8">n/a</span>'
+        budget_color = "#059669" if budget is not None and budget >= 0 else "#dc2626"
+        budget_html = (
+            f'<span style="color:{budget_color};font-weight:600">{budget}%</span>'
+            if budget is not None else '<span style="color:#94a3b8">n/a</span>'
+        )
+        rows_html += (
+            f"<tr>"
+            f"<td style='max-width:160px'>{r['rule_name'][:28]}</td>"
+            f"<td>{r['slo_name']}</td>"
+            f"<td style='text-align:right'>{r['target_pct']}%</td>"
+            f"<td style='text-align:right'>{sli_html}</td>"
+            f"<td style='text-align:right'>{budget_html}</td>"
+            f"<td>{st_badge}</td>"
+            f"</tr>"
+        )
+    return (
+        f'<div class="rl-table-wrap"><table class="rl-table">'
+        f"<thead><tr><th>Rule</th><th>SLO</th><th>Target</th><th>SLI</th><th>Error Budget</th><th>Status</th></tr></thead>"
+        f"<tbody>{rows_html}</tbody></table></div>"
+    )
 
 
 def build_slo_chart() -> Any:
@@ -9529,7 +9586,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 with gr.Row():
                     exc_search = gr.Textbox(label="Search exceptions", placeholder="Filter by rule, reason, or approver…", scale=4)
                     exc_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm", scale=1)
-                exceptions_table = gr.Dataframe(interactive=False, wrap=True)
+                exceptions_table = gr.HTML()
                 with gr.Row():
                     exc_rule_selector = gr.Dropdown(label="Rule to disable", choices=[], scale=3)
                     exc_duration = gr.Number(label="Duration (hours)", value=24, minimum=1, maximum=720, scale=1)
@@ -10108,7 +10165,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 with gr.Row():
                     bench_search = gr.Textbox(label="Search cases", placeholder="Filter by rule ID, input, or expected outcome…", scale=4)
                     bench_search_clear = gr.Button("✕ Clear", variant="secondary", size="sm", scale=1)
-                bench_table = gr.Dataframe(interactive=False, wrap=True)
+                bench_table = gr.HTML()
 
                 gr.Markdown("**Add a golden test case**")
                 with gr.Row():
@@ -10348,7 +10405,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 with gr.Row():
                     slo_search = gr.Textbox(label="Search SLOs", placeholder="Filter by rule, SLO name, or status…", scale=4)
                     slo_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm", scale=1)
-                slo_table = gr.Dataframe(interactive=False, wrap=True)
+                slo_table = gr.HTML()
 
                 gr.Markdown("**Define a new SLO**")
                 with gr.Row():
