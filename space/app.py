@@ -11568,7 +11568,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 gr.HTML('<div class="rl-group-label" style="margin-top:14px">Register certification</div>')
                 with gr.Row():
                     cert_name = gr.Textbox(label="Certification name", placeholder="e.g. ISO 27001", scale=3)
-                    cert_type = gr.Dropdown(label="Type", choices=CERT_TYPES, value="iso_27001", scale=2)
+                    cert_type = gr.Dropdown(label="Type", choices=CERT_TYPES, value="iso_27001", scale=2, info="iso_27001 · soc2 · gdpr · hipaa · nist_csf · custom")
                     cert_issuer = gr.Textbox(label="Issuing body", placeholder="e.g. BSI Group", scale=2)
                 with gr.Row():
                     cert_issue = gr.Textbox(label="Issue date", placeholder="YYYY-MM-DD", scale=2)
@@ -11752,7 +11752,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
 
                 gr.HTML('<div class="rl-group-label" style="margin-top:14px">Append audit entry</div>')
                 with gr.Row():
-                    audit_action = gr.Dropdown(label="Action", choices=META_ACTIONS + ["system_event", "config_change"], value="create_rule", scale=2)
+                    audit_action = gr.Dropdown(label="Action", choices=META_ACTIONS + ["system_event", "config_change"], value="create_rule", scale=2, info="Governance action to record in the immutable audit chain")
                     audit_actor = gr.Textbox(label="Actor", placeholder="e.g. alice@company.com or system", scale=2)
                     audit_target = gr.Textbox(label="Target", placeholder="e.g. rul_abc123 or policy_name", scale=2)
                 audit_details = gr.Textbox(label="Details", placeholder="What was done and why this audit entry matters", scale=4)
