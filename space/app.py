@@ -10096,6 +10096,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
             with gr.Row():
                 gr.HTML('<div style="flex:1;min-width:0;display:flex;align-items:center"><span style="font-size:0.8rem;color:#64748b;text-transform:uppercase;letter-spacing:.08em;font-weight:600">Overview</span></div>')
                 dashboard_refresh = gr.Button("↻ Refresh", variant="secondary", size="sm")
+            gr.HTML('<div class="rl-section-nav"><strong>Sections:</strong> ⚠️ Action Alerts · 📈 Analytics · 🕐 Recent Activity</div>')
 
             # ── Section 1: Action alerts ──────────────────────────────────────
             pending_alert = gr.HTML()
@@ -10416,6 +10417,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
         with gr.Tab("🔄 Sessions") as sessions_tab:
 
             sessions_stat_bar = gr.HTML()
+            gr.HTML('<div class="rl-section-nav"><strong>Sections:</strong> Step 1 — Import Sessions · Step 2 — Analyse · Step 3 — Review New Rules</div>')
             gr.HTML('<div class="section-title">Step 1 — Import Sessions</div>')
             gr.Markdown("Upload Claude Code session files (.jsonl) to feed the rule analyser.")
             with gr.Row():
