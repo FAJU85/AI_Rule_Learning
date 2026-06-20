@@ -2228,10 +2228,11 @@ def _risk_label(score: float) -> tuple[str, str]:
     return "Critical", "#ff4444"
 
 
-def build_risk_table() -> pd.DataFrame:
+def build_risk_table(query: str = "") -> pd.DataFrame:
     rules = load_rules()
     if not rules:
         return pd.DataFrame(columns=["Name", "Owner", "Team", "Risk Score", "Level", "Priority", "Effectiveness", "Bypass"])
+    q = query.strip().lower()
     rows = []
     for r in rules:
         if not r.get("is_active"):
@@ -2239,10 +2240,15 @@ def build_risk_table() -> pd.DataFrame:
         score = _compute_risk_score(r)
         label, _ = _risk_label(score)
         bypass = r.get("bypass_rate")
+        name = r.get("name", r.get("rule_id", "?"))
+        owner = r.get("owner", "—")
+        team = r.get("team", "—")
+        if q and not any(q in s.lower() for s in (name, owner, team, label)):
+            continue
         rows.append({
-            "Name": r.get("name", r.get("rule_id", "?")),
-            "Owner": r.get("owner", "—"),
-            "Team": r.get("team", "—"),
+            "Name": name,
+            "Owner": owner,
+            "Team": team,
             "Risk Score": f"{score:.2f}",
             "Level": label,
             "Priority": r.get("priority", "?"),
@@ -2711,16 +2717,23 @@ def build_dependency_graph() -> Any:
     return _dark_fig(fig)
 
 
-def build_dependency_table() -> pd.DataFrame:
+def build_dependency_table(query: str = "") -> pd.DataFrame:
     """Tabular view: rule → depends_on count, blocks count."""
     rules = _download_jsonl("rules.jsonl")
+    q = query.strip().lower()
     rows = []
     for r in rules:
+        name = r.get("name", "")
+        rule_id = r.get("rule_id", "")[:20]
+        depends_on = ", ".join(r.get("depends_on", [])) or "—"
+        blocks = ", ".join(r.get("blocks", [])) or "—"
+        if q and not any(q in s.lower() for s in (name, rule_id, depends_on, blocks)):
+            continue
         rows.append({
-            "Rule ID": r.get("rule_id", "")[:20],
-            "Name": r.get("name", ""),
-            "Depends On": ", ".join(r.get("depends_on", [])) or "—",
-            "Blocks": ", ".join(r.get("blocks", [])) or "—",
+            "Rule ID": rule_id,
+            "Name": name,
+            "Depends On": depends_on,
+            "Blocks": blocks,
             "Dep Count": len(r.get("depends_on", [])),
             "Block Count": len(r.get("blocks", [])),
         })
@@ -6540,6 +6553,38 @@ def build_governance_stat_bar() -> str:
     return f'<div class="tab-stat-bar">{"  ".join(chips)}</div>'
 
 
+def build_analytics_stat_bar() -> str:
+    """Compact stat bar for the Analytics tab."""
+    try:
+        convs = _download_jsonl(CONVERSATIONS_FILE)
+        total_convs = len(convs)
+        total_turns = sum(len(c.get("turns", [])) for c in convs)
+    except Exception:
+        total_convs = total_turns = 0
+    try:
+        rules = load_rules()
+        active_rules = [r for r in rules if r.get("is_active")]
+        high_risk = sum(1 for r in active_rules
+                        if _risk_label(_compute_risk_score(r))[0] in ("high", "critical"))
+        drift_rules = sum(1 for r in active_rules
+                          if _compute_drift(r.get("score_history", [])).get("is_drifting"))
+    except Exception:
+        high_risk = drift_rules = 0
+    try:
+        bench_cases = _download_jsonl(BENCHMARK_FILE)
+        bench_count = len(bench_cases)
+    except Exception:
+        bench_count = 0
+    chips = [
+        _stat_chip("conversations", str(total_convs), "#4f46e5"),
+        _stat_chip("turns recorded", str(total_turns), "#0ea5e9"),
+        _stat_chip("high-risk rules", str(high_risk), "#ef4444" if high_risk else "#94a3b8"),
+        _stat_chip("drifting rules", str(drift_rules), "#f59e0b" if drift_rules else "#94a3b8"),
+        _stat_chip("benchmark cases", str(bench_count), "#059669"),
+    ]
+    return f'<div class="tab-stat-bar">{"  ".join(chips)}</div>'
+
+
 def build_action_items_html() -> str:
     """Aggregate critical items requiring user attention into a single panel."""
     items: list[tuple[str, str, str]] = []  # (priority_class, icon, text)
@@ -9694,14 +9739,17 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
 
         with gr.Tab("📈 Analytics") as analytics_tab:
 
+            analytics_stat_bar = gr.HTML()
             gr.HTML('<div class="section-title">Conversations</div>')
             with gr.Row():
                 convs_search = gr.Textbox(label="Search sessions", placeholder="Filter by session name or ID…", scale=4)
                 refresh_convs_btn = gr.Button("↻ Refresh", variant="secondary", size="sm", scale=1)
             conversations_table = gr.Dataframe(interactive=False, wrap=True)
             refresh_convs_btn.click(build_conversations_table, outputs=[conversations_table])
+            refresh_convs_btn.click(build_analytics_stat_bar, outputs=[analytics_stat_bar])
             convs_search.change(build_conversations_table, inputs=[convs_search], outputs=conversations_table)
             analytics_tab.select(build_conversations_table, outputs=[conversations_table])
+            analytics_tab.select(build_analytics_stat_bar, outputs=[analytics_stat_bar])
 
             gr.HTML('<div class="section-title">Alignment Sensor</div>')
             gr.Markdown("Per-conversation task focus, rule compliance, and drift across turns.")
@@ -9727,9 +9775,11 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
             with gr.Accordion('⚠️ Risk & Compliance', open=True):
                 gr.HTML('<div class="section-title">Risk Scoring</div>')
                 gr.Markdown("Risk = Priority × (1 − Effectiveness) × (1 + Bypass Rate). Higher = more urgent to fix.")
+                with gr.Row():
+                    risk_search = gr.Textbox(label="Search risks", placeholder="Filter by name, owner, team, or level…", scale=4)
+                    risk_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm", scale=1)
                 risk_table = gr.Dataframe(interactive=False, wrap=True)
                 with gr.Row():
-                    risk_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
                     risk_update_btn = gr.Button("🔢 Recompute Risk Scores", variant="primary", size="sm")
                 risk_log = gr.Textbox(label="Risk log", lines=6, interactive=False, autoscroll=True)
 
@@ -9737,6 +9787,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     return build_risk_table()
 
                 risk_refresh_btn.click(_refresh_risk, outputs=risk_table)
+                risk_search.change(build_risk_table, inputs=[risk_search], outputs=[risk_table])
                 analytics_tab.select(_refresh_risk, outputs=risk_table)
                 risk_update_btn.click(run_update_risk_scores, outputs=risk_log)
 
@@ -9796,13 +9847,16 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 gr.HTML('<div class="section-title">Rule Dependency Graph</div>')
                 gr.Markdown("Visual map of which rules depend on or block other rules.")
                 dep_graph = gr.Plot()
+                with gr.Row():
+                    dep_search = gr.Textbox(label="Search dependencies", placeholder="Filter by rule name, ID, or dependency…", scale=4)
+                    dep_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm", scale=1)
                 dep_table = gr.Dataframe(interactive=False, wrap=True)
-                dep_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
 
                 def _refresh_deps():
                     return build_dependency_graph(), build_dependency_table()
 
                 dep_refresh_btn.click(_refresh_deps, outputs=[dep_graph, dep_table])
+                dep_search.change(build_dependency_table, inputs=[dep_search], outputs=[dep_table])
                 analytics_tab.select(_refresh_deps, outputs=[dep_graph, dep_table])
 
             with gr.Accordion('🧪 Benchmarks & Root Cause', open=False):
