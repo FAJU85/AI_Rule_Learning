@@ -10884,12 +10884,12 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 bench_result = gr.Markdown()
                 with gr.Row():
                     bench_search = gr.Textbox(label="Search cases", placeholder="Filter by rule ID, input, or expected outcome…", scale=4, show_clear_button=True)
-                    bench_search_clear = gr.Button("✕ Clear", variant="secondary", size="sm", scale=1)
                 bench_table = gr.HTML()
 
                 gr.HTML('<div class="rl-group-label" style="margin-top:14px">Add a golden test case</div>')
                 with gr.Row():
                     bench_rule_sel = gr.Dropdown(label="Rule", choices=[], scale=3)
+                    bench_rule_refresh = gr.Button("↻", variant="secondary", size="sm", scale=0)
                     bench_should_trigger = gr.Checkbox(label="Should Trigger", value=True, scale=1)
                 bench_input_text = gr.Textbox(label="Input text", lines=2, placeholder="User message to test")
                 bench_expected = gr.Textbox(label="Expected behaviour", placeholder="AI should refuse / apply / respond with…")
@@ -10909,7 +10909,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 bench_run_btn.click(_run_and_refresh, outputs=[bench_result, bench_table])
                 bench_refresh_btn.click(_refresh_bench, outputs=[bench_table, bench_rule_sel])
                 bench_search.change(build_benchmark_table, inputs=[bench_search], outputs=[bench_table])
-                bench_search_clear.click(lambda: ("", build_benchmark_table()), outputs=[bench_search, bench_table])
+                bench_rule_refresh.click(lambda: gr.update(choices=get_rule_ids()), outputs=bench_rule_sel)
                 analytics_tab.select(_refresh_bench, outputs=[bench_table, bench_rule_sel])
                 bench_add_btn.click(
                     add_benchmark_case,
@@ -10933,6 +10933,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 gr.HTML('<div class="rl-group-label" style="margin-top:14px">Log a new RCA</div>')
                 with gr.Row():
                     rca_rule_sel = gr.Dropdown(label="Rule", choices=[], scale=3)
+                    rca_rule_refresh = gr.Button("↻", variant="secondary", size="sm", scale=0)
                     rca_cat_sel = gr.Dropdown(
                         label="Category (leave blank for LLM)",
                         choices=[""] + _RCA_CATEGORIES,
@@ -10958,6 +10959,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 rca_refresh_btn.click(_refresh_rca, outputs=[rca_summary_md, rca_table, rca_rule_sel])
                 analytics_tab.select(_refresh_rca, outputs=[rca_summary_md, rca_table, rca_rule_sel])
                 rca_search.change(build_rca_table, inputs=[rca_search], outputs=rca_table)
+                rca_rule_refresh.click(lambda: gr.update(choices=get_rule_ids()), outputs=rca_rule_sel)
                 rca_log_btn.click(
                     log_rca,
                     inputs=[rca_rule_sel, rca_violation, rca_user_input, rca_cat_sel],
@@ -10979,6 +10981,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 gr.HTML('<div class="rl-group-label" style="margin-top:14px">Open a new incident</div>')
                 with gr.Row():
                     inc_rule_sel = gr.Dropdown(label="Rule", choices=[], scale=3)
+                    inc_rule_refresh = gr.Button("↻", variant="secondary", size="sm", scale=0)
                     inc_severity = gr.Dropdown(
                         label="Severity", choices=INCIDENT_SEVERITIES, value="P2_medium", scale=2)
                 inc_title = gr.Textbox(label="Title", placeholder="e.g. bypass_rate spiked to 0.6")
@@ -11001,6 +11004,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 inc_refresh_btn.click(_refresh_inc, outputs=[inc_summary_md, inc_chart, inc_table, inc_rule_sel])
                 analytics_tab.select(_refresh_inc, outputs=[inc_summary_md, inc_chart, inc_table, inc_rule_sel])
                 inc_search.change(build_incidents_table, inputs=[inc_search], outputs=inc_table)
+                inc_rule_refresh.click(lambda: gr.update(choices=get_rule_ids()), outputs=inc_rule_sel)
                 inc_open_btn.click(
                     open_incident,
                     inputs=[inc_rule_sel, inc_title, inc_severity, inc_desc],
@@ -11136,6 +11140,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 gr.HTML('<div class="rl-group-label" style="margin-top:14px">Define a new SLO</div>')
                 with gr.Row():
                     slo_rule_sel = gr.Dropdown(label="Rule", choices=[], scale=3)
+                    slo_rule_refresh = gr.Button("↻", variant="secondary", size="sm", scale=0)
                     slo_target = gr.Number(label="Target %", value=90.0, minimum=50, maximum=100, scale=1)
                     slo_window = gr.Number(label="Window (days)", value=30, minimum=1, maximum=365, scale=1)
                 slo_name_in = gr.Textbox(label="SLO name", placeholder="e.g. Effectiveness ≥ 90%")
@@ -11148,6 +11153,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 slo_refresh_btn.click(_refresh_slo, outputs=[slo_chart, slo_table, slo_rule_sel])
                 slo_search.change(build_slo_table, inputs=[slo_search], outputs=[slo_table])
                 gov_tab.select(_refresh_slo, outputs=[slo_chart, slo_table, slo_rule_sel])
+                slo_rule_refresh.click(lambda: gr.update(choices=get_rule_ids()), outputs=slo_rule_sel)
                 slo_add_btn.click(
                     define_slo,
                     inputs=[slo_rule_sel, slo_name_in, slo_target, slo_window],
@@ -11165,6 +11171,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 gr.HTML('<div class="rl-group-label" style="margin-top:14px">Open a new cycle</div>')
                 with gr.Row():
                     imp_rule_sel = gr.Dropdown(label="Rule", choices=[], scale=3)
+                    imp_rule_refresh = gr.Button("↻", variant="secondary", size="sm", scale=0)
                     imp_trigger = gr.Textbox(label="Trigger event", placeholder="e.g. bypass_rate > 0.4", scale=3)
                 imp_desc = gr.Textbox(label="Description", lines=2, placeholder="What went wrong and why")
                 imp_open_btn = gr.Button("▶ Open Cycle", variant="primary", size="sm")
@@ -11183,6 +11190,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 imp_refresh_btn.click(_refresh_imp, outputs=[imp_funnel, imp_table, imp_rule_sel])
                 imp_search.change(build_improvement_table, inputs=[imp_search], outputs=[imp_table])
                 gov_tab.select(_refresh_imp, outputs=[imp_funnel, imp_table, imp_rule_sel])
+                imp_rule_refresh.click(lambda: gr.update(choices=get_rule_ids()), outputs=imp_rule_sel)
                 imp_open_btn.click(
                     start_improvement_cycle,
                     inputs=[imp_rule_sel, imp_trigger, imp_desc],
@@ -11375,7 +11383,6 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 gaming_summary_md = gr.Markdown()
                 with gr.Row():
                     gaming_search = gr.Textbox(label="Search gaming log", placeholder="Filter by pattern or confirmed status…", scale=4, show_clear_button=True)
-                    gaming_search_clear_btn = gr.Button("✕", variant="secondary", size="sm", scale=0)
                 gaming_table = gr.HTML()
 
                 gr.HTML('<div class="rl-group-label" style="margin-top:14px">Auto-scan a conversation</div>')
@@ -11409,7 +11416,6 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 gaming_log_btn.click(_refresh_gaming, outputs=[gaming_summary_md, gaming_table])
                 gaming_refresh_btn.click(_refresh_gaming, outputs=[gaming_summary_md, gaming_table])
                 gaming_search.change(build_gaming_table, inputs=[gaming_search], outputs=[gaming_table])
-                gaming_search_clear_btn.click(lambda: ("", build_gaming_table()), outputs=[gaming_search, gaming_table])
                 gov_tab.select(_refresh_gaming, outputs=[gaming_summary_md, gaming_table])
                 gaming_conv_refresh.click(lambda: gr.update(choices=get_conversation_ids()), outputs=gaming_conv_id)
                 gaming_log_conv_refresh.click(lambda: gr.update(choices=get_conversation_ids()), outputs=gaming_log_conv)
