@@ -6799,13 +6799,17 @@ img, video, canvas, iframe { max-width: 100%; height: auto; }
     .section-title { margin: 16px 0 8px; padding: 8px 12px; font-size: 0.75rem; }
 
     /* Tables: always scroll, never overflow viewport */
-    .table-wrap, .gr-dataframe, [data-testid="dataframe"] {
+    .table-wrap, .gr-dataframe, [data-testid="dataframe"],
+    .rl-table-wrap {
         overflow-x: auto !important; max-width: calc(100vw - 16px) !important;
     }
     .gr-dataframe td, [data-testid="dataframe"] td {
         max-width: 180px; font-size: 0.8rem;
     }
     .gr-dataframe th, [data-testid="dataframe"] th { font-size: 0.65rem; }
+    .rl-table td { font-size: 0.78rem !important; padding: 7px 9px !important; }
+    .rl-table th { font-size: 0.64rem !important; padding: 7px 9px !important; }
+    .rl-badge { font-size: 0.64rem !important; padding: 2px 7px !important; }
 
     /* Buttons: ensure touch-friendly height */
     button, .gr-button { min-height: 44px !important; }
@@ -6866,11 +6870,16 @@ img, video, canvas, iframe { max-width: 100%; height: auto; }
     .activity-item { padding: 8px 10px; font-size: 0.78rem; }
     .section-title { font-size: 0.68rem; }
     .pending-alert { padding: 9px 12px; font-size: 0.78rem; }
-    .table-wrap, .gr-dataframe, [data-testid="dataframe"] {
+    .table-wrap, .gr-dataframe, [data-testid="dataframe"],
+    .rl-table-wrap {
         max-width: calc(100vw - 12px) !important;
     }
     .gr-dataframe td, [data-testid="dataframe"] td { font-size: 0.75rem; padding: 6px 7px !important; }
     .gr-dataframe th, [data-testid="dataframe"] th { font-size: 0.62rem; padding: 6px 7px !important; }
+    .rl-table td { font-size: 0.73rem !important; padding: 5px 7px !important; }
+    .rl-table th { font-size: 0.6rem !important; padding: 5px 7px !important; }
+    .rl-score-fill { height: 4px !important; }
+    .rl-empty { padding: 16px; font-size: 0.78rem; }
     .tab-nav button { padding: 8px 8px !important; font-size: 0.72rem !important; }
     /* On tiny screens, hide emoji in tab labels to save space */
     .tab-nav button { letter-spacing: -0.01em; }
