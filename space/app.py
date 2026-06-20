@@ -299,6 +299,10 @@ def build_rule_score_trend(rule_name: str) -> Any:
         return _dark_fig(fig)
     dates = [h.get("date", "")[:10] for h in history if isinstance(h, dict)]
     scores = [h.get("score", 0) for h in history if isinstance(h, dict)]
+    if not scores:
+        fig = go.Figure()
+        fig.update_layout(title=f"{rule.get('name', rule_name)} — no valid score history")
+        return _dark_fig(fig)
     fig = go.Figure()
     fig.add_trace(go.Scatter(
         x=dates, y=scores, mode="lines+markers",
