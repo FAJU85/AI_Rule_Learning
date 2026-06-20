@@ -10652,7 +10652,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
 
                 with gr.Row():
                     dp_name = gr.Textbox(label="Source name", placeholder="e.g. Claude Code sessions", scale=3)
-                    dp_type = gr.Textbox(label="Type (e.g. dataset, api, file)", scale=2)
+                    dp_type = gr.Textbox(label="Type", placeholder="e.g. dataset, api, file", scale=2)
                 with gr.Row():
                     dp_trust = gr.Dropdown(label="Trust level", choices=DATA_TRUST_LEVELS,
                                            value="medium", scale=2)
@@ -11206,8 +11206,8 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 gr.HTML('<div class="rl-group-label" style="margin-top:14px">Add a node</div>')
                 with gr.Row():
                     kg_node_type = gr.Dropdown(label="Node type", choices=KG_NODE_TYPES, value="policy", scale=2)
-                    kg_node_name = gr.Textbox(label="Name", scale=3)
-                kg_node_desc = gr.Textbox(label="Description (optional)", scale=3)
+                    kg_node_name = gr.Textbox(label="Name", placeholder="e.g. GDPR Compliance Policy", scale=3)
+                kg_node_desc = gr.Textbox(label="Description (optional)", placeholder="What this node represents in the governance graph", scale=3)
                 with gr.Row():
                     kg_node_rule = gr.Dropdown(label="Linked rule (optional)", choices=[], scale=3)
                     kg_node_rule_refresh = gr.Button("↻", variant="secondary", size="sm", scale=0)
@@ -11332,7 +11332,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 with gr.Row():
                     ctrl_rule_csv = gr.Dropdown(label="Linked rules", choices=[], multiselect=True, scale=3)
                     ctrl_rules_refresh = gr.Button("↻", variant="secondary", size="sm", scale=0)
-                    ctrl_audit_ref = gr.Textbox(label="Audit reference (e.g. ISO 27001 A.5.1)", scale=3)
+                    ctrl_audit_ref = gr.Textbox(label="Audit reference", placeholder="e.g. ISO 27001 A.5.1", scale=3)
                 ctrl_add_btn = gr.Button("+ Add Control", variant="secondary", size="sm")
                 ctrl_status = gr.Markdown()
 
@@ -11392,7 +11392,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     gaming_log_turn = gr.Number(label="Turn #", value=1, scale=1)
                     gaming_log_confirmed = gr.Checkbox(label="Confirmed?", scale=1)
                 gaming_log_input = gr.Textbox(label="User input", lines=2, scale=4)
-                gaming_log_notes = gr.Textbox(label="Notes", scale=3)
+                gaming_log_notes = gr.Textbox(label="Notes", placeholder="Any context about this gaming attempt", scale=3)
                 gaming_log_btn = gr.Button("Log Gaming Attempt", variant="secondary", size="sm")
                 gaming_log_status = gr.Markdown()
                 gaming_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
@@ -11483,7 +11483,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 gr.HTML('<div class="section-title">Formal Policy Export</div>')
                 gr.Markdown("Export rules as structured YAML or JSON policy documents for audit trails and external tooling.")
                 with gr.Row():
-                    policy_rule_filter = gr.Textbox(label="Rule IDs to export (comma-separated, leave blank for all)", scale=5)
+                    policy_rule_filter = gr.Textbox(label="Rule IDs to export", placeholder="Comma-separated IDs, or leave blank for all", scale=5)
                 with gr.Row():
                     policy_yaml_btn = gr.Button("Export YAML", variant="primary", size="sm")
                     policy_json_btn = gr.Button("Export JSON", variant="secondary", size="sm")
@@ -11502,13 +11502,13 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
 
                 gr.HTML('<div class="rl-group-label" style="margin-top:14px">Register certification</div>')
                 with gr.Row():
-                    cert_name = gr.Textbox(label="Certification name", scale=3)
+                    cert_name = gr.Textbox(label="Certification name", placeholder="e.g. ISO 27001", scale=3)
                     cert_type = gr.Dropdown(label="Type", choices=CERT_TYPES, value="iso_27001", scale=2)
-                    cert_issuer = gr.Textbox(label="Issuing body", scale=2)
+                    cert_issuer = gr.Textbox(label="Issuing body", placeholder="e.g. BSI Group", scale=2)
                 with gr.Row():
                     cert_issue = gr.Textbox(label="Issue date", placeholder="YYYY-MM-DD", scale=2)
                     cert_expiry = gr.Textbox(label="Expiry date", placeholder="YYYY-MM-DD", scale=2)
-                    cert_scope = gr.Textbox(label="Scope", scale=3)
+                    cert_scope = gr.Textbox(label="Scope", placeholder="e.g. AI governance and rule enforcement systems", scale=3)
                 with gr.Row():
                     cert_rules_csv = gr.Dropdown(label="Linked rules (optional)", choices=[], multiselect=True, scale=4)
                     cert_rules_refresh = gr.Button("↻", variant="secondary", size="sm", scale=0)
@@ -11534,7 +11534,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 gr.Markdown("Generate a comprehensive compliance report for stakeholders (CTO, board, auditors).")
                 with gr.Row():
                     report_period = gr.Dropdown(label="Period", choices=["monthly", "quarterly", "annual", "ad-hoc"], value="monthly", scale=2)
-                    report_sections = gr.Textbox(label="Sections to include (optional, comma-sep)", scale=4)
+                    report_sections = gr.Textbox(label="Sections to include (optional)", placeholder="e.g. summary, incidents, slos — comma-separated", scale=4)
                 report_gen_btn = gr.Button("Generate Report", variant="primary", size="sm")
                 report_output = gr.Markdown()
 
@@ -11568,22 +11568,22 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
 
                 gr.HTML('<div class="rl-group-label" style="margin-top:14px">Add calendar item</div>')
                 with gr.Row():
-                    cal_title = gr.Textbox(label="Title", scale=3)
+                    cal_title = gr.Textbox(label="Title", placeholder="e.g. Quarterly AI Governance Review", scale=3)
                     cal_type = gr.Dropdown(label="Type", choices=CALENDAR_ITEM_TYPES, value="review", scale=2)
                     cal_priority = gr.Dropdown(label="Priority", choices=CALENDAR_PRIORITIES, value="medium", scale=2)
                 with gr.Row():
                     cal_due = gr.Textbox(label="Due date", placeholder="YYYY-MM-DD", scale=2)
-                    cal_owner = gr.Textbox(label="Owner", scale=2)
+                    cal_owner = gr.Textbox(label="Owner", placeholder="e.g. alice@company.com", scale=2)
                     cal_rule_csv = gr.Dropdown(label="Linked rules (optional)", choices=[], multiselect=True, scale=3)
                     cal_rules_refresh = gr.Button("↻", variant="secondary", size="sm", scale=0)
-                cal_desc = gr.Textbox(label="Description", scale=4)
+                cal_desc = gr.Textbox(label="Description", placeholder="What needs to be done and why", scale=4)
                 cal_add_btn = gr.Button("+ Add Item", variant="secondary", size="sm")
                 cal_add_status = gr.Markdown()
 
                 gr.HTML('<div class="rl-group-label" style="margin-top:14px">Mark item complete</div>')
                 with gr.Row():
-                    cal_complete_id = gr.Textbox(label="Item ID prefix", scale=3)
-                    cal_complete_notes = gr.Textbox(label="Completion notes", scale=4)
+                    cal_complete_id = gr.Textbox(label="Item ID prefix", placeholder="e.g. cal_abc123", scale=3)
+                    cal_complete_notes = gr.Textbox(label="Completion notes", placeholder="What was done to complete this item", scale=4)
                 cal_complete_btn = gr.Button("Mark Complete", variant="secondary", size="sm")
                 cal_complete_status = gr.Markdown()
 
@@ -11653,8 +11653,8 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     bias_rule_refresh = gr.Button("↻", variant="secondary", size="sm", scale=0)
                     bias_group_a = gr.Textbox(label="Group A label", placeholder="e.g. male", scale=2)
                     bias_group_b = gr.Textbox(label="Group B label", placeholder="e.g. female", scale=2)
-                bias_inputs_a = gr.Textbox(label="Group A inputs (| separated)", lines=2, scale=4)
-                bias_inputs_b = gr.Textbox(label="Group B inputs (| separated)", lines=2, scale=4)
+                bias_inputs_a = gr.Textbox(label="Group A inputs", placeholder="e.g. What time is it? | Tell me a joke", lines=2, scale=4)
+                bias_inputs_b = gr.Textbox(label="Group B inputs", placeholder="e.g. Who are you? | What can you do?", lines=2, scale=4)
                 bias_run_btn = gr.Button("Run Bias Analysis", variant="primary", size="sm")
                 bias_result_md = gr.Markdown()
 
@@ -11687,9 +11687,9 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 gr.HTML('<div class="rl-group-label" style="margin-top:14px">Append audit entry</div>')
                 with gr.Row():
                     audit_action = gr.Dropdown(label="Action", choices=META_ACTIONS + ["system_event", "config_change"], value="create_rule", scale=2)
-                    audit_actor = gr.Textbox(label="Actor (user/system)", scale=2)
-                    audit_target = gr.Textbox(label="Target (rule ID / entity)", scale=2)
-                audit_details = gr.Textbox(label="Details", scale=4)
+                    audit_actor = gr.Textbox(label="Actor", placeholder="e.g. alice@company.com or system", scale=2)
+                    audit_target = gr.Textbox(label="Target", placeholder="e.g. rul_abc123 or policy_name", scale=2)
+                audit_details = gr.Textbox(label="Details", placeholder="What was done and why this audit entry matters", scale=4)
                 audit_append_btn = gr.Button("Append to Chain", variant="secondary", size="sm")
                 audit_append_status = gr.Markdown()
 
