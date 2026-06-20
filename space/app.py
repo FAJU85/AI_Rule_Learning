@@ -11212,6 +11212,15 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                         label="New status", choices=INCIDENT_STATUSES, value="investigating", scale=2,
                         info="open → investigating → mitigating → resolved → closed")
                     inc_note = gr.Textbox(label="Note", placeholder="Status update, findings, or next steps", scale=3)
+                gr.Examples(
+                    examples=[
+                        ["inc_abc", "investigating", "Confirmed bypass in 3 turns — checking rule keyword coverage"],
+                        ["inc_abc", "mitigating", "Deployed hotfix rule — monitoring bypass rate for next 30 min"],
+                        ["inc_abc", "resolved", "Bypass rate back to 0.02 — root cause was stale keyword list, now updated"],
+                    ],
+                    inputs=[inc_update_id, inc_new_status, inc_note],
+                    label="Example status updates (click to load)",
+                )
                 inc_update_btn = gr.Button("→ Update Status", variant="primary", size="sm")
                 inc_update_status = gr.Markdown(min_height=28)
 
@@ -11520,6 +11529,15 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     kg_from_id = gr.Textbox(label="From node ID prefix", placeholder="e.g. pol_abc123", scale=2)
                     kg_edge_type = gr.Dropdown(label="Edge type", choices=KG_EDGE_TYPES, value="implements", scale=2, info="implements · satisfies · measures · evidences · linked_to")
                     kg_to_id = gr.Textbox(label="To node ID prefix", placeholder="e.g. rul_xyz456", scale=2)
+                gr.Examples(
+                    examples=[
+                        ["gdpr", "implements", "no_pii"],
+                        ["no_pii", "evidences", "audit"],
+                        ["safety_policy", "satisfies", "compliance_req"],
+                    ],
+                    inputs=[kg_from_id, kg_edge_type, kg_to_id],
+                    label="Example edges (click to load)",
+                )
                 kg_add_edge_btn = gr.Button("→ Add Edge", variant="primary", size="sm")
                 kg_edge_status = gr.Markdown(min_height=28)
 
