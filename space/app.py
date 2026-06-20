@@ -6599,6 +6599,8 @@ def run_regression_check() -> str:
     # Build index: rule_id -> sorted snapshots
     history: dict[str, list[dict]] = {}
     for entry in log:
+        if not entry.get("rule_id"):
+            continue
         history.setdefault(entry["rule_id"], []).append(entry)
 
     regressions: list[str] = []
@@ -6612,7 +6614,7 @@ def run_regression_check() -> str:
         name = score_data["name"]
 
         prev_snapshots = sorted(history.get(rid, []), key=lambda x: x.get("timestamp", ""))
-        prev_pct = prev_snapshots[-1]["pass_rate"] if prev_snapshots else None
+        prev_pct = prev_snapshots[-1].get("pass_rate") if prev_snapshots else None
 
         status = "stable"
         delta = None
@@ -6861,6 +6863,8 @@ def compute_reputation_summary() -> list[dict]:
     # Group by rule_id
     by_rule: dict[str, list[dict]] = {}
     for e in rep_log:
+        if not e.get("rule_id"):
+            continue
         by_rule.setdefault(e["rule_id"], []).append(e)
 
     summary = []
@@ -7007,7 +7011,7 @@ def build_goal_chart() -> Any:
         fig.update_layout(title="No goal data yet", height=300)
         return _dark_fig(fig)
 
-    names = [r.get("objective", r["goal_id"])[:30] for r in results]
+    names = [r.get("objective", r.get("goal_id", ""))[:30] for r in results]
     actuals = [r["actual_score"] for r in results]
     targets = [r["target_score"] for r in results]
     colors = ["#10b981" if r["alignment_status"] == "aligned" else "#f59e0b" if r["alignment_status"] == "warning" else "#ef4444" for r in results]
@@ -8114,11 +8118,13 @@ def build_robustness_table() -> pd.DataFrame:
         return pd.DataFrame(columns=["Rule", "Score", "Resisted", "Bypassed", "Tested", "Timestamp"])
     latest: dict = {}
     for e in log:
-        rid = e["rule_id"]
+        rid = e.get("rule_id", "")
+        if not rid:
+            continue
         if rid not in latest or e.get("timestamp", "") > latest[rid].get("timestamp", ""):
             latest[rid] = e
     rows = [{
-        "Rule": e.get("rule_name", e["rule_id"])[:40],
+        "Rule": e.get("rule_name", e.get("rule_id", ""))[:40],
         "Score": f"{e.get('robustness_score', 0)}%",
         "Resisted": e.get("attacks_resisted", 0),
         "Bypassed": e.get("attacks_bypassed", 0),
@@ -8321,6 +8327,8 @@ def compute_compliance_trends(window_days: int = 30) -> dict:
 
     by_rule: dict = {}
     for e in window_entries:
+        if not e.get("rule_id"):
+            continue
         by_rule.setdefault(e["rule_id"], []).append(e)
 
     trends: dict = {}
