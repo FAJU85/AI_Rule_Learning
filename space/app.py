@@ -6751,6 +6751,10 @@ img, video, canvas, iframe { max-width: 100%; height: auto; }
 .rl-score-bar { display: flex; align-items: center; gap: 6px; }
 .rl-score-fill { height: 6px; border-radius: 4px; min-width: 2px; background: #4f46e5; }
 .rl-empty { padding: 24px; text-align: center; color: #94a3b8; font-size: 0.85rem; }
+.rl-step2-hint { background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 8px;
+    padding: 10px 14px; font-size: 0.82rem; color: #0369a1; margin-bottom: 10px; line-height: 1.5; }
+.rl-group-label { font-size: 0.68rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.08em; color: #64748b; margin: 12px 0 4px 2px; }
 
 /* ── Tablet (≤ 960 px) ───────────────────────────────────────────────── */
 @media (max-width: 960px) {
@@ -10368,20 +10372,26 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
             sessions_tab.select(build_sessions_stat_bar, outputs=sessions_stat_bar)
 
             gr.HTML('<div class="section-title">Step 2 — Analyse</div>')
-            with gr.Row():
-                analysis_btn = gr.Button("▶ Run Analysis", variant="primary", size="lg")
-                reanalyze_btn = gr.Button("🔁 Re-analyze All", variant="secondary", size="lg")
-                score_btn = gr.Button("📊 Score Effectiveness", variant="secondary", size="lg")
+            gr.HTML('<div class="rl-step2-hint"><b>Quick start:</b> First time? Click <em>🌱 Load Starter Rules</em> then <em>▶ Run Analysis</em>. After each conversation batch, just hit <em>▶ Run Analysis</em> again.</div>')
 
-            with gr.Row():
-                judge_btn = gr.Button("🧑‍⚖️ LLM Judge Score", variant="primary")
-                redteam_btn = gr.Button("🔴 Red Team Rules", variant="primary")
-                evolve_btn = gr.Button("🔄 Evolve Low-Scoring", variant="secondary")
-
+            gr.HTML('<div class="rl-group-label">Core</div>')
             with gr.Row():
                 seed_btn = gr.Button("🌱 Load Starter Rules", variant="secondary")
-                dedup_btn = gr.Button("🧹 Remove Duplicates", variant="secondary")
-                risk_compute_btn = gr.Button("🔢 Update Risk Scores", variant="secondary")
+                analysis_btn = gr.Button("▶ Run Analysis", variant="primary", size="lg")
+
+            gr.HTML('<div class="rl-group-label">Scoring &amp; Evaluation</div>')
+            with gr.Row():
+                score_btn = gr.Button("📊 Score Effectiveness", variant="secondary")
+                judge_btn = gr.Button("🧑‍⚖️ LLM Judge Score", variant="secondary")
+
+            with gr.Accordion("⚙️ Maintenance", open=False):
+                with gr.Row():
+                    reanalyze_btn = gr.Button("🔁 Re-analyze All", variant="secondary")
+                    redteam_btn = gr.Button("🔴 Red Team Rules", variant="secondary")
+                with gr.Row():
+                    evolve_btn = gr.Button("🔄 Evolve Low-Scoring", variant="secondary")
+                    dedup_btn = gr.Button("🧹 Remove Duplicates", variant="secondary")
+                    risk_compute_btn = gr.Button("🔢 Update Risk Scores", variant="secondary")
 
             community_toggle = gr.Checkbox(
                 label="Contribute anonymous gap patterns to the community (no conversation text)",
