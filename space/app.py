@@ -2061,21 +2061,28 @@ def _detect_rule_conflicts(new_rule: dict, existing_rules: list[dict]) -> list[s
 # Review gate — approve / reject pending rules
 # ---------------------------------------------------------------------------
 
-def build_pending_rules_table() -> pd.DataFrame:
+def build_pending_rules_table(query: str = "") -> pd.DataFrame:
     rules = load_rules()
     pending = [r for r in rules if r.get("status") == "pending_review"]
     if not pending:
         return pd.DataFrame(columns=["Rule ID", "Name", "Priority", "Gap Type", "Instruction", "Safety"])
+    q = query.strip().lower()
     rows = []
     for r in pending:
+        name = r.get("name", "?")
+        priority = r.get("priority", "?")
+        gap_type = r.get("empirical_basis", "")
+        instruction = (r.get("action") or {}).get("instruction", "")
+        if q and not any(q in s.lower() for s in (name, priority, gap_type, instruction)):
+            continue
         issues = _check_rule_safety(r)
         safety = "⚠️ " + "; ".join(issues) if issues else "✅ Safe"
         rows.append({
             "Rule ID": r.get("rule_id", "?"),
-            "Name": r.get("name", "?"),
-            "Priority": r.get("priority", "?"),
-            "Gap Type": r.get("empirical_basis", "")[:60],
-            "Instruction": (r.get("action") or {}).get("instruction", "")[:80],
+            "Name": name,
+            "Priority": priority,
+            "Gap Type": gap_type[:60],
+            "Instruction": instruction[:80],
             "Safety": safety,
         })
     return pd.DataFrame(rows)
@@ -6610,6 +6617,58 @@ def build_analytics_stat_bar() -> str:
     return f'<div class="tab-stat-bar">{"  ".join(chips)}</div>'
 
 
+def build_sessions_stat_bar() -> str:
+    """Compact stat bar for the Sessions tab."""
+    try:
+        convs = _download_jsonl(CONVERSATIONS_FILE)
+        total_convs = len(convs)
+        total_turns = sum(len(c.get("turns", [])) for c in convs)
+    except Exception:
+        total_convs = total_turns = 0
+    try:
+        rules = load_rules()
+        pending = sum(1 for r in rules if r.get("status") == "pending_review")
+        active = sum(1 for r in rules if r.get("is_active"))
+    except Exception:
+        pending = active = 0
+    chips = [
+        _stat_chip("conversations", str(total_convs), "#4f46e5"),
+        _stat_chip("turns", str(total_turns), "#0ea5e9"),
+        _stat_chip("active rules", str(active), "#059669"),
+        _stat_chip("pending review", str(pending), "#f59e0b" if pending else "#94a3b8"),
+    ]
+    return f'<div class="tab-stat-bar">{"  ".join(chips)}</div>'
+
+
+def build_testing_stat_bar() -> str:
+    """Compact stat bar for the Testing tab."""
+    try:
+        rob = _download_jsonl(ROBUSTNESS_FILE)
+        rob_total = len(rob)
+        rob_vuln = sum(1 for r in rob if r.get("is_vulnerable"))
+    except Exception:
+        rob_total = rob_vuln = 0
+    try:
+        bias = _download_jsonl(BIAS_FILE)
+        bias_total = len(bias)
+        bias_detected = sum(1 for b in bias if b.get("bias_detected"))
+    except Exception:
+        bias_total = bias_detected = 0
+    try:
+        chain = _download_jsonl(AUDIT_CHAIN_FILE)
+        chain_entries = len(chain)
+    except Exception:
+        chain_entries = 0
+    chips = [
+        _stat_chip("robustness tests", str(rob_total), "#4f46e5"),
+        _stat_chip("vulnerable", str(rob_vuln), "#ef4444" if rob_vuln else "#94a3b8"),
+        _stat_chip("bias analyses", str(bias_total), "#0ea5e9"),
+        _stat_chip("bias detected", str(bias_detected), "#f59e0b" if bias_detected else "#94a3b8"),
+        _stat_chip("audit entries", str(chain_entries), "#059669"),
+    ]
+    return f'<div class="tab-stat-bar">{"  ".join(chips)}</div>'
+
+
 def build_action_items_html() -> str:
     """Aggregate critical items requiring user attention into a single panel."""
     items: list[tuple[str, str, str]] = []  # (priority_class, icon, text)
@@ -9238,8 +9297,10 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
 
             with gr.Accordion('📋 Review Queue & A/B Testing', open=True):
                 gr.HTML('<div class="section-title">Review Queue</div>')
+                with gr.Row():
+                    pending_search = gr.Textbox(label="Search queue", placeholder="Filter by name, priority, gap type, or instruction…", scale=4)
+                    refresh_pending_btn = gr.Button("↻ Refresh queue", variant="secondary", size="sm", scale=1)
                 pending_table = gr.Dataframe(interactive=False, wrap=True)
-                refresh_pending_btn = gr.Button("↻ Refresh queue", variant="secondary", size="sm")
                 pending_selector = gr.Dropdown(label="Select pending rule", choices=[])
                 pending_detail = gr.Markdown()
 
@@ -9252,6 +9313,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     return build_pending_rules_table(), gr.update(choices=get_pending_rule_ids())
 
                 refresh_pending_btn.click(refresh_pending, outputs=[pending_table, pending_selector])
+                pending_search.change(build_pending_rules_table, inputs=[pending_search], outputs=[pending_table])
                 rules_tab.select(refresh_pending, outputs=[pending_table, pending_selector])
                 pending_selector.change(get_pending_rule_detail, inputs=pending_selector, outputs=pending_detail)
                 approve_btn.click(approve_rule, inputs=pending_selector, outputs=review_status).then(
@@ -9445,6 +9507,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
         # ── Sessions ─────────────────────────────────────────────────────────
         with gr.Tab("🔄 Sessions") as sessions_tab:
 
+            sessions_stat_bar = gr.HTML()
             gr.HTML('<div class="section-title">Step 1 — Import Sessions</div>')
             with gr.Row():
                 with gr.Column():
@@ -9467,8 +9530,11 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
             import_log = gr.Textbox(label="Import log", lines=8, interactive=False, autoscroll=True)
             upload_status = gr.Markdown()
 
-            import_btn.click(run_import_sessions, inputs=session_files_input, outputs=import_log)
+            import_btn.click(run_import_sessions, inputs=session_files_input, outputs=import_log).then(
+                build_sessions_stat_bar, outputs=sessions_stat_bar,
+            )
             upload_btn.click(upload_history, inputs=upload_file, outputs=upload_status)
+            sessions_tab.select(build_sessions_stat_bar, outputs=sessions_stat_bar)
 
             gr.HTML('<div class="section-title">Step 2 — Analyse</div>')
             with gr.Row():
@@ -10601,6 +10667,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
 
         with gr.Tab("🧪 Testing") as testing_tab:
 
+            testing_stat_bar = gr.HTML()
             gr.HTML('<div class="section-title">Adversarial Robustness Testing</div>')
             gr.Markdown("Run structured adversarial attacks (role-play escape, authority claim, encoding evasion, etc.) against a rule to measure robustness.")
             rob_report = gr.Markdown()
@@ -10616,10 +10683,13 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 return build_robustness_table()
 
             rob_run_btn.click(run_robustness_test, inputs=rob_rule_id, outputs=rob_report)
-            rob_run_btn.click(_refresh_robustness, outputs=rob_table)
+            rob_run_btn.click(_refresh_robustness, outputs=rob_table).then(
+                build_testing_stat_bar, outputs=testing_stat_bar,
+            )
             rob_refresh_btn.click(_refresh_robustness, outputs=rob_table)
             rob_search.change(build_robustness_table, inputs=[rob_search], outputs=[rob_table])
             testing_tab.select(_refresh_robustness, outputs=rob_table)
+            testing_tab.select(build_testing_stat_bar, outputs=testing_stat_bar)
 
             with gr.Accordion('⚖️ Fairness & Audit', open=True):
                 gr.HTML('<div class="section-title">Fairness &amp; Bias Detection</div>')
@@ -10648,7 +10718,9 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     inputs=[bias_rule_id, bias_group_a, bias_group_b, bias_inputs_a, bias_inputs_b],
                     outputs=bias_result_md,
                 )
-                bias_run_btn.click(_refresh_bias, outputs=[bias_summary_md, bias_table])
+                bias_run_btn.click(_refresh_bias, outputs=[bias_summary_md, bias_table]).then(
+                    build_testing_stat_bar, outputs=testing_stat_bar,
+                )
                 bias_refresh_btn.click(_refresh_bias, outputs=[bias_summary_md, bias_table])
                 bias_search.change(build_bias_table, inputs=[bias_search], outputs=[bias_table])
                 testing_tab.select(_refresh_bias, outputs=[bias_summary_md, bias_table])
