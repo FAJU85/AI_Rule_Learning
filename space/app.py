@@ -10774,8 +10774,8 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 with gr.Row():
                     beh_conv_id = gr.Dropdown(label="Conversation ID", choices=[], scale=2)
                     beh_conv_refresh = gr.Button("↻", variant="secondary", size="sm", scale=0)
-                    beh_turn_no = gr.Number(label="Turn #", value=1, minimum=1, scale=1)
-                    beh_hallu = gr.Checkbox(label="Hallucination detected?", value=False, scale=1)
+                    beh_turn_no = gr.Number(label="Turn #", value=1, minimum=1, scale=1, info="Conversation turn index")
+                    beh_hallu = gr.Checkbox(label="Hallucination detected?", value=False, scale=1, info="Check if the AI stated false information in this turn")
                 with gr.Row():
                     beh_accuracy    = gr.Slider(label="Accuracy",         minimum=0, maximum=1, value=0.8, step=0.05, scale=2, info="0 = wrong, 1 = fully correct")
                     beh_consistency = gr.Slider(label="Consistency",       minimum=0, maximum=1, value=0.8, step=0.05, scale=2, info="0 = contradictory, 1 = fully consistent")
@@ -10875,7 +10875,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 forecast_report_md = gr.Markdown()
                 with gr.Row():
                     forecast_horizon = gr.Slider(label="Horizon (measurements ahead)", minimum=1, maximum=10,
-                                                 value=3, step=1, scale=3)
+                                                 value=3, step=1, scale=3, info="How many future measurements to predict")
                     forecast_refresh_btn = gr.Button("↻ Refresh Forecast", variant="secondary", size="sm", scale=1)
 
                 def _refresh_forecast(h):
@@ -11139,7 +11139,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 with gr.Row():
                     rating_conv_id = gr.Dropdown(label="Conversation ID", choices=[], scale=3)
                     rating_conv_refresh = gr.Button("↻", variant="secondary", size="sm", scale=0)
-                    rating_score = gr.Slider(label="Session quality (1 = poor, 5 = excellent)", minimum=1, maximum=5, step=1, value=3, scale=2)
+                    rating_score = gr.Slider(label="Session quality (1 = poor, 5 = excellent)", minimum=1, maximum=5, step=1, value=3, scale=2, info="1 = very poor, 3 = acceptable, 5 = excellent")
                 with gr.Row():
                     rating_friction = gr.Textbox(label="What caused friction / what went wrong?", lines=2, placeholder="e.g. AI repeated itself, wrong tone…", scale=3)
                     rating_helped = gr.Textbox(label="What rules helped (if any)?", lines=2, placeholder="e.g. 'always show code examples' rule worked well", scale=3)
@@ -11772,7 +11772,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 trend_chart = gr.Plot()
                 trend_summary_md = gr.Markdown()
                 with gr.Row():
-                    trend_window = gr.Slider(label="Time window (days)", minimum=7, maximum=90, step=7, value=30, scale=4)
+                    trend_window = gr.Slider(label="Time window (days)", minimum=7, maximum=90, step=7, value=30, scale=4, info="Lookback period for the effectiveness trend chart")
                     trend_refresh_btn = gr.Button("↻ Refresh Trends", variant="secondary", size="sm", scale=1)
 
                 def _refresh_trends(window):
