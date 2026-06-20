@@ -2281,35 +2281,55 @@ def _risk_label(score: float) -> tuple[str, str]:
     return "Critical", "#ff4444"
 
 
-def build_risk_table(query: str = "") -> pd.DataFrame:
+def build_risk_table(query: str = "") -> str:
     rules = load_rules()
-    if not rules:
-        return pd.DataFrame(columns=["Name", "Owner", "Team", "Risk Score", "Level", "Priority", "Effectiveness", "Bypass"])
     q = query.strip().lower()
-    rows = []
+    _level_badge = {
+        "Critical": '<span class="rl-badge" style="background:#fee2e2;color:#991b1b">Critical</span>',
+        "High":     '<span class="rl-badge" style="background:#fef3c7;color:#92400e">High</span>',
+        "Medium":   '<span class="rl-badge" style="background:#ede9fe;color:#5b21b6">Medium</span>',
+        "Low":      '<span class="rl-badge" style="background:#f0fdf4;color:#166534">Low</span>',
+    }
+    matched = []
     for r in rules:
         if not r.get("is_active"):
             continue
         score = _compute_risk_score(r)
         label, _ = _risk_label(score)
-        bypass = r.get("bypass_rate")
         name = r.get("name", r.get("rule_id", "?"))
         owner = r.get("owner", "—")
         team = r.get("team", "—")
-        if q and not any(q in s.lower() for s in (name, owner, team, label)):
+        if q and not any(q in s.lower() for s in (name, owner, team, label.lower())):
             continue
-        rows.append({
-            "Name": name,
-            "Owner": owner,
-            "Team": team,
-            "Risk Score": f"{score:.2f}",
-            "Level": label,
-            "Priority": r.get("priority", "?"),
-            "Effectiveness": f"{r.get('effectiveness_score', 0):.0%}",
-            "Bypass": f"{bypass:.0%}" if bypass is not None else "—",
-        })
-    rows.sort(key=lambda x: float(x["Risk Score"]), reverse=True)
-    return pd.DataFrame(rows)
+        matched.append((r, score, label, name, owner, team))
+    matched.sort(key=lambda x: x[1], reverse=True)
+    if not matched:
+        msg = "No active rules with risk scores." if not rules else f'No rules match "<b>{query}</b>".'
+        return f'<div class="rl-empty">{msg}</div>'
+    rows_html = ""
+    for r, score, label, name, owner, team in matched:
+        bypass = r.get("bypass_rate")
+        eff = r.get("effectiveness_score", 0)
+        eff_color = "#059669" if eff >= 0.7 else "#d97706" if eff >= 0.4 else "#dc2626"
+        rows_html += (
+            f"<tr>"
+            f"<td style='max-width:180px'>{name[:32]}</td>"
+            f"<td style='font-size:0.8rem;color:#475569'>{owner}</td>"
+            f"<td style='font-size:0.8rem;color:#475569'>{team}</td>"
+            f"<td style='text-align:right;font-weight:700;color:#334155'>{score:.2f}</td>"
+            f"<td>{_level_badge.get(label, f'<span class=\"rl-badge rl-badge-inactive\">{label}</span>')}</td>"
+            f"<td style='text-align:right'>{r.get('priority','?')}</td>"
+            f"<td style='text-align:right;color:{eff_color};font-weight:600'>{eff:.0%}</td>"
+            f"<td style='text-align:right;color:#94a3b8'>"
+            f"{'—' if bypass is None else f'{bypass:.0%}'}</td>"
+            f"</tr>"
+        )
+    return (
+        f'<div class="rl-table-wrap"><table class="rl-table">'
+        f"<thead><tr><th>Name</th><th>Owner</th><th>Team</th>"
+        f"<th>Score</th><th>Level</th><th>Pri</th><th>Effectiveness</th><th>Bypass</th></tr></thead>"
+        f"<tbody>{rows_html}</tbody></table></div>"
+    )
 
 
 def run_update_risk_scores():
@@ -2414,32 +2434,53 @@ def transition_rule_lifecycle(rule_id: str, new_status: str, reason: str = "") -
         return f"❌ Failed to save: {exc}"
 
 
-def build_lifecycle_table(query: str = "") -> pd.DataFrame:
+def build_lifecycle_table(query: str = "") -> str:
     rules = load_rules()
-    if not rules:
-        return pd.DataFrame(columns=["State", "Name", "Owner", "Team", "Priority", "Created", "Last Changed"])
     q = query.strip().lower()
-    rows = []
+    _lc_badge = {
+        "active":         '<span class="rl-badge rl-badge-active">active</span>',
+        "pending_review": '<span class="rl-badge rl-badge-pending">pending review</span>',
+        "draft":          '<span class="rl-badge rl-badge-inactive">draft</span>',
+        "deprecated":     '<span class="rl-badge" style="background:#fef3c7;color:#92400e">deprecated</span>',
+        "retired":        '<span class="rl-badge rl-badge-inactive">retired</span>',
+        "rejected":       '<span class="rl-badge rl-badge-deprecated">rejected</span>',
+    }
+    order = {"active": 0, "pending_review": 1, "draft": 2, "deprecated": 3, "retired": 4, "rejected": 5}
+    matched = []
     for r in rules:
         status = r.get("status", "active")
-        icon = LIFECYCLE_ICONS.get(status, "?")
         name = r.get("name", r.get("rule_id", "?"))
         owner = r.get("owner", "—")
         team = r.get("team", "—")
         if q and not any(q in s.lower() for s in (status, name, owner, team)):
             continue
-        rows.append({
-            "State": f"{icon} {status}",
-            "Name": name,
-            "Owner": owner,
-            "Team": team,
-            "Priority": r.get("priority", "?"),
-            "Created": str(r.get("created_at", ""))[:10],
-            "Last Changed": str(r.get(f"{status}_at", r.get("created_at", "")))[:10],
-        })
-    order = {"active": 0, "pending_review": 1, "draft": 2, "deprecated": 3, "retired": 4, "rejected": 5}
-    rows.sort(key=lambda x: order.get(x["State"].split(" ", 1)[-1], 9))
-    return pd.DataFrame(rows)
+        matched.append((r, status, name, owner, team))
+    matched.sort(key=lambda x: order.get(x[1], 9))
+    if not matched:
+        msg = "No rules yet." if not rules else f'No rules match "<b>{query}</b>".'
+        return f'<div class="rl-empty">{msg}</div>'
+    rows_html = ""
+    for r, status, name, owner, team in matched:
+        icon = LIFECYCLE_ICONS.get(status, "?")
+        badge = _lc_badge.get(status, f'<span class="rl-badge rl-badge-inactive">{icon} {status}</span>')
+        last_changed = str(r.get(f"{status}_at", r.get("created_at", "")))[:10]
+        rows_html += (
+            f"<tr>"
+            f"<td>{badge}</td>"
+            f"<td style='max-width:180px'>{name[:32]}</td>"
+            f"<td style='font-size:0.8rem;color:#475569'>{owner}</td>"
+            f"<td style='font-size:0.8rem;color:#475569'>{team}</td>"
+            f"<td style='text-align:right'>{r.get('priority','?')}</td>"
+            f"<td style='font-size:0.75rem;color:#94a3b8'>{str(r.get('created_at',''))[:10]}</td>"
+            f"<td style='font-size:0.75rem;color:#94a3b8'>{last_changed}</td>"
+            f"</tr>"
+        )
+    return (
+        f'<div class="rl-table-wrap"><table class="rl-table">'
+        f"<thead><tr><th>State</th><th>Name</th><th>Owner</th><th>Team</th>"
+        f"<th>Pri</th><th>Created</th><th>Last Changed</th></tr></thead>"
+        f"<tbody>{rows_html}</tbody></table></div>"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -9557,7 +9598,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 with gr.Row():
                     lifecycle_search = gr.Textbox(label="Search lifecycle", placeholder="Filter by status, name, owner, or team…", scale=4)
                     lifecycle_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm", scale=1)
-                lifecycle_table = gr.Dataframe(interactive=False, wrap=True)
+                lifecycle_table = gr.HTML()
                 with gr.Row():
                     lc_rule_selector = gr.Dropdown(label="Rule", choices=[], scale=3)
                     lc_new_state = gr.Dropdown(
@@ -10074,7 +10115,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 with gr.Row():
                     risk_search = gr.Textbox(label="Search risks", placeholder="Filter by name, owner, team, or level…", scale=4)
                     risk_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm", scale=1)
-                risk_table = gr.Dataframe(interactive=False, wrap=True)
+                risk_table = gr.HTML()
                 with gr.Row():
                     risk_update_btn = gr.Button("🔢 Recompute Risk Scores", variant="primary", size="sm")
                 risk_log = gr.Textbox(label="Risk log", lines=6, interactive=False, autoscroll=True)
