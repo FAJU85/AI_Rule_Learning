@@ -6127,16 +6127,21 @@ label, label.gr-form { color: #475569 !important; font-size: 0.8rem !important; 
 .gr-dataframe th, [data-testid="dataframe"] th {
     background: #f8fafc !important; color: #64748b !important;
     font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em;
-    white-space: nowrap; padding: 10px 12px !important; position: sticky; top: 0;
+    white-space: nowrap; padding: 10px 12px !important;
+    position: sticky; top: 0; z-index: 2;
+    box-shadow: 0 1px 0 #e2e8f0;
 }
 .gr-dataframe td, [data-testid="dataframe"] td {
     color: #334155 !important; border-color: #f1f5f9 !important;
     padding: 9px 12px !important; font-size: 0.85rem;
-    white-space: nowrap; max-width: 260px; overflow: hidden;
+    white-space: nowrap; max-width: 320px; overflow: hidden;
     text-overflow: ellipsis;
 }
 .gr-dataframe tr:hover td, [data-testid="dataframe"] tr:hover td {
     background: #f8fafc !important;
+}
+.gr-dataframe tr:nth-child(even) td, [data-testid="dataframe"] tr:nth-child(even) td {
+    background: #fafafa !important;
 }
 
 /* Buttons */
@@ -6239,20 +6244,46 @@ img, video, canvas, iframe { max-width: 100%; height: auto; }
     button, .gr-button { min-height: 44px !important; }
     button.secondary { padding: 0 12px !important; }
 
-    /* Tab nav: no wrap, scroll */
-    .tab-nav { flex-wrap: nowrap !important; }
-    .tab-nav button { padding: 10px 12px !important; font-size: 0.8rem !important; }
+    /* Tab nav: scroll horizontally, snap tabs to touch */
+    .tab-nav {
+        flex-wrap: nowrap !important;
+        overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch;
+        scroll-snap-type: x mandatory;
+        scrollbar-width: none; /* Firefox */
+    }
+    .tab-nav::-webkit-scrollbar { display: none; }
+    .tab-nav button {
+        padding: 10px 10px !important;
+        font-size: 0.78rem !important;
+        white-space: nowrap !important;
+        scroll-snap-align: start;
+        flex-shrink: 0;
+    }
 
-    /* Inputs */
-    textarea, input[type="text"], input[type="number"] { min-height: 44px; font-size: 16px !important; }
+    /* Inputs: prevent zoom on focus (iOS) */
+    textarea, input[type="text"], input[type="number"], select {
+        min-height: 44px; font-size: 16px !important;
+    }
+
+    /* Search rows: keep search box wide, button compact */
+    .search-row-wrapper { display: flex; gap: 8px; align-items: center; }
+    .search-row-wrapper .gr-textbox { flex: 1; min-width: 0; }
+    .search-row-wrapper button { flex-shrink: 0; min-width: 44px; }
 
     /* Accordion */
     .gr-accordion > .label-wrap,
     [data-testid="accordion"] > button,
     [data-testid="accordion"] > .label-wrap { padding: 10px 14px !important; }
-    /* Accordion inner content: tighten padding on mobile */
     .gr-accordion > div:last-child,
     [data-testid="accordion"] > div:last-child { padding: 8px 6px !important; }
+
+    /* Plots: constrain height on mobile so they don't dominate */
+    .js-plotly-plot .plot-container { max-height: 320px; }
+
+    /* Action items panel: compact on mobile */
+    .action-item { padding: 8px 12px; font-size: 0.8rem; }
+    .action-items-panel.all-clear { padding: 10px 12px; }
 }
 
 /* ── Small phone (≤ 480 px) ─────────────────────────────────────────── */
@@ -6271,8 +6302,11 @@ img, video, canvas, iframe { max-width: 100%; height: auto; }
     .table-wrap, .gr-dataframe, [data-testid="dataframe"] {
         max-width: calc(100vw - 12px) !important;
     }
-    .gr-dataframe td, [data-testid="dataframe"] td { font-size: 0.75rem; padding: 7px 8px !important; }
-    .tab-nav button { padding: 8px 10px !important; font-size: 0.75rem !important; }
+    .gr-dataframe td, [data-testid="dataframe"] td { font-size: 0.75rem; padding: 6px 7px !important; }
+    .gr-dataframe th, [data-testid="dataframe"] th { font-size: 0.62rem; padding: 6px 7px !important; }
+    .tab-nav button { padding: 8px 8px !important; font-size: 0.72rem !important; }
+    /* On tiny screens, hide emoji in tab labels to save space */
+    .tab-nav button { letter-spacing: -0.01em; }
 }
 """
 
