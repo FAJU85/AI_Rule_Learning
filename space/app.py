@@ -3381,22 +3381,35 @@ def record_trace(
     return trace["trace_id"]
 
 
-def build_trace_table(conversation_id: str = "") -> pd.DataFrame:
+def build_trace_table(conversation_id: str = "") -> str:
     traces = _download_jsonl(TRACE_FILE)
     if conversation_id:
         traces = [t for t in traces if t.get("conversation_id") == conversation_id]
     if not traces:
-        return pd.DataFrame(columns=["Trace ID", "Correlation ID", "Turn", "Rules Fired", "Decision", "Latency ms", "Traced At"])
-    rows = [{
-        "Trace ID": t.get("trace_id", "")[:8],
-        "Correlation ID": t.get("correlation_id", ""),
-        "Turn": t.get("turn_number", 0),
-        "Rules Fired": ", ".join(t.get("rules_fired", [])) or "—",
-        "Decision": t.get("decision", ""),
-        "Latency ms": t.get("latency_ms", 0),
-        "Traced At": t.get("traced_at", "")[:19],
-    } for t in sorted(traces, key=lambda x: x.get("traced_at", ""), reverse=True)[:200]]
-    return pd.DataFrame(rows)
+        return '<div class="rl-empty">No traces recorded yet.</div>'
+    rows_html = ""
+    for t in sorted(traces, key=lambda x: x.get("traced_at", ""), reverse=True)[:200]:
+        fired = t.get("rules_fired", [])
+        fired_str = ", ".join(fired) if fired else "—"
+        fired_color = "#166534" if fired else "#94a3b8"
+        latency = t.get("latency_ms", 0)
+        lat_color = "#dc2626" if latency > 500 else "#d97706" if latency > 100 else "#166534"
+        rows_html += (
+            f"<tr>"
+            f"<td style='font-family:monospace;font-size:0.75rem;color:#64748b'>{t.get('trace_id','')[:8]}</td>"
+            f"<td style='font-family:monospace;font-size:0.75rem;color:#94a3b8'>{t.get('correlation_id','')}</td>"
+            f"<td style='text-align:center'>{t.get('turn_number',0)}</td>"
+            f"<td style='font-size:0.78rem;color:{fired_color}'>{fired_str[:60]}</td>"
+            f"<td style='font-size:0.78rem;color:#475569'>{t.get('decision','')[:40]}</td>"
+            f"<td style='color:{lat_color};font-weight:600'>{latency}</td>"
+            f"<td style='font-size:0.75rem;color:#94a3b8'>{t.get('traced_at','')[:19]}</td>"
+            f"</tr>"
+        )
+    return (
+        f'<div class="rl-table-wrap"><table class="rl-table">'
+        f"<thead><tr><th>Trace ID</th><th>Correlation ID</th><th>Turn</th><th>Rules Fired</th><th>Decision</th><th>Latency ms</th><th>Traced At</th></tr></thead>"
+        f"<tbody>{rows_html}</tbody></table></div>"
+    )
 
 
 def trace_conversation(conversation_id: str) -> str:
@@ -5020,29 +5033,46 @@ def run_ai_audit(conversation_id: str = "", max_turns: int = 3) -> str:
     yield f"\n✅ Audit complete — {audited} turns assessed."
 
 
-def build_audit_table(query: str = "") -> pd.DataFrame:
+def build_audit_table(query: str = "") -> str:
     entries = _download_jsonl(AUDIT_FILE)
     if not entries:
-        return pd.DataFrame(columns=["Audit ID","Conv","Turn","Worker","Auditor","Agreed","Note","Date"])
+        return '<div class="rl-empty">No audit entries yet.</div>'
     q = query.strip().lower()
-    rows = []
+    matched = []
     for e in sorted(entries, key=lambda x: x.get("audited_at",""), reverse=True)[:200]:
         worker = e.get("worker_verdict","")
         auditor = e.get("auditor_verdict","")
         note = e.get("auditor_note","")
         if q and not any(q in s.lower() for s in (worker, auditor, note)):
             continue
-        rows.append({
-            "Audit ID":  e.get("audit_id","")[:8],
-            "Conv":      e.get("conversation_id","")[-8:],
-            "Turn":      e.get("turn_number",0),
-            "Worker":    worker,
-            "Auditor":   auditor,
-            "Agreed":    "Yes" if e.get("auditor_agreed") else "No",
-            "Note":      note[:60],
-            "Date":      e.get("audited_at","")[:10],
-        })
-    return pd.DataFrame(rows)
+        matched.append(e)
+    if not matched:
+        return f'<div class="rl-empty">No audit entries match "<b>{query}</b>".</div>'
+    rows_html = ""
+    for e in matched:
+        agreed = e.get("auditor_agreed", False)
+        agreed_badge = (
+            '<span class="rl-badge rl-badge-active">yes</span>'
+            if agreed else
+            '<span class="rl-badge rl-badge-deprecated">no</span>'
+        )
+        rows_html += (
+            f"<tr>"
+            f"<td style='font-family:monospace;font-size:0.75rem;color:#64748b'>{e.get('audit_id','')[:8]}</td>"
+            f"<td style='font-family:monospace;font-size:0.75rem;color:#94a3b8'>{e.get('conversation_id','')[-8:]}</td>"
+            f"<td style='text-align:center'>{e.get('turn_number',0)}</td>"
+            f"<td style='font-size:0.78rem;color:#4f46e5'>{e.get('worker_verdict','')[:30]}</td>"
+            f"<td style='font-size:0.78rem;color:#334155'>{e.get('auditor_verdict','')[:30]}</td>"
+            f"<td>{agreed_badge}</td>"
+            f"<td style='font-size:0.78rem;color:#475569;max-width:200px'>{e.get('auditor_note','')[:60]}</td>"
+            f"<td style='font-size:0.75rem;color:#94a3b8'>{e.get('audited_at','')[:10]}</td>"
+            f"</tr>"
+        )
+    return (
+        f'<div class="rl-table-wrap"><table class="rl-table">'
+        f"<thead><tr><th>Audit ID</th><th>Conv</th><th>Turn</th><th>Worker</th><th>Auditor</th><th>Agreed</th><th>Note</th><th>Date</th></tr></thead>"
+        f"<tbody>{rows_html}</tbody></table></div>"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -5338,23 +5368,34 @@ def auto_record_provenance(conversation_id: str) -> str:
     return f"Provenance recorded for {added} turn(s) in {conversation_id}."
 
 
-def build_provenance_table(conversation_id: str = "") -> pd.DataFrame:
+def build_provenance_table(conversation_id: str = "") -> str:
     entries = _download_jsonl(PROVENANCE_FILE)
     if conversation_id:
         entries = [e for e in entries if e.get("conversation_id") == conversation_id]
     if not entries:
-        return pd.DataFrame(columns=["ID", "Conv", "Turn", "Input", "Rules Applied", "Output", "Model", "Date"])
-    rows = [{
-        "ID":            e.get("provenance_id", "")[:8],
-        "Conv":          e.get("conversation_id", "")[-8:],
-        "Turn":          e.get("turn_number", 0),
-        "Input":         e.get("lineage", {}).get("input", "")[:40],
-        "Rules Applied": ", ".join(e.get("lineage", {}).get("rules_applied", [])) or "—",
-        "Output":        e.get("lineage", {}).get("output", "")[:40],
-        "Model":         e.get("model_used", ""),
-        "Date":          e.get("recorded_at", "")[:10],
-    } for e in sorted(entries, key=lambda x: x.get("recorded_at", ""), reverse=True)[:100]]
-    return pd.DataFrame(rows)
+        return '<div class="rl-empty">No provenance entries yet.</div>'
+    rows_html = ""
+    for e in sorted(entries, key=lambda x: x.get("recorded_at", ""), reverse=True)[:100]:
+        lineage = e.get("lineage", {})
+        rules_applied = ", ".join(lineage.get("rules_applied", [])) or "—"
+        rules_color = "#166534" if lineage.get("rules_applied") else "#94a3b8"
+        rows_html += (
+            f"<tr>"
+            f"<td style='font-family:monospace;font-size:0.75rem;color:#64748b'>{e.get('provenance_id','')[:8]}</td>"
+            f"<td style='font-family:monospace;font-size:0.75rem;color:#94a3b8'>{e.get('conversation_id','')[-8:]}</td>"
+            f"<td style='text-align:center'>{e.get('turn_number',0)}</td>"
+            f"<td style='font-size:0.78rem;color:#475569;max-width:140px'>{lineage.get('input','')[:40]}</td>"
+            f"<td style='font-size:0.78rem;color:{rules_color};max-width:160px'>{rules_applied[:60]}</td>"
+            f"<td style='font-size:0.78rem;color:#475569;max-width:140px'>{lineage.get('output','')[:40]}</td>"
+            f"<td style='font-size:0.78rem;color:#4f46e5'>{e.get('model_used','')}</td>"
+            f"<td style='font-size:0.75rem;color:#94a3b8'>{e.get('recorded_at','')[:10]}</td>"
+            f"</tr>"
+        )
+    return (
+        f'<div class="rl-table-wrap"><table class="rl-table">'
+        f"<thead><tr><th>ID</th><th>Conv</th><th>Turn</th><th>Input</th><th>Rules Applied</th><th>Output</th><th>Model</th><th>Date</th></tr></thead>"
+        f"<tbody>{rows_html}</tbody></table></div>"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -5393,12 +5434,12 @@ def register_data_source(
     return f"Data source registered: {source_name} (trust={trust_level}, id={entry['source_id'][:8]}…)"
 
 
-def build_data_provenance_table(query: str = "") -> pd.DataFrame:
+def build_data_provenance_table(query: str = "") -> str:
     entries = _download_jsonl(DATA_PROVENANCE_FILE)
     if not entries:
-        return pd.DataFrame(columns=["ID", "Name", "Type", "Trust Level", "Owner", "Uses", "Registered"])
+        return '<div class="rl-empty">No data sources registered yet.</div>'
     q = query.strip().lower()
-    rows = []
+    matched = []
     for e in entries:
         name = e.get("source_name", "")
         src_type = e.get("source_type", "")
@@ -5406,16 +5447,37 @@ def build_data_provenance_table(query: str = "") -> pd.DataFrame:
         owner = e.get("owner", "")
         if q and not any(q in s.lower() for s in (name, src_type, trust, owner)):
             continue
-        rows.append({
-            "ID":           e.get("source_id", "")[:8],
-            "Name":         name,
-            "Type":         src_type,
-            "Trust Level":  trust,
-            "Owner":        owner,
-            "Uses":         e.get("use_count", 0),
-            "Registered":   e.get("registered_at", "")[:10],
-        })
-    return pd.DataFrame(rows)
+        matched.append(e)
+    if not matched:
+        return f'<div class="rl-empty">No data sources match "<b>{query}</b>".</div>'
+    _trust_badge = {
+        "high":      '<span class="rl-badge rl-badge-active">high</span>',
+        "medium":    '<span class="rl-badge rl-badge-pending">medium</span>',
+        "low":       '<span class="rl-badge rl-badge-deprecated">low</span>',
+        "untrusted": '<span class="rl-badge" style="background:#fecdd3;color:#9f1239">untrusted</span>',
+    }
+    rows_html = ""
+    for e in matched:
+        trust = e.get("trust_level", "")
+        trust_badge = _trust_badge.get(trust, f'<span class="rl-badge rl-badge-inactive">{trust}</span>')
+        use_count = e.get("use_count", 0)
+        use_color = "#4f46e5" if use_count > 0 else "#94a3b8"
+        rows_html += (
+            f"<tr>"
+            f"<td style='font-family:monospace;font-size:0.75rem;color:#64748b'>{e.get('source_id','')[:8]}</td>"
+            f"<td style='font-weight:600'>{e.get('source_name','')}</td>"
+            f"<td style='color:#475569;font-size:0.78rem'>{e.get('source_type','')}</td>"
+            f"<td>{trust_badge}</td>"
+            f"<td style='color:#64748b;font-size:0.78rem'>{e.get('owner','')}</td>"
+            f"<td style='text-align:center;color:{use_color};font-weight:600'>{use_count}</td>"
+            f"<td style='font-size:0.75rem;color:#94a3b8'>{e.get('registered_at','')[:10]}</td>"
+            f"</tr>"
+        )
+    return (
+        f'<div class="rl-table-wrap"><table class="rl-table">'
+        f"<thead><tr><th>ID</th><th>Name</th><th>Type</th><th>Trust Level</th><th>Owner</th><th>Uses</th><th>Registered</th></tr></thead>"
+        f"<tbody>{rows_html}</tbody></table></div>"
+    )
 
 
 def build_data_trust_chart() -> Any:
@@ -5515,22 +5577,41 @@ def export_audit_evidence(rule_id: str = "") -> str:
     return store_evidence("audit_export", title, content, related_rule_id=rule_id)
 
 
-def build_evidence_table(evidence_type: str = "") -> pd.DataFrame:
+def build_evidence_table(evidence_type: str = "") -> str:
     entries = _download_jsonl(EVIDENCE_FILE)
     if evidence_type:
         entries = [e for e in entries if e.get("evidence_type") == evidence_type]
     if not entries:
-        return pd.DataFrame(columns=["ID", "Type", "Title", "Rule", "Incident", "Tags", "Stored"])
-    rows = [{
-        "ID":       e.get("evidence_id", "")[:8],
-        "Type":     e.get("evidence_type", ""),
-        "Title":    e.get("title", "")[:50],
-        "Rule":     e.get("related_rule_id", "")[:12] or "—",
-        "Incident": e.get("related_incident_id", "")[:12] or "—",
-        "Tags":     ", ".join(e.get("tags", [])) or "—",
-        "Stored":   e.get("stored_at", "")[:10],
-    } for e in sorted(entries, key=lambda x: x.get("stored_at", ""), reverse=True)[:100]]
-    return pd.DataFrame(rows)
+        return '<div class="rl-empty">No evidence stored yet.</div>'
+    _type_colors = {
+        "log":          ("background:#e0e7ff", "color:#3730a3"),
+        "screenshot":   ("background:#dcfce7", "color:#166534"),
+        "document":     ("background:#fef3c7", "color:#92400e"),
+        "conversation": ("background:#fce7f3", "color:#9d174d"),
+        "test_result":  ("background:#f1f5f9", "color:#334155"),
+    }
+    rows_html = ""
+    for e in sorted(entries, key=lambda x: x.get("stored_at", ""), reverse=True)[:100]:
+        ev_type = e.get("evidence_type", "")
+        colors = _type_colors.get(ev_type, ("background:#f1f5f9", "color:#64748b"))
+        type_badge = f'<span class="rl-badge" style="{colors[0]};{colors[1]}">{ev_type}</span>'
+        tags = ", ".join(e.get("tags", [])) or "—"
+        rows_html += (
+            f"<tr>"
+            f"<td style='font-family:monospace;font-size:0.75rem;color:#64748b'>{e.get('evidence_id','')[:8]}</td>"
+            f"<td>{type_badge}</td>"
+            f"<td style='font-weight:600;max-width:180px'>{e.get('title','')[:50]}</td>"
+            f"<td style='font-family:monospace;font-size:0.75rem;color:#94a3b8'>{e.get('related_rule_id','')[:12] or '—'}</td>"
+            f"<td style='font-family:monospace;font-size:0.75rem;color:#94a3b8'>{e.get('related_incident_id','')[:12] or '—'}</td>"
+            f"<td style='font-size:0.78rem;color:#4f46e5'>{tags[:50]}</td>"
+            f"<td style='font-size:0.75rem;color:#94a3b8'>{e.get('stored_at','')[:10]}</td>"
+            f"</tr>"
+        )
+    return (
+        f'<div class="rl-table-wrap"><table class="rl-table">'
+        f"<thead><tr><th>ID</th><th>Type</th><th>Title</th><th>Rule</th><th>Incident</th><th>Tags</th><th>Stored</th></tr></thead>"
+        f"<tbody>{rows_html}</tbody></table></div>"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -8567,19 +8648,35 @@ def build_meta_gov_table(query: str = "") -> str:
     )
 
 
-def build_governance_audit_log() -> pd.DataFrame:
+def build_governance_audit_log() -> str:
     entries = _load_meta_gov()
     actions = [e for e in entries if e.get("type") == "action_log"]
     if not actions:
-        return pd.DataFrame(columns=["User", "Action", "Target", "Outcome", "Timestamp"])
-    rows = [{
-        "User": e.get("user_id", ""),
-        "Action": e.get("action", ""),
-        "Target": e.get("target", "")[:40],
-        "Outcome": e.get("outcome", ""),
-        "Timestamp": e.get("timestamp", "")[:16],
-    } for e in actions[-50:]]
-    return pd.DataFrame(rows)
+        return '<div class="rl-empty">No governance actions logged yet.</div>'
+    _outcome_badge = {
+        "success": '<span class="rl-badge rl-badge-active">success</span>',
+        "denied":  '<span class="rl-badge rl-badge-deprecated">denied</span>',
+        "error":   '<span class="rl-badge rl-badge-deprecated">error</span>',
+        "pending": '<span class="rl-badge rl-badge-pending">pending</span>',
+    }
+    rows_html = ""
+    for e in actions[-50:]:
+        outcome = e.get("outcome", "")
+        outcome_badge = _outcome_badge.get(outcome, f'<span class="rl-badge rl-badge-inactive">{outcome}</span>')
+        rows_html += (
+            f"<tr>"
+            f"<td style='font-weight:600'>{e.get('user_id','')}</td>"
+            f"<td style='color:#4f46e5;font-size:0.78rem'>{e.get('action','')}</td>"
+            f"<td style='font-size:0.78rem;color:#475569;max-width:200px'>{e.get('target','')[:40]}</td>"
+            f"<td>{outcome_badge}</td>"
+            f"<td style='font-size:0.75rem;color:#94a3b8'>{e.get('timestamp','')[:16]}</td>"
+            f"</tr>"
+        )
+    return (
+        f'<div class="rl-table-wrap"><table class="rl-table">'
+        f"<thead><tr><th>User</th><th>Action</th><th>Target</th><th>Outcome</th><th>Timestamp</th></tr></thead>"
+        f"<tbody>{rows_html}</tbody></table></div>"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -10329,7 +10426,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 with gr.Row():
                     audit_search = gr.Textbox(label="Search audit log", placeholder="Filter by verdict or note…", scale=4)
                     audit_refresh_btn = gr.Button("↻ Refresh table", variant="secondary", size="sm", scale=1)
-                audit_table = gr.Dataframe(interactive=False, wrap=True)
+                audit_table = gr.HTML()
                 with gr.Row():
                     audit_conv_sel = gr.Dropdown(label="Conversation to audit (blank = all)", choices=[], scale=3)
                     audit_refresh_sel = gr.Button("↻ Refresh list", variant="secondary", size="sm", scale=1)
@@ -10421,7 +10518,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
             with gr.Accordion('📋 Provenance & Evidence', open=False):
                 gr.HTML('<div class="section-title">Decision Provenance</div>')
                 gr.Markdown("Full input → retrieved context → rules applied → reasoning → output lineage per turn.")
-                prov_table = gr.Dataframe(interactive=False, wrap=True)
+                prov_table = gr.HTML()
                 with gr.Row():
                     prov_conv_sel = gr.Dropdown(label="Conversation", choices=[], scale=3)
                     prov_refresh_sel = gr.Button("↻ Refresh list", variant="secondary", size="sm", scale=1)
@@ -10446,7 +10543,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 gr.Markdown("Register data sources with trust levels (high / medium / low / untrusted).")
                 with gr.Row():
                     data_prov_chart = gr.Plot(scale=1)
-                    data_prov_table = gr.Dataframe(interactive=False, wrap=True, scale=2)
+                    data_prov_table = gr.HTML(scale=2)
                 with gr.Row():
                     data_prov_search = gr.Textbox(label="Search data sources", placeholder="Filter by name, type, trust level, or owner…", scale=4)
                     data_prov_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm", scale=1)
@@ -10476,7 +10573,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
 
                 gr.HTML('<div class="section-title">Evidence Management</div>')
                 gr.Markdown("Store and retrieve audit evidence: logs, test results, security scans, reports.")
-                ev_table = gr.Dataframe(interactive=False, wrap=True)
+                ev_table = gr.HTML()
                 with gr.Row():
                     ev_type_filter = gr.Dropdown(label="Filter by type", choices=[""] + EVIDENCE_TYPES,
                                                  value="", scale=2)
@@ -10804,7 +10901,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 gr.HTML('<div class="section-title">Distributed Tracing</div>')
                 gr.Markdown("Correlation IDs and decision paths per conversation turn — see exactly which rules evaluated and fired.")
                 trace_heatmap = gr.Plot()
-                trace_table = gr.Dataframe(interactive=False, wrap=True)
+                trace_table = gr.HTML()
                 with gr.Row():
                     trace_conv_sel = gr.Dropdown(label="Conversation", choices=[], scale=3)
                     trace_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
@@ -11191,7 +11288,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     meta_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm", scale=1)
                 with gr.Row():
                     meta_role_table = gr.HTML(label="Role Assignments", scale=3)
-                    meta_audit_table = gr.Dataframe(label="Action Audit Log", interactive=False, wrap=True, scale=3)
+                    meta_audit_table = gr.HTML(label="Action Audit Log", scale=3)
 
                 gr.Markdown("**Assign Role**")
                 with gr.Row():
