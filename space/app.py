@@ -2601,22 +2601,28 @@ def restore_from_exception(rule_id: str) -> str:
         return f"❌ Failed to restore: {exc}"
 
 
-def build_exceptions_table() -> pd.DataFrame:
+def build_exceptions_table(query: str = "") -> pd.DataFrame:
     """Show all active exceptions and recently expired ones."""
     rules = load_rules()
     exceptions = [r for r in rules if r.get("status") == "exception"]
     if not exceptions:
         return pd.DataFrame({"Info": ["No active exceptions."]})
+    q = query.strip().lower()
     rows = []
     now = datetime.utcnow().isoformat()
     for r in exceptions:
         exc = r.get("exception") or {}
         expires = exc.get("expires_at", "?")
         expired = expires < now if expires != "?" else False
+        rule_name = r.get("name", r.get("rule_id", "?"))
+        reason = exc.get("reason", "?")[:60]
+        approved_by = exc.get("approved_by", "?")
+        if q and not any(q in s.lower() for s in (rule_name, reason, approved_by)):
+            continue
         rows.append({
-            "Rule": r.get("name", r.get("rule_id", "?")),
-            "Reason": exc.get("reason", "?")[:60],
-            "Approved By": exc.get("approved_by", "?"),
+            "Rule": rule_name,
+            "Reason": reason,
+            "Approved By": approved_by,
             "Expires": expires[:16].replace("T", " ") if expires != "?" else "?",
             "Status": "🔴 EXPIRED" if expired else "⏳ Active",
         })
@@ -3634,19 +3640,30 @@ def run_conflict_detection_llm(max_pairs: int = 10) -> str:
     yield f"\n✅ Scan complete — {found} conflict(s) found and saved."
 
 
-def build_conflicts_table() -> pd.DataFrame:
+def build_conflicts_table(query: str = "") -> pd.DataFrame:
     conflicts = _download_jsonl("conflicts.jsonl")
     if not conflicts:
         return pd.DataFrame(columns=["ID", "Rule A", "Rule B", "Type", "Severity", "Explanation", "Status"])
-    rows = [{
-        "ID": c.get("conflict_id", "")[:8],
-        "Rule A": c.get("rule_name_a", "")[:25],
-        "Rule B": c.get("rule_name_b", "")[:25],
-        "Type": c.get("conflict_type", ""),
-        "Severity": c.get("severity", ""),
-        "Explanation": c.get("explanation", "")[:80],
-        "Status": c.get("status", "open"),
-    } for c in conflicts]
+    q = query.strip().lower()
+    rows = []
+    for c in conflicts:
+        rule_a = c.get("rule_name_a", "")[:25]
+        rule_b = c.get("rule_name_b", "")[:25]
+        ctype = c.get("conflict_type", "")
+        severity = c.get("severity", "")
+        status = c.get("status", "open")
+        explanation = c.get("explanation", "")[:80]
+        if q and not any(q in s.lower() for s in (rule_a, rule_b, ctype, severity, status)):
+            continue
+        rows.append({
+            "ID": c.get("conflict_id", "")[:8],
+            "Rule A": rule_a,
+            "Rule B": rule_b,
+            "Type": ctype,
+            "Severity": severity,
+            "Explanation": explanation,
+            "Status": status,
+        })
     return pd.DataFrame(rows)
 
 
@@ -3856,18 +3873,27 @@ def advance_improvement_cycle(cycle_id: str, notes: str = "") -> str:
     return msg
 
 
-def build_improvement_table() -> pd.DataFrame:
+def build_improvement_table(query: str = "") -> pd.DataFrame:
     cycles = _download_jsonl(IMPROVEMENT_FILE)
     if not cycles:
         return pd.DataFrame(columns=["Cycle ID", "Rule", "Trigger", "Stage", "Status", "Opened"])
-    rows = [{
-        "Cycle ID": c.get("cycle_id", "")[:8],
-        "Rule": c.get("rule_name", c.get("rule_id", ""))[:30],
-        "Trigger": c.get("trigger_event", "")[:40],
-        "Stage": c.get("stage", ""),
-        "Status": c.get("status", "open"),
-        "Opened": c.get("opened_at", "")[:10],
-    } for c in sorted(cycles, key=lambda x: x.get("opened_at", ""), reverse=True)]
+    q = query.strip().lower()
+    rows = []
+    for c in sorted(cycles, key=lambda x: x.get("opened_at", ""), reverse=True):
+        rule = c.get("rule_name", c.get("rule_id", ""))[:30]
+        trigger = c.get("trigger_event", "")[:40]
+        stage = c.get("stage", "")
+        status = c.get("status", "open")
+        if q and not any(q in s.lower() for s in (rule, trigger, stage, status)):
+            continue
+        rows.append({
+            "Cycle ID": c.get("cycle_id", "")[:8],
+            "Rule": rule,
+            "Trigger": trigger,
+            "Stage": stage,
+            "Status": status,
+            "Opened": c.get("opened_at", "")[:10],
+        })
     return pd.DataFrame(rows)
 
 
@@ -9015,8 +9041,10 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
 
                 gr.HTML('<div class="section-title">Exception Management</div>')
                 gr.Markdown("Temporarily disable a rule with a mandatory reason, approver, and expiry.")
+                with gr.Row():
+                    exc_search = gr.Textbox(label="Search exceptions", placeholder="Filter by rule, reason, or approver…", scale=4)
+                    exc_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm", scale=1)
                 exceptions_table = gr.Dataframe(interactive=False, wrap=True)
-                exc_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
                 with gr.Row():
                     exc_rule_selector = gr.Dropdown(label="Rule to disable", choices=[], scale=3)
                     exc_duration = gr.Number(label="Duration (hours)", value=24, minimum=1, maximum=720, scale=1)
@@ -9032,6 +9060,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     return build_exceptions_table(), gr.update(choices=get_rule_names())
 
                 exc_refresh_btn.click(_refresh_exc, outputs=[exceptions_table, exc_rule_selector])
+                exc_search.change(build_exceptions_table, inputs=[exc_search], outputs=[exceptions_table])
                 rules_tab.select(_refresh_exc, outputs=[exceptions_table, exc_rule_selector])
                 exc_create_btn.click(
                     create_exception,
@@ -9079,10 +9108,12 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 gr.HTML('<div class="section-title">Conflict Detection</div>')
                 gr.Markdown("Detect contradictions, overlaps, and duplicates across active rules.")
                 conflict_summary_md = gr.Markdown()
+                with gr.Row():
+                    conflict_search = gr.Textbox(label="Search conflicts", placeholder="Filter by rule, type, severity, or status…", scale=4)
+                    conflict_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm", scale=1)
                 conflicts_table = gr.Dataframe(interactive=False, wrap=True)
                 with gr.Row():
                     conflict_scan_btn = gr.Button("🔍 Run Conflict Scan (LLM)", variant="primary", size="sm")
-                    conflict_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
                 conflict_log = gr.Textbox(label="Scan log", lines=6, interactive=False, autoscroll=True)
                 with gr.Row():
                     conflict_resolve_id = gr.Textbox(label="Conflict ID prefix to resolve", scale=2)
@@ -9094,6 +9125,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     return build_conflict_summary(), build_conflicts_table()
 
                 conflict_refresh_btn.click(_refresh_conflicts, outputs=[conflict_summary_md, conflicts_table])
+                conflict_search.change(build_conflicts_table, inputs=[conflict_search], outputs=[conflicts_table])
                 rules_tab.select(_refresh_conflicts, outputs=[conflict_summary_md, conflicts_table])
                 conflict_scan_btn.click(run_conflict_detection_llm, outputs=conflict_log)
                 conflict_resolve_btn.click(
@@ -9831,8 +9863,10 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 gr.HTML('<div class="section-title">Continuous Improvement Loop</div>')
                 gr.Markdown("Track each violation through violation → RCA → rule update → benchmark → validated.")
                 imp_funnel = gr.Plot()
+                with gr.Row():
+                    imp_search = gr.Textbox(label="Search cycles", placeholder="Filter by rule, trigger, stage, or status…", scale=4)
+                    imp_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm", scale=1)
                 imp_table = gr.Dataframe(interactive=False, wrap=True)
-                imp_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
 
                 gr.Markdown("**Open a new improvement cycle**")
                 with gr.Row():
@@ -9850,6 +9884,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     return build_improvement_funnel(), build_improvement_table(), gr.update(choices=get_rule_ids())
 
                 imp_refresh_btn.click(_refresh_imp, outputs=[imp_funnel, imp_table, imp_rule_sel])
+                imp_search.change(build_improvement_table, inputs=[imp_search], outputs=[imp_table])
                 gov_tab.select(_refresh_imp, outputs=[imp_funnel, imp_table, imp_rule_sel])
                 imp_open_btn.click(
                     start_improvement_cycle,
