@@ -4439,19 +4439,26 @@ def enforce_and_log(user_input: str, agent_response: str, context: str = "") -> 
     return "\n".join(lines)
 
 
-def build_enforcement_log_table() -> pd.DataFrame:
+def build_enforcement_log_table(query: str = "") -> pd.DataFrame:
     entries = _download_jsonl(ENFORCEMENT_FILE)
     if not entries:
         return pd.DataFrame(columns=["ID", "Verdict", "Passed", "Failed", "Warnings", "Failed Rules", "Date"])
-    rows = [{
-        "ID":           e.get("enforcement_id","")[:8],
-        "Verdict":      e.get("verdict",""),
-        "Passed":       e.get("passed_count", 0),
-        "Failed":       e.get("failed_count", 0),
-        "Warnings":     e.get("warning_count", 0),
-        "Failed Rules": ", ".join(e.get("failed_rules",[]))[:50] or "—",
-        "Date":         e.get("enforced_at","")[:19],
-    } for e in sorted(entries, key=lambda x: x.get("enforced_at",""), reverse=True)[:100]]
+    q = query.strip().lower()
+    rows = []
+    for e in sorted(entries, key=lambda x: x.get("enforced_at", ""), reverse=True)[:200]:
+        verdict = e.get("verdict", "")
+        failed_rules = ", ".join(e.get("failed_rules", []))[:50] or "—"
+        if q and not any(q in s.lower() for s in (verdict, failed_rules)):
+            continue
+        rows.append({
+            "ID":           e.get("enforcement_id", "")[:8],
+            "Verdict":      verdict,
+            "Passed":       e.get("passed_count", 0),
+            "Failed":       e.get("failed_count", 0),
+            "Warnings":     e.get("warning_count", 0),
+            "Failed Rules": failed_rules,
+            "Date":         e.get("enforced_at", "")[:19],
+        })
     return pd.DataFrame(rows)
 
 
@@ -4681,20 +4688,28 @@ def build_override_summary() -> str:
     return "\n".join(lines)
 
 
-def build_overrides_table() -> pd.DataFrame:
+def build_overrides_table(query: str = "") -> pd.DataFrame:
     entries = _download_jsonl(OVERRIDE_FILE)
     if not entries:
         return pd.DataFrame(columns=["ID","Conv","Turn","AI Decision","Human Decision","Reason","Correct","Date"])
-    rows = [{
-        "ID":             e.get("override_id","")[:8],
-        "Conv":           e.get("conversation_id","")[-8:],
-        "Turn":           e.get("turn_number",0),
-        "AI Decision":    e.get("ai_decision","")[:30],
-        "Human Decision": e.get("human_decision","")[:30],
-        "Reason":         e.get("override_reason","")[:40],
-        "Correct":        {"True":"Yes","False":"No",None:"—"}.get(str(e.get("correct")), "—"),
-        "Date":           e.get("logged_at","")[:10],
-    } for e in sorted(entries, key=lambda x: x.get("logged_at",""), reverse=True)[:100]]
+    q = query.strip().lower()
+    rows = []
+    for e in sorted(entries, key=lambda x: x.get("logged_at", ""), reverse=True)[:200]:
+        ai_dec = e.get("ai_decision", "")[:30]
+        human_dec = e.get("human_decision", "")[:30]
+        reason = e.get("override_reason", "")[:40]
+        if q and not any(q in s.lower() for s in (ai_dec, human_dec, reason)):
+            continue
+        rows.append({
+            "ID":             e.get("override_id", "")[:8],
+            "Conv":           e.get("conversation_id", "")[-8:],
+            "Turn":           e.get("turn_number", 0),
+            "AI Decision":    ai_dec,
+            "Human Decision": human_dec,
+            "Reason":         reason,
+            "Correct":        {"True": "Yes", "False": "No", None: "—"}.get(str(e.get("correct")), "—"),
+            "Date":           e.get("logged_at", "")[:10],
+        })
     return pd.DataFrame(rows)
 
 
@@ -4764,20 +4779,29 @@ def build_escalation_metrics() -> str:
     return "\n".join(lines)
 
 
-def build_escalations_table() -> pd.DataFrame:
+def build_escalations_table(query: str = "") -> pd.DataFrame:
     entries = _download_jsonl(ESCALATION_FILE)
     if not entries:
         return pd.DataFrame(columns=["ID","Conv","Turn","Type","Outcome","AI Action","Expected","Date"])
-    rows = [{
-        "ID":       e.get("escalation_id","")[:8],
-        "Conv":     e.get("conversation_id","")[-8:],
-        "Turn":     e.get("turn_number",0),
-        "Type":     e.get("escalation_type","")[:20],
-        "Outcome":  e.get("outcome",""),
-        "AI Action": e.get("ai_action","")[:30],
-        "Expected":  e.get("expected_action","")[:30],
-        "Date":     e.get("logged_at","")[:10],
-    } for e in sorted(entries, key=lambda x: x.get("logged_at",""), reverse=True)[:100]]
+    q = query.strip().lower()
+    rows = []
+    for e in sorted(entries, key=lambda x: x.get("logged_at", ""), reverse=True)[:200]:
+        esc_type = e.get("escalation_type", "")[:20]
+        outcome = e.get("outcome", "")
+        ai_action = e.get("ai_action", "")[:30]
+        expected = e.get("expected_action", "")[:30]
+        if q and not any(q in s.lower() for s in (esc_type, outcome, ai_action, expected)):
+            continue
+        rows.append({
+            "ID":        e.get("escalation_id", "")[:8],
+            "Conv":      e.get("conversation_id", "")[-8:],
+            "Turn":      e.get("turn_number", 0),
+            "Type":      esc_type,
+            "Outcome":   outcome,
+            "AI Action": ai_action,
+            "Expected":  expected,
+            "Date":      e.get("logged_at", "")[:10],
+        })
     return pd.DataFrame(rows)
 
 
@@ -9160,8 +9184,10 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
             gr.HTML('<div class="section-title">Rule Enforcement Validator</div>')
             gr.Markdown("Validate a user/agent turn against all active rules in real time.")
             enf_summary_md = gr.Markdown()
+            with gr.Row():
+                enf_search = gr.Textbox(label="Search enforcement log", placeholder="Filter by verdict or failed rules…", scale=4)
+                enf_refresh_btn = gr.Button("↻ Refresh log", variant="secondary", size="sm", scale=1)
             enf_log_table = gr.Dataframe(interactive=False, wrap=True)
-            enf_refresh_btn = gr.Button("↻ Refresh log", variant="secondary", size="sm")
             enf_user_input = gr.Textbox(label="User input", lines=2,
                                         placeholder="What the user said")
             enf_agent_resp = gr.Textbox(label="Agent response", lines=3,
@@ -9174,6 +9200,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 return build_enforcement_summary(), build_enforcement_log_table()
 
             enf_refresh_btn.click(_refresh_enf, outputs=[enf_summary_md, enf_log_table])
+            enf_search.change(build_enforcement_log_table, inputs=[enf_search], outputs=[enf_log_table])
             monitoring_tab.select(_refresh_enf, outputs=[enf_summary_md, enf_log_table])
             enf_run_btn.click(
                 enforce_and_log,
@@ -9208,8 +9235,10 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 gr.HTML('<div class="section-title">Human Override Tracking</div>')
                 gr.Markdown("Record and assess human overrides of AI decisions.")
                 override_summary_md = gr.Markdown()
+                with gr.Row():
+                    override_search = gr.Textbox(label="Search overrides", placeholder="Filter by AI decision, human decision, or reason…", scale=4)
+                    override_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm", scale=1)
                 overrides_table = gr.Dataframe(interactive=False, wrap=True)
-                override_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
 
                 with gr.Row():
                     ov_conv_id = gr.Textbox(label="Conversation ID", scale=2)
@@ -9230,6 +9259,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     return build_override_summary(), build_overrides_table()
 
                 override_refresh_btn.click(_refresh_overrides, outputs=[override_summary_md, overrides_table])
+                override_search.change(build_overrides_table, inputs=[override_search], outputs=[overrides_table])
                 monitoring_tab.select(_refresh_overrides, outputs=[override_summary_md, overrides_table])
                 ov_log_btn.click(
                     log_human_override,
@@ -9241,8 +9271,10 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 gr.HTML('<div class="section-title">Escalation Quality</div>')
                 gr.Markdown("Track correct, missed, and false escalations. Compute precision, recall, and F1.")
                 esc_metrics_md = gr.Markdown()
+                with gr.Row():
+                    esc_search = gr.Textbox(label="Search escalations", placeholder="Filter by type, outcome, or action…", scale=4)
+                    esc_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm", scale=1)
                 esc_table = gr.Dataframe(interactive=False, wrap=True)
-                esc_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
 
                 with gr.Row():
                     esc_conv_id = gr.Textbox(label="Conversation ID", scale=2)
@@ -9262,6 +9294,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     return build_escalation_metrics(), build_escalations_table()
 
                 esc_refresh_btn.click(_refresh_esc, outputs=[esc_metrics_md, esc_table])
+                esc_search.change(build_escalations_table, inputs=[esc_search], outputs=[esc_table])
                 monitoring_tab.select(_refresh_esc, outputs=[esc_metrics_md, esc_table])
                 esc_log_btn.click(
                     log_escalation,
