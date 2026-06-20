@@ -10511,7 +10511,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
             gr.HTML('<div class="section-title">Step 2 — Analyse</div>')
             gr.HTML('<div class="rl-step2-hint"><b>Quick start:</b> First time? Click <em>🌱 Load Starter Rules</em> then <em>▶ Run Analysis</em>. After each conversation batch, just hit <em>▶ Run Analysis</em> again.</div>')
 
-            gr.HTML('<div class="rl-group-label">Core</div>')
+            gr.HTML('<div class="rl-group-label">Run analysis</div>')
             with gr.Row():
                 seed_btn = gr.Button("🌱 Load Starter Rules", variant="primary")
                 analysis_btn = gr.Button("▶ Run Analysis", variant="primary", size="lg")
@@ -11758,7 +11758,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     gaming_scan_btn = gr.Button("Scan for Gaming", variant="primary", size="sm", scale=1)
                 gaming_scan_report = gr.Markdown(min_height=28)
 
-                gr.HTML('<div class="rl-group-label" style="margin-top:14px">Manual log</div>')
+                gr.HTML('<div class="rl-group-label" style="margin-top:14px">Manually log a gaming attempt</div>')
                 with gr.Row():
                     gaming_log_conv = gr.Dropdown(label="Conv ID", choices=[], scale=2)
                     gaming_log_conv_refresh = gr.Button("↻", variant="secondary", size="sm", scale=0)
