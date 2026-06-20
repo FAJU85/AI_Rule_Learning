@@ -3686,7 +3686,7 @@ def compute_slo_status() -> list[dict]:
             budget_remaining = round(sli_pct - (100.0 - target), 2)
             status = "ok" if sli_pct >= target else "breached"
         results.append({
-            "slo_id": slo["slo_id"],
+            "slo_id": slo.get("slo_id", ""),
             "rule_id": rid,
             "rule_name": rule.get("name", rid),
             "slo_name": slo.get("slo_name", ""),
