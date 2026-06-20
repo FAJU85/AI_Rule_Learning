@@ -10308,7 +10308,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 with gr.Row():
                     exc_rule_selector = gr.Dropdown(label="Rule to disable", choices=[], scale=3)
                     exc_refresh_btn2 = gr.Button("↻", variant="secondary", size="sm", scale=0)
-                    exc_duration = gr.Number(label="Duration (hours)", value=24, minimum=1, maximum=720, scale=1)
+                    exc_duration = gr.Number(label="Duration (hours)", value=24, minimum=1, maximum=720, scale=1, info="1–720 h (max 30 days)")
                 with gr.Row():
                     exc_reason = gr.Textbox(label="Reason", placeholder="e.g. Emergency incident response", scale=3)
                     exc_approver = gr.Textbox(label="Approved by", placeholder="e.g. CISO", scale=2)
@@ -10473,6 +10473,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
             community_toggle = gr.Checkbox(
                 label="Contribute anonymous gap patterns to the community (no conversation text)",
                 value=False,
+                info="Only rule gap patterns are shared — no message content, no personal data",
             )
             analysis_log = gr.Textbox(
                 label="Analysis log", lines=10, max_lines=18, interactive=False, autoscroll=True, show_copy_button=True,
@@ -10593,7 +10594,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 with gr.Row():
                     ov_conv_id = gr.Dropdown(label="Conversation ID", choices=[], scale=2)
                     ov_conv_refresh = gr.Button("↻", variant="secondary", size="sm", scale=0)
-                    ov_turn_no = gr.Number(label="Turn #", value=1, minimum=1, scale=1)
+                    ov_turn_no = gr.Number(label="Turn #", value=1, minimum=1, scale=1, info="Conversation turn index")
                 with gr.Row():
                     ov_ai_dec = gr.Textbox(label="AI Decision", placeholder="What the AI decided to do", scale=3)
                     ov_human_dec = gr.Textbox(label="Human Decision", placeholder="What you overrode it to", scale=3)
@@ -10603,7 +10604,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 gr.HTML('<div class="rl-group-label" style="margin-top:10px">Rate an existing override</div>')
                 with gr.Row():
                     ov_rate_id = gr.Textbox(label="Override ID prefix to rate", placeholder="e.g. ovr_abc123", scale=2)
-                    ov_was_correct = gr.Checkbox(label="Was override correct?", value=True, scale=1)
+                    ov_was_correct = gr.Checkbox(label="Was override correct?", value=True, scale=1, info="Did the override produce the right outcome?")
                     ov_rate_btn = gr.Button("⭐ Mark Accuracy", variant="primary", size="sm", scale=1)
                 ov_rate_status = gr.Markdown()
 
@@ -10634,7 +10635,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 with gr.Row():
                     esc_conv_id = gr.Dropdown(label="Conversation ID", choices=[], scale=2)
                     esc_conv_refresh = gr.Button("↻", variant="secondary", size="sm", scale=0)
-                    esc_turn_no = gr.Number(label="Turn #", value=1, minimum=1, scale=1)
+                    esc_turn_no = gr.Number(label="Turn #", value=1, minimum=1, scale=1, info="Conversation turn index")
                     esc_type = gr.Textbox(label="Escalation type", placeholder="e.g. safety, compliance", scale=2)
                 with gr.Row():
                     esc_ai_action = gr.Textbox(label="AI action taken", placeholder="What the AI did in response", scale=3)
@@ -10940,7 +10941,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 with gr.Row():
                     bench_rule_sel = gr.Dropdown(label="Rule", choices=[], scale=3)
                     bench_rule_refresh = gr.Button("↻", variant="secondary", size="sm", scale=0)
-                    bench_should_trigger = gr.Checkbox(label="Should Trigger", value=True, scale=1)
+                    bench_should_trigger = gr.Checkbox(label="Should Trigger", value=True, scale=1, info="Expected outcome: should this input activate the rule?")
                 bench_input_text = gr.Textbox(label="Input text", lines=2, placeholder="User message to test")
                 bench_expected = gr.Textbox(label="Expected behaviour", placeholder="AI should refuse / apply / respond with…")
                 with gr.Row():
@@ -11192,8 +11193,8 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 with gr.Row():
                     slo_rule_sel = gr.Dropdown(label="Rule", choices=[], scale=3)
                     slo_rule_refresh = gr.Button("↻", variant="secondary", size="sm", scale=0)
-                    slo_target = gr.Number(label="Target %", value=90.0, minimum=50, maximum=100, scale=1)
-                    slo_window = gr.Number(label="Window (days)", value=30, minimum=1, maximum=365, scale=1)
+                    slo_target = gr.Number(label="Target %", value=90.0, minimum=50, maximum=100, scale=1, info="50–100 %")
+                    slo_window = gr.Number(label="Window (days)", value=30, minimum=1, maximum=365, scale=1, info="Rolling measurement window")
                 slo_name_in = gr.Textbox(label="SLO name", placeholder="e.g. Effectiveness ≥ 90%")
                 slo_add_btn = gr.Button("+ Add SLO", variant="primary", size="sm")
                 slo_status = gr.Markdown()
@@ -11353,7 +11354,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 with gr.Row():
                     goal_rules_csv = gr.Dropdown(label="Linked rules", choices=[], multiselect=True, scale=3)
                     goal_rules_refresh = gr.Button("↻", variant="secondary", size="sm", scale=0)
-                    goal_target = gr.Number(label="Target score %", value=80, minimum=0, maximum=100, scale=1)
+                    goal_target = gr.Number(label="Target score %", value=80, minimum=0, maximum=100, scale=1, info="0–100 %")
                 goal_add_btn = gr.Button("+ Add Goal", variant="primary", size="sm")
                 goal_status = gr.Markdown()
 
@@ -11447,8 +11448,8 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 with gr.Row():
                     gaming_log_conv = gr.Dropdown(label="Conv ID", choices=[], scale=2)
                     gaming_log_conv_refresh = gr.Button("↻", variant="secondary", size="sm", scale=0)
-                    gaming_log_turn = gr.Number(label="Turn #", value=1, minimum=1, scale=1)
-                    gaming_log_confirmed = gr.Checkbox(label="Confirmed?", scale=1)
+                    gaming_log_turn = gr.Number(label="Turn #", value=1, minimum=1, scale=1, info="Conversation turn index")
+                    gaming_log_confirmed = gr.Checkbox(label="Confirmed?", scale=1, info="Check if this is a verified gaming attempt (not a false positive)")
                 gaming_log_input = gr.Textbox(label="User input", lines=2, scale=4, placeholder="The message that attempted to bypass the rule")
                 gaming_log_notes = gr.Textbox(label="Notes", placeholder="Any context about this gaming attempt", scale=3)
                 gaming_log_btn = gr.Button("Log Gaming Attempt", variant="primary", size="sm")
