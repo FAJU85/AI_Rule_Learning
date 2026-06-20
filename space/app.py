@@ -359,20 +359,26 @@ def build_rule_version_history(rule_name: str) -> pd.DataFrame:
 # Conversations
 # ---------------------------------------------------------------------------
 
-def build_conversations_table() -> pd.DataFrame:
+def build_conversations_table(query: str = "") -> pd.DataFrame:
     conversations = load_conversations()
     if not conversations:
         return pd.DataFrame(
-            columns=["ID", "Turns", "Gaps", "Rules Applied", "Date"]
+            columns=["Session", "ID", "Turns", "Gaps", "Rules Applied", "Date"]
         )
+    q = query.strip().lower()
     rows = []
-    for conv in conversations:
+    for conv in sorted(conversations, key=lambda c: c.get("created_at", c.get("updated_at", "")), reverse=True):
         turns = conv.get("turns", [])
         gaps = sum(len(t.get("gaps_detected", [])) for t in turns)
         rules_applied = sum(len(t.get("rules_applied", [])) for t in turns)
+        slug = conv.get("slug", conv.get("git_branch", ""))
+        cid = conv.get("conversation_id", "?")
+        if q and not any(q in s.lower() for s in (slug, cid)):
+            continue
         rows.append(
             {
-                "ID": conv.get("conversation_id", "?")[:12],
+                "Session": (slug or cid[:12])[:40],
+                "ID": cid[:12],
                 "Turns": len(turns),
                 "Gaps": gaps,
                 "Rules Applied": rules_applied,
@@ -9383,9 +9389,12 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
         with gr.Tab("📈 Analytics") as analytics_tab:
 
             gr.HTML('<div class="section-title">Conversations</div>')
+            with gr.Row():
+                convs_search = gr.Textbox(label="Search sessions", placeholder="Filter by session name or ID…", scale=4)
+                refresh_convs_btn = gr.Button("↻ Refresh", variant="secondary", size="sm", scale=1)
             conversations_table = gr.Dataframe(interactive=False, wrap=True)
-            refresh_convs_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
             refresh_convs_btn.click(build_conversations_table, outputs=[conversations_table])
+            convs_search.change(build_conversations_table, inputs=[convs_search], outputs=conversations_table)
             analytics_tab.select(build_conversations_table, outputs=[conversations_table])
 
             gr.HTML('<div class="section-title">Alignment Sensor</div>')
