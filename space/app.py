@@ -6996,23 +6996,23 @@ def build_metrics_html() -> str:
   </div>
   <div class="metric-card kpi-primary">
     <span class="metric-value {health_cls}">{health_score:.0f}%</span>
-    <span class="metric-sublabel">&nbsp;</span>
+    <span class="metric-sublabel">goal ≥ 70%</span>
     <span class="metric-label">Compliance Health</span>
     <span class="metric-delta">{health_delta}</span>
   </div>
   <div class="metric-card kpi-primary{urgent_class}">
     <span class="metric-value {actions_cls}">{len(pending)}</span>
-    <span class="metric-sublabel">&nbsp;</span>
+    <span class="metric-sublabel">rules awaiting approval</span>
     <span class="metric-label">Pending Review</span>
     <span class="metric-delta">{actions_delta}</span>
   </div>
 </div>
 <div class="metrics-row secondary-kpis">
-  <div class="metric-card"><span class="metric-value {eff_cls}">{avg_eff:.0%}</span><span class="metric-label">Avg Effectiveness</span></div>
-  <div class="metric-card"><span class="metric-value {fpr_cls}">{fpr_str}</span><span class="metric-label">Avg FPR</span></div>
-  <div class="metric-card"><span class="metric-value {bypass_cls}">{bypass_str}</span><span class="metric-label">Avg Bypass Rate</span></div>
-  <div class="metric-card"><span class="metric-value">{len(active)}</span><span class="metric-label">Active Rules</span></div>
-  <div class="metric-card"><span class="metric-value">{len(conversations)}</span><span class="metric-label">Sessions</span></div>
+  <div class="metric-card"><span class="metric-value {eff_cls}">{avg_eff:.0%}</span><span class="metric-label">Avg Effectiveness</span><span class="metric-delta">goal ≥ 70%</span></div>
+  <div class="metric-card"><span class="metric-value {fpr_cls}">{fpr_str}</span><span class="metric-label">Avg False Positive Rate</span><span class="metric-delta">goal ≤ 20%</span></div>
+  <div class="metric-card"><span class="metric-value {bypass_cls}">{bypass_str}</span><span class="metric-label">Avg Bypass Rate</span><span class="metric-delta">goal ≤ 20%</span></div>
+  <div class="metric-card"><span class="metric-value">{len(active)}</span><span class="metric-label">Active Rules</span><span class="metric-delta">currently enforcing</span></div>
+  <div class="metric-card"><span class="metric-value">{len(conversations)}</span><span class="metric-label">Sessions Imported</span><span class="metric-delta">total conversations</span></div>
 </div>"""
 
 
