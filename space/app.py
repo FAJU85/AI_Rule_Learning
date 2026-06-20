@@ -10732,7 +10732,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     ev_rule_id = gr.Dropdown(label="Related rule (optional)", choices=[], scale=2)
                     ev_rule_refresh = gr.Button("↻", variant="secondary", size="sm", scale=0)
                     ev_incident_id = gr.Textbox(label="Related incident ID (optional)", placeholder="e.g. inc_abc123", scale=2)
-                ev_store_btn = gr.Button("💾 Store Evidence", variant="secondary", size="sm")
+                ev_store_btn = gr.Button("💾 Store Evidence", variant="primary", size="sm")
                 ev_store_status = gr.Markdown()
 
                 gr.HTML('<div class="rl-group-label" style="margin-top:14px">Export audit bundle</div>')
@@ -11042,7 +11042,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     inc_new_status = gr.Dropdown(
                         label="New status", choices=INCIDENT_STATUSES, value="investigating", scale=2)
                     inc_note = gr.Textbox(label="Note", placeholder="Status update, findings, or next steps", scale=3)
-                inc_update_btn = gr.Button("→ Update Status", variant="secondary", size="sm")
+                inc_update_btn = gr.Button("→ Update Status", variant="primary", size="sm")
                 inc_update_status = gr.Markdown()
 
                 def _refresh_inc():
@@ -11275,7 +11275,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     kg_from_id = gr.Textbox(label="From node ID prefix", placeholder="e.g. pol_abc123", scale=2)
                     kg_edge_type = gr.Dropdown(label="Edge type", choices=KG_EDGE_TYPES, value="implements", scale=2)
                     kg_to_id = gr.Textbox(label="To node ID prefix", placeholder="e.g. rul_xyz456", scale=2)
-                kg_add_edge_btn = gr.Button("→ Add Edge", variant="secondary", size="sm")
+                kg_add_edge_btn = gr.Button("→ Add Edge", variant="primary", size="sm")
                 kg_edge_status = gr.Markdown()
 
                 def _refresh_kg():
@@ -11745,7 +11745,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     audit_actor = gr.Textbox(label="Actor", placeholder="e.g. alice@company.com or system", scale=2)
                     audit_target = gr.Textbox(label="Target", placeholder="e.g. rul_abc123 or policy_name", scale=2)
                 audit_details = gr.Textbox(label="Details", placeholder="What was done and why this audit entry matters", scale=4)
-                audit_append_btn = gr.Button("Append to Chain", variant="secondary", size="sm")
+                audit_append_btn = gr.Button("Append to Chain", variant="primary", size="sm")
                 audit_append_status = gr.Markdown()
 
                 def _refresh_chain():
