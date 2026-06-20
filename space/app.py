@@ -2118,31 +2118,49 @@ def _detect_rule_conflicts(new_rule: dict, existing_rules: list[dict]) -> list[s
 # Review gate — approve / reject pending rules
 # ---------------------------------------------------------------------------
 
-def build_pending_rules_table(query: str = "") -> pd.DataFrame:
+def build_pending_rules_table(query: str = "") -> str:
     rules = load_rules()
     pending = [r for r in rules if r.get("status") == "pending_review"]
     if not pending:
-        return pd.DataFrame(columns=["Rule ID", "Name", "Priority", "Gap Type", "Instruction", "Safety"])
+        return '<div class="rl-empty">No rules pending review.</div>'
     q = query.strip().lower()
-    rows = []
+    matched = []
     for r in pending:
         name = r.get("name", "?")
-        priority = r.get("priority", "?")
+        priority = str(r.get("priority", "?"))
         gap_type = r.get("empirical_basis", "")
         instruction = (r.get("action") or {}).get("instruction", "")
         if q and not any(q in s.lower() for s in (name, priority, gap_type, instruction)):
             continue
+        matched.append(r)
+    if not matched:
+        return f'<div class="rl-empty">No pending rules match "<b>{query}</b>".</div>'
+    _pri_cls = {"1": "rl-pri-low", "2": "rl-pri-low", "3": "rl-pri-medium", "4": "rl-pri-high", "5": "rl-pri-critical"}
+    rows_html = ""
+    for r in matched:
         issues = _check_rule_safety(r)
-        safety = "⚠️ " + "; ".join(issues) if issues else "✅ Safe"
-        rows.append({
-            "Rule ID": r.get("rule_id", "?"),
-            "Name": name,
-            "Priority": priority,
-            "Gap Type": gap_type[:60],
-            "Instruction": instruction[:80],
-            "Safety": safety,
-        })
-    return pd.DataFrame(rows)
+        if issues:
+            safety_html = f'<span class="rl-badge rl-badge-deprecated" title="{"; ".join(issues)}">⚠ issues</span>'
+        else:
+            safety_html = '<span class="rl-badge rl-badge-active">safe</span>'
+        pri = str(r.get("priority", "?"))
+        pri_cls = _pri_cls.get(pri, "rl-pri-medium")
+        instruction = (r.get("action") or {}).get("instruction", "")
+        rows_html += (
+            f"<tr>"
+            f"<td style='font-family:monospace;font-size:0.75rem;color:#64748b'>{r.get('rule_id','?')[:16]}</td>"
+            f"<td style='font-weight:600'>{r.get('name','?')[:40]}</td>"
+            f"<td class='{pri_cls}'>{pri}</td>"
+            f"<td style='font-size:0.78rem;color:#475569'>{r.get('empirical_basis','')[:60]}</td>"
+            f"<td style='font-size:0.78rem;color:#64748b'>{instruction[:80]}</td>"
+            f"<td>{safety_html}</td>"
+            f"</tr>"
+        )
+    return (
+        f'<div class="rl-table-wrap"><table class="rl-table">'
+        f"<thead><tr><th>Rule ID</th><th>Name</th><th>Priority</th><th>Gap Type</th><th>Instruction</th><th>Safety</th></tr></thead>"
+        f"<tbody>{rows_html}</tbody></table></div>"
+    )
 
 
 def get_pending_rule_ids() -> list[str]:
@@ -3269,12 +3287,12 @@ def close_rca(rca_id: str, resolution: str) -> str:
     return f"RCA {rca_id[:8]} marked resolved."
 
 
-def build_rca_table(query: str = "") -> pd.DataFrame:
+def build_rca_table(query: str = "") -> str:
     entries = _download_jsonl(RCA_FILE)
     if not entries:
-        return pd.DataFrame(columns=["RCA ID", "Rule", "Category", "Root Cause", "Status", "Logged"])
+        return '<div class="rl-empty">No RCA entries yet.</div>'
     q = query.strip().lower()
-    rows = []
+    matched = []
     for e in entries:
         rule = e.get("rule_name", e.get("rule_id", ""))
         category = e.get("category", "")
@@ -3282,15 +3300,33 @@ def build_rca_table(query: str = "") -> pd.DataFrame:
         status = e.get("status", "open")
         if q and not any(q in s.lower() for s in (rule, category, root_cause, status)):
             continue
-        rows.append({
-            "RCA ID": e.get("rca_id", "")[:8],
-            "Rule": rule[:30],
-            "Category": category,
-            "Root Cause": root_cause[:80],
-            "Status": status,
-            "Logged": e.get("logged_at", "")[:10],
-        })
-    return pd.DataFrame(rows)
+        matched.append(e)
+    if not matched:
+        return f'<div class="rl-empty">No RCA entries match "<b>{query}</b>".</div>'
+    _st_badge = {
+        "open":     '<span class="rl-badge rl-badge-pending">open</span>',
+        "resolved": '<span class="rl-badge rl-badge-active">resolved</span>',
+        "closed":   '<span class="rl-badge rl-badge-inactive">closed</span>',
+    }
+    rows_html = ""
+    for e in matched:
+        status = e.get("status", "open")
+        badge = _st_badge.get(status, f'<span class="rl-badge rl-badge-inactive">{status}</span>')
+        rows_html += (
+            f"<tr>"
+            f"<td style='font-family:monospace;font-size:0.75rem;color:#64748b'>{e.get('rca_id','')[:8]}</td>"
+            f"<td style='max-width:140px'>{e.get('rule_name', e.get('rule_id',''))[:30]}</td>"
+            f"<td style='color:#4f46e5;font-size:0.78rem'>{e.get('category','')}</td>"
+            f"<td style='font-size:0.78rem;color:#475569;max-width:240px'>{e.get('root_cause','')[:80]}</td>"
+            f"<td>{badge}</td>"
+            f"<td style='font-size:0.75rem;color:#94a3b8'>{e.get('logged_at','')[:10]}</td>"
+            f"</tr>"
+        )
+    return (
+        f'<div class="rl-table-wrap"><table class="rl-table">'
+        f"<thead><tr><th>RCA ID</th><th>Rule</th><th>Category</th><th>Root Cause</th><th>Status</th><th>Logged</th></tr></thead>"
+        f"<tbody>{rows_html}</tbody></table></div>"
+    )
 
 
 def build_rca_summary() -> str:
@@ -3508,27 +3544,45 @@ def explain_rule_decision(rule_id: str, user_input: str, agent_response: str) ->
     return f"**{'Rule fired' if fired else 'Rule did not fire'}** (matched: {matched_kws or 'none'})\n\n{explanation}"
 
 
-def build_explanations_table(query: str = "") -> pd.DataFrame:
+def build_explanations_table(query: str = "") -> str:
     entries = _download_jsonl(EXPLAIN_FILE)
     if not entries:
-        return pd.DataFrame(columns=["Explain ID", "Rule", "Fired", "Keywords Matched", "Explanation", "Date"])
+        return '<div class="rl-empty">No explanations logged yet.</div>'
     q = query.strip().lower()
-    rows = []
+    matched = []
     for e in sorted(entries, key=lambda x: x.get("explained_at", ""), reverse=True)[:100]:
         rule = e.get("rule_name", "")
         explanation = e.get("explanation", "")
         keywords = ", ".join(e.get("matched_keywords", [])) or "—"
         if q and not any(q in s.lower() for s in (rule, explanation, keywords)):
             continue
-        rows.append({
-            "Explain ID": e.get("explain_id", "")[:8],
-            "Rule": rule[:30],
-            "Fired": "Yes" if e.get("fired") else "No",
-            "Keywords Matched": keywords,
-            "Explanation": explanation[:100],
-            "Date": e.get("explained_at", "")[:10],
-        })
-    return pd.DataFrame(rows)
+        matched.append(e)
+    if not matched:
+        return f'<div class="rl-empty">No explanations match "<b>{query}</b>".</div>'
+    rows_html = ""
+    for e in matched:
+        fired = e.get("fired", False)
+        fired_badge = (
+            '<span class="rl-badge rl-badge-active">yes</span>'
+            if fired else
+            '<span class="rl-badge rl-badge-inactive">no</span>'
+        )
+        keywords = ", ".join(e.get("matched_keywords", [])) or "—"
+        rows_html += (
+            f"<tr>"
+            f"<td style='font-family:monospace;font-size:0.75rem;color:#64748b'>{e.get('explain_id','')[:8]}</td>"
+            f"<td style='max-width:140px'>{e.get('rule_name','')[:30]}</td>"
+            f"<td>{fired_badge}</td>"
+            f"<td style='font-size:0.78rem;color:#4f46e5'>{keywords[:60]}</td>"
+            f"<td style='font-size:0.78rem;color:#475569;max-width:260px'>{e.get('explanation','')[:100]}</td>"
+            f"<td style='font-size:0.75rem;color:#94a3b8'>{e.get('explained_at','')[:10]}</td>"
+            f"</tr>"
+        )
+    return (
+        f'<div class="rl-table-wrap"><table class="rl-table">'
+        f"<thead><tr><th>ID</th><th>Rule</th><th>Fired</th><th>Keywords</th><th>Explanation</th><th>Date</th></tr></thead>"
+        f"<tbody>{rows_html}</tbody></table></div>"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -3640,27 +3694,50 @@ def build_kg_graph() -> Any:
     return _dark_fig(fig)
 
 
-def build_kg_table(query: str = "") -> pd.DataFrame:
+def build_kg_table(query: str = "") -> str:
     nodes = _download_jsonl(KG_FILE)
     if not nodes:
-        return pd.DataFrame(columns=["Node ID", "Type", "Name", "Description", "Edges", "Created"])
+        return '<div class="rl-empty">No knowledge graph nodes yet.</div>'
     q = query.strip().lower()
-    rows = []
+    matched = []
     for n in nodes:
         name = n.get("name", "")
         node_type = n.get("node_type", "")
         description = n.get("description", "")
         if q and not any(q in s.lower() for s in (name, node_type, description)):
             continue
-        rows.append({
-            "Node ID": n.get("node_id", "")[:8],
-            "Type": node_type,
-            "Name": name,
-            "Description": description[:60],
-            "Edges": len(n.get("edges", [])),
-            "Created": n.get("created_at", "")[:10],
-        })
-    return pd.DataFrame(rows)
+        matched.append(n)
+    if not matched:
+        return f'<div class="rl-empty">No nodes match "<b>{query}</b>".</div>'
+    _type_colors = {
+        "policy":        ("background:#e0e7ff", "color:#3730a3"),
+        "requirement":   ("background:#dcfce7", "color:#166534"),
+        "control":       ("background:#fce7f3", "color:#9d174d"),
+        "kpi":           ("background:#fef3c7", "color:#92400e"),
+        "audit_finding": ("background:#fee2e2", "color:#991b1b"),
+        "rule":          ("background:#f1f5f9", "color:#334155"),
+    }
+    rows_html = ""
+    for n in matched:
+        node_type = n.get("node_type", "")
+        colors = _type_colors.get(node_type, ("background:#f1f5f9", "color:#64748b"))
+        type_badge = f'<span class="rl-badge" style="{colors[0]};{colors[1]}">{node_type}</span>'
+        edge_count = len(n.get("edges", []))
+        rows_html += (
+            f"<tr>"
+            f"<td style='font-family:monospace;font-size:0.75rem;color:#64748b'>{n.get('node_id','')[:8]}</td>"
+            f"<td>{type_badge}</td>"
+            f"<td style='font-weight:600'>{n.get('name','')[:40]}</td>"
+            f"<td style='font-size:0.78rem;color:#475569;max-width:200px'>{n.get('description','')[:60]}</td>"
+            f"<td style='text-align:center;color:#4f46e5;font-weight:600'>{edge_count}</td>"
+            f"<td style='font-size:0.75rem;color:#94a3b8'>{n.get('created_at','')[:10]}</td>"
+            f"</tr>"
+        )
+    return (
+        f'<div class="rl-table-wrap"><table class="rl-table">'
+        f"<thead><tr><th>Node ID</th><th>Type</th><th>Name</th><th>Description</th><th>Edges</th><th>Created</th></tr></thead>"
+        f"<tbody>{rows_html}</tbody></table></div>"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -7994,12 +8071,12 @@ def compute_control_coverage() -> list[dict]:
     return results
 
 
-def build_control_table(query: str = "") -> pd.DataFrame:
+def build_control_table(query: str = "") -> str:
     results = compute_control_coverage()
     if not results:
-        return pd.DataFrame(columns=["ID", "Name", "Category", "Risk", "Rules", "Effectiveness", "Audit Ref"])
+        return '<div class="rl-empty">No controls defined yet.</div>'
     q = query.strip().lower()
-    rows = []
+    matched = []
     for r in results:
         name = r.get("name", "")
         category = r.get("category", "")
@@ -8007,16 +8084,44 @@ def build_control_table(query: str = "") -> pd.DataFrame:
         audit_ref = r.get("audit_reference", "")
         if q and not any(q in s.lower() for s in (name, category, risk, audit_ref)):
             continue
-        rows.append({
-            "ID": r.get("control_id", "")[-8:],
-            "Name": name[:40],
-            "Category": category,
-            "Risk": risk,
-            "Rules": r["rule_count"],
-            "Effectiveness": f"{r['effectiveness']}%",
-            "Audit Ref": audit_ref[:30],
-        })
-    return pd.DataFrame(rows)
+        matched.append(r)
+    if not matched:
+        return f'<div class="rl-empty">No controls match "<b>{query}</b>".</div>'
+    _risk_badge = {
+        "critical": '<span class="rl-badge rl-badge-deprecated">critical</span>',
+        "high":     '<span class="rl-badge rl-badge-pending">high</span>',
+        "medium":   '<span class="rl-badge" style="background:#e0e7ff;color:#3730a3">medium</span>',
+        "low":      '<span class="rl-badge rl-badge-inactive">low</span>',
+    }
+    rows_html = ""
+    for r in matched:
+        risk = r.get("risk_level", "")
+        risk_badge = _risk_badge.get(risk, f'<span class="rl-badge rl-badge-inactive">{risk}</span>')
+        eff = r.get("effectiveness", 0)
+        eff_color = "#166534" if eff >= 80 else "#d97706" if eff >= 50 else "#dc2626"
+        bar_w = max(2, int(eff * 0.6))
+        eff_html = (
+            f'<div class="rl-score-bar">'
+            f'<div class="rl-score-fill" style="width:{bar_w}px;background:{eff_color}"></div>'
+            f'<span style="color:{eff_color};font-weight:700">{eff}%</span>'
+            f'</div>'
+        )
+        rows_html += (
+            f"<tr>"
+            f"<td style='font-family:monospace;font-size:0.75rem;color:#64748b'>{r.get('control_id','')[-8:]}</td>"
+            f"<td style='font-weight:600;max-width:160px'>{r.get('name','')[:40]}</td>"
+            f"<td style='color:#4f46e5;font-size:0.78rem'>{r.get('category','')}</td>"
+            f"<td>{risk_badge}</td>"
+            f"<td style='text-align:center'>{r.get('rule_count',0)}</td>"
+            f"<td>{eff_html}</td>"
+            f"<td style='font-size:0.75rem;color:#94a3b8'>{r.get('audit_reference','')[:30]}</td>"
+            f"</tr>"
+        )
+    return (
+        f'<div class="rl-table-wrap"><table class="rl-table">'
+        f"<thead><tr><th>ID</th><th>Name</th><th>Category</th><th>Risk</th><th>Rules</th><th>Effectiveness</th><th>Audit Ref</th></tr></thead>"
+        f"<tbody>{rows_html}</tbody></table></div>"
+    )
 
 
 def build_control_chart() -> Any:
@@ -8995,12 +9100,12 @@ def compute_calendar_status() -> list[dict]:
     return sorted(results, key=lambda x: x.get("due_date", ""))
 
 
-def build_calendar_table(query: str = "") -> pd.DataFrame:
+def build_calendar_table(query: str = "") -> str:
     items = compute_calendar_status()
     if not items:
-        return pd.DataFrame(columns=["Title", "Type", "Due", "Priority", "Owner", "Status", "Urgency"])
+        return '<div class="rl-empty">No compliance calendar items yet.</div>'
     q = query.strip().lower()
-    rows = []
+    matched = []
     for item in items:
         title = item.get("title", "")
         item_type = item.get("type", "")
@@ -9009,16 +9114,44 @@ def build_calendar_table(query: str = "") -> pd.DataFrame:
         status = item.get("status", "")
         if q and not any(q in s.lower() for s in (title, item_type, priority, owner, status)):
             continue
-        rows.append({
-            "Title": title[:40],
-            "Type": item_type,
-            "Due": item.get("due_date", "")[:10],
-            "Priority": priority,
-            "Owner": owner[:20],
-            "Status": status,
-            "Urgency": item.get("urgency", "") if status == "pending" else "—",
-        })
-    return pd.DataFrame(rows)
+        matched.append(item)
+    if not matched:
+        return f'<div class="rl-empty">No calendar items match "<b>{query}</b>".</div>'
+    _urgency_badge = {
+        "overdue":  '<span class="rl-badge rl-badge-deprecated">overdue</span>',
+        "urgent":   '<span class="rl-badge rl-badge-pending">urgent</span>',
+        "upcoming": '<span class="rl-badge" style="background:#e0e7ff;color:#3730a3">upcoming</span>',
+    }
+    _status_badge = {
+        "pending":   '<span class="rl-badge rl-badge-pending">pending</span>',
+        "completed": '<span class="rl-badge rl-badge-active">completed</span>',
+        "skipped":   '<span class="rl-badge rl-badge-inactive">skipped</span>',
+    }
+    _pri_cls = {"critical": "rl-pri-critical", "high": "rl-pri-high", "medium": "rl-pri-medium", "low": "rl-pri-low"}
+    rows_html = ""
+    for item in matched:
+        status = item.get("status", "")
+        urgency = item.get("urgency", "") if status == "pending" else ""
+        status_badge = _status_badge.get(status, f'<span class="rl-badge rl-badge-inactive">{status}</span>')
+        urgency_badge = _urgency_badge.get(urgency, '<span style="color:#94a3b8">—</span>')
+        pri = item.get("priority", "")
+        pri_cls = _pri_cls.get(pri, "")
+        rows_html += (
+            f"<tr>"
+            f"<td style='font-weight:600;max-width:180px'>{item.get('title','')[:40]}</td>"
+            f"<td style='color:#4f46e5;font-size:0.78rem'>{item.get('type','')}</td>"
+            f"<td style='font-size:0.78rem'>{item.get('due_date','')[:10]}</td>"
+            f"<td class='{pri_cls}'>{pri}</td>"
+            f"<td style='color:#64748b;font-size:0.78rem'>{item.get('owner','')[:20]}</td>"
+            f"<td>{status_badge}</td>"
+            f"<td>{urgency_badge}</td>"
+            f"</tr>"
+        )
+    return (
+        f'<div class="rl-table-wrap"><table class="rl-table">'
+        f"<thead><tr><th>Title</th><th>Type</th><th>Due</th><th>Priority</th><th>Owner</th><th>Status</th><th>Urgency</th></tr></thead>"
+        f"<tbody>{rows_html}</tbody></table></div>"
+    )
 
 
 def build_calendar_summary() -> str:
@@ -9866,7 +9999,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 with gr.Row():
                     pending_search = gr.Textbox(label="Search queue", placeholder="Filter by name, priority, gap type, or instruction…", scale=4)
                     refresh_pending_btn = gr.Button("↻ Refresh queue", variant="secondary", size="sm", scale=1)
-                pending_table = gr.Dataframe(interactive=False, wrap=True)
+                pending_table = gr.HTML()
                 pending_selector = gr.Dropdown(label="Select pending rule", choices=[])
                 pending_detail = gr.Markdown()
 
@@ -10587,7 +10720,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 with gr.Row():
                     rca_search = gr.Textbox(label="Search RCA log", placeholder="Filter by rule, category, root cause, or status…", scale=4)
                     rca_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm", scale=1)
-                rca_table = gr.Dataframe(interactive=False, wrap=True)
+                rca_table = gr.HTML()
 
                 with gr.Row():
                     rca_rule_sel = gr.Dropdown(label="Rule", choices=[], scale=3)
@@ -10704,7 +10837,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 with gr.Row():
                     exp_search = gr.Textbox(label="Search explanations", placeholder="Filter by rule, keyword, or explanation…", scale=4)
                     exp_hist_refresh = gr.Button("↻ Refresh history", variant="secondary", size="sm", scale=1)
-                exp_table = gr.Dataframe(interactive=False, wrap=True, label="Explanation History")
+                exp_table = gr.HTML(label="Explanation History")
 
                 def _refresh_exp_sel():
                     return gr.update(choices=get_rule_ids())
@@ -10851,7 +10984,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 with gr.Row():
                     kg_search = gr.Textbox(label="Search knowledge graph", placeholder="Filter by name, type, or description…", scale=4)
                     kg_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm", scale=1)
-                kg_table = gr.Dataframe(interactive=False, wrap=True)
+                kg_table = gr.HTML()
 
                 gr.Markdown("**Add a node**")
                 with gr.Row():
@@ -10964,7 +11097,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 with gr.Row():
                     ctrl_search = gr.Textbox(label="Search controls", placeholder="Filter by name, category, risk, or audit ref…", scale=4)
                     ctrl_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm", scale=1)
-                ctrl_table = gr.Dataframe(interactive=False, wrap=True)
+                ctrl_table = gr.HTML()
 
                 gr.Markdown("**Add a Control**")
                 with gr.Row():
@@ -11194,7 +11327,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 with gr.Row():
                     cal_search = gr.Textbox(label="Search calendar", placeholder="Filter by title, type, priority, owner, or status…", scale=4)
                     cal_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm", scale=1)
-                cal_table = gr.Dataframe(interactive=False, wrap=True)
+                cal_table = gr.HTML()
 
                 gr.Markdown("**Add Calendar Item**")
                 with gr.Row():
