@@ -230,8 +230,9 @@ def build_rules_table(query: str = "") -> str:
         matched.append(r)
 
     if not matched:
-        msg = "No rules yet." if not rules else f'No rules match "<b>{query}</b>".'
-        return f'<div class="rl-empty">{msg}</div>'
+        if not rules:
+            return '<div class="rl-empty">No rules yet — go to <strong>🔄 Sessions → Step 2</strong> and click <em>🌱 Load Starter Rules</em> then <em>▶ Run Analysis</em> to generate your first rules.</div>'
+        return f'<div class="rl-empty">No rules match "<b>{query}</b>".</div>'
 
     rows_html = ""
     for r in matched:
@@ -434,7 +435,7 @@ def build_rule_version_history(rule_name: str) -> str:
 def build_conversations_table(query: str = "") -> str:
     conversations = load_conversations()
     if not conversations:
-        return '<div class="rl-empty">No conversations recorded yet.</div>'
+        return '<div class="rl-empty">No sessions imported yet — go to <strong>🔄 Sessions → Step 1</strong> to upload your Claude Code .jsonl files.</div>'
     q = query.strip().lower()
     matched = []
     for conv in sorted(conversations, key=lambda c: c.get("created_at", c.get("updated_at", "")), reverse=True):
@@ -2148,7 +2149,7 @@ def build_pending_rules_table(query: str = "") -> str:
     rules = load_rules()
     pending = [r for r in rules if r.get("status") == "pending_review"]
     if not pending:
-        return '<div class="rl-empty">No rules pending review.</div>'
+        return '<div class="rl-empty">No rules pending review — run <em>▶ Run Analysis</em> in <strong>🔄 Sessions → Step 2</strong> to generate new rules for review.</div>'
     q = query.strip().lower()
     matched = []
     for r in pending:
