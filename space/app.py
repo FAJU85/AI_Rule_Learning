@@ -4075,28 +4075,46 @@ def advance_improvement_cycle(cycle_id: str, notes: str = "") -> str:
     return msg
 
 
-def build_improvement_table(query: str = "") -> pd.DataFrame:
+def build_improvement_table(query: str = "") -> str:
     cycles = _download_jsonl(IMPROVEMENT_FILE)
-    if not cycles:
-        return pd.DataFrame(columns=["Cycle ID", "Rule", "Trigger", "Stage", "Status", "Opened"])
     q = query.strip().lower()
-    rows = []
+    matched = []
     for c in sorted(cycles, key=lambda x: x.get("opened_at", ""), reverse=True):
-        rule = c.get("rule_name", c.get("rule_id", ""))[:30]
-        trigger = c.get("trigger_event", "")[:40]
+        rule = c.get("rule_name", c.get("rule_id", ""))
+        trigger = c.get("trigger_event", "")
         stage = c.get("stage", "")
         status = c.get("status", "open")
         if q and not any(q in s.lower() for s in (rule, trigger, stage, status)):
             continue
-        rows.append({
-            "Cycle ID": c.get("cycle_id", "")[:8],
-            "Rule": rule,
-            "Trigger": trigger,
-            "Stage": stage,
-            "Status": status,
-            "Opened": c.get("opened_at", "")[:10],
-        })
-    return pd.DataFrame(rows)
+        matched.append(c)
+    if not matched:
+        msg = "No improvement cycles yet." if not cycles else f'No cycles match "<b>{query}</b>".'
+        return f'<div class="rl-empty">{msg}</div>'
+    _st_badge = {
+        "open":     '<span class="rl-badge rl-badge-pending">open</span>',
+        "resolved": '<span class="rl-badge rl-badge-active">resolved</span>',
+        "closed":   '<span class="rl-badge rl-badge-inactive">closed</span>',
+    }
+    rows_html = ""
+    for c in matched:
+        status = c.get("status", "open")
+        badge = _st_badge.get(status, f'<span class="rl-badge rl-badge-inactive">{status}</span>')
+        rows_html += (
+            f"<tr>"
+            f"<td style='font-family:monospace;font-size:0.75rem'>{c.get('cycle_id','')[:8]}</td>"
+            f"<td style='max-width:160px'>{c.get('rule_name', c.get('rule_id',''))[:28]}</td>"
+            f"<td style='max-width:180px;font-size:0.78rem;color:#475569'>{c.get('trigger_event','')[:36]}</td>"
+            f"<td style='font-size:0.78rem;color:#64748b'>{c.get('stage','')}</td>"
+            f"<td>{badge}</td>"
+            f"<td style='font-size:0.75rem;color:#94a3b8'>{c.get('opened_at','')[:10]}</td>"
+            f"</tr>"
+        )
+    return (
+        f'<div class="rl-table-wrap"><table class="rl-table">'
+        f"<thead><tr><th>Cycle ID</th><th>Rule</th><th>Trigger</th>"
+        f"<th>Stage</th><th>Status</th><th>Opened</th></tr></thead>"
+        f"<tbody>{rows_html}</tbody></table></div>"
+    )
 
 
 def build_improvement_funnel() -> Any:
@@ -8326,13 +8344,13 @@ def check_permission(user_id: str, action: str) -> tuple[bool, str]:
     return False, f"Denied: role '{role_name}' lacks '{action}' permission."
 
 
-def build_meta_gov_table(query: str = "") -> pd.DataFrame:
+def build_meta_gov_table(query: str = "") -> str:
     entries = _load_meta_gov()
     roles = [e for e in entries if e.get("type") == "role"]
     if not roles:
-        return pd.DataFrame(columns=["User", "Role", "Permissions", "Granted By", "Granted At"])
+        return '<div class="rl-empty">No role assignments yet.</div>'
     q = query.strip().lower()
-    rows = []
+    matched = []
     for e in roles:
         user = e.get("user_id", "")
         role = e.get("role", "")
@@ -8340,14 +8358,33 @@ def build_meta_gov_table(query: str = "") -> pd.DataFrame:
         granted_by = e.get("granted_by", "")
         if q and not any(q in s.lower() for s in (user, role, permissions, granted_by)):
             continue
-        rows.append({
-            "User": user,
-            "Role": role,
-            "Permissions": permissions,
-            "Granted By": granted_by,
-            "Granted At": e.get("granted_at", "")[:16],
-        })
-    return pd.DataFrame(rows)
+        matched.append(e)
+    if not matched:
+        return f'<div class="rl-empty">No roles match "<b>{query}</b>".</div>'
+    _role_badge = {
+        "admin":    '<span class="rl-badge" style="background:#fce7f3;color:#9d174d">admin</span>',
+        "reviewer": '<span class="rl-badge" style="background:#e0e7ff;color:#3730a3">reviewer</span>',
+        "auditor":  '<span class="rl-badge" style="background:#dcfce7;color:#166534">auditor</span>',
+    }
+    rows_html = ""
+    for e in matched:
+        role = e.get("role", "")
+        badge = _role_badge.get(role, f'<span class="rl-badge rl-badge-inactive">{role}</span>')
+        perms = ", ".join(e.get("permissions", []))
+        rows_html += (
+            f"<tr>"
+            f"<td style='font-weight:600'>{e.get('user_id','')}</td>"
+            f"<td>{badge}</td>"
+            f"<td style='font-size:0.78rem;color:#475569'>{perms}</td>"
+            f"<td style='color:#64748b'>{e.get('granted_by','')}</td>"
+            f"<td style='font-size:0.75rem;color:#94a3b8'>{e.get('granted_at','')[:16]}</td>"
+            f"</tr>"
+        )
+    return (
+        f'<div class="rl-table-wrap"><table class="rl-table">'
+        f"<thead><tr><th>User</th><th>Role</th><th>Permissions</th><th>Granted By</th><th>Granted At</th></tr></thead>"
+        f"<tbody>{rows_html}</tbody></table></div>"
+    )
 
 
 def build_governance_audit_log() -> pd.DataFrame:
@@ -9024,10 +9061,10 @@ def run_robustness_test(rule_id: str) -> str:
     return "\n".join(lines)
 
 
-def build_robustness_table(query: str = "") -> pd.DataFrame:
+def build_robustness_table(query: str = "") -> str:
     log = _download_jsonl(ROBUSTNESS_FILE)
     if not log:
-        return pd.DataFrame(columns=["Rule", "Score", "Resisted", "Bypassed", "Tested", "Timestamp"])
+        return '<div class="rl-empty">No robustness tests run yet.</div>'
     latest: dict = {}
     for e in log:
         rid = e.get("rule_id", "")
@@ -9036,20 +9073,48 @@ def build_robustness_table(query: str = "") -> pd.DataFrame:
         if rid not in latest or e.get("timestamp", "") > latest[rid].get("timestamp", ""):
             latest[rid] = e
     q = query.strip().lower()
-    rows = []
+    matched = []
     for e in latest.values():
-        rule_name = e.get("rule_name", e.get("rule_id", ""))[:40]
+        rule_name = e.get("rule_name", e.get("rule_id", ""))
         if q and q not in rule_name.lower():
             continue
-        rows.append({
-            "Rule": rule_name,
-            "Score": f"{e.get('robustness_score', 0)}%",
-            "Resisted": e.get("attacks_resisted", 0),
-            "Bypassed": e.get("attacks_bypassed", 0),
-            "Tested": e.get("attacks_tested", 0),
-            "Timestamp": e.get("timestamp", "")[:16],
-        })
-    return pd.DataFrame(rows)
+        matched.append(e)
+    if not matched:
+        return f'<div class="rl-empty">No results match "<b>{query}</b>".</div>'
+    rows_html = ""
+    for e in matched:
+        score = e.get("robustness_score", 0)
+        if score >= 80:
+            score_color = "#166534"
+        elif score >= 50:
+            score_color = "#d97706"
+        else:
+            score_color = "#dc2626"
+        resisted = e.get("attacks_resisted", 0)
+        bypassed = e.get("attacks_bypassed", 0)
+        tested = e.get("attacks_tested", 0)
+        bar_w = max(2, int(score * 0.8))
+        score_html = (
+            f'<div class="rl-score-bar">'
+            f'<div class="rl-score-fill" style="width:{bar_w}px;background:{score_color}"></div>'
+            f'<span style="color:{score_color};font-weight:700">{score}%</span>'
+            f'</div>'
+        )
+        rows_html += (
+            f"<tr>"
+            f"<td style='max-width:200px'>{e.get('rule_name', e.get('rule_id',''))[:40]}</td>"
+            f"<td>{score_html}</td>"
+            f"<td style='color:#166534;font-weight:600'>{resisted}</td>"
+            f"<td style='color:#dc2626;font-weight:600'>{bypassed}</td>"
+            f"<td style='color:#64748b'>{tested}</td>"
+            f"<td style='font-size:0.75rem;color:#94a3b8'>{e.get('timestamp','')[:16]}</td>"
+            f"</tr>"
+        )
+    return (
+        f'<div class="rl-table-wrap"><table class="rl-table">'
+        f"<thead><tr><th>Rule</th><th>Score</th><th>Resisted</th><th>Bypassed</th><th>Tested</th><th>Timestamp</th></tr></thead>"
+        f"<tbody>{rows_html}</tbody></table></div>"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -9122,30 +9187,57 @@ def log_bias_analysis(rule_id: str, group_a: str, group_b: str,
             f"Severity: {result['severity']}")
 
 
-def build_bias_table(query: str = "") -> pd.DataFrame:
+def build_bias_table(query: str = "") -> str:
     log = _download_jsonl(BIAS_FILE)
     if not log:
-        return pd.DataFrame(columns=["Rule", "Group A", "Rate A", "Group B", "Rate B", "Disparity", "Bias", "Severity"])
+        return '<div class="rl-empty">No bias analyses run yet.</div>'
     q = query.strip().lower()
-    rows = []
+    matched = []
     for e in log:
-        rule = e.get("rule_name", e.get("rule_id", ""))[:30]
+        rule = e.get("rule_name", e.get("rule_id", ""))
         group_a = e.get("group_a", "")
         group_b = e.get("group_b", "")
         severity = e.get("severity", "")
         if q and not any(q in s.lower() for s in (rule, group_a, group_b, severity)):
             continue
-        rows.append({
-            "Rule": rule,
-            "Group A": group_a,
-            "Rate A": f"{e.get('rate_a', 0)}%",
-            "Group B": group_b,
-            "Rate B": f"{e.get('rate_b', 0)}%",
-            "Disparity": f"{e.get('disparity', 0)}%",
-            "Bias": "yes" if e.get("bias_detected") else "no",
-            "Severity": severity,
-        })
-    return pd.DataFrame(rows)
+        matched.append(e)
+    if not matched:
+        return f'<div class="rl-empty">No analyses match "<b>{query}</b>".</div>'
+    _sev_badge = {
+        "high":   '<span class="rl-badge rl-badge-deprecated">high</span>',
+        "medium": '<span class="rl-badge rl-badge-pending">medium</span>',
+        "low":    '<span class="rl-badge rl-badge-inactive">low</span>',
+    }
+    rows_html = ""
+    for e in matched:
+        bias_detected = e.get("bias_detected", False)
+        bias_badge = (
+            '<span class="rl-badge rl-badge-deprecated">yes</span>'
+            if bias_detected else
+            '<span class="rl-badge rl-badge-active">no</span>'
+        )
+        severity = e.get("severity", "")
+        sev_badge = _sev_badge.get(severity, f'<span class="rl-badge rl-badge-inactive">{severity}</span>')
+        disparity = e.get("disparity", 0)
+        disp_color = "#dc2626" if disparity > 25 else "#d97706" if disparity > 10 else "#64748b"
+        rows_html += (
+            f"<tr>"
+            f"<td style='max-width:160px'>{e.get('rule_name', e.get('rule_id',''))[:30]}</td>"
+            f"<td>{e.get('group_a','')}</td>"
+            f"<td style='color:#4f46e5'>{e.get('rate_a',0)}%</td>"
+            f"<td>{e.get('group_b','')}</td>"
+            f"<td style='color:#4f46e5'>{e.get('rate_b',0)}%</td>"
+            f"<td style='color:{disp_color};font-weight:700'>{disparity}%</td>"
+            f"<td>{bias_badge}</td>"
+            f"<td>{sev_badge}</td>"
+            f"</tr>"
+        )
+    return (
+        f'<div class="rl-table-wrap"><table class="rl-table">'
+        f"<thead><tr><th>Rule</th><th>Group A</th><th>Rate A</th>"
+        f"<th>Group B</th><th>Rate B</th><th>Disparity</th><th>Bias</th><th>Severity</th></tr></thead>"
+        f"<tbody>{rows_html}</tbody></table></div>"
+    )
 
 
 def build_bias_summary() -> str:
@@ -10627,7 +10719,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 with gr.Row():
                     imp_search = gr.Textbox(label="Search cycles", placeholder="Filter by rule, trigger, stage, or status…", scale=4)
                     imp_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm", scale=1)
-                imp_table = gr.Dataframe(interactive=False, wrap=True)
+                imp_table = gr.HTML()
 
                 gr.Markdown("**Open a new improvement cycle**")
                 with gr.Row():
@@ -10871,7 +10963,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     meta_search = gr.Textbox(label="Search roles", placeholder="Filter by user, role, or permissions…", scale=4)
                     meta_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm", scale=1)
                 with gr.Row():
-                    meta_role_table = gr.Dataframe(label="Role Assignments", interactive=False, wrap=True, scale=3)
+                    meta_role_table = gr.HTML(label="Role Assignments", scale=3)
                     meta_audit_table = gr.Dataframe(label="Action Audit Log", interactive=False, wrap=True, scale=3)
 
                 gr.Markdown("**Assign Role**")
@@ -11054,7 +11146,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
             with gr.Row():
                 rob_search = gr.Textbox(label="Search robustness results", placeholder="Filter by rule name…", scale=4)
                 rob_refresh_btn = gr.Button("↻ Refresh History", variant="secondary", size="sm", scale=1)
-            rob_table = gr.Dataframe(interactive=False, wrap=True)
+            rob_table = gr.HTML()
             with gr.Row():
                 rob_rule_id = gr.Textbox(label="Rule ID", scale=4)
                 rob_run_btn = gr.Button("Run Robustness Test", variant="primary", size="sm", scale=1)
@@ -11078,7 +11170,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 with gr.Row():
                     bias_search = gr.Textbox(label="Search bias log", placeholder="Filter by rule, group, or severity…", scale=4)
                     bias_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm", scale=1)
-                bias_table = gr.Dataframe(interactive=False, wrap=True)
+                bias_table = gr.HTML()
 
                 gr.Markdown("**Run Bias Analysis** (separate multiple inputs with `|`)")
                 with gr.Row():
