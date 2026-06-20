@@ -10468,7 +10468,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 value=False,
             )
             analysis_log = gr.Textbox(
-                label="Analysis log", lines=18, interactive=False, autoscroll=True,
+                label="Analysis log", lines=10, max_lines=18, interactive=False, autoscroll=True,
             )
 
             # After analysis/seed — auto-update the dashboard pending alert so the KPI stays current
@@ -10754,7 +10754,6 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 monitoring_tab.select(lambda: gr.update(choices=get_rule_ids()), outputs=ev_export_rule)
 
             with gr.Accordion('🧠 Behavioral Tracking', open=False):
-                gr.HTML('<div class="section-title">Behavioral Tracking</div>')
                 gr.Markdown("Monitor hallucination rate, accuracy, consistency, refusal quality, tone, and verbosity.")
                 with gr.Row():
                     beh_radar = gr.Plot(scale=1)
@@ -11439,7 +11438,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     gaming_log_conv_refresh = gr.Button("↻", variant="secondary", size="sm", scale=0)
                     gaming_log_turn = gr.Number(label="Turn #", value=1, minimum=1, scale=1)
                     gaming_log_confirmed = gr.Checkbox(label="Confirmed?", scale=1)
-                gaming_log_input = gr.Textbox(label="User input", lines=2, scale=4)
+                gaming_log_input = gr.Textbox(label="User input", lines=2, scale=4, placeholder="The message that attempted to bypass the rule")
                 gaming_log_notes = gr.Textbox(label="Notes", placeholder="Any context about this gaming attempt", scale=3)
                 gaming_log_btn = gr.Button("Log Gaming Attempt", variant="secondary", size="sm")
                 gaming_log_status = gr.Markdown()
