@@ -10684,12 +10684,14 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     ev_title = gr.Textbox(label="Title", scale=3)
                 ev_content = gr.Textbox(label="Content / body", lines=4)
                 with gr.Row():
-                    ev_rule_id = gr.Textbox(label="Related rule ID (optional)", scale=2)
+                    ev_rule_id = gr.Dropdown(label="Related rule (optional)", choices=[], scale=2)
+                    ev_rule_refresh = gr.Button("↻", variant="secondary", size="sm", scale=0)
                     ev_incident_id = gr.Textbox(label="Related incident ID (optional)", scale=2)
                 with gr.Row():
                     ev_store_btn = gr.Button("💾 Store Evidence", variant="secondary", size="sm")
                     ev_export_btn = gr.Button("📦 Export Audit Bundle", variant="primary", size="sm")
-                    ev_export_rule = gr.Textbox(label="Rule ID (blank=all)", scale=2)
+                    ev_export_rule = gr.Dropdown(label="Rule filter (blank=all)", choices=[], scale=2)
+                    ev_export_refresh = gr.Button("↻", variant="secondary", size="sm", scale=0)
                 ev_store_status = gr.Markdown()
 
                 def _refresh_ev(t):
@@ -10703,7 +10705,11 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     inputs=[ev_type, ev_title, ev_content, ev_rule_id, ev_incident_id],
                     outputs=ev_store_status,
                 )
-                ev_export_btn.click(export_audit_evidence, inputs=ev_export_rule, outputs=ev_store_status)
+                ev_export_btn.click(lambda rid: export_audit_evidence(rid or ""), inputs=ev_export_rule, outputs=ev_store_status)
+                ev_rule_refresh.click(lambda: gr.update(choices=get_rule_ids()), outputs=ev_rule_id)
+                ev_export_refresh.click(lambda: gr.update(choices=get_rule_ids()), outputs=ev_export_rule)
+                monitoring_tab.select(lambda: gr.update(choices=get_rule_ids()), outputs=ev_rule_id)
+                monitoring_tab.select(lambda: gr.update(choices=get_rule_ids()), outputs=ev_export_rule)
 
             with gr.Accordion('🧠 Behavioral Tracking', open=False):
                 gr.HTML('<div class="section-title">Behavioral Tracking</div>')
@@ -11196,7 +11202,9 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     kg_node_type = gr.Dropdown(label="Node type", choices=KG_NODE_TYPES, value="policy", scale=2)
                     kg_node_name = gr.Textbox(label="Name", scale=3)
                 kg_node_desc = gr.Textbox(label="Description (optional)", scale=3)
-                kg_node_rule = gr.Textbox(label="Linked Rule ID (optional)", scale=2)
+                with gr.Row():
+                    kg_node_rule = gr.Dropdown(label="Linked rule (optional)", choices=[], scale=3)
+                    kg_node_rule_refresh = gr.Button("↻", variant="secondary", size="sm", scale=0)
                 kg_add_node_btn = gr.Button("+ Add Node", variant="secondary", size="sm")
                 kg_node_status = gr.Markdown()
 
@@ -11215,10 +11223,12 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 kg_search.change(build_kg_table, inputs=[kg_search], outputs=[kg_table])
                 gov_tab.select(_refresh_kg, outputs=[kg_graph, kg_table])
                 kg_add_node_btn.click(
-                    add_kg_node,
+                    lambda typ, name, desc, rule: add_kg_node(typ, name, desc, rule or ""),
                     inputs=[kg_node_type, kg_node_name, kg_node_desc, kg_node_rule],
                     outputs=kg_node_status,
                 )
+                kg_node_rule_refresh.click(lambda: gr.update(choices=get_rule_ids()), outputs=kg_node_rule)
+                gov_tab.select(lambda: gr.update(choices=get_rule_ids()), outputs=kg_node_rule)
                 kg_add_edge_btn.click(
                     add_kg_edge,
                     inputs=[kg_from_id, kg_edge_type, kg_to_id],
