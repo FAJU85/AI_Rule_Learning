@@ -10281,6 +10281,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                         label="New state",
                         choices=LIFECYCLE_STATES,
                         scale=2,
+                        info="draft → pending_review → active → deprecated → retired",
                     )
                 lc_reason = gr.Textbox(label="Reason (optional)", placeholder="e.g. Superseded by Rule #22")
                 lc_transition_btn = gr.Button("▶ Apply Transition", variant="primary", size="sm")
@@ -10644,7 +10645,8 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     esc_expected = gr.Textbox(label="Expected action", placeholder="What should have happened instead", scale=3)
                 with gr.Row():
                     esc_outcome = gr.Dropdown(
-                        label="Outcome", choices=ESCALATION_OUTCOMES, value="correct_escalation", scale=2)
+                        label="Outcome", choices=ESCALATION_OUTCOMES, value="correct_escalation", scale=2,
+                        info="correct = AI escalated correctly · missed = should have escalated · false = unnecessary escalation")
                     esc_notes = gr.Textbox(label="Notes", placeholder="Additional context or evidence", scale=3)
                 esc_log_btn = gr.Button("📋 Log Escalation", variant="primary", size="sm")
                 esc_log_status = gr.Markdown(min_height=28)
@@ -10703,7 +10705,8 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     dp_type = gr.Textbox(label="Type", placeholder="e.g. dataset, api, file", scale=2)
                 with gr.Row():
                     dp_trust = gr.Dropdown(label="Trust level", choices=DATA_TRUST_LEVELS,
-                                           value="medium", scale=2)
+                                           value="medium", scale=2,
+                                           info="high = verified internal · medium = trusted · low = unverified · untrusted = external")
                     dp_owner = gr.Textbox(label="Owner", placeholder="e.g. data-team", scale=2)
                 dp_desc = gr.Textbox(label="Description", placeholder="Brief description of this data source and how it's used")
                 dp_add_btn = gr.Button("+ Register Source", variant="primary", size="sm")
@@ -10726,12 +10729,12 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 ev_table = gr.HTML()
                 with gr.Row():
                     ev_type_filter = gr.Dropdown(label="Filter by type", choices=[""] + EVIDENCE_TYPES,
-                                                 value="", scale=2)
+                                                 value="", scale=2, info="Show only evidence of this type (blank = all)")
                     ev_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm", scale=1)
 
                 gr.HTML('<div class="rl-group-label" style="margin-top:14px">Store new evidence</div>')
                 with gr.Row():
-                    ev_type = gr.Dropdown(label="Type", choices=EVIDENCE_TYPES, value="log", scale=2)
+                    ev_type = gr.Dropdown(label="Type", choices=EVIDENCE_TYPES, value="log", scale=2, info="Category of audit evidence being stored")
                     ev_title = gr.Textbox(label="Title", placeholder="Brief title for this evidence item", scale=3)
                 ev_content = gr.Textbox(label="Content / body", lines=4, max_lines=12, placeholder="Paste the log excerpt, screenshot description, or audit note…")
                 with gr.Row():
@@ -11036,7 +11039,8 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     inc_rule_sel = gr.Dropdown(label="Rule", choices=[], scale=3)
                     inc_rule_refresh = gr.Button("↻", variant="secondary", size="sm", scale=0)
                     inc_severity = gr.Dropdown(
-                        label="Severity", choices=INCIDENT_SEVERITIES, value="P2_medium", scale=2)
+                        label="Severity", choices=INCIDENT_SEVERITIES, value="P2_medium", scale=2,
+                        info="P0 = critical · P1 = high · P2 = medium · P3 = low")
                 inc_title = gr.Textbox(label="Title", placeholder="e.g. bypass_rate spiked to 0.6")
                 inc_desc = gr.Textbox(label="Description", lines=2, placeholder="What happened, root cause hypothesis, and initial impact assessment…")
                 inc_open_btn = gr.Button("🚨 Open Incident", variant="stop", size="sm")
@@ -11046,7 +11050,8 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 with gr.Row():
                     inc_update_id = gr.Textbox(label="Incident ID prefix", placeholder="e.g. inc_abc123", scale=2)
                     inc_new_status = gr.Dropdown(
-                        label="New status", choices=INCIDENT_STATUSES, value="investigating", scale=2)
+                        label="New status", choices=INCIDENT_STATUSES, value="investigating", scale=2,
+                        info="open → investigating → mitigating → resolved → closed")
                     inc_note = gr.Textbox(label="Note", placeholder="Status update, findings, or next steps", scale=3)
                 inc_update_btn = gr.Button("→ Update Status", variant="primary", size="sm")
                 inc_update_status = gr.Markdown(min_height=28)
@@ -11267,7 +11272,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
 
                 gr.HTML('<div class="rl-group-label" style="margin-top:14px">Add a node</div>')
                 with gr.Row():
-                    kg_node_type = gr.Dropdown(label="Node type", choices=KG_NODE_TYPES, value="policy", scale=2)
+                    kg_node_type = gr.Dropdown(label="Node type", choices=KG_NODE_TYPES, value="policy", scale=2, info="Governance entity: policy, requirement, control, KPI, audit finding, or rule")
                     kg_node_name = gr.Textbox(label="Name", placeholder="e.g. GDPR Compliance Policy", scale=3)
                 kg_node_desc = gr.Textbox(label="Description (optional)", placeholder="What this node represents in the governance graph", scale=3)
                 with gr.Row():
@@ -11279,7 +11284,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 gr.HTML('<div class="rl-group-label" style="margin-top:14px">Add an edge</div>')
                 with gr.Row():
                     kg_from_id = gr.Textbox(label="From node ID prefix", placeholder="e.g. pol_abc123", scale=2)
-                    kg_edge_type = gr.Dropdown(label="Edge type", choices=KG_EDGE_TYPES, value="implements", scale=2)
+                    kg_edge_type = gr.Dropdown(label="Edge type", choices=KG_EDGE_TYPES, value="implements", scale=2, info="implements · satisfies · measures · evidences · linked_to")
                     kg_to_id = gr.Textbox(label="To node ID prefix", placeholder="e.g. rul_xyz456", scale=2)
                 kg_add_edge_btn = gr.Button("→ Add Edge", variant="primary", size="sm")
                 kg_edge_status = gr.Markdown(min_height=28)
@@ -11388,8 +11393,8 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 gr.HTML('<div class="rl-group-label" style="margin-top:14px">Add a control</div>')
                 with gr.Row():
                     ctrl_name = gr.Textbox(label="Control name", placeholder="e.g. Rule version control", scale=3)
-                    ctrl_cat = gr.Dropdown(label="Category", choices=CONTROL_CATEGORIES, value="technical", scale=2)
-                    ctrl_risk = gr.Dropdown(label="Risk level", choices=RISK_LEVELS, value="medium", scale=2)
+                    ctrl_cat = gr.Dropdown(label="Category", choices=CONTROL_CATEGORIES, value="technical", scale=2, info="technical = system/code · operational = process · managerial = policy · physical = environment")
+                    ctrl_risk = gr.Dropdown(label="Risk level", choices=RISK_LEVELS, value="medium", scale=2, info="Severity of the risk this control mitigates")
                 ctrl_desc = gr.Textbox(label="Description", placeholder="What this control does and how it mitigates risk", scale=4)
                 with gr.Row():
                     ctrl_rule_csv = gr.Dropdown(label="Linked rules", choices=[], multiselect=True, scale=3)
@@ -11489,7 +11494,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 gr.HTML('<div class="rl-group-label" style="margin-top:14px">Assign role</div>')
                 with gr.Row():
                     meta_user_id = gr.Textbox(label="User ID", placeholder="e.g. alice@company.com", scale=2)
-                    meta_role = gr.Dropdown(label="Role", choices=META_ROLES, value="observer", scale=2)
+                    meta_role = gr.Dropdown(label="Role", choices=META_ROLES, value="observer", scale=2, info="rule_author = create · rule_approver = approve/reject · auditor = read audit · observer = view only")
                     meta_granted_by = gr.Textbox(label="Granted by", placeholder="e.g. CISO", scale=2)
                 meta_perms = gr.CheckboxGroup(label="Permissions", choices=META_ACTIONS, info="Leave blank to use the role's default permissions")
                 meta_assign_btn = gr.Button("Assign Role", variant="primary", size="sm")
@@ -11498,8 +11503,8 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 gr.HTML('<div class="rl-group-label" style="margin-top:14px">Log governance action</div>')
                 with gr.Row():
                     meta_log_user = gr.Textbox(label="User ID", placeholder="e.g. alice@company.com", scale=2)
-                    meta_log_action = gr.Dropdown(label="Action", choices=META_ACTIONS, value="create_rule", scale=2)
-                    meta_log_outcome = gr.Dropdown(label="Outcome", choices=["approved", "rejected", "pending"], value="approved", scale=2)
+                    meta_log_action = gr.Dropdown(label="Action", choices=META_ACTIONS, value="create_rule", scale=2, info="Governance action that was performed")
+                    meta_log_outcome = gr.Dropdown(label="Outcome", choices=["approved", "rejected", "pending"], value="approved", scale=2, info="Result of the governance action")
                 with gr.Row():
                     meta_log_target = gr.Textbox(label="Target (rule ID / audit ID)", placeholder="e.g. rul_abc123 or aud_xyz456", scale=3)
                     meta_log_notes = gr.Textbox(label="Notes", placeholder="Additional context for the audit trail", scale=3)
@@ -11509,7 +11514,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 gr.HTML('<div class="rl-group-label" style="margin-top:14px">Permission check</div>')
                 with gr.Row():
                     meta_check_user = gr.Textbox(label="User ID", placeholder="e.g. alice@company.com", scale=2)
-                    meta_check_action = gr.Dropdown(label="Action", choices=META_ACTIONS, value="approve_rule", scale=2)
+                    meta_check_action = gr.Dropdown(label="Action", choices=META_ACTIONS, value="approve_rule", scale=2, info="Check if the selected user has permission to perform this action")
                 meta_check_btn = gr.Button("Check Permission", variant="secondary", size="sm")
                 meta_check_result = gr.Markdown(min_height=28)
 
@@ -11593,7 +11598,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 gr.HTML('<div class="section-title">Stakeholder Report</div>')
                 gr.Markdown("Generate a comprehensive compliance report for stakeholders (CTO, board, auditors).")
                 with gr.Row():
-                    report_period = gr.Dropdown(label="Period", choices=["monthly", "quarterly", "annual", "ad-hoc"], value="monthly", scale=2)
+                    report_period = gr.Dropdown(label="Period", choices=["monthly", "quarterly", "annual", "ad-hoc"], value="monthly", scale=2, info="Reporting period covered by the generated stakeholder report")
                     report_sections = gr.Textbox(label="Sections to include (optional)", placeholder="e.g. summary, incidents, slos — comma-separated", scale=4)
                 report_gen_btn = gr.Button("Generate Report", variant="primary", size="sm")
                 report_output = gr.Markdown(min_height=28)
@@ -11629,8 +11634,8 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 gr.HTML('<div class="rl-group-label" style="margin-top:14px">Add calendar item</div>')
                 with gr.Row():
                     cal_title = gr.Textbox(label="Title", placeholder="e.g. Quarterly AI Governance Review", scale=3)
-                    cal_type = gr.Dropdown(label="Type", choices=CALENDAR_ITEM_TYPES, value="review", scale=2)
-                    cal_priority = gr.Dropdown(label="Priority", choices=CALENDAR_PRIORITIES, value="medium", scale=2)
+                    cal_type = gr.Dropdown(label="Type", choices=CALENDAR_ITEM_TYPES, value="review", scale=2, info="audit · review · renewal · training · assessment · report")
+                    cal_priority = gr.Dropdown(label="Priority", choices=CALENDAR_PRIORITIES, value="medium", scale=2, info="How urgently this item must be completed")
                 with gr.Row():
                     cal_due = gr.Textbox(label="Due date", placeholder="YYYY-MM-DD", scale=2)
                     cal_owner = gr.Textbox(label="Owner", placeholder="e.g. alice@company.com", scale=2)
