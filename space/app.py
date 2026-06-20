@@ -190,20 +190,25 @@ def _is_too_similar_to_rejected(new_rule: dict, rejected: list[dict], threshold:
 # Rules
 # ---------------------------------------------------------------------------
 
-def build_rules_table() -> pd.DataFrame:
+def build_rules_table(query: str = "") -> pd.DataFrame:
     rules = load_rules()
     if not rules:
         return pd.DataFrame(
             columns=["✓", "Name", "Layer", "Pri", "Hits", "Score"]
         )
+    q = query.strip().lower()
     rows = []
     for r in rules:
         name = r.get("name", r.get("rule_id", "?"))
+        layer = _infer_rule_layer(r).replace("_", " ").title()
+        status = "active" if r.get("is_active") else r.get("status", "")
+        if q and not any(q in s.lower() for s in (name, layer, status)):
+            continue
         rows.append(
             {
                 "✓": "✅" if r.get("is_active") else "⛔",
                 "Name": name[:40] + ("…" if len(name) > 40 else ""),
-                "Layer": _infer_rule_layer(r).replace("_", " ").title(),
+                "Layer": layer,
                 "Pri": r.get("priority", 0),
                 "Hits": r.get("times_triggered", 0),
                 "Score": f"{r.get('effectiveness_score', 0):.0%}",
@@ -8713,8 +8718,14 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
         with gr.Tab("📋 Rules") as rules_tab:
 
             gr.HTML('<div class="section-title">Active Rules</div>')
+            with gr.Row():
+                rules_search = gr.Textbox(
+                    label="Search rules",
+                    placeholder="Filter by name, layer, or status…",
+                    scale=4,
+                )
+                refresh_rules_btn = gr.Button("↻ Refresh", variant="secondary", size="sm", scale=1)
             rules_table = gr.Dataframe(interactive=False, wrap=True)
-            refresh_rules_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
 
             rule_selector = gr.Dropdown(label="Select rule", choices=[])
             rule_detail = gr.Markdown()
@@ -8730,6 +8741,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
 
             refresh_rules_btn.click(refresh_rules, outputs=[rules_table, rule_selector])
             rules_tab.select(refresh_rules, outputs=[rules_table, rule_selector])
+            rules_search.change(build_rules_table, inputs=[rules_search], outputs=[rules_table])
             rule_selector.change(get_rule_detail, inputs=rule_selector, outputs=rule_detail)
             rule_selector.change(build_rule_score_trend, inputs=rule_selector, outputs=score_trend_chart)
             rule_selector.change(build_rule_version_history, inputs=rule_selector, outputs=version_history_table)
