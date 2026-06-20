@@ -10148,6 +10148,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
         with gr.Tab("📋 Rules") as rules_tab:
 
             rules_stat_bar = gr.HTML()
+            gr.Markdown("**Sections:** Active Rules · 📋 Review Queue & A/B Testing · 👥 Ownership & Lifecycle · 🔗 Dependencies, Conflicts & Export")
             gr.HTML('<div class="section-title">Active Rules</div>')
             gr.Markdown("All rules currently in force — search by name, layer, or status.")
             with gr.Row(elem_classes=["search-row-wrapper"]):
@@ -11657,6 +11658,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
         with gr.Tab("🧪 Testing") as testing_tab:
 
             testing_stat_bar = gr.HTML()
+            gr.Markdown("**Sections:** Adversarial Robustness · ⚖️ Fairness & Audit · 📊 Analytics & Simulation")
             gr.HTML('<div class="section-title">Adversarial Robustness Testing</div>')
             gr.Markdown("Run structured adversarial attacks (role-play escape, authority claim, encoding evasion, etc.) against a rule to measure robustness.")
             rob_report = gr.Markdown()
