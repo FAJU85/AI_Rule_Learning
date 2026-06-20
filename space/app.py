@@ -10404,11 +10404,11 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     yaml_export_btn = gr.Button("Export as YAML", variant="secondary", size="sm")
                 system_prompt_output = gr.Textbox(
                     label="System prompt",
-                    lines=15, interactive=True, show_copy_button=True,
+                    lines=15, max_lines=30, interactive=True, show_copy_button=True,
                 )
                 yaml_output = gr.Textbox(
                     label="YAML",
-                    lines=15, interactive=True, show_copy_button=True,
+                    lines=15, max_lines=30, interactive=True, show_copy_button=True,
                 )
                 export_btn.click(export_system_prompt, outputs=system_prompt_output)
                 yaml_export_btn.click(export_rules_as_yaml, outputs=yaml_output)
@@ -10528,7 +10528,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
             gr.HTML('<div class="rl-step2-hint" style="margin-bottom:8px">Paste a user message and the AI\'s reply from any real conversation — the validator checks them against all active rules and logs the result.</div>')
             enf_user_input = gr.Textbox(label="User input", lines=2,
                                         placeholder="What the user said")
-            enf_agent_resp = gr.Textbox(label="Agent response", lines=3,
+            enf_agent_resp = gr.Textbox(label="Agent response", lines=3, max_lines=10,
                                         placeholder="What the AI responded")
             enf_context = gr.Textbox(label="Context (optional)", placeholder="Additional context about this turn, e.g. project name or conversation stage")
             gr.Examples(
@@ -10731,7 +10731,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 with gr.Row():
                     ev_type = gr.Dropdown(label="Type", choices=EVIDENCE_TYPES, value="log", scale=2)
                     ev_title = gr.Textbox(label="Title", placeholder="Brief title for this evidence item", scale=3)
-                ev_content = gr.Textbox(label="Content / body", lines=4, placeholder="Paste the log excerpt, screenshot description, or audit note…")
+                ev_content = gr.Textbox(label="Content / body", lines=4, max_lines=12, placeholder="Paste the log excerpt, screenshot description, or audit note…")
                 with gr.Row():
                     ev_rule_id = gr.Dropdown(label="Related rule (optional)", choices=[], scale=2)
                     ev_rule_refresh = gr.Button("↻", variant="secondary", size="sm", scale=0)
