@@ -7447,9 +7447,10 @@ def check_permission(user_id: str, action: str) -> tuple[bool, str]:
         return False, f"User '{user_id}' has no assigned role."
     role_entry = roles[-1]
     perms = role_entry.get("permissions", [])
+    role_name = role_entry.get("role", "unknown")
     if action in perms or "all" in perms:
-        return True, f"Permitted: {role_entry['role']} → {action}"
-    return False, f"Denied: role '{role_entry['role']}' lacks '{action}' permission."
+        return True, f"Permitted: {role_name} → {action}"
+    return False, f"Denied: role '{role_name}' lacks '{action}' permission."
 
 
 def build_meta_gov_table() -> pd.DataFrame:
