@@ -3075,18 +3075,27 @@ def close_rca(rca_id: str, resolution: str) -> str:
     return f"RCA {rca_id[:8]} marked resolved."
 
 
-def build_rca_table() -> pd.DataFrame:
+def build_rca_table(query: str = "") -> pd.DataFrame:
     entries = _download_jsonl(RCA_FILE)
     if not entries:
         return pd.DataFrame(columns=["RCA ID", "Rule", "Category", "Root Cause", "Status", "Logged"])
-    rows = [{
-        "RCA ID": e.get("rca_id", "")[:8],
-        "Rule": e.get("rule_name", e.get("rule_id", ""))[:30],
-        "Category": e.get("category", ""),
-        "Root Cause": e.get("root_cause", "")[:80],
-        "Status": e.get("status", "open"),
-        "Logged": e.get("logged_at", "")[:10],
-    } for e in entries]
+    q = query.strip().lower()
+    rows = []
+    for e in entries:
+        rule = e.get("rule_name", e.get("rule_id", ""))
+        category = e.get("category", "")
+        root_cause = e.get("root_cause", "")
+        status = e.get("status", "open")
+        if q and not any(q in s.lower() for s in (rule, category, root_cause, status)):
+            continue
+        rows.append({
+            "RCA ID": e.get("rca_id", "")[:8],
+            "Rule": rule[:30],
+            "Category": category,
+            "Root Cause": root_cause[:80],
+            "Status": status,
+            "Logged": e.get("logged_at", "")[:10],
+        })
     return pd.DataFrame(rows)
 
 
@@ -9439,8 +9448,10 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 gr.HTML('<div class="section-title">Root Cause Analysis (RCA)</div>')
                 gr.Markdown("Log and track root causes of rule violations. LLM auto-categorises each entry.")
                 rca_summary_md = gr.Markdown()
+                with gr.Row():
+                    rca_search = gr.Textbox(label="Search RCA log", placeholder="Filter by rule, category, root cause, or status…", scale=4)
+                    rca_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm", scale=1)
                 rca_table = gr.Dataframe(interactive=False, wrap=True)
-                rca_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
 
                 with gr.Row():
                     rca_rule_sel = gr.Dropdown(label="Rule", choices=[], scale=3)
@@ -9466,6 +9477,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
 
                 rca_refresh_btn.click(_refresh_rca, outputs=[rca_summary_md, rca_table, rca_rule_sel])
                 analytics_tab.select(_refresh_rca, outputs=[rca_summary_md, rca_table, rca_rule_sel])
+                rca_search.change(build_rca_table, inputs=[rca_search], outputs=rca_table)
                 rca_log_btn.click(
                     log_rca,
                     inputs=[rca_rule_sel, rca_violation, rca_user_input, rca_cat_sel],
