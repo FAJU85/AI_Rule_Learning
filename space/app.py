@@ -10380,7 +10380,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 with gr.Row():
                     conflict_resolve_id = gr.Textbox(label="Conflict ID prefix to resolve", placeholder="e.g. cnf_abc123", scale=2)
                     conflict_resolution = gr.Textbox(label="Resolution note", placeholder="e.g. Removed overlapping rule, merged conditions", scale=4)
-                conflict_resolve_btn = gr.Button("✅ Mark Resolved", variant="secondary", size="sm")
+                conflict_resolve_btn = gr.Button("✅ Mark Resolved", variant="primary", size="sm")
                 conflict_resolve_status = gr.Markdown()
 
                 def _refresh_conflicts():
@@ -10601,7 +10601,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 with gr.Row():
                     ov_rate_id = gr.Textbox(label="Override ID prefix to rate", placeholder="e.g. ovr_abc123", scale=2)
                     ov_was_correct = gr.Checkbox(label="Was override correct?", value=True, scale=1)
-                    ov_rate_btn = gr.Button("⭐ Mark Accuracy", variant="secondary", size="sm", scale=1)
+                    ov_rate_btn = gr.Button("⭐ Mark Accuracy", variant="primary", size="sm", scale=1)
                 ov_rate_status = gr.Markdown()
 
                 def _refresh_overrides():
@@ -10997,7 +10997,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 with gr.Row():
                     rca_close_id = gr.Textbox(label="RCA ID prefix to resolve", placeholder="e.g. rca_abc123", scale=2)
                     rca_resolution = gr.Textbox(label="Resolution note", placeholder="What was done to fix this root cause", scale=3)
-                    rca_close_btn = gr.Button("✅ Mark Resolved", variant="secondary", size="sm")
+                    rca_close_btn = gr.Button("✅ Mark Resolved", variant="primary", size="sm")
                 rca_close_status = gr.Markdown()
 
                 def _refresh_rca():
@@ -11229,7 +11229,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 with gr.Row():
                     imp_cycle_id = gr.Textbox(label="Cycle ID prefix", placeholder="e.g. imp_abc123", scale=2)
                     imp_notes = gr.Textbox(label="Notes", placeholder="What was done in this stage", scale=3)
-                    imp_advance_btn = gr.Button("→ Advance Stage", variant="secondary", size="sm")
+                    imp_advance_btn = gr.Button("→ Advance Stage", variant="primary", size="sm")
                 imp_status = gr.Markdown()
 
                 def _refresh_imp():
@@ -11485,8 +11485,8 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     meta_user_id = gr.Textbox(label="User ID", placeholder="e.g. alice@company.com", scale=2)
                     meta_role = gr.Dropdown(label="Role", choices=META_ROLES, value="observer", scale=2)
                     meta_granted_by = gr.Textbox(label="Granted by", placeholder="e.g. CISO", scale=2)
-                meta_perms = gr.CheckboxGroup(label="Permissions", choices=META_ACTIONS)
-                meta_assign_btn = gr.Button("Assign Role", variant="secondary", size="sm")
+                meta_perms = gr.CheckboxGroup(label="Permissions", choices=META_ACTIONS, info="Leave blank to use the role's default permissions")
+                meta_assign_btn = gr.Button("Assign Role", variant="primary", size="sm")
                 meta_assign_status = gr.Markdown()
 
                 gr.HTML('<div class="rl-group-label" style="margin-top:14px">Log governance action</div>')
@@ -11638,7 +11638,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 with gr.Row():
                     cal_complete_id = gr.Textbox(label="Item ID prefix", placeholder="e.g. cal_abc123", scale=3)
                     cal_complete_notes = gr.Textbox(label="Completion notes", placeholder="What was done to complete this item", scale=4)
-                cal_complete_btn = gr.Button("Mark Complete", variant="secondary", size="sm")
+                cal_complete_btn = gr.Button("Mark Complete", variant="primary", size="sm")
                 cal_complete_status = gr.Markdown()
 
                 def _refresh_calendar():
