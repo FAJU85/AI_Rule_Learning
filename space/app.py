@@ -405,33 +405,44 @@ def build_rule_version_history(rule_name: str) -> pd.DataFrame:
 # Conversations
 # ---------------------------------------------------------------------------
 
-def build_conversations_table(query: str = "") -> pd.DataFrame:
+def build_conversations_table(query: str = "") -> str:
     conversations = load_conversations()
     if not conversations:
-        return pd.DataFrame(
-            columns=["Session", "ID", "Turns", "Gaps", "Rules Applied", "Date"]
-        )
+        return '<div class="rl-empty">No conversations recorded yet.</div>'
     q = query.strip().lower()
-    rows = []
+    matched = []
     for conv in sorted(conversations, key=lambda c: c.get("created_at", c.get("updated_at", "")), reverse=True):
+        slug = conv.get("slug", conv.get("git_branch", ""))
+        cid = conv.get("conversation_id", "?")
+        if q and not any(q in s.lower() for s in (slug, cid)):
+            continue
+        matched.append(conv)
+    if not matched:
+        return f'<div class="rl-empty">No conversations match "<b>{query}</b>".</div>'
+    rows_html = ""
+    for conv in matched:
         turns = conv.get("turns", [])
         gaps = sum(len(t.get("gaps_detected", [])) for t in turns)
         rules_applied = sum(len(t.get("rules_applied", [])) for t in turns)
         slug = conv.get("slug", conv.get("git_branch", ""))
         cid = conv.get("conversation_id", "?")
-        if q and not any(q in s.lower() for s in (slug, cid)):
-            continue
-        rows.append(
-            {
-                "Session": (slug or cid[:12])[:40],
-                "ID": cid[:12],
-                "Turns": len(turns),
-                "Gaps": gaps,
-                "Rules Applied": rules_applied,
-                "Date": str(conv.get("created_at", conv.get("updated_at", "")))[:16],
-            }
+        session_label = (slug or cid[:12])[:40]
+        gap_color = "#dc2626" if gaps > 5 else "#d97706" if gaps > 0 else "#94a3b8"
+        rows_html += (
+            f"<tr>"
+            f"<td style='max-width:200px;font-size:0.82rem'>{session_label}</td>"
+            f"<td style='font-family:monospace;font-size:0.75rem;color:#64748b'>{cid[:12]}</td>"
+            f"<td style='text-align:center'>{len(turns)}</td>"
+            f"<td style='text-align:center;color:{gap_color};font-weight:600'>{gaps}</td>"
+            f"<td style='text-align:center;color:#4f46e5'>{rules_applied}</td>"
+            f"<td style='font-size:0.75rem;color:#94a3b8'>{str(conv.get('created_at', conv.get('updated_at','')))[:16]}</td>"
+            f"</tr>"
         )
-    return pd.DataFrame(rows)
+    return (
+        f'<div class="rl-table-wrap"><table class="rl-table">'
+        f"<thead><tr><th>Session</th><th>ID</th><th>Turns</th><th>Gaps</th><th>Rules Applied</th><th>Date</th></tr></thead>"
+        f"<tbody>{rows_html}</tbody></table></div>"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -2828,28 +2839,46 @@ def build_dependency_graph() -> Any:
     return _dark_fig(fig)
 
 
-def build_dependency_table(query: str = "") -> pd.DataFrame:
+def build_dependency_table(query: str = "") -> str:
     """Tabular view: rule → depends_on count, blocks count."""
     rules = _download_jsonl("rules.jsonl")
+    if not rules:
+        return '<div class="rl-empty">No rules with dependencies found.</div>'
     q = query.strip().lower()
-    rows = []
+    matched = []
     for r in rules:
         name = r.get("name", "")
-        rule_id = r.get("rule_id", "")[:20]
+        rule_id = r.get("rule_id", "")
         depends_on = ", ".join(r.get("depends_on", [])) or "—"
         blocks = ", ".join(r.get("blocks", [])) or "—"
         if q and not any(q in s.lower() for s in (name, rule_id, depends_on, blocks)):
             continue
-        rows.append({
-            "Rule ID": rule_id,
-            "Name": name,
-            "Depends On": depends_on,
-            "Blocks": blocks,
-            "Dep Count": len(r.get("depends_on", [])),
-            "Block Count": len(r.get("blocks", [])),
-        })
-    return pd.DataFrame(rows) if rows else pd.DataFrame(
-        columns=["Rule ID", "Name", "Depends On", "Blocks", "Dep Count", "Block Count"])
+        matched.append(r)
+    if not matched:
+        return f'<div class="rl-empty">No dependencies match "<b>{query}</b>".</div>'
+    rows_html = ""
+    for r in matched:
+        dep_list = r.get("depends_on", [])
+        block_list = r.get("blocks", [])
+        dep_count = len(dep_list)
+        block_count = len(block_list)
+        dep_badge = f'<span class="rl-badge" style="background:#e0e7ff;color:#3730a3">{dep_count} deps</span>' if dep_count else '<span style="color:#94a3b8">—</span>'
+        blk_badge = f'<span class="rl-badge" style="background:#fee2e2;color:#991b1b">{block_count} blocks</span>' if block_count else '<span style="color:#94a3b8">—</span>'
+        rows_html += (
+            f"<tr>"
+            f"<td style='font-family:monospace;font-size:0.75rem;color:#64748b'>{r.get('rule_id','')[:20]}</td>"
+            f"<td style='font-weight:600'>{r.get('name','')[:40]}</td>"
+            f"<td style='font-size:0.78rem;color:#475569'>{(', '.join(dep_list) or '—')[:60]}</td>"
+            f"<td style='font-size:0.78rem;color:#475569'>{(', '.join(block_list) or '—')[:60]}</td>"
+            f"<td style='text-align:center'>{dep_badge}</td>"
+            f"<td style='text-align:center'>{blk_badge}</td>"
+            f"</tr>"
+        )
+    return (
+        f'<div class="rl-table-wrap"><table class="rl-table">'
+        f"<thead><tr><th>Rule ID</th><th>Name</th><th>Depends On</th><th>Blocks</th><th>Dep Count</th><th>Block Count</th></tr></thead>"
+        f"<tbody>{rows_html}</tbody></table></div>"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -7827,28 +7856,50 @@ def compute_goal_alignment() -> list[dict]:
     return results
 
 
-def build_goal_table(query: str = "") -> pd.DataFrame:
+def build_goal_table(query: str = "") -> str:
     results = compute_goal_alignment()
     if not results:
-        return pd.DataFrame(columns=["Goal", "Outcome", "Rules", "Target", "Actual", "Gap", "Status"])
+        return '<div class="rl-empty">No goal alignment data yet.</div>'
     q = query.strip().lower()
-    rows = []
+    matched = []
     for r in results:
-        goal = r.get("objective", "")[:40]
-        outcome = r.get("business_outcome", "")[:40]
+        goal = r.get("objective", "")
+        outcome = r.get("business_outcome", "")
         status = r["alignment_status"]
         if q and not any(q in s.lower() for s in (goal, outcome, status)):
             continue
-        rows.append({
-            "Goal": goal,
-            "Outcome": outcome,
-            "Rules": r["linked_count"],
-            "Target": f"{r['target_score']}%",
-            "Actual": f"{r['actual_score']}%",
-            "Gap": f"{r['gap']:+.1f}%",
-            "Status": status,
-        })
-    return pd.DataFrame(rows)
+        matched.append(r)
+    if not matched:
+        return f'<div class="rl-empty">No goals match "<b>{query}</b>".</div>'
+    _status_badge = {
+        "aligned": '<span class="rl-badge rl-badge-active">aligned</span>',
+        "warning": '<span class="rl-badge rl-badge-pending">warning</span>',
+        "misaligned": '<span class="rl-badge rl-badge-deprecated">misaligned</span>',
+    }
+    rows_html = ""
+    for r in matched:
+        status = r["alignment_status"]
+        badge = _status_badge.get(status, f'<span class="rl-badge rl-badge-inactive">{status}</span>')
+        gap = r.get("gap", 0)
+        gap_color = "#dc2626" if gap < -10 else "#d97706" if gap < 0 else "#166534"
+        actual = r.get("actual_score", 0)
+        actual_color = "#166534" if actual >= r.get("target_score", 80) else "#d97706"
+        rows_html += (
+            f"<tr>"
+            f"<td style='max-width:160px;font-weight:600'>{r.get('objective','')[:40]}</td>"
+            f"<td style='max-width:160px;font-size:0.78rem;color:#475569'>{r.get('business_outcome','')[:40]}</td>"
+            f"<td style='text-align:center'>{r.get('linked_count',0)}</td>"
+            f"<td style='text-align:center;color:#64748b'>{r.get('target_score',0)}%</td>"
+            f"<td style='text-align:center;color:{actual_color};font-weight:700'>{actual}%</td>"
+            f"<td style='text-align:center;color:{gap_color};font-weight:700'>{gap:+.1f}%</td>"
+            f"<td>{badge}</td>"
+            f"</tr>"
+        )
+    return (
+        f'<div class="rl-table-wrap"><table class="rl-table">'
+        f"<thead><tr><th>Goal</th><th>Outcome</th><th>Rules</th><th>Target</th><th>Actual</th><th>Gap</th><th>Status</th></tr></thead>"
+        f"<tbody>{rows_html}</tbody></table></div>"
+    )
 
 
 def build_goal_chart() -> Any:
@@ -8108,11 +8159,10 @@ def detect_rule_learning() -> str:
     return "\n".join(lines)
 
 
-def build_learning_table(query: str = "") -> pd.DataFrame:
+def build_learning_table(query: str = "") -> str:
     log = _load_learning_log()
     if not log:
-        return pd.DataFrame(columns=["Rule", "Status", "Slope", "History Points", "Timestamp"])
-    # Latest per rule
+        return '<div class="rl-empty">No learning log entries yet.</div>'
     latest: dict = {}
     for e in log:
         rid = e.get("rule_id", "")
@@ -8121,20 +8171,45 @@ def build_learning_table(query: str = "") -> pd.DataFrame:
         if rid not in latest or e.get("timestamp", "") > latest[rid].get("timestamp", ""):
             latest[rid] = e
     q = query.strip().lower()
-    rows = []
+    matched = []
     for e in latest.values():
-        rule_name = e.get("rule_name", e.get("rule_id", ""))[:40]
+        rule_name = e.get("rule_name", e.get("rule_id", ""))
         status = e.get("status", "")
         if q and not any(q in s.lower() for s in (rule_name, status)):
             continue
-        rows.append({
-            "Rule": rule_name,
-            "Status": status,
-            "Slope": f"{e['slope']:+.4f}" if e.get("slope") is not None else "N/A",
-            "History Points": e.get("history_len", 0),
-            "Timestamp": e.get("timestamp", "")[:16],
-        })
-    return pd.DataFrame(rows)
+        matched.append(e)
+    if not matched:
+        return f'<div class="rl-empty">No entries match "<b>{query}</b>".</div>'
+    _status_badge = {
+        "improving":          '<span class="rl-badge rl-badge-active">improving</span>',
+        "declining":          '<span class="rl-badge rl-badge-deprecated">declining</span>',
+        "stable":             '<span class="rl-badge rl-badge-inactive">stable</span>',
+        "insufficient_data":  '<span class="rl-badge" style="background:#f1f5f9;color:#94a3b8">insufficient data</span>',
+    }
+    rows_html = ""
+    for e in matched:
+        status = e.get("status", "")
+        badge = _status_badge.get(status, f'<span class="rl-badge rl-badge-inactive">{status}</span>')
+        slope = e.get("slope")
+        if slope is not None:
+            slope_color = "#166534" if slope > 0 else "#dc2626" if slope < 0 else "#64748b"
+            slope_str = f'<span style="color:{slope_color};font-weight:700">{slope:+.4f}</span>'
+        else:
+            slope_str = '<span style="color:#94a3b8">N/A</span>'
+        rows_html += (
+            f"<tr>"
+            f"<td style='max-width:200px'>{e.get('rule_name', e.get('rule_id',''))[:40]}</td>"
+            f"<td>{badge}</td>"
+            f"<td style='font-family:monospace;font-size:0.8rem'>{slope_str}</td>"
+            f"<td style='text-align:center;color:#64748b'>{e.get('history_len',0)}</td>"
+            f"<td style='font-size:0.75rem;color:#94a3b8'>{e.get('timestamp','')[:16]}</td>"
+            f"</tr>"
+        )
+    return (
+        f'<div class="rl-table-wrap"><table class="rl-table">'
+        f"<thead><tr><th>Rule</th><th>Status</th><th>Slope</th><th>History Points</th><th>Timestamp</th></tr></thead>"
+        f"<tbody>{rows_html}</tbody></table></div>"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -9315,27 +9390,46 @@ def verify_audit_chain() -> str:
     return f"## Audit Chain Verified\n\nAll {len(chain)} entries are intact. Chain is tamper-evident and unbroken."
 
 
-def build_audit_chain_table(query: str = "") -> pd.DataFrame:
+def build_audit_chain_table(query: str = "") -> str:
     chain = _download_jsonl(AUDIT_CHAIN_FILE)
     if not chain:
-        return pd.DataFrame(columns=["Seq", "Action", "Actor", "Target", "Hash", "Timestamp"])
+        return '<div class="rl-empty">No audit chain entries yet.</div>'
     q = query.strip().lower()
-    rows = []
+    matched = []
     for e in chain[-200:]:
-        action = e.get("action", "")[:30]
-        actor = e.get("actor", "")[:20]
-        target = e.get("target", "")[:30]
+        action = e.get("action", "")
+        actor = e.get("actor", "")
+        target = e.get("target", "")
         if q and not any(q in s.lower() for s in (action, actor, target)):
             continue
-        rows.append({
-            "Seq": e.get("seq", ""),
-            "Action": action,
-            "Actor": actor,
-            "Target": target,
-            "Hash": e.get("entry_hash", "")[:12] + "…",
-            "Timestamp": e.get("timestamp", "")[:16],
-        })
-    return pd.DataFrame(rows)
+        matched.append(e)
+    if not matched:
+        return f'<div class="rl-empty">No audit entries match "<b>{query}</b>".</div>'
+    _action_colors = {
+        "rule_created": "#166534", "rule_updated": "#4f46e5", "rule_deleted": "#dc2626",
+        "override": "#d97706", "escalation": "#9d174d",
+    }
+    rows_html = ""
+    for e in matched:
+        action = e.get("action", "")
+        action_color = _action_colors.get(action, "#475569")
+        entry_hash = e.get("entry_hash", "")
+        hash_display = f"{entry_hash[:12]}…" if entry_hash else "—"
+        rows_html += (
+            f"<tr>"
+            f"<td style='font-family:monospace;font-size:0.75rem;color:#64748b'>{e.get('seq','')}</td>"
+            f"<td style='color:{action_color};font-weight:600;font-size:0.78rem'>{action[:30]}</td>"
+            f"<td style='color:#334155'>{e.get('actor','')[:20]}</td>"
+            f"<td style='color:#475569;font-size:0.78rem'>{e.get('target','')[:30]}</td>"
+            f"<td style='font-family:monospace;font-size:0.72rem;color:#94a3b8'>{hash_display}</td>"
+            f"<td style='font-size:0.75rem;color:#94a3b8'>{e.get('timestamp','')[:16]}</td>"
+            f"</tr>"
+        )
+    return (
+        f'<div class="rl-table-wrap"><table class="rl-table">'
+        f"<thead><tr><th>Seq</th><th>Action</th><th>Actor</th><th>Target</th><th>Hash</th><th>Timestamp</th></tr></thead>"
+        f"<tbody>{rows_html}</tbody></table></div>"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -10325,7 +10419,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
             with gr.Row():
                 convs_search = gr.Textbox(label="Search sessions", placeholder="Filter by session name or ID…", scale=4)
                 refresh_convs_btn = gr.Button("↻ Refresh", variant="secondary", size="sm", scale=1)
-            conversations_table = gr.Dataframe(interactive=False, wrap=True)
+            conversations_table = gr.HTML()
             refresh_convs_btn.click(build_conversations_table, outputs=[conversations_table])
             refresh_convs_btn.click(build_analytics_stat_bar, outputs=[analytics_stat_bar])
             convs_search.change(build_conversations_table, inputs=[convs_search], outputs=conversations_table)
@@ -10431,7 +10525,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 with gr.Row():
                     dep_search = gr.Textbox(label="Search dependencies", placeholder="Filter by rule name, ID, or dependency…", scale=4)
                     dep_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm", scale=1)
-                dep_table = gr.Dataframe(interactive=False, wrap=True)
+                dep_table = gr.HTML()
 
                 def _refresh_deps():
                     return build_dependency_graph(), build_dependency_table()
@@ -10837,7 +10931,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 with gr.Row():
                     goal_search = gr.Textbox(label="Search goals", placeholder="Filter by objective, outcome, or status…", scale=4)
                     goal_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm", scale=1)
-                goal_table = gr.Dataframe(interactive=False, wrap=True)
+                goal_table = gr.HTML()
 
                 gr.Markdown("**Define a Goal**")
                 with gr.Row():
@@ -10904,7 +10998,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 with gr.Row():
                     learning_search = gr.Textbox(label="Search learning log", placeholder="Filter by rule name or status…", scale=4)
                     learning_refresh_btn = gr.Button("↻ Refresh History", variant="secondary", size="sm", scale=1)
-                learning_table = gr.Dataframe(interactive=False, wrap=True)
+                learning_table = gr.HTML()
                 learning_run_btn = gr.Button("Detect Learning Trends", variant="primary", size="sm")
 
                 def _refresh_learning():
@@ -11203,7 +11297,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 with gr.Row():
                     audit_chain_search = gr.Textbox(label="Search audit chain", placeholder="Filter by action, actor, or target…", scale=4)
                     audit_chain_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm", scale=1)
-                audit_chain_table = gr.Dataframe(interactive=False, wrap=True)
+                audit_chain_table = gr.HTML()
                 audit_verify_btn = gr.Button("Verify Chain Integrity", variant="primary", size="sm")
 
                 gr.Markdown("**Append Audit Entry**")
