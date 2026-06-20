@@ -11049,6 +11049,11 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     inputs=[rca_rule_sel, rca_violation, rca_user_input, rca_cat_sel],
                     outputs=rca_status,
                 )
+                rca_violation.submit(
+                    log_rca,
+                    inputs=[rca_rule_sel, rca_violation, rca_user_input, rca_cat_sel],
+                    outputs=rca_status,
+                )
                 rca_close_btn.click(close_rca, inputs=[rca_close_id, rca_resolution], outputs=rca_close_status)
 
             with gr.Accordion('🚨 Incidents & Tracing', open=False):
@@ -11092,6 +11097,11 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 inc_search.change(build_incidents_table, inputs=[inc_search], outputs=inc_table)
                 inc_rule_refresh.click(lambda: gr.update(choices=get_rule_ids()), outputs=inc_rule_sel)
                 inc_open_btn.click(
+                    open_incident,
+                    inputs=[inc_rule_sel, inc_title, inc_severity, inc_desc],
+                    outputs=inc_open_status,
+                )
+                inc_title.submit(
                     open_incident,
                     inputs=[inc_rule_sel, inc_title, inc_severity, inc_desc],
                     outputs=inc_open_status,
@@ -11256,6 +11266,11 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 gov_tab.select(_refresh_slo, outputs=[slo_chart, slo_table, slo_rule_sel])
                 slo_rule_refresh.click(lambda: gr.update(choices=get_rule_ids()), outputs=slo_rule_sel)
                 slo_add_btn.click(
+                    define_slo,
+                    inputs=[slo_rule_sel, slo_name_in, slo_target, slo_window],
+                    outputs=slo_status,
+                )
+                slo_name_in.submit(
                     define_slo,
                     inputs=[slo_rule_sel, slo_name_in, slo_target, slo_window],
                     outputs=slo_status,
