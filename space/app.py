@@ -10729,6 +10729,15 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                                            info="high = verified internal · medium = trusted · low = unverified · untrusted = external")
                     dp_owner = gr.Textbox(label="Owner", placeholder="e.g. data-team", scale=2)
                 dp_desc = gr.Textbox(label="Description", placeholder="Brief description of this data source and how it's used")
+                gr.Examples(
+                    examples=[
+                        ["Claude Code sessions", "jsonl", "high", "ai-team", "Exported Claude Code session files used for rule learning and gap analysis"],
+                        ["Customer support transcripts", "csv", "medium", "support-team", "Anonymised support chat logs for rule coverage testing"],
+                        ["External benchmark dataset", "dataset", "low", "research", "Public AI safety benchmark — verify before use in production rule scoring"],
+                    ],
+                    inputs=[dp_name, dp_type, dp_trust, dp_owner, dp_desc],
+                    label="Example data sources (click to load)",
+                )
                 dp_add_btn = gr.Button("+ Register Source", variant="primary", size="sm")
                 dp_add_status = gr.Markdown(min_height=28)
 
@@ -11755,6 +11764,15 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 with gr.Row():
                     cert_rules_csv = gr.Dropdown(label="Linked rules (optional)", choices=[], multiselect=True, scale=4)
                     cert_rules_refresh = gr.Button("↻", variant="secondary", size="sm", scale=0)
+                gr.Examples(
+                    examples=[
+                        ["ISO 27001:2022", "iso_27001", "BSI Group", "2024-03-15", "2027-03-14", "AI governance and rule enforcement systems"],
+                        ["SOC 2 Type II", "soc2", "Deloitte & Touche", "2025-01-10", "2026-01-09", "AI platform security, availability, and confidentiality controls"],
+                        ["GDPR Article 25 Compliance", "gdpr", "Internal DPO", "2024-06-01", "2025-06-01", "Data protection by design and by default for all AI rule processing"],
+                    ],
+                    inputs=[cert_name, cert_type, cert_issuer, cert_issue, cert_expiry, cert_scope],
+                    label="Example certifications (click to load)",
+                )
                 cert_add_btn = gr.Button("+ Add Certification", variant="primary", size="sm")
                 cert_status_md = gr.Markdown(min_height=28)
 
@@ -11825,6 +11843,15 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     cal_rule_csv = gr.Dropdown(label="Linked rules (optional)", choices=[], multiselect=True, scale=3)
                     cal_rules_refresh = gr.Button("↻", variant="secondary", size="sm", scale=0)
                 cal_desc = gr.Textbox(label="Description", placeholder="What needs to be done and why", scale=4)
+                gr.Examples(
+                    examples=[
+                        ["Quarterly AI Governance Review", "review", "2026-09-30", "high", "alice@company.com", "Review all active rules for accuracy, coverage, and false-positive rates"],
+                        ["ISO 27001 Renewal Audit", "audit", "2027-03-01", "critical", "ciso@company.com", "Prepare evidence bundle and schedule external auditor for annual recertification"],
+                        ["AI Rule Training — New Engineers", "training", "2026-07-15", "medium", "hr@company.com", "Onboarding session on AI rule system for new engineering hires"],
+                    ],
+                    inputs=[cal_title, cal_type, cal_due, cal_priority, cal_owner, cal_desc],
+                    label="Example calendar items (click to load)",
+                )
                 cal_add_btn = gr.Button("+ Add Item", variant="primary", size="sm")
                 cal_add_status = gr.Markdown(min_height=28)
 
