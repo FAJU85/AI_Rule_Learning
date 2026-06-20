@@ -2380,6 +2380,8 @@ def _compute_drift(score_history: list[dict]) -> dict:
         return {"slope": 0.0, "is_drifting": False, "insufficient_data": True}
     scores = [h.get("score", 0) for h in score_history if isinstance(h, dict)]
     n = len(scores)
+    if n < _DRIFT_MIN_POINTS:
+        return {"slope": 0.0, "is_drifting": False, "insufficient_data": True}
     # Linear regression slope (least squares)
     x_mean = (n - 1) / 2
     y_mean = sum(scores) / n
