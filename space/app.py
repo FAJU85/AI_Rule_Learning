@@ -10424,6 +10424,15 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 with gr.Row():
                     conflict_resolve_id = gr.Textbox(label="Conflict ID prefix to resolve", placeholder="e.g. cnf_abc123", scale=2)
                     conflict_resolution = gr.Textbox(label="Resolution note", placeholder="e.g. Removed overlapping rule, merged conditions", scale=4)
+                gr.Examples(
+                    examples=[
+                        ["Removed overlapping rule — Rule #4 is a strict subset of Rule #7; Rule #4 deprecated"],
+                        ["Merged conditions — Rules #12 and #15 contradicted each other on tone; unified into single policy"],
+                        ["Accepted as-is — apparent conflict is intentional; rules apply to different conversation contexts"],
+                    ],
+                    inputs=[conflict_resolution],
+                    label="Example resolutions (click to load)",
+                )
                 conflict_resolve_btn = gr.Button("✅ Mark Resolved", variant="primary", size="sm")
                 conflict_resolve_status = gr.Markdown(min_height=28)
 
@@ -10435,6 +10444,11 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 rules_tab.select(_refresh_conflicts, outputs=[conflict_summary_md, conflicts_table])
                 conflict_scan_btn.click(run_conflict_detection_llm, outputs=conflict_log)
                 conflict_resolve_btn.click(
+                    resolve_conflict,
+                    inputs=[conflict_resolve_id, conflict_resolution],
+                    outputs=conflict_resolve_status,
+                )
+                conflict_resolution.submit(
                     resolve_conflict,
                     inputs=[conflict_resolve_id, conflict_resolution],
                     outputs=conflict_resolve_status,
@@ -10649,6 +10663,15 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     ov_ai_dec = gr.Textbox(label="AI Decision", placeholder="What the AI decided to do", scale=3)
                     ov_human_dec = gr.Textbox(label="Human Decision", placeholder="What you overrode it to", scale=3)
                 ov_reason = gr.Textbox(label="Override Reason", placeholder="Why this override was necessary")
+                gr.Examples(
+                    examples=[
+                        ["AI refused to help with a code review", "Approved and provided code review with safety notes", "False positive — rule triggered on benign technical discussion"],
+                        ["AI added excessive safety caveats to a factual answer", "Provided direct factual answer", "Over-cautious rule firing; caveats not warranted for this content type"],
+                        ["AI declined to summarise an internal document", "Summarised document with PII redacted", "Rule correctly flagged but human reviewer confirmed safe to proceed"],
+                    ],
+                    inputs=[ov_ai_dec, ov_human_dec, ov_reason],
+                    label="Example overrides (click to load)",
+                )
                 ov_log_btn = gr.Button("📝 Log Override", variant="primary", size="sm")
                 ov_log_status = gr.Markdown(min_height=28)
                 gr.HTML('<div class="rl-group-label" style="margin-top:10px">Rate an existing override</div>')
@@ -10665,6 +10688,11 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 override_search.change(build_overrides_table, inputs=[override_search], outputs=[overrides_table])
                 monitoring_tab.select(_refresh_overrides, outputs=[override_summary_md, overrides_table])
                 ov_log_btn.click(
+                    log_human_override,
+                    inputs=[ov_conv_id, ov_turn_no, ov_ai_dec, ov_human_dec, ov_reason],
+                    outputs=ov_log_status,
+                )
+                ov_reason.submit(
                     log_human_override,
                     inputs=[ov_conv_id, ov_turn_no, ov_ai_dec, ov_human_dec, ov_reason],
                     outputs=ov_log_status,
