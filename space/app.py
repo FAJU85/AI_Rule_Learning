@@ -10452,7 +10452,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
 
             gr.HTML('<div class="rl-group-label">Core</div>')
             with gr.Row():
-                seed_btn = gr.Button("🌱 Load Starter Rules", variant="secondary")
+                seed_btn = gr.Button("🌱 Load Starter Rules", variant="primary")
                 analysis_btn = gr.Button("▶ Run Analysis", variant="primary", size="lg")
 
             gr.HTML('<div class="rl-group-label">Scoring &amp; Evaluation</div>')
@@ -10461,6 +10461,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 judge_btn = gr.Button("🧑‍⚖️ LLM Judge Score", variant="secondary")
 
             with gr.Accordion("⚙️ Maintenance", open=False):
+                gr.Markdown("Advanced maintenance actions — re-analyse, red-team, evolve, deduplicate, and recalculate risk scores.")
                 with gr.Row():
                     reanalyze_btn = gr.Button("🔁 Re-analyze All", variant="secondary")
                     redteam_btn = gr.Button("🔴 Red Team Rules", variant="secondary")
