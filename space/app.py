@@ -5941,6 +5941,26 @@ body, .gradio-container {
     background: #f0fdf4; border-color: #86efac; color: #166534;
 }
 
+/* ── Action Items Panel ───────────────────────────────────────────────── */
+.action-items-panel {
+    border-radius: 10px; border: 1px solid #e2e8f0;
+    overflow: hidden; margin-bottom: 12px;
+}
+.action-items-panel.all-clear {
+    background: #f0fdf4; border-color: #86efac;
+    padding: 12px 16px; color: #166534; font-size: 0.85rem;
+}
+.action-item {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 10px 16px; font-size: 0.85rem; border-bottom: 1px solid #f1f5f9;
+}
+.action-item:last-child { border-bottom: none; }
+.action-critical { background: #fff1f2; color: #9f1239; }
+.action-warning  { background: #fffbeb; color: #92400e; }
+.action-info     { background: #eff6ff; color: #1e40af; }
+.action-icon { font-size: 1rem; flex-shrink: 0; margin-top: 1px; }
+.action-text { flex: 1; line-height: 1.4; }
+
 /* ── Tab navigation ──────────────────────────────────────────────────── */
 .tab-nav {
     overflow-x: auto; -webkit-overflow-scrolling: touch;
@@ -6303,6 +6323,71 @@ def build_activity_html() -> str:
             f'<span class="activity-time">{time}</span></div>'
         )
     return f'<div class="activity-feed">{"".join(items)}</div>'
+
+
+def build_action_items_html() -> str:
+    """Aggregate critical items requiring user attention into a single panel."""
+    items: list[tuple[str, str, str]] = []  # (priority_class, icon, text)
+
+    # Pending rules
+    rules = load_rules()
+    pending = [r for r in rules if r.get("status") == "pending_review"]
+    if pending:
+        names = ", ".join(r.get("name", "?") for r in pending[:2])
+        more = f" +{len(pending)-2} more" if len(pending) > 2 else ""
+        items.append(("critical", "⏳", f"<strong>{len(pending)} rule(s) awaiting review</strong> — {names}{more}"))
+
+    # Open critical/high incidents
+    try:
+        incidents = _download_jsonl(INCIDENT_FILE)
+        critical_inc = [i for i in incidents
+                        if i.get("status") not in ("resolved", "closed")
+                        and i.get("severity") in ("P0_critical", "P1_high")]
+        if critical_inc:
+            items.append(("critical", "🚨", f"<strong>{len(critical_inc)} critical/high incident(s) open</strong> — check Incidents tab"))
+    except Exception:
+        pass
+
+    # SLO breaches
+    try:
+        slos = compute_slo_status()
+        breached = [s for s in slos if s.get("status") == "breached"]
+        if breached:
+            names = ", ".join(s.get("slo_name", s.get("rule_id", "?"))[:25] for s in breached[:2])
+            more = f" +{len(breached)-2} more" if len(breached) > 2 else ""
+            items.append(("warning", "📉", f"<strong>{len(breached)} SLO(s) breached</strong> — {names}{more}"))
+    except Exception:
+        pass
+
+    # Low-effectiveness active rules
+    low_eff = [r for r in rules if r.get("is_active") and r.get("effectiveness_score", 1) < 0.3
+               and r.get("times_triggered", 0) >= 3]
+    if low_eff:
+        names = ", ".join(r.get("name", "?") for r in low_eff[:2])
+        more = f" +{len(low_eff)-2} more" if len(low_eff) > 2 else ""
+        items.append(("warning", "⚠️", f"<strong>{len(low_eff)} rule(s) with low effectiveness (<30%)</strong> — {names}{more}"))
+
+    # Open RCAs
+    try:
+        rcas = _download_jsonl(RCA_FILE)
+        open_rcas = [r for r in rcas if r.get("status") == "open"]
+        if open_rcas:
+            items.append(("info", "🔍", f"<strong>{len(open_rcas)} open RCA(s)</strong> — resolve in Analytics → Root Cause"))
+    except Exception:
+        pass
+
+    if not items:
+        return '<div class="action-items-panel all-clear"><span>✅ Nothing needs attention right now — all systems nominal.</span></div>'
+
+    priority_order = {"critical": 0, "warning": 1, "info": 2}
+    items.sort(key=lambda x: priority_order.get(x[0], 9))
+
+    rows = "".join(
+        f'<div class="action-item action-{cls}"><span class="action-icon">{icon}</span>'
+        f'<span class="action-text">{text}</span></div>'
+        for cls, icon, text in items
+    )
+    return f'<div class="action-items-panel">{rows}</div>'
 
 
 def build_pending_alert_html() -> str:
@@ -8694,8 +8779,9 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 gr.HTML('<div style="flex:1;min-width:0;display:flex;align-items:center"><span style="font-size:0.8rem;color:#64748b;text-transform:uppercase;letter-spacing:.08em;font-weight:600">Overview</span></div>')
                 dashboard_refresh = gr.Button("↻ Refresh", variant="secondary", size="sm")
 
-            # ── Section 1: Action alert ───────────────────────────────────────
+            # ── Section 1: Action alerts ──────────────────────────────────────
             pending_alert = gr.HTML()
+            action_items = gr.HTML()
 
             # ── Section 2: Primary KPIs + secondary row ───────────────────────
             metrics_html = gr.HTML()
@@ -8720,6 +8806,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
             def refresh_dashboard():
                 return (
                     build_pending_alert_html(),
+                    build_action_items_html(),
                     build_metrics_html(),
                     build_effectiveness_chart(),
                     build_maturity_chart(),
@@ -8733,11 +8820,11 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
             )
             dashboard_refresh.click(
                 refresh_dashboard,
-                outputs=[pending_alert, metrics_html, dash_eff_chart, maturity_chart, maturity_report_md, activity_html],
+                outputs=[pending_alert, action_items, metrics_html, dash_eff_chart, maturity_chart, maturity_report_md, activity_html],
             )
             demo.load(
                 refresh_dashboard,
-                outputs=[pending_alert, metrics_html, dash_eff_chart, maturity_chart, maturity_report_md, activity_html],
+                outputs=[pending_alert, action_items, metrics_html, dash_eff_chart, maturity_chart, maturity_report_md, activity_html],
             )
 
         # ── Rules ────────────────────────────────────────────────────────────
