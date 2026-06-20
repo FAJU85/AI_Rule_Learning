@@ -6754,6 +6754,8 @@ img, video, canvas, iframe { max-width: 100%; height: auto; }
 .rl-empty { padding: 24px; text-align: center; color: #94a3b8; font-size: 0.85rem; }
 .rl-step2-hint { background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 8px;
     padding: 10px 14px; font-size: 0.82rem; color: #0369a1; margin-bottom: 10px; line-height: 1.5; }
+.rl-section-nav { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;
+    padding: 8px 14px; font-size: 0.78rem; color: #475569; margin-bottom: 4px; line-height: 1.6; }
 .rl-group-label { font-size: 0.68rem; font-weight: 700; text-transform: uppercase;
     letter-spacing: 0.08em; color: #64748b; margin: 12px 0 4px 2px; }
 .rl-onboard-card { background: linear-gradient(135deg,#f8faff 0%,#f0f9ff 100%);
@@ -6881,6 +6883,7 @@ img, video, canvas, iframe { max-width: 100%; height: auto; }
     .rl-onboard-step strong { font-size: 0.82rem; }
     .rl-onboard-step span { font-size: 0.75rem; }
     .rl-step2-hint { font-size: 0.76rem; padding: 8px 12px; }
+    .rl-section-nav { font-size: 0.73rem; padding: 7px 10px; }
 }
 
 /* ── Small phone (≤ 480 px) ─────────────────────────────────────────── */
@@ -10148,7 +10151,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
         with gr.Tab("📋 Rules") as rules_tab:
 
             rules_stat_bar = gr.HTML()
-            gr.Markdown("**Sections:** Active Rules · 📋 Review Queue & A/B Testing · 👥 Ownership & Lifecycle · 🔗 Dependencies, Conflicts & Export")
+            gr.HTML('<div class="rl-section-nav"><strong>Sections:</strong> Active Rules · 📋 Review Queue & A/B Testing · 👥 Ownership & Lifecycle · 🔗 Dependencies, Conflicts & Export</div>')
             gr.HTML('<div class="section-title">Active Rules</div>')
             gr.Markdown("All rules currently in force — search by name, layer, or status.")
             with gr.Row(elem_classes=["search-row-wrapper"]):
@@ -10496,7 +10499,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
         with gr.Tab("🔍 Monitoring") as monitoring_tab:
 
             monitoring_stat_bar = gr.HTML()
-            gr.Markdown("**Sections:** Conversation Clusters · Rule Enforcement Validator · 🤖 AI Audit & Human Oversight · 📋 Provenance & Evidence · 🧠 Behavioral Tracking")
+            gr.HTML('<div class="rl-section-nav"><strong>Sections:</strong> Conversation Clusters · Rule Enforcement Validator · 🤖 AI Audit & Human Oversight · 📋 Provenance & Evidence · 🧠 Behavioral Tracking</div>')
             gr.HTML('<div class="section-title">Conversation Clusters</div>')
             gr.Markdown("Gap frequency grouped by project context — shows where problems concentrate.")
             cluster_chart = gr.Plot()
@@ -10797,7 +10800,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
         with gr.Tab("📈 Analytics") as analytics_tab:
 
             analytics_stat_bar = gr.HTML()
-            gr.Markdown("**Sections:** Conversations · Alignment Sensor · ⚠️ Risk & Compliance · 📈 Performance & Coverage · 🧪 Benchmarks & Root Cause · 🚨 Incidents & Tracing · 💡 Explainability & Feedback")
+            gr.HTML('<div class="rl-section-nav"><strong>Sections:</strong> Conversations · Alignment Sensor · ⚠️ Risk & Compliance · 📈 Performance & Coverage · 🧪 Benchmarks & Root Cause · 🚨 Incidents & Tracing · 💡 Explainability & Feedback</div>')
             gr.HTML('<div class="section-title">Conversations</div>')
             gr.Markdown("All imported AI sessions — search by session name or ID.")
             with gr.Row(elem_classes=["search-row-wrapper"]):
@@ -11157,7 +11160,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
         with gr.Tab("⚖️ Governance") as gov_tab:
 
             governance_stat_bar = gr.HTML()
-            gr.Markdown("**Sections:** Trust Score · 📐 SLOs & Improvement · 🗺️ Knowledge & Reputation · 🎯 Goals & Controls · 🔍 Learning & Gaming Detection · 🔑 Meta-Governance · 📋 Compliance, Reporting & Calendar")
+            gr.HTML('<div class="rl-section-nav"><strong>Sections:</strong> Trust Score · 📐 SLOs & Improvement · 🗺️ Knowledge & Reputation · 🎯 Goals & Controls · 🔍 Learning & Gaming Detection · 🔑 Meta-Governance · 📋 Compliance, Reporting & Calendar</div>')
             gr.HTML('<div class="section-title">Governance Dashboard & Trust Score</div>')
             gr.Markdown("Composite Trust Score (0–100) and executive-level governance metrics.")
             with gr.Row():
@@ -11658,7 +11661,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
         with gr.Tab("🧪 Testing") as testing_tab:
 
             testing_stat_bar = gr.HTML()
-            gr.Markdown("**Sections:** Adversarial Robustness · ⚖️ Fairness & Audit · 📊 Analytics & Simulation")
+            gr.HTML('<div class="rl-section-nav"><strong>Sections:</strong> Adversarial Robustness · ⚖️ Fairness & Audit · 📊 Analytics & Simulation</div>')
             gr.HTML('<div class="section-title">Adversarial Robustness Testing</div>')
             gr.Markdown("Run structured adversarial attacks (role-play escape, authority claim, encoding evasion, etc.) against a rule to measure robustness.")
             rob_report = gr.Markdown()
