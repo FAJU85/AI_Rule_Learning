@@ -11162,15 +11162,18 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     imp_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm", scale=1)
                 imp_table = gr.HTML()
 
-                gr.HTML('<div class="rl-group-label" style="margin-top:14px">Open a new improvement cycle</div>')
+                gr.HTML('<div class="rl-group-label" style="margin-top:14px">Open a new cycle</div>')
                 with gr.Row():
                     imp_rule_sel = gr.Dropdown(label="Rule", choices=[], scale=3)
                     imp_trigger = gr.Textbox(label="Trigger event", placeholder="e.g. bypass_rate > 0.4", scale=3)
                 imp_desc = gr.Textbox(label="Description", lines=2, placeholder="What went wrong and why")
+                imp_open_btn = gr.Button("▶ Open Cycle", variant="primary", size="sm")
+                imp_open_status = gr.Markdown()
+
+                gr.HTML('<div class="rl-group-label" style="margin-top:14px">Advance an existing cycle</div>')
                 with gr.Row():
-                    imp_open_btn = gr.Button("▶ Open Cycle", variant="primary", size="sm")
-                    imp_cycle_id = gr.Textbox(label="Cycle ID prefix to advance", placeholder="e.g. imp_abc123", scale=2)
-                    imp_notes = gr.Textbox(label="Advance notes", placeholder="What was done in this stage", scale=3)
+                    imp_cycle_id = gr.Textbox(label="Cycle ID prefix", placeholder="e.g. imp_abc123", scale=2)
+                    imp_notes = gr.Textbox(label="Notes", placeholder="What was done in this stage", scale=3)
                     imp_advance_btn = gr.Button("→ Advance Stage", variant="secondary", size="sm")
                 imp_status = gr.Markdown()
 
@@ -11183,7 +11186,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 imp_open_btn.click(
                     start_improvement_cycle,
                     inputs=[imp_rule_sel, imp_trigger, imp_desc],
-                    outputs=imp_status,
+                    outputs=imp_open_status,
                 )
                 imp_advance_btn.click(
                     advance_improvement_cycle,
@@ -11286,8 +11289,8 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
 
                 gr.HTML('<div class="rl-group-label" style="margin-top:14px">Define a goal</div>')
                 with gr.Row():
-                    goal_name = gr.Textbox(label="Objective name", scale=3)
-                    goal_outcome = gr.Textbox(label="Business outcome", scale=3)
+                    goal_name = gr.Textbox(label="Objective name", placeholder="e.g. Improve rule compliance rate", scale=3)
+                    goal_outcome = gr.Textbox(label="Business outcome", placeholder="e.g. Reduce AI violations by 30%", scale=3)
                 with gr.Row():
                     goal_rules_csv = gr.Dropdown(label="Linked rules", choices=[], multiselect=True, scale=3)
                     goal_rules_refresh = gr.Button("↻", variant="secondary", size="sm", scale=0)
@@ -11322,10 +11325,10 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
 
                 gr.HTML('<div class="rl-group-label" style="margin-top:14px">Add a control</div>')
                 with gr.Row():
-                    ctrl_name = gr.Textbox(label="Control name", scale=3)
+                    ctrl_name = gr.Textbox(label="Control name", placeholder="e.g. Rule version control", scale=3)
                     ctrl_cat = gr.Dropdown(label="Category", choices=CONTROL_CATEGORIES, value="technical", scale=2)
                     ctrl_risk = gr.Dropdown(label="Risk level", choices=RISK_LEVELS, value="medium", scale=2)
-                ctrl_desc = gr.Textbox(label="Description", scale=4)
+                ctrl_desc = gr.Textbox(label="Description", placeholder="What this control does and how it mitigates risk", scale=4)
                 with gr.Row():
                     ctrl_rule_csv = gr.Dropdown(label="Linked rules", choices=[], multiselect=True, scale=3)
                     ctrl_rules_refresh = gr.Button("↻", variant="secondary", size="sm", scale=0)
