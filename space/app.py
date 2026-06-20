@@ -10496,7 +10496,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                                         placeholder="What the user said")
             enf_agent_resp = gr.Textbox(label="Agent response", lines=3,
                                         placeholder="What the AI responded")
-            enf_context = gr.Textbox(label="Context (optional)", lines=1)
+            enf_context = gr.Textbox(label="Context (optional)")
             enf_run_btn = gr.Button("🛡️ Validate & Log", variant="primary", size="sm")
             enf_result = gr.Markdown()
 
@@ -10512,7 +10512,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 outputs=enf_result,
             )
 
-            with gr.Accordion('🤖 AI Audit & Human Oversight', open=True):
+            with gr.Accordion('🤖 AI Audit & Human Oversight', open=False):
                 gr.HTML('<div class="section-title">AI Audit (Worker → Auditor)</div>')
                 gr.Markdown("Worker AI assesses rule compliance; Auditor AI independently reviews. Two-layer AI audit.")
                 with gr.Row():
@@ -10552,7 +10552,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 with gr.Row():
                     ov_ai_dec = gr.Textbox(label="AI Decision", scale=3)
                     ov_human_dec = gr.Textbox(label="Human Decision", scale=3)
-                ov_reason = gr.Textbox(label="Override Reason", lines=1)
+                ov_reason = gr.Textbox(label="Override Reason")
                 ov_log_btn = gr.Button("📝 Log Override", variant="secondary", size="sm")
                 ov_log_status = gr.Markdown()
                 gr.HTML('<div class="rl-group-label" style="margin-top:10px">Rate an existing override</div>')
@@ -10656,7 +10656,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     dp_trust = gr.Dropdown(label="Trust level", choices=DATA_TRUST_LEVELS,
                                            value="medium", scale=2)
                     dp_owner = gr.Textbox(label="Owner", scale=2)
-                dp_desc = gr.Textbox(label="Description", lines=1)
+                dp_desc = gr.Textbox(label="Description")
                 dp_add_btn = gr.Button("+ Register Source", variant="secondary", size="sm")
                 dp_add_status = gr.Markdown()
 
@@ -10787,7 +10787,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 outputs=[compass_gauge, compass_timeline, compass_alerts],
             )
 
-            with gr.Accordion('⚠️ Risk & Compliance', open=True):
+            with gr.Accordion('⚠️ Risk & Compliance', open=False):
                 gr.HTML('<div class="section-title">Risk Scoring</div>')
                 gr.Markdown("Risk = Priority × (1 − Effectiveness) × (1 + Bypass Rate). Higher = more urgent to fix.")
                 with gr.Row():
@@ -10891,7 +10891,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     bench_rule_sel = gr.Dropdown(label="Rule", choices=[], scale=3)
                     bench_should_trigger = gr.Checkbox(label="Should Trigger", value=True, scale=1)
                 bench_input_text = gr.Textbox(label="Input text", lines=2, placeholder="User message to test")
-                bench_expected = gr.Textbox(label="Expected behaviour", lines=1, placeholder="AI should refuse / apply / respond with…")
+                bench_expected = gr.Textbox(label="Expected behaviour", placeholder="AI should refuse / apply / respond with…")
                 with gr.Row():
                     bench_add_btn = gr.Button("+ Add Case", variant="secondary", size="sm")
                     bench_gen_btn = gr.Button("🤖 Auto-generate cases (LLM)", variant="secondary", size="sm")
@@ -10940,7 +10940,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     )
                 rca_violation = gr.Textbox(label="Violation description", lines=2,
                                            placeholder="Describe what went wrong")
-                rca_user_input = gr.Textbox(label="User input (optional)", lines=1,
+                rca_user_input = gr.Textbox(label="User input (optional)",
                                             placeholder="The message that triggered the issue")
                 rca_log_btn = gr.Button("📋 Log RCA", variant="primary", size="sm")
                 rca_status = gr.Markdown()
@@ -11123,7 +11123,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
             gov_tab.select(_refresh_gov_dash, outputs=[trust_gauge, trust_breakdown, gov_dash_md])
             gov_tab.select(build_governance_stat_bar, outputs=[governance_stat_bar])
 
-            with gr.Accordion('📐 SLOs & Continuous Improvement', open=True):
+            with gr.Accordion('📐 SLOs & Continuous Improvement', open=False):
                 gr.HTML('<div class="section-title">Rule Observability (SLOs)</div>')
                 gr.Markdown("Define effectiveness SLOs per rule and track error budgets in real time.")
                 slo_chart = gr.Plot()
@@ -11633,7 +11633,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
             testing_tab.select(_refresh_rob_rules, outputs=rob_rule_sel)
             testing_tab.select(build_testing_stat_bar, outputs=testing_stat_bar)
 
-            with gr.Accordion('⚖️ Fairness & Audit', open=True):
+            with gr.Accordion('⚖️ Fairness & Audit', open=False):
                 gr.HTML('<div class="section-title">Fairness &amp; Bias Detection</div>')
                 gr.Markdown("Compare rule trigger rates across demographic groups to detect disparate treatment (>10% disparity = bias).")
                 bias_summary_md = gr.Markdown()
