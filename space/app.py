@@ -2367,17 +2367,18 @@ def build_risk_table(query: str = "") -> str:
         bypass = r.get("bypass_rate")
         eff = r.get("effectiveness_score", 0)
         eff_color = "#059669" if eff >= 0.7 else "#d97706" if eff >= 0.4 else "#dc2626"
+        level_html = _level_badge.get(label, '<span class="rl-badge rl-badge-inactive">' + label + "</span>")
+        bypass_html = "—" if bypass is None else f"{bypass:.0%}"
         rows_html += (
             f"<tr>"
             f"<td style='max-width:180px'>{name[:32]}</td>"
             f"<td style='font-size:0.8rem;color:#475569'>{owner}</td>"
             f"<td style='font-size:0.8rem;color:#475569'>{team}</td>"
             f"<td style='text-align:right;font-weight:700;color:#334155'>{score:.2f}</td>"
-            f"<td>{_level_badge.get(label, f'<span class=\"rl-badge rl-badge-inactive\">{label}</span>')}</td>"
-            f"<td style='text-align:right'>{r.get('priority','?')}</td>"
+            f"<td>{level_html}</td>"
+            f"<td style='text-align:right'>{r.get('priority', '?')}</td>"
             f"<td style='text-align:right;color:{eff_color};font-weight:600'>{eff:.0%}</td>"
-            f"<td style='text-align:right;color:#94a3b8'>"
-            f"{'—' if bypass is None else f'{bypass:.0%}'}</td>"
+            f"<td style='text-align:right;color:#94a3b8'>{bypass_html}</td>"
             f"</tr>"
         )
     return (
@@ -3971,15 +3972,17 @@ def build_conflicts_table(query: str = "") -> str:
     for c in matched:
         sev = c.get("severity", "")
         st = c.get("status", "open")
+        sev_html = _sev_badge.get(sev.lower(), '<span class="rl-badge rl-badge-inactive">' + sev + "</span>")
+        st_html = _st_badge.get(st, '<span class="rl-badge rl-badge-inactive">' + st + "</span>")
         rows_html += (
             f"<tr>"
             f"<td style='font-family:monospace;font-size:0.75rem'>{c.get('conflict_id','')[:8]}</td>"
             f"<td style='font-size:0.8rem'>{c.get('rule_name_a','')[:22]}</td>"
             f"<td style='font-size:0.8rem'>{c.get('rule_name_b','')[:22]}</td>"
             f"<td style='font-size:0.78rem;color:#475569'>{c.get('conflict_type','')}</td>"
-            f"<td>{_sev_badge.get(sev.lower(), f'<span class=\"rl-badge rl-badge-inactive\">{sev}</span>')}</td>"
+            f"<td>{sev_html}</td>"
             f"<td style='max-width:200px;font-size:0.78rem;color:#64748b'>{c.get('explanation','')[:70]}</td>"
-            f"<td>{_st_badge.get(st, f'<span class=\"rl-badge rl-badge-inactive\">{st}</span>')}</td>"
+            f"<td>{st_html}</td>"
             f"</tr>"
         )
     return (
