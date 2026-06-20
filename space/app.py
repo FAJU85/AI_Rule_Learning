@@ -10228,7 +10228,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 with gr.Row():
                     ab_rule_selector = gr.Dropdown(label="Select rule to test", choices=[], scale=4)
                     ab_refresh_btn = gr.Button("↻", variant="secondary", size="sm", scale=0)
-                    ab_create_btn = gr.Button("🧪 Create A/B Variant", variant="secondary", scale=1)
+                    ab_create_btn = gr.Button("🧪 Create A/B Variant", variant="primary", scale=1)
                 ab_status = gr.Markdown()
                 ab_comparison = gr.Markdown()
 
@@ -10592,7 +10592,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     ov_ai_dec = gr.Textbox(label="AI Decision", placeholder="What the AI decided to do", scale=3)
                     ov_human_dec = gr.Textbox(label="Human Decision", placeholder="What you overrode it to", scale=3)
                 ov_reason = gr.Textbox(label="Override Reason", placeholder="Why this override was necessary")
-                ov_log_btn = gr.Button("📝 Log Override", variant="secondary", size="sm")
+                ov_log_btn = gr.Button("📝 Log Override", variant="primary", size="sm")
                 ov_log_status = gr.Markdown()
                 gr.HTML('<div class="rl-group-label" style="margin-top:10px">Rate an existing override</div>')
                 with gr.Row():
@@ -10637,7 +10637,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     esc_outcome = gr.Dropdown(
                         label="Outcome", choices=ESCALATION_OUTCOMES, value="correct_escalation", scale=2)
                     esc_notes = gr.Textbox(label="Notes", placeholder="Additional context or evidence", scale=3)
-                esc_log_btn = gr.Button("📋 Log Escalation", variant="secondary", size="sm")
+                esc_log_btn = gr.Button("📋 Log Escalation", variant="primary", size="sm")
                 esc_log_status = gr.Markdown()
 
                 def _refresh_esc():
@@ -10697,7 +10697,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                                            value="medium", scale=2)
                     dp_owner = gr.Textbox(label="Owner", placeholder="e.g. data-team", scale=2)
                 dp_desc = gr.Textbox(label="Description", placeholder="Brief description of this data source and how it's used")
-                dp_add_btn = gr.Button("+ Register Source", variant="secondary", size="sm")
+                dp_add_btn = gr.Button("+ Register Source", variant="primary", size="sm")
                 dp_add_status = gr.Markdown()
 
                 def _refresh_data_prov():
@@ -10770,14 +10770,14 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     beh_turn_no = gr.Number(label="Turn #", value=1, minimum=1, scale=1)
                     beh_hallu = gr.Checkbox(label="Hallucination detected?", value=False, scale=1)
                 with gr.Row():
-                    beh_accuracy    = gr.Slider(label="Accuracy",         minimum=0, maximum=1, value=0.8, step=0.05, scale=2)
-                    beh_consistency = gr.Slider(label="Consistency",       minimum=0, maximum=1, value=0.8, step=0.05, scale=2)
-                    beh_refusal     = gr.Slider(label="Refusal Quality",   minimum=0, maximum=1, value=0.8, step=0.05, scale=2)
+                    beh_accuracy    = gr.Slider(label="Accuracy",         minimum=0, maximum=1, value=0.8, step=0.05, scale=2, info="0 = wrong, 1 = fully correct")
+                    beh_consistency = gr.Slider(label="Consistency",       minimum=0, maximum=1, value=0.8, step=0.05, scale=2, info="0 = contradictory, 1 = fully consistent")
+                    beh_refusal     = gr.Slider(label="Refusal Quality",   minimum=0, maximum=1, value=0.8, step=0.05, scale=2, info="0 = bad refusal, 1 = ideal refusal")
                 with gr.Row():
-                    beh_tone        = gr.Slider(label="Tone",              minimum=0, maximum=1, value=0.8, step=0.05, scale=2)
-                    beh_verbosity   = gr.Slider(label="Verbosity",         minimum=0, maximum=1, value=0.8, step=0.05, scale=2)
+                    beh_tone        = gr.Slider(label="Tone",              minimum=0, maximum=1, value=0.8, step=0.05, scale=2, info="0 = inappropriate, 1 = ideal")
+                    beh_verbosity   = gr.Slider(label="Verbosity",         minimum=0, maximum=1, value=0.8, step=0.05, scale=2, info="0 = too terse/verbose, 1 = just right")
                     beh_notes       = gr.Textbox(label="Notes", placeholder="Optional context for this measurement", scale=2)
-                beh_record_btn = gr.Button("📊 Record Metrics", variant="secondary", size="sm")
+                beh_record_btn = gr.Button("📊 Record Metrics", variant="primary", size="sm")
                 beh_record_status = gr.Markdown()
 
                 def _refresh_beh():
@@ -10938,7 +10938,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 bench_input_text = gr.Textbox(label="Input text", lines=2, placeholder="User message to test")
                 bench_expected = gr.Textbox(label="Expected behaviour", placeholder="AI should refuse / apply / respond with…")
                 with gr.Row():
-                    bench_add_btn = gr.Button("+ Add Case", variant="secondary", size="sm")
+                    bench_add_btn = gr.Button("+ Add Case", variant="primary", size="sm")
                     bench_gen_btn = gr.Button("🤖 Auto-generate cases (LLM)", variant="secondary", size="sm")
                 bench_add_status = gr.Markdown()
 
@@ -11189,7 +11189,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     slo_target = gr.Number(label="Target %", value=90.0, minimum=50, maximum=100, scale=1)
                     slo_window = gr.Number(label="Window (days)", value=30, minimum=1, maximum=365, scale=1)
                 slo_name_in = gr.Textbox(label="SLO name", placeholder="e.g. Effectiveness ≥ 90%")
-                slo_add_btn = gr.Button("+ Add SLO", variant="secondary", size="sm")
+                slo_add_btn = gr.Button("+ Add SLO", variant="primary", size="sm")
                 slo_status = gr.Markdown()
 
                 def _refresh_slo():
@@ -11264,7 +11264,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 with gr.Row():
                     kg_node_rule = gr.Dropdown(label="Linked rule (optional)", choices=[], scale=3)
                     kg_node_rule_refresh = gr.Button("↻", variant="secondary", size="sm", scale=0)
-                kg_add_node_btn = gr.Button("+ Add Node", variant="secondary", size="sm")
+                kg_add_node_btn = gr.Button("+ Add Node", variant="primary", size="sm")
                 kg_node_status = gr.Markdown()
 
                 gr.HTML('<div class="rl-group-label" style="margin-top:14px">Add an edge</div>')
@@ -11348,7 +11348,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     goal_rules_csv = gr.Dropdown(label="Linked rules", choices=[], multiselect=True, scale=3)
                     goal_rules_refresh = gr.Button("↻", variant="secondary", size="sm", scale=0)
                     goal_target = gr.Number(label="Target score %", value=80, minimum=0, maximum=100, scale=1)
-                goal_add_btn = gr.Button("+ Add Goal", variant="secondary", size="sm")
+                goal_add_btn = gr.Button("+ Add Goal", variant="primary", size="sm")
                 goal_status = gr.Markdown()
 
                 def _refresh_goals():
@@ -11386,7 +11386,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     ctrl_rule_csv = gr.Dropdown(label="Linked rules", choices=[], multiselect=True, scale=3)
                     ctrl_rules_refresh = gr.Button("↻", variant="secondary", size="sm", scale=0)
                     ctrl_audit_ref = gr.Textbox(label="Audit reference", placeholder="e.g. ISO 27001 A.5.1", scale=3)
-                ctrl_add_btn = gr.Button("+ Add Control", variant="secondary", size="sm")
+                ctrl_add_btn = gr.Button("+ Add Control", variant="primary", size="sm")
                 ctrl_status = gr.Markdown()
 
                 def _refresh_controls():
@@ -11445,7 +11445,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     gaming_log_confirmed = gr.Checkbox(label="Confirmed?", scale=1)
                 gaming_log_input = gr.Textbox(label="User input", lines=2, scale=4, placeholder="The message that attempted to bypass the rule")
                 gaming_log_notes = gr.Textbox(label="Notes", placeholder="Any context about this gaming attempt", scale=3)
-                gaming_log_btn = gr.Button("Log Gaming Attempt", variant="secondary", size="sm")
+                gaming_log_btn = gr.Button("Log Gaming Attempt", variant="primary", size="sm")
                 gaming_log_status = gr.Markdown()
                 gaming_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm")
 
@@ -11494,7 +11494,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 with gr.Row():
                     meta_log_target = gr.Textbox(label="Target (rule ID / audit ID)", placeholder="e.g. rul_abc123 or aud_xyz456", scale=3)
                     meta_log_notes = gr.Textbox(label="Notes", placeholder="Additional context for the audit trail", scale=3)
-                meta_log_btn = gr.Button("Log Action", variant="secondary", size="sm")
+                meta_log_btn = gr.Button("Log Action", variant="primary", size="sm")
                 meta_log_status = gr.Markdown()
 
                 gr.HTML('<div class="rl-group-label" style="margin-top:14px">Permission check</div>')
@@ -11563,7 +11563,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 with gr.Row():
                     cert_rules_csv = gr.Dropdown(label="Linked rules (optional)", choices=[], multiselect=True, scale=4)
                     cert_rules_refresh = gr.Button("↻", variant="secondary", size="sm", scale=0)
-                cert_add_btn = gr.Button("+ Add Certification", variant="secondary", size="sm")
+                cert_add_btn = gr.Button("+ Add Certification", variant="primary", size="sm")
                 cert_status_md = gr.Markdown()
 
                 def _refresh_certs():
@@ -11628,7 +11628,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     cal_rule_csv = gr.Dropdown(label="Linked rules (optional)", choices=[], multiselect=True, scale=3)
                     cal_rules_refresh = gr.Button("↻", variant="secondary", size="sm", scale=0)
                 cal_desc = gr.Textbox(label="Description", placeholder="What needs to be done and why", scale=4)
-                cal_add_btn = gr.Button("+ Add Item", variant="secondary", size="sm")
+                cal_add_btn = gr.Button("+ Add Item", variant="primary", size="sm")
                 cal_add_status = gr.Markdown()
 
                 gr.HTML('<div class="rl-group-label" style="margin-top:14px">Mark item complete</div>')
