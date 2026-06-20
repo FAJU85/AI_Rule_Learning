@@ -2383,7 +2383,7 @@ def build_risk_table(query: str = "") -> str:
     return (
         f'<div class="rl-table-wrap"><table class="rl-table">'
         f"<thead><tr><th>Name</th><th>Owner</th><th>Team</th>"
-        f"<th>Score</th><th>Level</th><th>Pri</th><th>Effectiveness</th><th>Bypass</th></tr></thead>"
+        f"<th>Score</th><th>Level</th><th>Priority</th><th>Effectiveness</th><th>Bypass Rate</th></tr></thead>"
         f"<tbody>{rows_html}</tbody></table></div>"
     )
 
@@ -2534,7 +2534,7 @@ def build_lifecycle_table(query: str = "") -> str:
     return (
         f'<div class="rl-table-wrap"><table class="rl-table">'
         f"<thead><tr><th>State</th><th>Name</th><th>Owner</th><th>Team</th>"
-        f"<th>Pri</th><th>Created</th><th>Last Changed</th></tr></thead>"
+        f"<th>Priority</th><th>Created</th><th>Last Changed</th></tr></thead>"
         f"<tbody>{rows_html}</tbody></table></div>"
     )
 
@@ -3434,7 +3434,7 @@ def build_trace_table(conversation_id: str = "") -> str:
         )
     return (
         f'<div class="rl-table-wrap"><table class="rl-table">'
-        f"<thead><tr><th>Trace ID</th><th>Correlation ID</th><th>Turn</th><th>Rules Fired</th><th>Decision</th><th>Latency ms</th><th>Traced At</th></tr></thead>"
+        f"<thead><tr><th>Trace ID</th><th>Correlation ID</th><th>Turn</th><th>Rules Fired</th><th>Decision</th><th>Latency (ms)</th><th>Traced At</th></tr></thead>"
         f"<tbody>{rows_html}</tbody></table></div>"
     )
 
@@ -4917,7 +4917,7 @@ def build_enforcement_log_table(query: str = "") -> str:
         )
     return (
         f'<div class="rl-table-wrap"><table class="rl-table">'
-        f"<thead><tr><th>ID</th><th>Verdict</th><th>Pass</th><th>Fail</th><th>Warn</th>"
+        f"<thead><tr><th>ID</th><th>Verdict</th><th>✅ Pass</th><th>❌ Fail</th><th>⚠️ Warn</th>"
         f"<th>Failed Rules</th><th>Date</th></tr></thead>"
         f"<tbody>{rows_html}</tbody></table></div>"
     )
@@ -5097,7 +5097,7 @@ def build_audit_table(query: str = "") -> str:
         )
     return (
         f'<div class="rl-table-wrap"><table class="rl-table">'
-        f"<thead><tr><th>Audit ID</th><th>Conv</th><th>Turn</th><th>Worker</th><th>Auditor</th><th>Agreed</th><th>Note</th><th>Date</th></tr></thead>"
+        f"<thead><tr><th>Audit ID</th><th>Conv ID</th><th>Turn</th><th>Worker verdict</th><th>Auditor verdict</th><th>Agreed?</th><th>Note</th><th>Date</th></tr></thead>"
         f"<tbody>{rows_html}</tbody></table></div>"
     )
 
@@ -5202,7 +5202,7 @@ def build_overrides_table(query: str = "") -> str:
         )
     return (
         f'<div class="rl-table-wrap"><table class="rl-table">'
-        f"<thead><tr><th>ID</th><th>Conv</th><th>Turn</th><th>AI Decision</th>"
+        f"<thead><tr><th>ID</th><th>Conv ID</th><th>Turn</th><th>AI Decision</th>"
         f"<th>Human Decision</th><th>Reason</th><th>Correct</th><th>Date</th></tr></thead>"
         f"<tbody>{rows_html}</tbody></table></div>"
     )
@@ -5312,7 +5312,7 @@ def build_escalations_table(query: str = "") -> str:
         )
     return (
         f'<div class="rl-table-wrap"><table class="rl-table">'
-        f"<thead><tr><th>ID</th><th>Conv</th><th>Turn</th><th>Type</th>"
+        f"<thead><tr><th>ID</th><th>Conv ID</th><th>Turn</th><th>Type</th>"
         f"<th>Outcome</th><th>AI Action</th><th>Expected</th><th>Date</th></tr></thead>"
         f"<tbody>{rows_html}</tbody></table></div>"
     )
@@ -5420,7 +5420,7 @@ def build_provenance_table(conversation_id: str = "") -> str:
         )
     return (
         f'<div class="rl-table-wrap"><table class="rl-table">'
-        f"<thead><tr><th>ID</th><th>Conv</th><th>Turn</th><th>Input</th><th>Rules Applied</th><th>Output</th><th>Model</th><th>Date</th></tr></thead>"
+        f"<thead><tr><th>ID</th><th>Conv ID</th><th>Turn</th><th>Input</th><th>Rules Applied</th><th>Output</th><th>Model</th><th>Date</th></tr></thead>"
         f"<tbody>{rows_html}</tbody></table></div>"
     )
 
@@ -8599,7 +8599,7 @@ def build_gaming_table(query: str = "") -> str:
         )
     return (
         f'<div class="rl-table-wrap"><table class="rl-table">'
-        f"<thead><tr><th>ID</th><th>Conv</th><th>Turn</th>"
+        f"<thead><tr><th>ID</th><th>Conv ID</th><th>Turn</th>"
         f"<th>Patterns</th><th>Confirmed</th><th>Timestamp</th></tr></thead>"
         f"<tbody>{rows_html}</tbody></table></div>"
     )
