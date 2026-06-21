@@ -4,8 +4,8 @@
   "description": "Universal development environment setup reference and tooling guide",
   "private": true,
   "scripts": {
-    "lint": "markdownlint-cli2 '**/*.md' '#node_modules' '#README-DEVELOPMENT-1.md' '#MVP.md'",
-    "lint:fix": "markdownlint-cli2 --fix '**/*.md' '#node_modules' '#README-DEVELOPMENT-1.md' '#MVP.md'",
+    "lint": "markdownlint-cli2 '**/*.md' '#node_modules' '#.claude' '#README-DEVELOPMENT-1.md' '#MVP.md' '#CLAUDE.md' '#AGENTS.md' '#.agents'",
+    "lint:fix": "markdownlint-cli2 --fix '**/*.md' '#node_modules' '#.claude' '#README-DEVELOPMENT-1.md' '#MVP.md' '#CLAUDE.md' '#AGENTS.md' '#.agents'",
     "format": "prettier --write '**/*.md' '**/*.json' '**/*.yml'",
     "format:check": "prettier --check '**/*.md' '**/*.json' '**/*.yml'",
     "validate": "npm run lint && npm run format:check",
