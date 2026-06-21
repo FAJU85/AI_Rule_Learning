@@ -26,12 +26,20 @@ from mcp.types import Tool
 
 from .community import contribute_gaps
 from .gap_detector import analyze_conversations, generate_rules
-from .injector import detected_targets, format_rules_block, write_memory_all, write_rules_all
+from .injector import detected_targets, format_rules_block, write_memory_all, write_rules_all, write_skills_all
 from .memory import (
     add_memory,
     format_memory_for_display,
     forget,
     load_memory,
+)
+from .skills import (
+    delete_skill,
+    format_skill_detail,
+    format_skills_for_display,
+    get_skill,
+    list_skills,
+    save_skill,
 )
 from .providers import parse_any
 from .store import (
@@ -214,6 +222,66 @@ async def list_tools() -> list[Tool]:
             description="Show which session sources and AI agents are detected on this machine.",
             inputSchema={"type": "object", "properties": {}, "required": []},
         ),
+        Tool(
+            name="save_skill",
+            description=(
+                "Save a reusable workflow procedure so it can be recalled in any future session "
+                "across all AI agents. Call when the user completes a multi-step task that they "
+                "are likely to repeat — e.g. 'create a FastAPI endpoint', 'deploy to Hugging Face'. "
+                "The skill is stored locally and its name is injected into every agent config "
+                "so agents know it exists without loading the full steps every time."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "Short descriptive name, e.g. 'Create FastAPI Endpoint'.",
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "One sentence explaining what this skill does.",
+                    },
+                    "steps": {
+                        "type": "string",
+                        "description": "The full procedure in markdown — numbered steps, code blocks, etc.",
+                    },
+                    "triggers": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Keywords or phrases that should trigger loading this skill.",
+                    },
+                },
+                "required": ["name", "description", "steps"],
+            },
+        ),
+        Tool(
+            name="list_skills",
+            description=(
+                "List all saved skill procedures (names and descriptions only). "
+                "Call at the start of a session to know which reusable workflows are available, "
+                "then call get_skill to load the full steps when needed."
+            ),
+            inputSchema={"type": "object", "properties": {}, "required": []},
+        ),
+        Tool(
+            name="get_skill",
+            description=(
+                "Load the full steps for a saved skill by name or keyword. "
+                "Returns the complete procedure so you can follow it exactly. "
+                "Also increments the usage counter so popular skills are tracked."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "Skill name or keyword to search for.",
+                    }
+                },
+                "required": ["name"],
+            },
+        ),
     ]
 
 
@@ -242,6 +310,17 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
         return await _install_scheduler(arguments.get("action", "install"))
     if name == "list_providers":
         return await _list_providers()
+    if name == "save_skill":
+        return await _save_skill(
+            skill_name=arguments.get("name", ""),
+            description=arguments.get("description", ""),
+            steps=arguments.get("steps", ""),
+            triggers=arguments.get("triggers", []),
+        )
+    if name == "list_skills":
+        return await _list_skills()
+    if name == "get_skill":
+        return await _get_skill(arguments.get("name", ""))
     return [TextContent(type="text", text=f"Unknown tool: {name}")]
 
 
@@ -491,6 +570,59 @@ async def _list_providers() -> list[TextContent]:
         "**Supported formats:** Claude Code (.jsonl), ChatGPT export (conversations.json), Generic JSONL"
     )
     return [TextContent(type="text", text="\n".join(lines))]
+
+
+async def _save_skill(
+    skill_name: str,
+    description: str,
+    steps: str,
+    triggers: list[str] | None = None,
+) -> list[TextContent]:
+    if not skill_name.strip():
+        return [TextContent(type="text", text="❌ Skill name cannot be empty.")]
+    if not steps.strip():
+        return [TextContent(type="text", text="❌ Steps cannot be empty.")]
+
+    skill = save_skill(skill_name, description, steps, triggers or [])
+    skills = list_skills()
+    written = write_skills_all(skills)
+    targets_str = ", ".join(n for n, _ in written) if written else "no agent configs detected"
+
+    return [
+        TextContent(
+            type="text",
+            text=(
+                f"✅ Skill saved: **{skill['name']}**\n"
+                f"Slug: {skill['slug']}\n"
+                f"Written to: {targets_str}\n"
+                f"Total skills: {len(skills)}\n\n"
+                f"Call `get_skill(\"{skill['name']}\")` to load the full steps."
+            ),
+        )
+    ]
+
+
+async def _list_skills() -> list[TextContent]:
+    skills = list_skills()
+    return [TextContent(type="text", text=format_skills_for_display(skills))]
+
+
+async def _get_skill(name: str) -> list[TextContent]:
+    if not name.strip():
+        return [TextContent(type="text", text="❌ Skill name cannot be empty.")]
+
+    skill = get_skill(name)
+    if skill is None:
+        return [
+            TextContent(
+                type="text",
+                text=(
+                    f"❌ Skill not found: {name!r}\n"
+                    "Use list_skills to see available skills."
+                ),
+            )
+        ]
+    return [TextContent(type="text", text=format_skill_detail(skill))]
 
 
 def main() -> None:
