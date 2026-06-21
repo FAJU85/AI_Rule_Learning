@@ -7034,21 +7034,40 @@ Gap detected → Group similar gaps → ≥2 occurrences?
 # ---------------------------------------------------------------------------
 
 _CSS = """
-/* ══════════════════════════════════════════════════════════════════════
-   AI Rule Learning — Design System  (light slate/indigo theme)
-   ══════════════════════════════════════════════════════════════════════ */
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&display=swap');
 
-/* ── Reset & base ────────────────────────────────────────────────────── */
+/* Horizon UI Design System */
+:root {
+  --hz-brand: #422AFB;
+  --hz-brand-light: #868CFF;
+  --hz-bg: #F4F7FE;
+  --hz-surface: #FFFFFF;
+  --hz-navy: #1B2559;
+  --hz-text-primary: #1B2559;
+  --hz-text-secondary: #A3AED0;
+  --hz-text-muted: #707EAE;
+  --hz-border: #E0E5F2;
+  --hz-shadow: 14px 17px 40px 4px rgba(112,144,176,0.08);
+  --hz-shadow-hover: 14px 17px 40px 4px rgba(112,144,176,0.18);
+  --hz-radius: 20px;
+  --hz-radius-sm: 10px;
+  --hz-green: #01B574;
+  --hz-red: #EE5D50;
+  --hz-orange: #FFB547;
+  --hz-blue: #0075FF;
+}
+
+/* Reset & base */
 *, *::before, *::after { box-sizing: border-box; }
 body, .gradio-container {
-    background: #f1f5f9 !important;
-    color: #0f172a;
-    font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
-                 "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-    font-size: 14px;
-    line-height: 1.5;
+  background: var(--hz-bg) !important;
+  color: var(--hz-text-primary);
+  font-family: 'DM Sans', ui-sans-serif, system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  letter-spacing: -0.02em;
 }
-.app { background: #f1f5f9 !important; }
+.app { background: var(--hz-bg) !important; }
 
 /* ── Main content padding ────────────────────────────────────────────── */
 .gradio-container > .main { padding: 0 !important; }
