@@ -11082,6 +11082,99 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
 """)
 
     with gr.Tabs(elem_id="main-tabs"):
+        # ── Get Started ──────────────────────────────────────────────────────
+        with gr.Tab("🚀 Get Started"):
+            gr.Markdown("""
+## AI Rule Learning — MCP for any AI agent
+
+Your AI gets smarter every session, automatically.
+
+AI Rule Learning watches how your conversations go, spots friction patterns, and writes
+personalised guardrail rules directly into Claude Code, Cursor, Windsurf, and GitHub Copilot.
+It also remembers facts about you and saves reusable workflows — so every session starts with
+full context.
+
+---
+
+### Install
+
+```bash
+pip install ai-rule-learning-mcp
+```
+
+### Connect to your agent
+
+Add to `~/.claude/claude_desktop_config.json` (or your Cursor / Windsurf MCP config):
+
+```json
+{
+  "mcpServers": {
+    "ai-rule-learning": {
+      "command": "ai-rule-learning-mcp"
+    }
+  }
+}
+```
+
+Or use the CLI with zero config:
+
+```bash
+ai-rule-learning sync
+ai-rule-learning status
+```
+
+---
+
+### Five compounding pillars
+
+| Pillar | How it works |
+| --- | --- |
+| **Rules** | Detects corrections and friction → writes guardrail rules to every agent config |
+| **Memory** | Remembers preferences, stack, constraints across all sessions |
+| **Universal injection** | Writes to Claude Code, Cursor, Windsurf, and GitHub Copilot automatically |
+| **Auto-sync** | Runs nightly via LaunchAgent / systemd / cron |
+| **Skills** | Saves repeatable multi-step workflows for instant recall |
+
+---
+
+### MCP tools
+
+| Tool | When to call it |
+| --- | --- |
+| `get_guardrail_rules` | Start of session — loads your personalised rules |
+| `record_feedback` | When you correct the agent — creates a rule in real time |
+| `sync_sessions` | Scan history, detect patterns, update all agent configs |
+| `remember` | Store a preference, constraint, or context fact |
+| `recall` | Load everything known about you |
+| `save_skill` | Save a multi-step workflow for future reuse |
+| `list_skills` | Show all saved skills |
+| `get_skill` | Load full steps for a saved skill |
+| `install_scheduler` | Set up nightly auto-sync |
+| `list_providers` | Show detected agents and session paths |
+
+---
+
+### What gets written where
+
+| Agent | Config file |
+| --- | --- |
+| Claude Code | `~/.claude/CLAUDE.md` |
+| Cursor | `~/.cursor/rules/ai-guardrails.md` |
+| Windsurf | `~/.windsurf/rules/ai-guardrails.md` |
+| GitHub Copilot | `~/.config/github-copilot/instructions.md` |
+
+All sections use HTML comment markers and are updated idempotently — re-running sync
+updates the block without duplicating it.
+
+---
+
+### Privacy
+
+- Raw conversation text **never** leaves your machine
+- PII (email, home paths, IPs, tokens) is scrubbed before storage
+- Community contributions share only gap type, severity, and turn count — nothing else
+""")
+
         # ── Dashboard ────────────────────────────────────────────────────────
         with gr.Tab("📊 Dashboard"):
             # ── Top bar: title + refresh ──────────────────────────────────────
