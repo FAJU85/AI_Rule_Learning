@@ -7217,28 +7217,124 @@ body, .gradio-container {
 .action-icon { font-size: 1rem; flex-shrink: 0; margin-top: 1px; }
 .action-text { flex: 1; line-height: 1.4; }
 
-/* ── Tab navigation ──────────────────────────────────────────────────── */
+/* ── Sidebar navigation layout ───────────────────────────────────────── */
+/* Page root: remove default padding so sidebar touches the edge */
+.gradio-container { max-width: 100% !important; padding: 0 !important; }
+.contain { max-width: 100% !important; padding: 0 !important; }
+/* Tabs wrapper becomes the flex shell */
+[data-testid="tabs"] {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: stretch !important;
+  gap: 0 !important;
+  width: 100% !important;
+  min-height: 100vh;
+}
+/* Tab nav → sidebar */
 .tab-nav {
-  overflow-x: auto; -webkit-overflow-scrolling: touch; white-space: nowrap;
-  scrollbar-width: none; background: var(--hz-surface);
-  box-shadow: var(--hz-shadow); border-radius: 0 0 var(--hz-radius) var(--hz-radius);
-  margin-bottom: 20px; padding: 0 8px; position: sticky; top: 0; z-index: 10;
+  display: flex !important;
+  flex-direction: column !important;
+  width: 256px !important;
+  min-width: 256px !important;
+  max-width: 256px !important;
+  flex-shrink: 0 !important;
+  height: 100vh !important;
+  position: sticky !important;
+  top: 0 !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  background: var(--hz-surface) !important;
+  box-shadow: 4px 0 24px rgba(112,144,176,0.12) !important;
+  border-radius: 0 !important;
+  padding: 0 0 24px !important;
+  margin: 0 !important;
+  white-space: normal !important;
+  z-index: 10;
+  scrollbar-width: thin;
+  scrollbar-color: var(--hz-border) transparent;
 }
-.tab-nav::-webkit-scrollbar { display: none; }
+.tab-nav::-webkit-scrollbar { width: 4px; }
+.tab-nav::-webkit-scrollbar-thumb { background: var(--hz-border); border-radius: 2px; }
+/* Nav buttons = vertical sidebar items */
 .tab-nav button {
-  color: var(--hz-text-secondary) !important; font-weight: 500; white-space: nowrap;
-  padding: 14px 16px !important; min-height: 48px; font-size: 0.85rem !important;
-  border-bottom: 2px solid transparent !important;
+  display: flex !important;
+  align-items: center !important;
+  width: 100% !important;
+  text-align: left !important;
+  padding: 12px 20px !important;
+  border-left: 3px solid transparent !important;
+  border-bottom: none !important;
+  border-radius: 0 !important;
+  font-size: 0.88rem !important;
+  font-weight: 500 !important;
+  color: var(--hz-text-secondary) !important;
   font-family: 'DM Sans', sans-serif !important;
-  transition: color 0.15s, border-color 0.15s;
+  white-space: nowrap !important;
+  min-height: 46px !important;
+  transition: all 0.15s ease !important;
 }
-.tab-nav button.selected, .tab-nav button[aria-selected="true"] {
+.tab-nav button.selected,
+.tab-nav button[aria-selected="true"] {
+  border-left-color: var(--hz-brand) !important;
+  border-bottom-color: transparent !important;
+  background: rgba(66,42,251,0.07) !important;
   color: var(--hz-brand) !important;
-  border-bottom-color: var(--hz-brand) !important;
   font-weight: 700 !important;
 }
 .tab-nav button:hover:not(.selected):not([aria-selected="true"]) {
-  color: var(--hz-navy) !important; background: var(--hz-bg) !important;
+  background: var(--hz-bg) !important;
+  color: var(--hz-navy) !important;
+  border-left-color: var(--hz-border) !important;
+}
+/* Tab content area = main panel */
+[data-testid="tabitem"],
+.tabitem {
+  flex: 1 !important;
+  min-width: 0 !important;
+  padding: 24px 20px !important;
+  overflow-y: auto !important;
+}
+/* Sidebar brand header (injected by JS) */
+.hz-sidebar-brand {
+  display: flex !important;
+  align-items: center !important;
+  gap: 14px !important;
+  padding: 24px 20px 20px !important;
+  border-bottom: 1px solid var(--hz-border) !important;
+  margin-bottom: 8px !important;
+}
+/* Quick actions section (injected by JS) */
+.hz-quick-actions {
+  padding: 12px 12px 0 !important;
+  border-top: 1px solid var(--hz-border) !important;
+  margin-top: 8px !important;
+}
+.hz-qa-label {
+  font-size: 0.62rem !important;
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.1em !important;
+  color: var(--hz-text-secondary) !important;
+  padding: 0 8px 8px !important;
+  display: block !important;
+}
+.hz-qa-item {
+  display: flex !important;
+  align-items: center !important;
+  gap: 9px !important;
+  padding: 9px 12px !important;
+  border-radius: var(--hz-radius-sm) !important;
+  font-size: 0.82rem !important;
+  color: var(--hz-text-primary) !important;
+  text-decoration: none !important;
+  cursor: pointer !important;
+  transition: all 0.15s ease !important;
+  margin-bottom: 2px !important;
+  display: flex !important;
+}
+.hz-qa-item:hover {
+  background: rgba(66,42,251,0.06) !important;
+  color: var(--hz-brand) !important;
 }
 
 /* ── Inputs ──────────────────────────────────────────────────────────── */
@@ -7422,8 +7518,13 @@ img, video, canvas, iframe { max-width: 100%; height: auto; }
   .rl-table td { font-size: 0.78rem !important; padding: 7px 10px !important; }
   .rl-table th { font-size: 0.64rem !important; padding: 7px 10px !important; }
   button, .gr-button { min-height: 44px !important; }
-  .tab-nav { flex-wrap: nowrap !important; overflow-x: auto !important; scroll-snap-type: x mandatory; }
-  .tab-nav button { padding: 10px 10px !important; font-size: 0.78rem !important; white-space: nowrap !important; scroll-snap-align: start; flex-shrink: 0; }
+  [data-testid="tabs"] { flex-direction: column !important; }
+  .tab-nav { flex-direction: row !important; width: 100% !important; min-width: 100% !important; max-width: 100% !important; height: auto !important; position: sticky !important; overflow-x: auto !important; overflow-y: hidden !important; box-shadow: 0 4px 12px rgba(112,144,176,0.1) !important; padding: 0 !important; flex-shrink: 0 !important; }
+  .hz-sidebar-brand { display: none !important; }
+  .hz-quick-actions { display: none !important; }
+  [data-testid="tabitem"], .tabitem { padding: 16px 12px !important; }
+  .tab-nav button { border-left: none !important; border-bottom: 3px solid transparent !important; white-space: nowrap !important; flex-shrink: 0 !important; padding: 10px 12px !important; font-size: 0.78rem !important; min-height: 44px !important; }
+  .tab-nav button.selected, .tab-nav button[aria-selected="true"] { border-left-color: transparent !important; border-bottom-color: var(--hz-brand) !important; background: transparent !important; }
   textarea, input[type="text"], input[type="number"], select { min-height: 44px; font-size: 16px !important; }
   .search-row-wrapper, .search-row-wrapper[data-testid="row"] { flex-direction: row !important; gap: 8px !important; align-items: center !important; }
   .search-row-wrapper .gr-textbox { flex: 1 !important; min-width: 0; }
@@ -7452,6 +7553,11 @@ img, video, canvas, iframe { max-width: 100%; height: auto; }
   .rl-score-fill { height: 4px !important; }
   .rl-empty { padding: 16px; font-size: 0.78rem; }
   .rl-onboard-num { width: 24px; height: 24px; font-size: 0.72rem; }
+  .rl-table thead { display: none !important; }
+  .rl-table, .rl-table tbody { display: flex !important; flex-direction: column !important; gap: 8px !important; width: 100% !important; }
+  .rl-table tr { display: flex !important; flex-wrap: wrap !important; border: 1px solid var(--hz-border) !important; border-radius: var(--hz-radius-sm) !important; padding: 10px 8px !important; background: var(--hz-surface) !important; gap: 4px !important; }
+  .rl-table td { flex: 1 1 auto !important; padding: 4px 6px !important; font-size: 0.78rem !important; white-space: normal !important; border-bottom: none !important; }
+  .rl-table td:first-child { flex: 0 0 auto !important; }
 }
 """
 
@@ -7465,12 +7571,33 @@ def _dark_fig(fig: Any) -> Any:
     """Apply consistent Horizon UI styling to a Plotly figure."""
     fig.update_layout(
         paper_bgcolor="#FFFFFF",
-        plot_bgcolor="#F4F7FE",
-        font=dict(color="#1B2559", size=12),
-        xaxis=dict(gridcolor="#E0E5F2", linecolor="#E0E5F2"),
-        yaxis=dict(gridcolor="#E0E5F2", linecolor="#E0E5F2"),
+        plot_bgcolor="#F8FAFF",
+        font=dict(family="DM Sans, ui-sans-serif, sans-serif", color="#1B2559", size=12),
+        xaxis=dict(
+            gridcolor="#E8EEF6",
+            linecolor="#E0E5F2",
+            tickfont=dict(color="#A3AED0", size=11),
+            title_font=dict(color="#707EAE"),
+        ),
+        yaxis=dict(
+            gridcolor="#E8EEF6",
+            linecolor="#E0E5F2",
+            tickfont=dict(color="#A3AED0", size=11),
+            title_font=dict(color="#707EAE"),
+        ),
         margin=dict(l=16, r=16, t=44, b=16),
         autosize=True,
+        legend=dict(
+            bgcolor="rgba(255,255,255,0.8)",
+            bordercolor="#E0E5F2",
+            borderwidth=1,
+            font=dict(color="#1B2559", size=11),
+        ),
+        hoverlabel=dict(
+            bgcolor="#1B2559",
+            font=dict(color="#FFFFFF", size=12),
+            bordercolor="#422AFB",
+        ),
     )
     return fig
 
@@ -10918,21 +11045,43 @@ def build_maturity_report() -> str:
 
 with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as demo:
     gr.HTML("""
-<div class="hz-navbar">
-  <div class="hz-navbar-brand">
-    <div class="hz-brand-icon">🧠</div>
-    <div>
-      <div class="hz-brand-title">AI Rule Learning</div>
-      <div class="hz-brand-sub">Governance Dashboard</div>
-    </div>
-  </div>
-  <div class="hz-navbar-right">
-    <span class="hz-navbar-badge">● Live</span>
-  </div>
-</div>
+<script>
+(function () {
+  'use strict';
+  var BRAND = '<div class="hz-sidebar-brand"><div class="hz-brand-icon" style="width:40px;height:40px;border-radius:10px;background:linear-gradient(135deg,#868CFF 0%,#4318FF 100%);display:flex;align-items:center;justify-content:center;font-size:1.2rem;flex-shrink:0">🧠</div><div><div style="font-size:1rem;font-weight:700;color:#1B2559;letter-spacing:-0.03em">AI Rule Learning</div><div style="font-size:0.72rem;color:#707EAE;margin-top:2px">Governance Platform</div></div></div>';
+  var QA = '<div class="hz-quick-actions"><span class="hz-qa-label">Quick Actions</span><a class="hz-qa-item" onclick="hzGoto(2);return false;">📤 Import Sessions</a><a class="hz-qa-item" onclick="hzGoto(2);return false;">🔬 Run Analysis</a><a class="hz-qa-item" onclick="hzGoto(1);return false;">📋 Review Rules</a><a class="hz-qa-item" onclick="hzGoto(3);return false;">🔍 Monitor Health</a><a class="hz-qa-item" onclick="hzGoto(5);return false;">⚖️ Governance</a><a class="hz-qa-item" onclick="hzGoto(6);return false;">🧪 Testing</a></div>';
+
+  window.hzGoto = function (idx) {
+    var tabs = document.querySelectorAll('[role="tablist"] [role="tab"]');
+    if (tabs[idx]) tabs[idx].click();
+    return false;
+  };
+
+  function install() {
+    var nav = document.querySelector('[role="tablist"]');
+    if (!nav) { setTimeout(install, 200); return; }
+    if (nav.dataset.hzDone) return;
+    nav.dataset.hzDone = '1';
+    if (!nav.querySelector('.hz-sidebar-brand')) {
+      nav.insertAdjacentHTML('afterbegin', BRAND);
+    }
+    if (!nav.querySelector('.hz-quick-actions')) {
+      nav.insertAdjacentHTML('beforeend', QA);
+    }
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', install);
+  } else {
+    install();
+  }
+  setTimeout(install, 600);
+  setTimeout(install, 2500);
+})();
+</script>
 """)
 
-    with gr.Tabs():
+    with gr.Tabs(elem_id="main-tabs"):
         # ── Dashboard ────────────────────────────────────────────────────────
         with gr.Tab("📊 Dashboard"):
             # ── Top bar: title + refresh ──────────────────────────────────────
