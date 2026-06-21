@@ -8,6 +8,9 @@ Usage:
   ai-rule-learning memory show       Show all remembered facts and preferences
   ai-rule-learning memory add <type> <content>   Add a memory entry manually
   ai-rule-learning memory clear      Delete all memory entries
+  ai-rule-learning install-cron      Install nightly auto-sync (macOS/Linux)
+  ai-rule-learning uninstall-cron    Remove the nightly auto-sync job
+  ai-rule-learning cron-status       Show whether auto-sync is scheduled
 """
 
 from __future__ import annotations
@@ -217,6 +220,34 @@ def cmd_memory(args: list[str]) -> None:
         print("Available: show, add, clear")
 
 
+def cmd_install_cron(_args: list[str]) -> None:
+    from .scheduler import install, status
+
+    msg = install()
+    print(f"✅ {msg}")
+    print(f"\nScheduler status: {status()}")
+    print("The system will now sync automatically every night at 02:00.")
+
+
+def cmd_uninstall_cron(_args: list[str]) -> None:
+    from .scheduler import uninstall
+
+    removed = uninstall()
+    if removed:
+        print("✅ Nightly auto-sync removed.")
+    else:
+        print("ℹ️  No auto-sync job found.")
+
+
+def cmd_cron_status(_args: list[str]) -> None:
+    from .scheduler import status, is_installed
+
+    st = status()
+    print(st)
+    if not is_installed():
+        print("\nRun `ai-rule-learning install-cron` to enable nightly auto-sync.")
+
+
 def main() -> None:
     argv = sys.argv[1:]
     cmd = argv[0] if argv else "status"
@@ -228,6 +259,9 @@ def main() -> None:
         "rules": cmd_rules,
         "clear": cmd_clear,
         "memory": cmd_memory,
+        "install-cron": cmd_install_cron,
+        "uninstall-cron": cmd_uninstall_cron,
+        "cron-status": cmd_cron_status,
     }
 
     fn = dispatch.get(cmd)
