@@ -186,6 +186,7 @@ class ConversationInterceptor:
             sentiment_after=sentiment_after,
             rules_applied=applied_rule_ids,
             gaps_detected=gaps,
+            severity=None,
         )
 
         # If a gap was detected and it implies a specific mistake, annotate
@@ -253,6 +254,7 @@ class ConversationInterceptor:
                 turn_number=len(existing_turns) + 1,
                 user_input=user_input,
                 agent_response=ai_response,
+                severity=None,
             )
             all_turns = list(existing_turns) + [temp_turn]
             return self._gap_detector.detect(all_turns)
