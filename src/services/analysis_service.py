@@ -8,6 +8,7 @@ Workflow:
    generate a refined Rule.
 5. Deploy new rules via DatasetManager and return the list.
 """
+
 from __future__ import annotations
 
 import json
@@ -16,9 +17,6 @@ from collections import defaultdict
 from datetime import datetime
 from datetime import timedelta
 from typing import Any
-from typing import Dict
-from typing import List
-from typing import Optional
 
 from config.settings import settings
 from src.core.gap_detector import GapDetector
@@ -39,7 +37,7 @@ class AnalysisService:
         self,
         dataset_manager: Any,
         adapter: Any,
-        gap_detector: Optional[GapDetector] = None,
+        gap_detector: GapDetector | None = None,
     ) -> None:
         self._dm = dataset_manager
         self._adapter = adapter
@@ -53,7 +51,7 @@ class AnalysisService:
         self,
         lookback_hours: int = 24,
         limit: int = 500,
-    ) -> List[Rule]:
+    ) -> list[Rule]:
         """Analyse conversations from the last *lookback_hours* hours.
 
         Returns a list of newly created Rule objects.
@@ -71,7 +69,7 @@ class AnalysisService:
             return []
 
         # Collect all gaps with their source conversation ID
-        gap_groups: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
+        gap_groups: dict[str, list[dict[str, Any]]] = defaultdict(list)
 
         for conv in conversations:
             if len(conv.turns) < settings.MIN_SESSION_LENGTH:
@@ -90,7 +88,7 @@ class AnalysisService:
             },
         )
 
-        new_rules: List[Rule] = []
+        new_rules: list[Rule] = []
         for gap_type, occurrences in gap_groups.items():
             if len(occurrences) < settings.MIN_GAPS_FOR_RULE:
                 logger.debug(
@@ -115,9 +113,7 @@ class AnalysisService:
     # Rule generation
     # ------------------------------------------------------------------
 
-    def _generate_rule(
-        self, gap_type: str, occurrences: List[Dict[str, Any]]
-    ) -> Optional[Rule]:
+    def _generate_rule(self, gap_type: str, occurrences: list[dict[str, Any]]) -> Rule | None:
         """Ask the AI to generate a rule definition for a recurring gap type."""
         sample = occurrences[:5]  # cap prompt size
         avg_severity = sum(o.get("severity", 1) for o in occurrences) / len(occurrences)
@@ -152,12 +148,11 @@ class AnalysisService:
     @staticmethod
     def _build_rule_generation_prompt(
         gap_type: str,
-        sample_gaps: List[Dict[str, Any]],
+        sample_gaps: list[dict[str, Any]],
         avg_severity: float,
     ) -> str:
         examples_text = "\n".join(
-            f"- Turn {g.get('turn_number', '?')}: {g.get('evidence', '')[:120]}"
-            for g in sample_gaps
+            f"- Turn {g.get('turn_number', '?')}: {g.get('evidence', '')[:120]}" for g in sample_gaps
         )
         return f"""A recurring AI conversation problem has been detected.
 
@@ -179,7 +174,7 @@ Generate a guardrail rule to prevent this problem. Respond with JSON matching th
 
     def _parse_rule_from_ai(
         self,
-        data: Dict[str, Any],
+        data: dict[str, Any],
         gap_type: str,
         source_conv: str,
         avg_severity: float,
@@ -208,7 +203,7 @@ Generate a guardrail rule to prevent this problem. Respond with JSON matching th
     def _fallback_rule(
         self,
         gap_type: str,
-        occurrences: List[Dict[str, Any]],
+        occurrences: list[dict[str, Any]],
         source_conv: str,
         avg_severity: float,
     ) -> Rule:

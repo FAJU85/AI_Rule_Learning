@@ -1,8 +1,6 @@
 """Anthropic / Claude adapter — wraps the anthropic Python SDK."""
-from __future__ import annotations
 
-from typing import List
-from typing import Optional
+from __future__ import annotations
 
 from config.settings import settings
 from src.adapters.base_adapter import BaseAIAdapter
@@ -16,8 +14,8 @@ class ClaudeAdapter(BaseAIAdapter):
 
     def __init__(
         self,
-        api_key: Optional[str] = None,
-        model: Optional[str] = None,
+        api_key: str | None = None,
+        model: str | None = None,
     ) -> None:
         self._api_key = api_key or settings.ANTHROPIC_API_KEY
         self._model = model or settings.ANTHROPIC_MODEL
@@ -92,16 +90,16 @@ class ClaudeAdapter(BaseAIAdapter):
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _build_messages(user_input: str, conversation_history: str) -> List[dict]:
+    def _build_messages(user_input: str, conversation_history: str) -> list[dict]:
         """Convert plain-text history to Anthropic messages format."""
-        messages: List[dict] = []
+        messages: list[dict] = []
 
         if conversation_history:
             for line in conversation_history.strip().splitlines():
                 if line.startswith("User: "):
-                    messages.append({"role": "user", "content": line[len("User: "):]})
+                    messages.append({"role": "user", "content": line[len("User: ") :]})
                 elif line.startswith("AI: "):
-                    messages.append({"role": "assistant", "content": line[len("AI: "):]})
+                    messages.append({"role": "assistant", "content": line[len("AI: ") :]})
 
         messages.append({"role": "user", "content": user_input})
         return messages

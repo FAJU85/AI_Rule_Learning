@@ -5,14 +5,12 @@ Lifecycle:
   2. process_turn()     — pre-hook (apply rules) → call AI → post-hook (detect gaps)
   3. end_session()      — finalise Conversation and save to DatasetManager
 """
+
 from __future__ import annotations
 
 import uuid
 from datetime import datetime
 from typing import Any
-from typing import Dict
-from typing import List
-from typing import Optional
 
 from config.settings import settings
 from src.core.alignment_sensor import AlignmentSensor
@@ -32,17 +30,17 @@ class ConversationInterceptor:
     def __init__(
         self,
         adapter: Any,
-        rule_engine: Optional[RuleEngine] = None,
-        gap_detector: Optional[GapDetector] = None,
-        dataset_manager: Optional[Any] = None,
-        alignment_sensor: Optional[AlignmentSensor] = None,
+        rule_engine: RuleEngine | None = None,
+        gap_detector: GapDetector | None = None,
+        dataset_manager: Any | None = None,
+        alignment_sensor: AlignmentSensor | None = None,
     ) -> None:
         self._adapter = adapter
         self._rule_engine: RuleEngine = rule_engine or RuleEngine()
         self._gap_detector: GapDetector = gap_detector or GapDetector()
         self._alignment_sensor: AlignmentSensor = alignment_sensor or AlignmentSensor()
         self._dataset_manager = dataset_manager
-        self._active_conversations: Dict[str, Conversation] = {}
+        self._active_conversations: dict[str, Conversation] = {}
 
     # ------------------------------------------------------------------
     # Session management
@@ -50,9 +48,9 @@ class ConversationInterceptor:
 
     def start_session(
         self,
-        session_id: Optional[str] = None,
-        user_id: Optional[str] = None,
-        project_context: Optional[str] = None,
+        session_id: str | None = None,
+        user_id: str | None = None,
+        project_context: str | None = None,
     ) -> Conversation:
         """Create and register a new Conversation.
 
@@ -83,7 +81,7 @@ class ConversationInterceptor:
         conversation_id: str,
         escalation_occurred: bool = False,
         human_intervention: bool = False,
-    ) -> Optional[Conversation]:
+    ) -> Conversation | None:
         """Finalise a session, save it, and remove from active tracking."""
         conversation = self._active_conversations.pop(conversation_id, None)
         if conversation is None:
@@ -154,9 +152,7 @@ class ConversationInterceptor:
         # ---- Pre-hook -------------------------------------------------------
         sentiment_before = sentiment_util.analyze(user_input)
         matched_rules = self._pre_hook(user_input, sentiment_before)
-        injected_prompt = self._rule_engine.build_system_prompt(
-            matched_rules, base_system_prompt
-        )
+        injected_prompt = self._rule_engine.build_system_prompt(matched_rules, base_system_prompt)
 
         # Track that each matched rule was triggered
         for rule in matched_rules:
@@ -210,12 +206,9 @@ class ConversationInterceptor:
         # Alignment sensor — compute direction/heading before appending the turn
         try:
             active_rule_keywords = [
-                (r.trigger.keywords if r.trigger and r.trigger.keywords else [])
-                for r in matched_rules
+                (r.trigger.keywords if r.trigger and r.trigger.keywords else []) for r in matched_rules
             ]
-            turn.sensor_reading = self._alignment_sensor.measure(
-                turn, conversation, active_rule_keywords
-            )
+            turn.sensor_reading = self._alignment_sensor.measure(turn, conversation, active_rule_keywords)
         except Exception as exc:
             logger.warning("Alignment sensor error", extra={"error": str(exc)})
 
@@ -236,7 +229,7 @@ class ConversationInterceptor:
     # Hooks
     # ------------------------------------------------------------------
 
-    def _pre_hook(self, user_input: str, sentiment: float) -> List[Any]:
+    def _pre_hook(self, user_input: str, sentiment: float) -> list[Any]:
         """Match rules before calling the AI."""
         try:
             self._rule_engine.load_rules()
@@ -247,10 +240,10 @@ class ConversationInterceptor:
 
     def _post_hook(
         self,
-        existing_turns: List[Turn],
+        existing_turns: list[Turn],
         user_input: str,
         ai_response: str,
-    ) -> List[Dict]:
+    ) -> list[dict]:
         """Detect gaps after receiving the AI response."""
         try:
             # Build a temporary list with the new turn appended for analysis

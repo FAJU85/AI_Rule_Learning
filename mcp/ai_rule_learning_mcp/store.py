@@ -32,6 +32,7 @@ def scrub_pii(text: str) -> str:
 
 def _hf_api():
     from huggingface_hub import HfApi
+
     return HfApi(token=HF_TOKEN)
 
 
@@ -40,9 +41,13 @@ def _download(filename: str) -> list[dict]:
         return []
     try:
         from huggingface_hub import hf_hub_download
+
         path = hf_hub_download(
-            repo_id=HF_DATASET, filename=filename,
-            repo_type="dataset", token=HF_TOKEN, force_download=True,
+            repo_id=HF_DATASET,
+            filename=filename,
+            repo_type="dataset",
+            token=HF_TOKEN,
+            force_download=True,
         )
         with open(path, encoding="utf-8") as f:
             return [json.loads(l) for l in f if l.strip()]
@@ -76,13 +81,15 @@ _UNSAFE_PHRASES = [
 
 def _is_safe_rule(rule: dict) -> bool:
     """Return True if the rule content contains no unsafe phrases."""
-    text = " ".join([
-        rule.get("name", ""),
-        rule.get("instruction", ""),
-        rule.get("action", {}).get("instruction", "") if isinstance(rule.get("action"), dict) else "",
-        str(rule.get("triggers", "")),
-        str(rule.get("trigger", "")),
-    ]).lower()
+    text = " ".join(
+        [
+            rule.get("name", ""),
+            rule.get("instruction", ""),
+            rule.get("action", {}).get("instruction", "") if isinstance(rule.get("action"), dict) else "",
+            str(rule.get("triggers", "")),
+            str(rule.get("trigger", "")),
+        ]
+    ).lower()
     return not any(phrase in text for phrase in _UNSAFE_PHRASES)
 
 
@@ -126,10 +133,7 @@ def _extract_text(content: Any) -> str:
     if isinstance(content, str):
         return content.strip()
     if isinstance(content, list):
-        return " ".join(
-            b.get("text", "") for b in content
-            if isinstance(b, dict) and b.get("type") == "text"
-        ).strip()
+        return " ".join(b.get("text", "") for b in content if isinstance(b, dict) and b.get("type") == "text").strip()
     return ""
 
 
@@ -182,15 +186,17 @@ def parse_claude_session(path: Path) -> dict | None:
             while j < len(messages) and messages[j]["role"] != "assistant":
                 j += 1
             if j < len(messages):
-                turns.append({
-                    "turn_number": len(turns) + 1,
-                    "user_input": scrub_pii(messages[i]["text"][:4000]),
-                    "agent_response": scrub_pii(messages[j]["text"][:4000]),
-                    "timestamp": messages[i]["ts"],
-                    "gaps_detected": [],
-                    "rules_applied": [],
-                    "sensor_reading": None,
-                })
+                turns.append(
+                    {
+                        "turn_number": len(turns) + 1,
+                        "user_input": scrub_pii(messages[i]["text"][:4000]),
+                        "agent_response": scrub_pii(messages[j]["text"][:4000]),
+                        "timestamp": messages[i]["ts"],
+                        "gaps_detected": [],
+                        "rules_applied": [],
+                        "sensor_reading": None,
+                    }
+                )
                 i = j + 1
                 continue
         i += 1

@@ -3,10 +3,8 @@
 Provides a module-level singleton for the SentenceTransformer model and a
 cosine_similarity helper for comparing embedding vectors.
 """
-from __future__ import annotations
 
-from typing import List
-from typing import Optional
+from __future__ import annotations
 
 import numpy as np
 
@@ -15,7 +13,7 @@ from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-_model: Optional[object] = None
+_model: object | None = None
 
 
 def _get_model():
@@ -35,7 +33,7 @@ def _get_model():
     return _model
 
 
-def embed(text: str) -> List[float]:
+def embed(text: str) -> list[float]:
     """Return a normalised embedding vector for *text*."""
     if not text or not text.strip():
         return []
@@ -49,7 +47,7 @@ def embed(text: str) -> List[float]:
         return []
 
 
-def embed_batch(texts: List[str]) -> List[List[float]]:
+def embed_batch(texts: list[str]) -> list[list[float]]:
     """Return normalised embedding vectors for a list of texts."""
     if not texts:
         return []
@@ -63,7 +61,7 @@ def embed_batch(texts: List[str]) -> List[List[float]]:
         return [[] for _ in texts]
 
 
-def cosine_similarity(vec_a: List[float], vec_b: List[float]) -> float:
+def cosine_similarity(vec_a: list[float], vec_b: list[float]) -> float:
     """Return the cosine similarity between two embedding vectors in [0, 1].
 
     Returns 0.0 if either vector is empty or all-zero.

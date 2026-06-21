@@ -9,6 +9,7 @@ Commands:
     validate    Validate and prune underperforming rules.
     list-rules  List all active rules.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -111,8 +112,7 @@ def cmd_list_rules(args: argparse.Namespace) -> None:
     for rule in rules:
         active_flag = "" if rule.is_active else " [inactive]"
         print(
-            f"{rule.rule_id:<38} {rule.priority.name:<10} {rule.name:<40} "
-            f"{rule.effectiveness_score:<8.2f}{active_flag}"
+            f"{rule.rule_id:<38} {rule.priority.name:<10} {rule.name:<40} {rule.effectiveness_score:<8.2f}{active_flag}"
         )
 
 

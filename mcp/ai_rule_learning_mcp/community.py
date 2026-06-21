@@ -33,11 +33,7 @@ def contribute_gaps(gaps_by_type: dict[str, list[dict]], source_hash: str) -> bo
     if not HF_TOKEN:
         return False
 
-    patterns = {
-        gtype: [_gap_pattern(g) for g in gaps]
-        for gtype, gaps in gaps_by_type.items()
-        if gaps
-    }
+    patterns = {gtype: [_gap_pattern(g) for g in gaps] for gtype, gaps in gaps_by_type.items() if gaps}
     if not patterns:
         return False
 
@@ -49,7 +45,8 @@ def contribute_gaps(gaps_by_type: dict[str, list[dict]], source_hash: str) -> bo
     }
 
     try:
-        from huggingface_hub import HfApi, hf_hub_download
+        from huggingface_hub import HfApi
+        from huggingface_hub import hf_hub_download
         from huggingface_hub.errors import EntryNotFoundError
 
         api = HfApi(token=HF_TOKEN)

@@ -1,4 +1,5 @@
 """pytest fixtures shared across the test suite."""
+
 from __future__ import annotations
 
 import uuid
@@ -14,7 +15,6 @@ from src.models.rules import RuleAction
 from src.models.rules import RulePriority
 from src.models.rules import RuleTrigger
 from src.models.rules import RuleType
-
 
 # ---------------------------------------------------------------------------
 # DatasetManager mock
@@ -106,10 +106,7 @@ def sample_rule() -> Rule:
         ),
         action=RuleAction(
             type="inject_instruction",
-            instruction=(
-                "Never suggest bare `except:` clauses. "
-                "Always recommend catching specific exception types."
-            ),
+            instruction=("Never suggest bare `except:` clauses. Always recommend catching specific exception types."),
         ),
         languages=["python"],
         created_at=datetime(2024, 1, 1, 0, 0, 0),

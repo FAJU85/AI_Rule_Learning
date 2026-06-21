@@ -1,7 +1,7 @@
 """Tests for Rule model, RuleTrigger, RuleAction, and related helpers."""
+
 from __future__ import annotations
 
-import uuid
 from datetime import datetime
 
 import pytest
@@ -12,7 +12,6 @@ from src.models.rules import RuleAction
 from src.models.rules import RulePriority
 from src.models.rules import RuleTrigger
 from src.models.rules import RuleType
-
 
 # ---------------------------------------------------------------------------
 # Rule model validation

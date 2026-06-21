@@ -7,13 +7,11 @@ Workflow:
 4. Build an injected system-prompt snippet from matched rules.
 5. Track rule effectiveness (times_triggered, success_count).
 """
+
 from __future__ import annotations
 
 import json
 from typing import Any
-from typing import Dict
-from typing import List
-from typing import Optional
 
 import redis
 
@@ -32,12 +30,12 @@ class RuleEngine:
 
     def __init__(
         self,
-        dataset_manager: Optional[Any] = None,
-        redis_client: Optional[redis.Redis] = None,
+        dataset_manager: Any | None = None,
+        redis_client: redis.Redis | None = None,
     ) -> None:
         self._dataset_manager = dataset_manager
-        self._redis: Optional[redis.Redis] = redis_client
-        self._rules: List[Any] = []  # in-memory cache
+        self._redis: redis.Redis | None = redis_client
+        self._rules: list[Any] = []  # in-memory cache
 
     # ------------------------------------------------------------------
     # Initialisation
@@ -92,9 +90,9 @@ class RuleEngine:
     def match_rules(
         self,
         context: str,
-        sentiment: Optional[float] = None,
+        sentiment: float | None = None,
         top_k: int = 5,
-    ) -> List[Any]:
+    ) -> list[Any]:
         """Return the top-k rules that match *context*, sorted by priority (desc).
 
         Matching criteria (any one is sufficient):
@@ -109,7 +107,7 @@ class RuleEngine:
         context_lower = context.lower()
         context_embedding = embed(context) if context.strip() else []
 
-        matched: List[Any] = []
+        matched: list[Any] = []
 
         for rule in self._rules:
             if not rule.is_active:
@@ -126,8 +124,8 @@ class RuleEngine:
         self,
         rule: Any,
         context_lower: str,
-        context_embedding: List[float],
-        sentiment: Optional[float],
+        context_embedding: list[float],
+        sentiment: float | None,
     ) -> bool:
         trigger = rule.trigger
 
@@ -158,7 +156,7 @@ class RuleEngine:
     # Prompt building
     # ------------------------------------------------------------------
 
-    def build_system_prompt(self, matched_rules: List[Any], base_prompt: str = "") -> str:
+    def build_system_prompt(self, matched_rules: list[Any], base_prompt: str = "") -> str:
         """Build an injected system prompt from matched rules.
 
         Rules are sorted by priority (highest first) and their instructions
@@ -167,7 +165,7 @@ class RuleEngine:
         if not matched_rules:
             return base_prompt
 
-        rule_lines: List[str] = []
+        rule_lines: list[str] = []
         for rule in matched_rules:
             prefix = f"[{rule.priority.name}]"
             rule_lines.append(f"{prefix} {rule.action.instruction}")
@@ -194,9 +192,7 @@ class RuleEngine:
         """Increment failure_count for a rule and persist."""
         self._update_rule_counter(rule_id, triggered=False, success=False)
 
-    def _update_rule_counter(
-        self, rule_id: str, triggered: bool, success: Optional[bool]
-    ) -> None:
+    def _update_rule_counter(self, rule_id: str, triggered: bool, success: bool | None) -> None:
         from datetime import datetime
 
         for rule in self._rules:

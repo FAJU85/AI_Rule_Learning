@@ -6,6 +6,7 @@ Usage:
     python scripts/upload_historical.py --file conversations.csv --format csv
     python scripts/upload_historical.py --file data/ --format json  # directory of JSON files
 """
+
 from __future__ import annotations
 
 import argparse
@@ -16,15 +17,12 @@ import sys
 import uuid
 from pathlib import Path
 from typing import Any
-from typing import Dict
-from typing import List
 
 from tqdm import tqdm  # type: ignore
 
 # Ensure project root is on sys.path when run directly
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from config.settings import settings
 from src.core.dataset_manager import DatasetManager
 from src.models.conversation import Conversation
 from src.models.conversation import Turn
@@ -38,7 +36,7 @@ logger = get_logger(__name__)
 # ---------------------------------------------------------------------------
 
 
-def load_json_file(path: Path) -> List[Dict[str, Any]]:
+def load_json_file(path: Path) -> list[dict[str, Any]]:
     """Load a JSON file that contains either a list of conversations or a single one."""
     with path.open("r", encoding="utf-8") as fh:
         data = json.load(fh)
@@ -47,13 +45,13 @@ def load_json_file(path: Path) -> List[Dict[str, Any]]:
     return data
 
 
-def load_csv_file(path: Path) -> List[Dict[str, Any]]:
+def load_csv_file(path: Path) -> list[dict[str, Any]]:
     """Load a CSV where each row is a single turn.
 
     Expected columns: conversation_id, turn_number, user_input, agent_response
     Optional: session_id, user_id, sentiment_before, sentiment_after
     """
-    conversations: Dict[str, Dict[str, Any]] = {}
+    conversations: dict[str, dict[str, Any]] = {}
     with path.open("r", encoding="utf-8", newline="") as fh:
         reader = csv.DictReader(fh)
         for row in reader:
@@ -79,7 +77,7 @@ def load_csv_file(path: Path) -> List[Dict[str, Any]]:
     return list(conversations.values())
 
 
-def raw_to_conversation(raw: Dict[str, Any]) -> Conversation:
+def raw_to_conversation(raw: dict[str, Any]) -> Conversation:
     """Convert a raw dict into a Conversation model, generating IDs where missing."""
     if "conversation_id" not in raw or not raw["conversation_id"]:
         raw["conversation_id"] = str(uuid.uuid4())
@@ -98,10 +96,8 @@ def raw_to_conversation(raw: Dict[str, Any]) -> Conversation:
 # ---------------------------------------------------------------------------
 
 
-def main(argv: List[str] | None = None) -> None:
-    parser = argparse.ArgumentParser(
-        description="Upload historical conversations to HuggingFace dataset."
-    )
+def main(argv: list[str] | None = None) -> None:
+    parser = argparse.ArgumentParser(description="Upload historical conversations to HuggingFace dataset.")
     parser.add_argument("--file", required=True, help="Path to file or directory")
     parser.add_argument(
         "--format",
@@ -135,7 +131,7 @@ def main(argv: List[str] | None = None) -> None:
     print(f"Found {len(files)} file(s) to process.")
 
     # Parse
-    raw_records: List[Dict[str, Any]] = []
+    raw_records: list[dict[str, Any]] = []
     for f in files:
         try:
             if args.format == "json":
@@ -148,7 +144,7 @@ def main(argv: List[str] | None = None) -> None:
     print(f"Parsed {len(raw_records)} conversation(s).")
 
     # Validate
-    valid: List[Conversation] = []
+    valid: list[Conversation] = []
     for raw in tqdm(raw_records, desc="Validating"):
         try:
             conv = raw_to_conversation(raw)

@@ -1,17 +1,15 @@
-import os
 from pydantic_settings import BaseSettings
-from typing import Optional
 
 
 class Settings(BaseSettings):
-    HF_TOKEN: Optional[str] = None
+    HF_TOKEN: str | None = None
     HF_DATASET_NAME: str = "your-org/conversation-memory"
     HF_RULES_DATASET: str = "your-org/active-rules"
     REDIS_URL: str = "redis://localhost:6379"
     REDIS_RULE_TTL: int = 604800
-    OPENAI_API_KEY: Optional[str] = None
+    OPENAI_API_KEY: str | None = None
     OPENAI_MODEL: str = "gpt-4-turbo-preview"
-    ANTHROPIC_API_KEY: Optional[str] = None
+    ANTHROPIC_API_KEY: str | None = None
     ANTHROPIC_MODEL: str = "claude-3-opus-20240229"
     DEFAULT_AI_PROVIDER: str = "openai"
     EMBEDDING_MODEL: str = "all-MiniLM-L6-v2"

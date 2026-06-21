@@ -10,6 +10,7 @@ Usage:
     python scripts/run_analysis.py --once           # run once and exit
     python scripts/run_analysis.py --lookback 48    # analyse the last 48 hours
 """
+
 from __future__ import annotations
 
 import argparse
@@ -117,9 +118,7 @@ def main(argv: list | None = None) -> None:
 
     # Schedule recurring runs
     schedule.every(args.interval).minutes.do(run_analysis_job, lookback_hours=args.lookback)
-    print(
-        f"Scheduler started. Running every {args.interval} minute(s). Press Ctrl+C to stop."
-    )
+    print(f"Scheduler started. Running every {args.interval} minute(s). Press Ctrl+C to stop.")
 
     try:
         while True:

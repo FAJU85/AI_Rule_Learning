@@ -1,8 +1,6 @@
 """OpenAI adapter — wraps the openai Python SDK."""
-from __future__ import annotations
 
-from typing import List
-from typing import Optional
+from __future__ import annotations
 
 from config.settings import settings
 from src.adapters.base_adapter import BaseAIAdapter
@@ -16,8 +14,8 @@ class OpenAIAdapter(BaseAIAdapter):
 
     def __init__(
         self,
-        api_key: Optional[str] = None,
-        model: Optional[str] = None,
+        api_key: str | None = None,
+        model: str | None = None,
     ) -> None:
         self._api_key = api_key or settings.OPENAI_API_KEY
         self._model = model or settings.OPENAI_MODEL
@@ -84,8 +82,8 @@ class OpenAIAdapter(BaseAIAdapter):
         user_input: str,
         system_prompt: str,
         conversation_history: str,
-    ) -> List[dict]:
-        messages: List[dict] = []
+    ) -> list[dict]:
+        messages: list[dict] = []
 
         if system_prompt:
             messages.append({"role": "system", "content": system_prompt})
@@ -94,9 +92,9 @@ class OpenAIAdapter(BaseAIAdapter):
         if conversation_history:
             for line in conversation_history.strip().splitlines():
                 if line.startswith("User: "):
-                    messages.append({"role": "user", "content": line[len("User: "):]})
+                    messages.append({"role": "user", "content": line[len("User: ") :]})
                 elif line.startswith("AI: "):
-                    messages.append({"role": "assistant", "content": line[len("AI: "):]})
+                    messages.append({"role": "assistant", "content": line[len("AI: ") :]})
 
         messages.append({"role": "user", "content": user_input})
         return messages
