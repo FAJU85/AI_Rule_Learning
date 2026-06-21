@@ -10431,7 +10431,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 conflicts_table = gr.HTML()
                 with gr.Row():
                     conflict_scan_btn = gr.Button("🔍 Run Conflict Scan (LLM)", variant="primary", size="sm")
-                conflict_log = gr.Textbox(label="Scan log", lines=6, max_lines=14, interactive=False, autoscroll=True, show_copy_button=True)
+                conflict_log = gr.Textbox(label="Scan log", lines=6, max_lines=14, interactive=False)
                 with gr.Row():
                     conflict_resolve_id = gr.Textbox(label="Conflict ID prefix to resolve", placeholder="e.g. cnf_abc123", scale=2, info="Copy the first 8 characters of the ID from the table above")
                     conflict_resolution = gr.Textbox(label="Resolution note", placeholder="e.g. Removed overlapping rule, merged conditions", scale=4, info="Explain what change was made to eliminate the conflict — recorded in the audit log")
@@ -10473,12 +10473,12 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 system_prompt_output = gr.Textbox(
                     label="System prompt",
                     placeholder="Click 'Export as System Prompt' above to generate…",
-                    lines=15, max_lines=30, interactive=True, show_copy_button=True,
+                    lines=15, max_lines=30, interactive=True,
                 )
                 yaml_output = gr.Textbox(
                     label="YAML",
                     placeholder="Click 'Export as YAML' above to generate…",
-                    lines=15, max_lines=30, interactive=True, show_copy_button=True,
+                    lines=15, max_lines=30, interactive=True,
                 )
                 export_btn.click(export_system_prompt, outputs=system_prompt_output)
                 yaml_export_btn.click(export_rules_as_yaml, outputs=yaml_output)
@@ -10508,7 +10508,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     )
                     upload_btn = gr.Button("Upload", variant="primary")
 
-            import_log = gr.Textbox(label="Import log", lines=6, max_lines=16, interactive=False, autoscroll=True, show_copy_button=True)
+            import_log = gr.Textbox(label="Import log", lines=6, max_lines=16, interactive=False)
             upload_status = gr.Markdown(min_height=28)
 
             import_btn.click(run_import_sessions, inputs=session_files_input, outputs=import_log).then(
@@ -10546,7 +10546,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 info="Only rule gap patterns are shared — no message content, no personal data",
             )
             analysis_log = gr.Textbox(
-                label="Analysis log", lines=10, max_lines=18, interactive=False, autoscroll=True, show_copy_button=True,
+                label="Analysis log", lines=10, max_lines=18, interactive=False,
             )
 
             # After analysis/seed — auto-update the dashboard pending alert so the KPI stays current
@@ -10645,7 +10645,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     audit_refresh_sel = gr.Button("↻ Refresh list", variant="secondary", size="sm", scale=1)
                 with gr.Row():
                     audit_run_btn = gr.Button("🤖 Run AI Audit", variant="primary", size="sm")
-                audit_log = gr.Textbox(label="Audit log", lines=6, max_lines=16, interactive=False, autoscroll=True, show_copy_button=True)
+                audit_log = gr.Textbox(label="Audit log", lines=6, max_lines=16, interactive=False)
 
                 def _refresh_audit_sel():
                     return gr.update(choices=[""] + get_conversation_ids())
@@ -10765,12 +10765,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                             esc_outcome, esc_notes],
                     outputs=esc_log_status,
                 )
-                esc_type.submit(
-                    log_escalation,
-                    inputs=[esc_conv_id, esc_turn_no, esc_type, esc_ai_action, esc_expected,
-                            esc_outcome, esc_notes],
-                    outputs=esc_log_status,
-                )
+
                 esc_conv_refresh.click(lambda: gr.update(choices=get_conversation_ids()), outputs=esc_conv_id)
                 monitoring_tab.select(lambda: gr.update(choices=get_conversation_ids()), outputs=esc_conv_id)
 
@@ -10802,7 +10797,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 gr.Markdown("Register data sources with trust levels (high / medium / low / untrusted).")
                 with gr.Row():
                     data_prov_chart = gr.Plot(scale=1)
-                    data_prov_table = gr.HTML(scale=2)
+                    data_prov_table = gr.HTML()
                 with gr.Row(elem_classes=["search-row-wrapper"]):
                     data_prov_search = gr.Textbox(label="Search data sources", placeholder="Filter by name, type, trust level, or owner…", scale=4)
                     data_prov_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm", scale=1)
@@ -11006,7 +11001,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 risk_table = gr.HTML()
                 with gr.Row():
                     risk_update_btn = gr.Button("🔢 Recompute Risk Scores", variant="primary", size="sm")
-                risk_log = gr.Textbox(label="Risk log", lines=4, max_lines=12, interactive=False, autoscroll=True, show_copy_button=True)
+                risk_log = gr.Textbox(label="Risk log", lines=4, max_lines=12, interactive=False)
 
                 def _refresh_risk():
                     return build_risk_table()
@@ -11839,8 +11834,8 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     meta_search = gr.Textbox(label="Search roles", placeholder="Filter by user, role, or permissions…", scale=4)
                     meta_refresh_btn = gr.Button("↻ Refresh", variant="secondary", size="sm", scale=1)
                 with gr.Row():
-                    meta_role_table = gr.HTML(label="Role Assignments", scale=3)
-                    meta_audit_table = gr.HTML(label="Action Audit Log", scale=3)
+                    meta_role_table = gr.HTML(label="Role Assignments")
+                    meta_audit_table = gr.HTML(label="Action Audit Log")
 
                 gr.HTML('<div class="rl-group-label" style="margin-top:14px">Assign role</div>')
                 with gr.Row():
