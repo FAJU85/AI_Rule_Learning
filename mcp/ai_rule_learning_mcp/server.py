@@ -1,10 +1,8 @@
-"""AI Rule Learning MCP server — personal tier (free, open source).
+"""AI Rule Learning MCP server — works with any AI agent.
 
-Works with any AI provider: Claude, ChatGPT, Cursor, Windsurf, Copilot, etc.
-
-Analyses YOUR sessions → generates YOUR personalised rules → writes them to
-~/.claude/CLAUDE.md so they apply automatically to every future Claude session
-with ZERO additional configuration.
+Supports: Claude Code, Codex, Cursor, Windsurf, GitHub Copilot, and any
+MCP-compatible agent. Rules are written automatically to every detected
+agent's config directory so they apply to future sessions with zero setup.
 
 Environment variables (all optional):
   HF_TOKEN        HuggingFace write token — enables cloud backup/sync
@@ -26,17 +24,19 @@ from mcp.server.stdio import stdio_server
 from mcp.types import TextContent
 from mcp.types import Tool
 
-from .claude_md import write_rules
 from .community import contribute_gaps
-from .gap_detector import analyze_conversations
+from .gap_detector import analyze_conversations, generate_rules
+from .injector import detected_targets, format_rules_block, write_rules_all
 from .providers import parse_any
-from .store import append_conversations
-from .store import auto_activate_pending_rules
-from .store import is_already_processed
-from .store import load_active_rules
-from .store import mark_processed
-from .store import _local_load
-from .store import _local_save
+from .store import (
+    _local_load,
+    _local_save,
+    append_conversations,
+    auto_activate_pending_rules,
+    is_already_processed,
+    load_active_rules,
+    mark_processed,
+)
 
 _CONTRIBUTE = os.environ.get("ARL_CONTRIBUTE", "false").lower() == "true"
 
@@ -56,18 +56,61 @@ async def list_tools() -> list[Tool]:
         Tool(
             name="get_guardrail_rules",
             description=(
-                "Return your personal AI guardrail rules as a formatted block ready "
-                "to inject into your system prompt. Works with any AI provider. "
-                "Call at the start of important sessions."
+                "Return your personal AI guardrail rules as a formatted block. "
+                "Works with any AI agent — Claude, Codex, Cursor, Windsurf, Copilot. "
+                "Call at the start of important sessions to load your personalised rules."
             ),
             inputSchema={"type": "object", "properties": {}, "required": []},
         ),
         Tool(
+            name="record_feedback",
+            description=(
+                "Record a correction, preference, or friction pattern observed during "
+                "this session. Call this whenever the user corrects you, repeats context "
+                "they already gave, or you fail to complete all parts of a request. "
+                "A rule is generated immediately and written to all detected AI agent "
+                "config files so it applies to every future session automatically. "
+                "No sync required — this works in real time."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "feedback_type": {
+                        "type": "string",
+                        "enum": [
+                            "correction",
+                            "preference",
+                            "repeated_context",
+                            "incomplete_response",
+                        ],
+                        "description": (
+                            "correction: user said you were wrong or corrected your output. "
+                            "preference: user stated a preference (language, style, format). "
+                            "repeated_context: user had to re-state something they already told you. "
+                            "incomplete_response: user pointed out you missed part of the request."
+                        ),
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "What happened — what the user said or what pattern was observed.",
+                    },
+                    "rule_hint": {
+                        "type": "string",
+                        "description": (
+                            "Optional: a specific instruction for the rule. "
+                            "If omitted, a rule is generated from the feedback_type template."
+                        ),
+                    },
+                },
+                "required": ["feedback_type", "description"],
+            },
+        ),
+        Tool(
             name="sync_sessions",
             description=(
-                "Scan your local AI session history, detect recurring friction patterns, "
-                "generate personalised guardrail rules, and write them to "
-                "~/.claude/CLAUDE.md so they apply automatically to every future session. "
+                "Scan local AI session history, detect recurring friction patterns, "
+                "generate personalised guardrail rules, and write them to every "
+                "detected AI agent config (Claude Code, Cursor, Windsurf, Copilot). "
                 "No HuggingFace account needed — works fully offline. "
                 "Supports Claude Code, ChatGPT exports, and generic JSONL files."
             ),
@@ -77,15 +120,15 @@ async def list_tools() -> list[Tool]:
                     "contribute": {
                         "type": "boolean",
                         "description": (
-                            "Opt in to contribute anonymised gap patterns (NOT raw text) "
-                            "to the community pool. Improves rules for all users."
+                            "Opt in to contribute anonymised gap patterns to the community "
+                            "pool. Improves rules for all users. Does NOT share raw text."
                         ),
                     },
                     "paths": {
                         "type": "array",
                         "items": {"type": "string"},
                         "description": (
-                            "Optional override: paths to session directories or files. "
+                            "Optional: paths to session directories or files. "
                             "Supports Claude Code dirs, ChatGPT conversations.json, "
                             "or any directory of JSONL files."
                         ),
@@ -96,7 +139,7 @@ async def list_tools() -> list[Tool]:
         ),
         Tool(
             name="list_providers",
-            description="Show which session sources are configured and how many files are found.",
+            description="Show which session sources and AI agents are detected on this machine.",
             inputSchema={"type": "object", "properties": {}, "required": []},
         ),
     ]
@@ -106,6 +149,12 @@ async def list_tools() -> list[Tool]:
 async def call_tool(name: str, arguments: dict) -> list[TextContent]:
     if name == "get_guardrail_rules":
         return await _get_guardrail_rules()
+    if name == "record_feedback":
+        return await _record_feedback(
+            feedback_type=arguments.get("feedback_type", "correction"),
+            description=arguments.get("description", ""),
+            rule_hint=arguments.get("rule_hint", ""),
+        )
     if name == "sync_sessions":
         paths = [Path(p) for p in arguments.get("paths", [])] or None
         contribute = arguments.get("contribute", _CONTRIBUTE)
@@ -123,22 +172,67 @@ async def _get_guardrail_rules() -> list[TextContent]:
                 type="text",
                 text=(
                     "No guardrail rules yet.\n"
-                    "Run sync_sessions to analyse your session history and generate rules.\n"
-                    "Rules are written automatically to ~/.claude/CLAUDE.md — "
-                    "no further steps needed after that."
+                    "Run sync_sessions to analyse your session history and generate rules,\n"
+                    "or use record_feedback during a session to capture rules in real time."
                 ),
             )
         ]
-    # Always keep CLAUDE.md in sync
-    write_rules(rules)
-    lines = ["## Your Active Guardrail Rules\n",
-             "_These are also written to ~/.claude/CLAUDE.md and apply automatically._\n"]
-    for i, rule in enumerate(rules, 1):
-        lines.extend(_format_rule(i, rule))
-    return [TextContent(type="text", text="\n".join(lines))]
+    write_rules_all(rules)
+    return [TextContent(type="text", text=format_rules_block(rules))]
 
 
-async def _sync_sessions(paths: list[Path] | None = None, contribute: bool = False) -> list[TextContent]:
+async def _record_feedback(
+    feedback_type: str,
+    description: str,
+    rule_hint: str = "",
+) -> list[TextContent]:
+    _GAP_MAP = {
+        "correction": "explicit_correction",
+        "preference": "repeated_context",
+        "repeated_context": "repeated_context",
+        "incomplete_response": "incomplete_response",
+    }
+    gap_type = _GAP_MAP.get(feedback_type, "explicit_correction")
+
+    gaps = {gap_type: [{"turn": 0, "signal": feedback_type, "snippet": description[:200]}]}
+    rules = generate_rules(gaps)
+
+    if not rules:
+        return [TextContent(type="text", text="Could not generate a rule from this feedback.")]
+
+    if rule_hint:
+        rules[0]["action"] = {"instruction": rule_hint}
+        rules[0]["instruction"] = rule_hint
+
+    existing = _local_load("rules.jsonl")
+    existing_ids = {r.get("rule_id") for r in existing}
+    new_rules = [r for r in rules if r.get("rule_id") not in existing_ids]
+    if new_rules:
+        _local_save("rules.jsonl", existing + new_rules)
+
+    all_rules = load_active_rules()
+    written = write_rules_all(all_rules)
+    targets_str = ", ".join(name for name, _ in written) if written else "no agent configs detected"
+
+    rule_name = rules[0].get("name", "new rule")
+    action = "Created" if new_rules else "Already known"
+
+    return [
+        TextContent(
+            type="text",
+            text=(
+                f"✅ {action}: **{rule_name}**\n"
+                f"Written to: {targets_str}\n"
+                f"This rule will apply automatically to every future session."
+            ),
+        )
+    ]
+
+
+async def _sync_sessions(
+    paths: list[Path] | None = None,
+    contribute: bool = False,
+) -> list[TextContent]:
     log: list[str] = []
 
     scan_paths = paths or _SESSION_PATHS
@@ -165,7 +259,6 @@ async def _sync_sessions(paths: list[Path] | None = None, contribute: bool = Fal
 
     log.append(f"📂 Found {len(session_files)} session file(s) across {len(scan_paths)} path(s)")
 
-    # Only process files we haven't seen before
     new_files = [f for f in session_files if not is_already_processed(f)]
     log.append(f"🆕 {len(new_files)} new file(s) to process")
 
@@ -179,16 +272,16 @@ async def _sync_sessions(paths: list[Path] | None = None, contribute: bool = Fal
     log.append(f"✅ Parsed {len(all_conversations)} valid conversation(s)")
 
     if not all_conversations:
-        # Still load existing rules and refresh CLAUDE.md
         rules = load_active_rules()
         if rules:
-            md_path = write_rules(rules)
-            log.append(f"📝 {len(rules)} existing rule(s) re-written to {md_path}")
+            written = write_rules_all(rules)
+            targets = ", ".join(n for n, _ in written)
+            log.append(f"📝 {len(rules)} existing rule(s) refreshed → {targets}")
         else:
             log.append("ℹ️  No new conversations and no existing rules yet.")
         return [TextContent(type="text", text="\n".join(log))]
 
-    # ── Local gap detection (works with zero config) ───────────────────────
+    # ── Local gap detection ────────────────────────────────────────────────
     detected_rules = analyze_conversations(all_conversations)
     if detected_rules:
         existing = _local_load("rules.jsonl")
@@ -200,7 +293,7 @@ async def _sync_sessions(paths: list[Path] | None = None, contribute: bool = Fal
         else:
             log.append("ℹ️  All detected patterns already have rules")
 
-    # ── Upload to HF dataset if configured ────────────────────────────────
+    # ── HF upload (optional) ───────────────────────────────────────────────
     added = append_conversations(all_conversations)
     if added:
         log.append(f"⬆️  Uploaded {added} new conversation(s) to HF dataset")
@@ -224,12 +317,14 @@ async def _sync_sessions(paths: list[Path] | None = None, contribute: bool = Fal
     if activated:
         log.append(f"✅ Auto-activated {activated} safe pending rule(s) from HF dataset")
 
-    # ── Write all active rules to ~/.claude/CLAUDE.md ─────────────────────
+    # ── Write to all detected agent configs ────────────────────────────────
     rules = load_active_rules()
     if rules:
-        md_path = write_rules(rules)
-        log.append(f"📝 {len(rules)} rule(s) written to {md_path}")
-        log.append("🎉 Rules will apply automatically to every future Claude session!")
+        written = write_rules_all(rules)
+        if written:
+            targets = ", ".join(n for n, _ in written)
+            log.append(f"📝 {len(rules)} rule(s) written to: {targets}")
+        log.append("🎉 Rules will apply automatically to every future session!")
     else:
         log.append("ℹ️  No active rules yet — need more session data")
 
@@ -238,31 +333,29 @@ async def _sync_sessions(paths: list[Path] | None = None, contribute: bool = Fal
 
 async def _list_providers() -> list[TextContent]:
     lines = [f"**Community opt-in:** {_CONTRIBUTE}", ""]
+
+    lines.append("**Detected AI agents:**")
+    for target in detected_targets():
+        p = target.config_path()
+        status = "✅ rules injected" if p.exists() else "⬜ config will be created on next sync"
+        lines.append(f"  {target.name}: {status}")
+    lines.append("")
+
     lines.append("**Session paths:**")
     for sp in _SESSION_PATHS:
         sp = Path(sp)
         if not sp.exists():
             lines.append(f"  ❌ {sp} — not found")
             continue
-        count = sum(1 for _ in sp.rglob("*.jsonl")) + sum(1 for _ in sp.rglob("conversations.json"))
+        count = sum(1 for _ in sp.rglob("*.jsonl")) + sum(
+            1 for _ in sp.rglob("conversations.json")
+        )
         lines.append(f"  ✅ {sp} — {count} file(s)")
     lines.append("")
-    lines.append("**Supported formats:** Claude Code (.jsonl), ChatGPT export (conversations.json), Generic JSONL")
+    lines.append(
+        "**Supported formats:** Claude Code (.jsonl), ChatGPT export (conversations.json), Generic JSONL"
+    )
     return [TextContent(type="text", text="\n".join(lines))]
-
-
-def _format_rule(i: int, rule: dict) -> list[str]:
-    priority = rule.get("priority_label", "MEDIUM")
-    name = rule.get("name", rule.get("rule_id", f"Rule {i}"))
-    instruction = rule.get("action", {}).get("instruction") or rule.get("instruction", "")
-    triggers = rule.get("trigger", {}).get("keywords") or rule.get("triggers", [])
-    out = [f"**Rule {i}: {name}** [{priority}]"]
-    if instruction:
-        out.append(f"→ {instruction}")
-    if triggers:
-        out.append(f"   Triggers on: {', '.join(str(t) for t in triggers[:6])}")
-    out.append("")
-    return out
 
 
 def main() -> None:

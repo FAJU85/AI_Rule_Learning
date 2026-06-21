@@ -1,10 +1,10 @@
 """Standalone CLI — works with ZERO MCP config.
 
 Usage:
-  ai-rule-learning sync     Scan sessions, generate rules, write to CLAUDE.md
-  ai-rule-learning status   Show current rules and CLAUDE.md state
+  ai-rule-learning sync     Scan sessions, generate rules, write to all detected AI agents
+  ai-rule-learning status   Show current rules and detected agent configs
   ai-rule-learning rules    Print active rules
-  ai-rule-learning clear    Remove AI Rule Learning section from CLAUDE.md
+  ai-rule-learning clear    Remove AI Rule Learning section from all agent configs
 """
 
 from __future__ import annotations
@@ -23,6 +23,7 @@ def _default_session_paths() -> list[Path]:
 
 def cmd_sync(args: list[str]) -> None:
     from .gap_detector import analyze_conversations
+    from .injector import detected_targets, write_rules_all
     from .providers import parse_any
     from .store import (
         _local_load,
@@ -33,9 +34,7 @@ def cmd_sync(args: list[str]) -> None:
         load_active_rules,
         mark_processed,
     )
-    from .claude_md import write_rules, claude_md_path
 
-    # Resolve session paths from args or defaults
     raw_paths = [Path(p) for p in args] if args else _default_session_paths()
     if not raw_paths:
         print("⚠️  No session paths found. Pass a path: ai-rule-learning sync ~/.claude/projects")
@@ -73,13 +72,13 @@ def cmd_sync(args: list[str]) -> None:
     if not all_conversations:
         rules = load_active_rules()
         if rules:
-            md = write_rules(rules)
-            print(f"📝 {len(rules)} existing rule(s) refreshed in {md}")
+            written = write_rules_all(rules)
+            targets = ", ".join(n for n, _ in written)
+            print(f"📝 {len(rules)} existing rule(s) refreshed → {targets}")
         else:
             print("ℹ️  No conversations to process and no existing rules. Try again after more sessions.")
         return
 
-    # Local gap detection — no LLM, no network, no config needed
     detected = analyze_conversations(all_conversations)
     if detected:
         existing = _local_load("rules.jsonl")
@@ -93,7 +92,6 @@ def cmd_sync(args: list[str]) -> None:
     else:
         print("ℹ️  No recurring friction patterns detected yet")
 
-    # HF upload (optional, silently skip if not configured)
     try:
         append_conversations(all_conversations)
     except Exception:
@@ -108,10 +106,12 @@ def cmd_sync(args: list[str]) -> None:
 
     rules = load_active_rules()
     if rules:
-        md = write_rules(rules)
-        print(f"\n📝 {len(rules)} rule(s) written to {md}")
-        print("🎉 These rules will now apply automatically to every future Claude session!")
-        print("\nActive rules:")
+        written = write_rules_all(rules)
+        if written:
+            targets = ", ".join(n for n, _ in written)
+            print(f"\n📝 {len(rules)} rule(s) written to: {targets}")
+        print("🎉 These rules will now apply automatically to every future session!\n")
+        print("Active rules:")
         for rule in rules:
             label = rule.get("priority_label", "MEDIUM")
             name = rule.get("name", rule.get("rule_id", "rule"))
@@ -121,24 +121,31 @@ def cmd_sync(args: list[str]) -> None:
 
 
 def cmd_status(_args: list[str]) -> None:
-    from .claude_md import claude_md_path, read_injected_rules
-    from .store import _local_load, load_active_rules, LOCAL_DIR
+    from .injector import _ALL_TARGETS, read_injected_rules
+    from .store import LOCAL_DIR, _local_load, load_active_rules
 
     rules = load_active_rules()
     injected = read_injected_rules()
-    md = claude_md_path()
 
     print(f"📁 Local storage: {LOCAL_DIR}")
     print(f"   Rules stored:  {len(_local_load('rules.jsonl'))}")
     print(f"   Active rules:  {len(rules)}")
     print()
-    print(f"📄 CLAUDE.md:    {md}")
-    print(f"   Exists:        {md.exists()}")
-    print(f"   Injected rules: {len(injected)}")
 
+    print("🤖 Detected AI agent configs:")
+    for target in _ALL_TARGETS:
+        p = target.config_path()
+        if target.is_detected():
+            status = f"✅ {p}" + (" (rules injected)" if p.exists() else " (will be created on sync)")
+        else:
+            status = f"⬜ {target.name} not detected"
+        print(f"   {status}")
+
+    print()
+    print(f"   Injected rules: {len(injected)}")
     if injected:
         print()
-        print("Current guardrails in CLAUDE.md:")
+        print("Current guardrails:")
         for line in injected:
             print(f"  {line}")
 
@@ -162,14 +169,13 @@ def cmd_rules(_args: list[str]) -> None:
 
 
 def cmd_clear(_args: list[str]) -> None:
-    from .claude_md import remove_rules, claude_md_path
+    from .injector import remove_rules_all
 
-    removed = remove_rules()
-    md = claude_md_path()
+    removed = remove_rules_all()
     if removed:
-        print(f"✅ Removed AI Rule Learning section from {md}")
+        print(f"✅ Removed AI Rule Learning section from: {', '.join(removed)}")
     else:
-        print(f"ℹ️  No AI Rule Learning section found in {md}")
+        print("ℹ️  No AI Rule Learning section found in any agent config")
 
 
 def main() -> None:
