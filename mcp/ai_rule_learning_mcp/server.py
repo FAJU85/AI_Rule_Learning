@@ -26,7 +26,13 @@ from mcp.types import Tool
 
 from .community import contribute_gaps
 from .gap_detector import analyze_conversations, generate_rules
-from .injector import detected_targets, format_rules_block, write_rules_all
+from .injector import detected_targets, format_rules_block, write_memory_all, write_rules_all
+from .memory import (
+    add_memory,
+    format_memory_for_display,
+    forget,
+    load_memory,
+)
 from .providers import parse_any
 from .store import (
     _local_load,
@@ -138,6 +144,52 @@ async def list_tools() -> list[Tool]:
             },
         ),
         Tool(
+            name="remember",
+            description=(
+                "Persist a fact, preference, or context about the user so it is available "
+                "in every future AI session across all agents (Claude Code, Cursor, Windsurf, "
+                "Copilot, Codex). Call whenever the user states a preference, mentions their "
+                "stack or projects, or gives context that should always apply. "
+                "This is how the system compounds knowledge over time."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "type": {
+                        "type": "string",
+                        "enum": [
+                            "preference",
+                            "project",
+                            "never",
+                            "user_info",
+                            "context",
+                        ],
+                        "description": (
+                            "preference: coding/style/format preference. "
+                            "project: active project or task context. "
+                            "never: hard constraint — something to never do. "
+                            "user_info: fact about the user (timezone, role, team size). "
+                            "context: stack, tools, environment info."
+                        ),
+                    },
+                    "content": {
+                        "type": "string",
+                        "description": "The fact to remember, stated clearly and concisely.",
+                    },
+                },
+                "required": ["type", "content"],
+            },
+        ),
+        Tool(
+            name="recall",
+            description=(
+                "Read all persisted facts, preferences, and context about the user. "
+                "Call at the start of a session to load everything known about this user "
+                "before they say a word. Returns memory grouped by type."
+            ),
+            inputSchema={"type": "object", "properties": {}, "required": []},
+        ),
+        Tool(
             name="list_providers",
             description="Show which session sources and AI agents are detected on this machine.",
             inputSchema={"type": "object", "properties": {}, "required": []},
@@ -149,6 +201,13 @@ async def list_tools() -> list[Tool]:
 async def call_tool(name: str, arguments: dict) -> list[TextContent]:
     if name == "get_guardrail_rules":
         return await _get_guardrail_rules()
+    if name == "remember":
+        return await _remember(
+            memory_type=arguments.get("type", "context"),
+            content=arguments.get("content", ""),
+        )
+    if name == "recall":
+        return await _recall()
     if name == "record_feedback":
         return await _record_feedback(
             feedback_type=arguments.get("feedback_type", "correction"),
@@ -179,6 +238,32 @@ async def _get_guardrail_rules() -> list[TextContent]:
         ]
     write_rules_all(rules)
     return [TextContent(type="text", text=format_rules_block(rules))]
+
+
+async def _remember(memory_type: str, content: str) -> list[TextContent]:
+    if not content.strip():
+        return [TextContent(type="text", text="❌ Content cannot be empty.")]
+
+    entry = add_memory(memory_type, content)
+    entries = load_memory()
+    written = write_memory_all(entries)
+    targets_str = ", ".join(n for n, _ in written) if written else "no agent configs detected"
+
+    return [
+        TextContent(
+            type="text",
+            text=(
+                f"✅ Remembered [{entry['type']}]: {entry['content']}\n"
+                f"Written to: {targets_str}\n"
+                f"Total memories: {len(entries)}"
+            ),
+        )
+    ]
+
+
+async def _recall() -> list[TextContent]:
+    entries = load_memory()
+    return [TextContent(type="text", text=format_memory_for_display(entries))]
 
 
 async def _record_feedback(

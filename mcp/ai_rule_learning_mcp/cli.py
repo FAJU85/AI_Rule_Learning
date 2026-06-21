@@ -1,10 +1,13 @@
 """Standalone CLI — works with ZERO MCP config.
 
 Usage:
-  ai-rule-learning sync     Scan sessions, generate rules, write to all detected AI agents
-  ai-rule-learning status   Show current rules and detected agent configs
-  ai-rule-learning rules    Print active rules
-  ai-rule-learning clear    Remove AI Rule Learning section from all agent configs
+  ai-rule-learning sync              Scan sessions, generate rules, write to all detected AI agents
+  ai-rule-learning status            Show current rules and detected agent configs
+  ai-rule-learning rules             Print active rules
+  ai-rule-learning clear             Remove AI Rule Learning section from all agent configs
+  ai-rule-learning memory show       Show all remembered facts and preferences
+  ai-rule-learning memory add <type> <content>   Add a memory entry manually
+  ai-rule-learning memory clear      Delete all memory entries
 """
 
 from __future__ import annotations
@@ -104,9 +107,12 @@ def cmd_sync(args: list[str]) -> None:
     except Exception:
         pass
 
+    from .memory import load_memory
+
     rules = load_active_rules()
     if rules:
-        written = write_rules_all(rules)
+        memory_entries = load_memory()
+        written = write_rules_all(rules, memory_entries=memory_entries or None)
         if written:
             targets = ", ".join(n for n, _ in written)
             print(f"\n📝 {len(rules)} rule(s) written to: {targets}")
@@ -178,6 +184,39 @@ def cmd_clear(_args: list[str]) -> None:
         print("ℹ️  No AI Rule Learning section found in any agent config")
 
 
+def cmd_memory(args: list[str]) -> None:
+    from .memory import add_memory, clear_memory, format_memory_for_display, load_memory
+    from .injector import write_memory_all
+
+    subcmd = args[0] if args else "show"
+
+    if subcmd == "show" or subcmd == "list":
+        entries = load_memory()
+        print(format_memory_for_display(entries))
+
+    elif subcmd == "add":
+        if len(args) < 3:
+            print("Usage: ai-rule-learning memory add <type> <content>")
+            print("Types: preference, project, never, user_info, context")
+            return
+        mem_type = args[1]
+        content = " ".join(args[2:])
+        entry = add_memory(mem_type, content)
+        entries = load_memory()
+        written = write_memory_all(entries)
+        targets = ", ".join(n for n, _ in written) if written else "none detected"
+        print(f"✅ Remembered [{entry['type']}]: {entry['content']}")
+        print(f"   Written to: {targets}")
+
+    elif subcmd == "clear":
+        n = clear_memory()
+        print(f"✅ Cleared {n} memory entries")
+
+    else:
+        print(f"Unknown memory subcommand: {subcmd!r}")
+        print("Available: show, add, clear")
+
+
 def main() -> None:
     argv = sys.argv[1:]
     cmd = argv[0] if argv else "status"
@@ -188,6 +227,7 @@ def main() -> None:
         "status": cmd_status,
         "rules": cmd_rules,
         "clear": cmd_clear,
+        "memory": cmd_memory,
     }
 
     fn = dispatch.get(cmd)
