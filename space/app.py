@@ -10347,8 +10347,8 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     exc_refresh_btn2 = gr.Button("↻", variant="secondary", size="sm", scale=0)
                     exc_duration = gr.Number(label="Duration (hours)", value=24, minimum=1, maximum=720, scale=1, info="1–720 h (max 30 days)")
                 with gr.Row():
-                    exc_reason = gr.Textbox(label="Reason", placeholder="e.g. Emergency incident response", scale=3)
-                    exc_approver = gr.Textbox(label="Approved by", placeholder="e.g. CISO", scale=2)
+                    exc_reason = gr.Textbox(label="Reason", placeholder="e.g. Emergency incident response", scale=3, info="Business justification for disabling the rule — required for audit compliance")
+                    exc_approver = gr.Textbox(label="Approved by", placeholder="e.g. CISO", scale=2, info="Name or role of the person who authorised this exception")
                 gr.Examples(
                     examples=[
                         ["Emergency incident response — rule causing false positives under load", "CISO", 4],
@@ -10434,7 +10434,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 conflict_log = gr.Textbox(label="Scan log", lines=6, max_lines=14, interactive=False, autoscroll=True, show_copy_button=True)
                 with gr.Row():
                     conflict_resolve_id = gr.Textbox(label="Conflict ID prefix to resolve", placeholder="e.g. cnf_abc123", scale=2, info="Copy the first 8 characters of the ID from the table above")
-                    conflict_resolution = gr.Textbox(label="Resolution note", placeholder="e.g. Removed overlapping rule, merged conditions", scale=4)
+                    conflict_resolution = gr.Textbox(label="Resolution note", placeholder="e.g. Removed overlapping rule, merged conditions", scale=4, info="Explain what change was made to eliminate the conflict — recorded in the audit log")
                 gr.Examples(
                     examples=[
                         ["Removed overlapping rule — Rule #4 is a strict subset of Rule #7; Rule #4 deprecated"],
@@ -11442,7 +11442,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     slo_rule_refresh = gr.Button("↻", variant="secondary", size="sm", scale=0)
                     slo_target = gr.Number(label="Target %", value=90.0, minimum=50, maximum=100, scale=1, info="50–100 %")
                     slo_window = gr.Number(label="Window (days)", value=30, minimum=1, maximum=365, scale=1, info="Rolling measurement window")
-                slo_name_in = gr.Textbox(label="SLO name", placeholder="e.g. Effectiveness ≥ 90%")
+                slo_name_in = gr.Textbox(label="SLO name", placeholder="e.g. Effectiveness ≥ 90%", info="Human-readable label — convention: metric + threshold (e.g. 'Bypass Rate ≤ 5%')")
                 gr.Examples(
                     examples=[
                         ["Effectiveness ≥ 90%", 90.0, 30],
@@ -11485,7 +11485,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 with gr.Row():
                     imp_rule_sel = gr.Dropdown(label="Rule", choices=[], scale=3)
                     imp_rule_refresh = gr.Button("↻", variant="secondary", size="sm", scale=0)
-                    imp_trigger = gr.Textbox(label="Trigger event", placeholder="e.g. bypass_rate > 0.4", scale=3)
+                    imp_trigger = gr.Textbox(label="Trigger event", placeholder="e.g. bypass_rate > 0.4", scale=3, info="Threshold expression or event that triggered this improvement cycle")
                 imp_desc = gr.Textbox(label="Description", lines=2, placeholder="What went wrong and why")
                 gr.Examples(
                     examples=[
@@ -11717,7 +11717,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                     ctrl_rule_csv = gr.Dropdown(label="Linked rules", choices=[], multiselect=True, scale=3,
                         info="Rules this control is designed to enforce or protect — used in compliance reporting")
                     ctrl_rules_refresh = gr.Button("↻", variant="secondary", size="sm", scale=0)
-                    ctrl_audit_ref = gr.Textbox(label="Audit reference", placeholder="e.g. ISO 27001 A.5.1", scale=3)
+                    ctrl_audit_ref = gr.Textbox(label="Audit reference", placeholder="e.g. ISO 27001 A.5.1", scale=3, info="Framework + section number this control satisfies (ISO 27001, SOC 2, NIST CSF, GDPR, etc.)")
                 gr.Examples(
                     examples=[
                         ["Rule version control gate", "technical", "high", "All rule changes require peer review and are versioned before activation", "ISO 27001 A.8.32"],
@@ -11987,7 +11987,7 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
                 gr.Markdown("Generate a comprehensive compliance report for stakeholders (CTO, board, auditors).")
                 with gr.Row():
                     report_period = gr.Dropdown(label="Period", choices=["monthly", "quarterly", "annual", "ad-hoc"], value="monthly", scale=2, info="Reporting period covered by the generated stakeholder report")
-                    report_sections = gr.Textbox(label="Sections to include (optional)", placeholder="e.g. summary, incidents, slos — comma-separated", scale=4)
+                    report_sections = gr.Textbox(label="Sections to include (optional)", placeholder="e.g. summary, incidents, slos — comma-separated", scale=4, info="Available sections: summary, rules, incidents, slos, overrides, escalations, evidence — leave blank for all")
                 report_gen_btn = gr.Button("Generate Report", variant="primary", size="sm")
                 report_output = gr.Markdown(min_height=28)
 
