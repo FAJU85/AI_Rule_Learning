@@ -190,6 +190,26 @@ async def list_tools() -> list[Tool]:
             inputSchema={"type": "object", "properties": {}, "required": []},
         ),
         Tool(
+            name="install_scheduler",
+            description=(
+                "Install a nightly automatic sync job on the user's machine so that "
+                "ai-rule-learning sync runs every night at 02:00 without any manual action. "
+                "Uses LaunchAgent on macOS, systemd timer on Linux, or cron as fallback. "
+                "Call this once after the user installs the MCP to make the system fully autonomous."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "action": {
+                        "type": "string",
+                        "enum": ["install", "uninstall", "status"],
+                        "description": "install: set up nightly sync. uninstall: remove it. status: check current state.",
+                    }
+                },
+                "required": [],
+            },
+        ),
+        Tool(
             name="list_providers",
             description="Show which session sources and AI agents are detected on this machine.",
             inputSchema={"type": "object", "properties": {}, "required": []},
@@ -218,6 +238,8 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
         paths = [Path(p) for p in arguments.get("paths", [])] or None
         contribute = arguments.get("contribute", _CONTRIBUTE)
         return await _sync_sessions(paths=paths, contribute=contribute)
+    if name == "install_scheduler":
+        return await _install_scheduler(arguments.get("action", "install"))
     if name == "list_providers":
         return await _list_providers()
     return [TextContent(type="text", text=f"Unknown tool: {name}")]
@@ -414,6 +436,34 @@ async def _sync_sessions(
         log.append("ℹ️  No active rules yet — need more session data")
 
     return [TextContent(type="text", text="\n".join(log))]
+
+
+async def _install_scheduler(action: str = "install") -> list[TextContent]:
+    from .scheduler import install, is_installed, status, uninstall
+
+    if action == "uninstall":
+        removed = uninstall()
+        msg = "✅ Nightly auto-sync removed." if removed else "ℹ️  No auto-sync job found."
+        return [TextContent(type="text", text=msg)]
+
+    if action == "status":
+        return [TextContent(type="text", text=status())]
+
+    # install
+    if is_installed():
+        return [TextContent(type="text", text=f"ℹ️  Already installed.\n{status()}")]
+
+    result = install()
+    return [
+        TextContent(
+            type="text",
+            text=(
+                f"✅ {result}\n\n"
+                "The system will now sync automatically every night at 02:00.\n"
+                "Rules and memory will update without any manual action."
+            ),
+        )
+    ]
 
 
 async def _list_providers() -> list[TextContent]:
