@@ -8,6 +8,9 @@ Usage:
   ai-rule-learning memory show       Show all remembered facts and preferences
   ai-rule-learning memory add <type> <content>   Add a memory entry manually
   ai-rule-learning memory clear      Delete all memory entries
+  ai-rule-learning skills            List all saved skill procedures
+  ai-rule-learning skills show <name>   Show full steps for a skill
+  ai-rule-learning skills delete <name> Delete a skill
   ai-rule-learning install-cron      Install nightly auto-sync (macOS/Linux)
   ai-rule-learning uninstall-cron    Remove the nightly auto-sync job
   ai-rule-learning cron-status       Show whether auto-sync is scheduled
