@@ -1,4 +1,4 @@
-"""Universal rule + memory injector — writes to all detected AI agent configs.
+"""Universal rule + memory + skills injector — writes to all detected AI agent configs.
 
 Supported agents (auto-detected by presence of their config dirs):
   - Claude Code    → ~/.claude/CLAUDE.md
@@ -6,11 +6,12 @@ Supported agents (auto-detected by presence of their config dirs):
   - Windsurf       → ~/.windsurf/rules/ai-guardrails.md
   - GitHub Copilot → ~/.config/github-copilot/instructions.md
 
-Each config file receives two sections:
+Each config file receives up to three sections (order: memory, skills, rules):
   1. Memory block  — who the user is, their preferences, active projects
-  2. Rules block   — guardrail rules learned from past sessions
+  2. Skills index  — names + descriptions of saved reusable procedures
+  3. Rules block   — guardrail rules learned from past sessions
 
-Both are injected behind HTML comment markers and updated idempotently.
+All sections use HTML comment markers and are updated idempotently.
 Agents without a persistent config file get rules inline via get_guardrail_rules.
 """
 
@@ -28,6 +29,11 @@ _SECTION_RE = re.compile(rf"{re.escape(_START)}.*?{re.escape(_END)}", re.DOTALL)
 _MEM_START = "<!-- AI-Rule-Learning:memory:start -->"
 _MEM_END = "<!-- AI-Rule-Learning:memory:end -->"
 _MEM_RE = re.compile(rf"{re.escape(_MEM_START)}.*?{re.escape(_MEM_END)}", re.DOTALL)
+
+# ── Skills section markers ─────────────────────────────────────────────────
+_SKILLS_START = "<!-- AI-Rule-Learning:skills:start -->"
+_SKILLS_END = "<!-- AI-Rule-Learning:skills:end -->"
+_SKILLS_RE = re.compile(rf"{re.escape(_SKILLS_START)}.*?{re.escape(_SKILLS_END)}", re.DOTALL)
 
 _PRIORITY_LABEL = {5: "CRITICAL", 4: "HIGH", 3: "MEDIUM", 2: "LOW", 1: "LOW"}
 
@@ -112,10 +118,17 @@ class _Target:
     def is_detected(self) -> bool:
         return self.config_path().parent.exists()
 
-    def write(self, rules: list[dict], memory_block: str = "") -> Path:
+    def write(
+        self,
+        rules: list[dict],
+        memory_block: str = "",
+        skills_block: str = "",
+    ) -> Path:
         p = self.config_path()
         if memory_block:
             _upsert(p, memory_block, _MEM_RE, _MEM_START)
+        if skills_block:
+            _upsert(p, skills_block, _SKILLS_RE, _SKILLS_START)
         _upsert(p, _build_section(rules), _SECTION_RE, _START)
         return p
 
@@ -124,11 +137,17 @@ class _Target:
         _upsert(p, memory_block, _MEM_RE, _MEM_START)
         return p
 
+    def write_skills(self, skills_block: str) -> Path:
+        p = self.config_path()
+        _upsert(p, skills_block, _SKILLS_RE, _SKILLS_START)
+        return p
+
     def remove(self) -> bool:
         p = self.config_path()
         r1 = _remove(p, _SECTION_RE, _START)
         r2 = _remove(p, _MEM_RE, _MEM_START)
-        return r1 or r2
+        r3 = _remove(p, _SKILLS_RE, _SKILLS_START)
+        return r1 or r2 or r3
 
     def read_injected(self) -> list[str]:
         return _read_bullets(self.config_path(), _SECTION_RE)
@@ -198,16 +217,19 @@ def detected_targets() -> list[_Target]:
 def write_rules_all(
     rules: list[dict],
     memory_entries: list[dict] | None = None,
+    skill_list: list[dict] | None = None,
 ) -> list[tuple[str, Path]]:
-    """Write rules (and optionally memory) to every detected agent config."""
+    """Write rules (and optionally memory + skills) to every detected agent config."""
     from .memory import build_memory_block
+    from .skills import build_skills_index
 
     memory_block = build_memory_block(memory_entries) if memory_entries else ""
+    skills_block = build_skills_index(skill_list) if skill_list else ""
 
     results: list[tuple[str, Path]] = []
     for target in detected_targets():
         try:
-            path = target.write(rules, memory_block=memory_block)
+            path = target.write(rules, memory_block=memory_block, skills_block=skills_block)
             results.append((target.name, path))
         except Exception:
             pass
@@ -226,6 +248,24 @@ def write_memory_all(memory_entries: list[dict]) -> list[tuple[str, Path]]:
     for target in detected_targets():
         try:
             path = target.write_memory(block)
+            results.append((target.name, path))
+        except Exception:
+            pass
+    return results
+
+
+def write_skills_all(skill_list: list[dict]) -> list[tuple[str, Path]]:
+    """Write only the skills index block to every detected agent config."""
+    from .skills import build_skills_index
+
+    block = build_skills_index(skill_list)
+    if not block:
+        return []
+
+    results: list[tuple[str, Path]] = []
+    for target in detected_targets():
+        try:
+            path = target.write_skills(block)
             results.append((target.name, path))
         except Exception:
             pass

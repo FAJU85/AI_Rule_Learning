@@ -220,6 +220,42 @@ def cmd_memory(args: list[str]) -> None:
         print("Available: show, add, clear")
 
 
+def cmd_skills(args: list[str]) -> None:
+    from .skills import delete_skill, format_skill_detail, format_skills_for_display, get_skill, list_skills
+
+    subcmd = args[0] if args else "list"
+
+    if subcmd in ("list", "ls") or not args:
+        skills = list_skills()
+        print(format_skills_for_display(skills))
+
+    elif subcmd == "show" or subcmd == "get":
+        if len(args) < 2:
+            print("Usage: ai-rule-learning skills show <name>")
+            return
+        name = " ".join(args[1:])
+        skill = get_skill(name)
+        if skill is None:
+            print(f"❌ Skill not found: {name!r}")
+            print("Run `ai-rule-learning skills` to list available skills.")
+        else:
+            print(format_skill_detail(skill))
+
+    elif subcmd == "delete" or subcmd == "rm":
+        if len(args) < 2:
+            print("Usage: ai-rule-learning skills delete <name>")
+            return
+        name = " ".join(args[1:])
+        if delete_skill(name):
+            print(f"✅ Skill deleted: {name!r}")
+        else:
+            print(f"❌ Skill not found: {name!r}")
+
+    else:
+        print(f"Unknown skills subcommand: {subcmd!r}")
+        print("Available: list, show <name>, delete <name>")
+
+
 def cmd_install_cron(_args: list[str]) -> None:
     from .scheduler import install, status
 
@@ -259,6 +295,7 @@ def main() -> None:
         "rules": cmd_rules,
         "clear": cmd_clear,
         "memory": cmd_memory,
+        "skills": cmd_skills,
         "install-cron": cmd_install_cron,
         "uninstall-cron": cmd_uninstall_cron,
         "cron-status": cmd_cron_status,
