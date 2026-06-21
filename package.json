@@ -25,10 +25,6 @@
     "standard-version": "^9.5.0"
   },
   "lint-staged": {
-    "!(README-DEVELOPMENT-1|MVP).md": [
-      "markdownlint-cli2 --fix",
-      "prettier --write"
-    ],
     "README-DEVELOPMENT-1.md": [
       "prettier --write"
     ],
@@ -36,6 +32,10 @@
       "prettier --write"
     ],
     "*.{json,yml,yaml}": [
+      "prettier --write"
+    ],
+    "!(README-DEVELOPMENT-1|MVP|AGENTS|CLAUDE).md": [
+      "markdownlint-cli2 --fix",
       "prettier --write"
     ]
   }
