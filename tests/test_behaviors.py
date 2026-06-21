@@ -7,6 +7,7 @@ TDD Red-Green-Refactor for guardrails:
 
 Run with: pytest tests/test_behaviors.py -v
 """
+
 from __future__ import annotations
 
 import pytest
@@ -14,9 +15,14 @@ import pytest
 from src.core.alignment_sensor import AlignmentSensor
 from src.core.gap_detector import GapDetector
 from src.core.rule_engine import RuleEngine
-from src.models.conversation import Conversation, SensorReading, Turn
-from src.models.rules import Priority, Rule, RuleAction, RuleTrigger, RuleType
-
+from src.models.conversation import Conversation
+from src.models.conversation import SensorReading
+from src.models.conversation import Turn
+from src.models.rules import Rule
+from src.models.rules import RuleAction
+from src.models.rules import RulePriority as Priority
+from src.models.rules import RuleTrigger
+from src.models.rules import RuleType
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -154,12 +160,8 @@ class TestSentimentDropDetection:
         small = make_turn(turn_number=1, sentiment_before=0.5, sentiment_after=0.1)
         large = make_turn(turn_number=2, sentiment_before=1.0, sentiment_after=-0.8)
 
-        sev_small = next(
-            (g["severity"] for g in detector.detect([small]) if g["type"] == "sentiment_drop"), 0
-        )
-        sev_large = next(
-            (g["severity"] for g in detector.detect([large]) if g["type"] == "sentiment_drop"), 0
-        )
+        sev_small = next((g["severity"] for g in detector.detect([small]) if g["type"] == "sentiment_drop"), 0)
+        sev_large = next((g["severity"] for g in detector.detect([large]) if g["type"] == "sentiment_drop"), 0)
         assert sev_large > sev_small
 
 
@@ -204,8 +206,8 @@ class TestCodeAntiPatternDetection:
     @pytest.mark.parametrize(
         "response,expected_subtype",
         [
-            ('result = eval(user_input)', "eval_usage"),
-            ('try:\n    pass\nexcept:\n    pass', "bare_except"),
+            ("result = eval(user_input)", "eval_usage"),
+            ("try:\n    pass\nexcept:\n    pass", "bare_except"),
             ('password = "mysecret123"', "hardcoded_secret"),
             ('api_key = "sk-abc123xyz"', "hardcoded_secret"),
         ],
@@ -217,7 +219,7 @@ class TestCodeAntiPatternDetection:
         assert matching, f"Expected code_anti_pattern:{expected_subtype} in response: {response!r}"
 
     def test_safe_code_no_gap(self, detector, make_turn):
-        safe_code = '''
+        safe_code = """
 def fetch_data(url: str) -> dict:
     with requests.Session() as session:
         try:
@@ -227,7 +229,7 @@ def fetch_data(url: str) -> dict:
         except requests.HTTPError as exc:
             logger.error("HTTP error", extra={"error": str(exc)})
             raise
-'''
+"""
         turns = [make_turn(agent_response=safe_code)]
         gaps = detector.detect(turns)
         assert not any("code_anti_pattern" in g["type"] for g in gaps)
@@ -292,14 +294,20 @@ class TestRuleMatchingBehaviors:
 
     def test_rules_sorted_by_priority_descending(self):
         low = Rule(
-            rule_id="low", name="Low", description="Low priority",
-            rule_type=RuleType.GUARDRAIL, priority=Priority.LOW,
+            rule_id="low",
+            name="Low",
+            description="Low priority",
+            rule_type=RuleType.GUARDRAIL,
+            priority=Priority.LOW,
             trigger=RuleTrigger(keywords=["wrong"]),
             action=RuleAction(type="modify_response", instruction="Low action"),
         )
         critical = Rule(
-            rule_id="critical", name="Critical", description="Critical priority",
-            rule_type=RuleType.GUARDRAIL, priority=Priority.CRITICAL,
+            rule_id="critical",
+            name="Critical",
+            description="Critical priority",
+            rule_type=RuleType.GUARDRAIL,
+            priority=Priority.CRITICAL,
             trigger=RuleTrigger(keywords=["wrong"]),
             action=RuleAction(type="modify_response", instruction="Critical action"),
         )
@@ -325,9 +333,7 @@ class TestRuleMatchingBehaviors:
 class TestBehavioralScenarios:
     """Real-world scenarios — the 'user stories' TDD for guardrails."""
 
-    def test_frustrated_user_triggers_both_sentiment_and_correction_gaps(
-        self, detector, make_turn
-    ):
+    def test_frustrated_user_triggers_both_sentiment_and_correction_gaps(self, detector, make_turn):
         """
         SCENARIO: User gets increasingly frustrated with wrong answers.
         EXPECTED: Both sentiment_drop AND explicit_correction detected.
@@ -374,11 +380,16 @@ class TestBehavioralScenarios:
         EXPECTED: Zero gaps detected.
         """
         turns = [
-            make_turn(1, "Can you explain Python generators?",
-                      "Generators are lazy iterators defined with yield...", 0.5, 0.8),
-            make_turn(2, "Can you give an example?",
-                      "Sure! Here is a simple generator:\n\ndef count_up(n):\n    for i in range(n):\n        yield i",
-                      0.8, 0.9),
+            make_turn(
+                1, "Can you explain Python generators?", "Generators are lazy iterators defined with yield...", 0.5, 0.8
+            ),
+            make_turn(
+                2,
+                "Can you give an example?",
+                "Sure! Here is a simple generator:\n\ndef count_up(n):\n    for i in range(n):\n        yield i",
+                0.8,
+                0.9,
+            ),
         ]
         gaps = detector.detect(turns)
         assert len(gaps) == 0

@@ -1,10 +1,9 @@
 """Abstract base class for AI provider adapters."""
+
 from __future__ import annotations
 
 from abc import ABC
 from abc import abstractmethod
-from typing import List
-from typing import Optional
 
 
 class BaseAIAdapter(ABC):

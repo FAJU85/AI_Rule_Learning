@@ -3,13 +3,15 @@
 Tests exercise the core algorithms inline (space/app.py requires gradio which isn't
 available in the test env), validating the logic that will run in the HF Space.
 """
-import unittest
-from datetime import datetime, timedelta
 
+import unittest
+from datetime import datetime
+from datetime import timedelta
 
 # ---------------------------------------------------------------------------
 # Inline pure-logic implementations (mirrors space/app.py without gradio/HF deps)
 # ---------------------------------------------------------------------------
+
 
 def _rule_triggers_on(rule: dict, text: str) -> bool:
     text_lower = text.lower()
@@ -74,7 +76,9 @@ def compute_reputation_summary(rep_log, windows=(7, 30, 90)):
         for days in windows:
             cut = cutoffs[days]
             wentries = [e for e in entries if e.get("timestamp", "") >= cut]
-            row[f"{days}d_avg"] = round(sum(e["compliance_score"] for e in wentries) / len(wentries), 1) if wentries else None
+            row[f"{days}d_avg"] = (
+                round(sum(e["compliance_score"] for e in wentries) / len(wentries), 1) if wentries else None
+            )
         summary.append(row)
     return summary
 
@@ -120,7 +124,7 @@ def add_control(controls, control_name, category, risk_level, description, rule_
         return None, "control name is required"
     rid_list = [r.strip() for r in rule_ids_csv.split(",") if r.strip()]
     ctrl = {
-        "control_id": f"ctrl_001",
+        "control_id": "ctrl_001",
         "name": control_name,
         "category": category,
         "risk_level": risk_level,
@@ -183,6 +187,7 @@ FAKE_BENCHMARK_CASES = [
 # ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------
+
 
 class TestRuleTriggers(unittest.TestCase):
     def test_triggers_on_negative_keyword(self):
@@ -295,32 +300,60 @@ class TestGoalAlignment(unittest.TestCase):
         self.assertIn("required", msg.lower())
 
     def test_aligned_when_actual_exceeds_target(self):
-        goals = [{"goal_id": "g1", "objective": "Test", "business_outcome": "BO",
-                  "linked_rule_ids": ["rule_aaa"], "target_score": 80.0}]
+        goals = [
+            {
+                "goal_id": "g1",
+                "objective": "Test",
+                "business_outcome": "BO",
+                "linked_rule_ids": ["rule_aaa"],
+                "target_score": 80.0,
+            }
+        ]
         results = compute_goal_alignment(goals, FAKE_RULES)
         # rule_aaa score_history=[0.8,0.85,0.9] avg=0.85 → 85% ≥ 80%
         self.assertEqual(results[0]["alignment_status"], "aligned")
         self.assertGreaterEqual(results[0]["actual_score"], 80.0)
 
     def test_misaligned_when_far_below_target(self):
-        goals = [{"goal_id": "g2", "objective": "High Bar", "business_outcome": "BX",
-                  "linked_rule_ids": ["rule_bbb"], "target_score": 95.0}]
+        goals = [
+            {
+                "goal_id": "g2",
+                "objective": "High Bar",
+                "business_outcome": "BX",
+                "linked_rule_ids": ["rule_bbb"],
+                "target_score": 95.0,
+            }
+        ]
         results = compute_goal_alignment(goals, FAKE_RULES)
         # rule_bbb score_history=[0.6,0.65,0.7] avg=0.65 → 65% < 95%*0.85=80.75%
         self.assertEqual(results[0]["alignment_status"], "misaligned")
 
     def test_warning_zone(self):
         # target=80, actual=70 → 70 >= 80*0.85=68 → warning
-        goals = [{"goal_id": "g3", "objective": "Mid", "business_outcome": "BM",
-                  "linked_rule_ids": ["rule_bbb"], "target_score": 80.0}]
+        goals = [
+            {
+                "goal_id": "g3",
+                "objective": "Mid",
+                "business_outcome": "BM",
+                "linked_rule_ids": ["rule_bbb"],
+                "target_score": 80.0,
+            }
+        ]
         results = compute_goal_alignment(goals, FAKE_RULES)
         # rule_bbb avg=65% < 80% target but 65 >= 68? No: 65 < 68 → misaligned
         # Let's verify the actual value
         self.assertIn(results[0]["alignment_status"], ["warning", "misaligned"])
 
     def test_gap_computed_correctly(self):
-        goals = [{"goal_id": "g4", "objective": "Gap Test", "business_outcome": "BG",
-                  "linked_rule_ids": ["rule_aaa"], "target_score": 90.0}]
+        goals = [
+            {
+                "goal_id": "g4",
+                "objective": "Gap Test",
+                "business_outcome": "BG",
+                "linked_rule_ids": ["rule_aaa"],
+                "target_score": 90.0,
+            }
+        ]
         results = compute_goal_alignment(goals, FAKE_RULES)
         # avg = (0.8+0.85+0.9)/3*100 = 85% → gap = 85-90 = -5
         self.assertAlmostEqual(results[0]["gap"], -5.0, places=0)
@@ -333,8 +366,9 @@ class TestGoalAlignment(unittest.TestCase):
 class TestControlMapping(unittest.TestCase):
     def test_add_control_success(self):
         controls = []
-        ctrl, msg = add_control(controls, "Content Filter", "technical", "high",
-                                "Filters content", "rule_aaa", "ISO 27001 A.8.2")
+        ctrl, msg = add_control(
+            controls, "Content Filter", "technical", "high", "Filters content", "rule_aaa", "ISO 27001 A.8.2"
+        )
         self.assertIsNotNone(ctrl)
         self.assertIn("Content Filter", msg)
         self.assertIn("1 rules mapped", msg)
@@ -347,9 +381,17 @@ class TestControlMapping(unittest.TestCase):
         self.assertIn("required", msg.lower())
 
     def test_effectiveness_is_avg_compliance(self):
-        controls = [{"control_id": "c1", "name": "Multi-Rule", "category": "technical",
-                     "risk_level": "high", "description": "d", "linked_rule_ids": ["rule_aaa", "rule_bbb"],
-                     "audit_reference": ""}]
+        controls = [
+            {
+                "control_id": "c1",
+                "name": "Multi-Rule",
+                "category": "technical",
+                "risk_level": "high",
+                "description": "d",
+                "linked_rule_ids": ["rule_aaa", "rule_bbb"],
+                "audit_reference": "",
+            }
+        ]
         results = compute_control_coverage(controls, FAKE_RULES)
         # rule_aaa avg=85%, rule_bbb avg=65% → avg = 75%
         self.assertAlmostEqual(results[0]["effectiveness"], 75.0, places=0)
@@ -357,17 +399,32 @@ class TestControlMapping(unittest.TestCase):
         self.assertEqual(results[0]["scored_count"], 2)
 
     def test_effectiveness_zero_for_unmapped_rules(self):
-        controls = [{"control_id": "c2", "name": "Empty", "category": "operational",
-                     "risk_level": "low", "description": "d", "linked_rule_ids": [],
-                     "audit_reference": ""}]
+        controls = [
+            {
+                "control_id": "c2",
+                "name": "Empty",
+                "category": "operational",
+                "risk_level": "low",
+                "description": "d",
+                "linked_rule_ids": [],
+                "audit_reference": "",
+            }
+        ]
         results = compute_control_coverage(controls, FAKE_RULES)
         self.assertEqual(results[0]["effectiveness"], 0.0)
 
     def test_unknown_rule_skipped_gracefully(self):
-        controls = [{"control_id": "c3", "name": "Unknown", "category": "managerial",
-                     "risk_level": "medium", "description": "d",
-                     "linked_rule_ids": ["rule_xxx_nonexistent"],
-                     "audit_reference": ""}]
+        controls = [
+            {
+                "control_id": "c3",
+                "name": "Unknown",
+                "category": "managerial",
+                "risk_level": "medium",
+                "description": "d",
+                "linked_rule_ids": ["rule_xxx_nonexistent"],
+                "audit_reference": "",
+            }
+        ]
         results = compute_control_coverage(controls, FAKE_RULES)
         self.assertEqual(results[0]["effectiveness"], 0.0)
         self.assertEqual(results[0]["scored_count"], 0)

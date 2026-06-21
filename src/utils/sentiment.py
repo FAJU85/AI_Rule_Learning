@@ -5,15 +5,14 @@ Returns scores in the range [-1, 1]:
    0 = neutral
   +1 = very positive
 """
-from __future__ import annotations
 
-from typing import Optional
+from __future__ import annotations
 
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-_pipeline: Optional[object] = None
+_pipeline: object | None = None
 _MODEL_NAME = "distilbert-base-uncased-finetuned-sst-2-english"
 
 

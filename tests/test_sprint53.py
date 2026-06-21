@@ -1,20 +1,21 @@
 """Unit tests for sprint 53: certification framework, stakeholder reporting,
 continuous compliance monitoring, compliance calendar."""
-import unittest
-import json
-from datetime import datetime, timedelta
 
+import unittest
+from datetime import datetime
+from datetime import timedelta
 
 # ---------------------------------------------------------------------------
 # Inline pure-logic implementations
 # ---------------------------------------------------------------------------
+
 
 def add_certification(certs, cert_name, cert_type, issuing_body, issue_date, expiry_date, scope, rule_ids_csv):
     if not cert_name:
         return None, "certification name is required"
     rid_list = [r.strip() for r in rule_ids_csv.split(",") if r.strip()]
     cert = {
-        "cert_id": f"cert_001",
+        "cert_id": "cert_001",
         "name": cert_name,
         "type": cert_type,
         "issuing_body": issuing_body,
@@ -60,9 +61,11 @@ def compute_compliance_health(rules, incidents, slos, certs, goals):
             healthy += 1
     rule_health = round(healthy / len(active) * 100, 1) if active else 0.0
 
-    open_critical = sum(1 for i in incidents
-                        if i.get("status") not in ("resolved", "closed")
-                        and i.get("severity") in ("P0_critical", "P1_high"))
+    open_critical = sum(
+        1
+        for i in incidents
+        if i.get("status") not in ("resolved", "closed") and i.get("severity") in ("P0_critical", "P1_high")
+    )
     incident_health = max(0.0, 100.0 - open_critical * 25)
 
     slo_ok = sum(1 for s in slos if s.get("status") == "ok")
@@ -75,11 +78,16 @@ def compute_compliance_health(rules, incidents, slos, certs, goals):
     goal_health = round(aligned / len(goals) * 100, 1) if goals else 100.0
 
     overall = round(
-        rule_health * 0.30 + incident_health * 0.25 + slo_health * 0.20 +
-        cert_health * 0.15 + goal_health * 0.10, 1
+        rule_health * 0.30 + incident_health * 0.25 + slo_health * 0.20 + cert_health * 0.15 + goal_health * 0.10, 1
     )
-    return {"overall": overall, "rule_health": rule_health, "incident_health": incident_health,
-            "slo_health": slo_health, "cert_health": cert_health, "goal_health": goal_health}
+    return {
+        "overall": overall,
+        "rule_health": rule_health,
+        "incident_health": incident_health,
+        "slo_health": slo_health,
+        "cert_health": cert_health,
+        "goal_health": goal_health,
+    }
 
 
 def add_calendar_item(items, title, item_type, due_date, priority, description, owner, rule_ids_csv):
@@ -157,17 +165,39 @@ FAKE_SLOS = [
 ]
 
 FAKE_CERTS = [
-    {"cert_id": "c1", "name": "ISO 27001", "type": "iso_27001", "status": "active",
-     "expiry_date": (datetime.utcnow() + timedelta(days=180)).strftime("%Y-%m-%d"),
-     "current_status": "active"},
-    {"cert_id": "c2", "name": "SOC2", "type": "soc2", "status": "active",
-     "expiry_date": (datetime.utcnow() - timedelta(days=10)).strftime("%Y-%m-%d"),
-     "current_status": "expired"},
+    {
+        "cert_id": "c1",
+        "name": "ISO 27001",
+        "type": "iso_27001",
+        "status": "active",
+        "expiry_date": (datetime.utcnow() + timedelta(days=180)).strftime("%Y-%m-%d"),
+        "current_status": "active",
+    },
+    {
+        "cert_id": "c2",
+        "name": "SOC2",
+        "type": "soc2",
+        "status": "active",
+        "expiry_date": (datetime.utcnow() - timedelta(days=10)).strftime("%Y-%m-%d"),
+        "current_status": "expired",
+    },
 ]
 
 FAKE_GOALS = [
-    {"goal_id": "g1", "objective": "Reduce Harm", "alignment_status": "aligned", "actual_score": 85, "target_score": 80},
-    {"goal_id": "g2", "objective": "High Accuracy", "alignment_status": "misaligned", "actual_score": 60, "target_score": 90},
+    {
+        "goal_id": "g1",
+        "objective": "Reduce Harm",
+        "alignment_status": "aligned",
+        "actual_score": 85,
+        "target_score": 80,
+    },
+    {
+        "goal_id": "g2",
+        "objective": "High Accuracy",
+        "alignment_status": "misaligned",
+        "actual_score": 60,
+        "target_score": 90,
+    },
 ]
 
 
@@ -175,11 +205,13 @@ FAKE_GOALS = [
 # Tests: Certification Framework
 # ---------------------------------------------------------------------------
 
+
 class TestCertificationFramework(unittest.TestCase):
     def test_add_certification_success(self):
         certs = []
-        cert, msg = add_certification(certs, "ISO 27001", "iso_27001", "BSI Group",
-                                      "2024-01-01", "2027-01-01", "All AI systems", "r1,r2")
+        cert, msg = add_certification(
+            certs, "ISO 27001", "iso_27001", "BSI Group", "2024-01-01", "2027-01-01", "All AI systems", "r1,r2"
+        )
         self.assertIsNotNone(cert)
         self.assertIn("ISO 27001", msg)
         self.assertIn("2027-01-01", msg)
@@ -223,6 +255,7 @@ class TestCertificationFramework(unittest.TestCase):
 # ---------------------------------------------------------------------------
 # Tests: Continuous Compliance Monitoring
 # ---------------------------------------------------------------------------
+
 
 class TestContinuousComplianceMonitoring(unittest.TestCase):
     def test_overall_score_is_weighted_average(self):
@@ -275,6 +308,7 @@ class TestContinuousComplianceMonitoring(unittest.TestCase):
 # Tests: Compliance Calendar
 # ---------------------------------------------------------------------------
 
+
 class TestComplianceCalendar(unittest.TestCase):
     def _future(self, days):
         return (datetime.utcnow() + timedelta(days=days)).strftime("%Y-%m-%d")
@@ -284,8 +318,9 @@ class TestComplianceCalendar(unittest.TestCase):
 
     def test_add_calendar_item_success(self):
         items = []
-        item, msg = add_calendar_item(items, "Annual Audit", "audit", self._future(90),
-                                      "high", "Yearly governance audit", "Alice", "r1,r2")
+        item, msg = add_calendar_item(
+            items, "Annual Audit", "audit", self._future(90), "high", "Yearly governance audit", "Alice", "r1,r2"
+        )
         self.assertIsNotNone(item)
         self.assertIn("Annual Audit", msg)
         self.assertEqual(len(items), 1)
@@ -304,33 +339,62 @@ class TestComplianceCalendar(unittest.TestCase):
         self.assertIn("required", msg.lower())
 
     def test_overdue_item_detected(self):
-        items = [{"item_id": "cal_001", "title": "Late Audit", "type": "audit",
-                  "due_date": self._past(5), "status": "pending"}]
+        items = [
+            {
+                "item_id": "cal_001",
+                "title": "Late Audit",
+                "type": "audit",
+                "due_date": self._past(5),
+                "status": "pending",
+            }
+        ]
         result = compute_calendar_status(items)
         self.assertEqual(result[0]["urgency"], "overdue")
         self.assertLess(result[0]["days_until"], 0)
 
     def test_urgent_within_7_days(self):
-        items = [{"item_id": "cal_002", "title": "Urgent Review", "type": "review",
-                  "due_date": self._future(3), "status": "pending"}]
+        items = [
+            {
+                "item_id": "cal_002",
+                "title": "Urgent Review",
+                "type": "review",
+                "due_date": self._future(3),
+                "status": "pending",
+            }
+        ]
         result = compute_calendar_status(items)
         self.assertEqual(result[0]["urgency"], "urgent")
 
     def test_upcoming_within_30_days(self):
-        items = [{"item_id": "cal_003", "title": "Upcoming Training", "type": "training",
-                  "due_date": self._future(20), "status": "pending"}]
+        items = [
+            {
+                "item_id": "cal_003",
+                "title": "Upcoming Training",
+                "type": "training",
+                "due_date": self._future(20),
+                "status": "pending",
+            }
+        ]
         result = compute_calendar_status(items)
         self.assertEqual(result[0]["urgency"], "upcoming")
 
     def test_on_track_for_distant_due_date(self):
-        items = [{"item_id": "cal_004", "title": "Annual Review", "type": "review",
-                  "due_date": self._future(90), "status": "pending"}]
+        items = [
+            {
+                "item_id": "cal_004",
+                "title": "Annual Review",
+                "type": "review",
+                "due_date": self._future(90),
+                "status": "pending",
+            }
+        ]
         result = compute_calendar_status(items)
         self.assertEqual(result[0]["urgency"], "on_track")
 
     def test_complete_item(self):
-        items = [{"item_id": "cal_001", "title": "Test", "type": "audit",
-                  "due_date": self._future(10), "status": "pending"}]
+        items = [
+            {"item_id": "cal_001", "title": "Test", "type": "audit", "due_date": self._future(10), "status": "pending"}
+        ]
         msg = complete_calendar_item(items, "cal_001", "All done")
         self.assertIn("completed", msg)
         self.assertEqual(items[0]["status"], "completed")
@@ -342,8 +406,9 @@ class TestComplianceCalendar(unittest.TestCase):
         self.assertIn("not found", msg)
 
     def test_completed_item_has_on_track_urgency(self):
-        items = [{"item_id": "cal_001", "title": "Done", "type": "audit",
-                  "due_date": self._past(5), "status": "completed"}]
+        items = [
+            {"item_id": "cal_001", "title": "Done", "type": "audit", "due_date": self._past(5), "status": "completed"}
+        ]
         result = compute_calendar_status(items)
         self.assertEqual(result[0]["urgency"], "on_track")
 

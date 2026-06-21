@@ -23,11 +23,14 @@ from pathlib import Path
 
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
-from mcp.types import TextContent, Tool
+from mcp.types import TextContent
+from mcp.types import Tool
 
 from .community import contribute_gaps
 from .providers import parse_any
-from .store import append_conversations, auto_activate_pending_rules, load_active_rules
+from .store import append_conversations
+from .store import auto_activate_pending_rules
+from .store import load_active_rules
 
 _CONTRIBUTE = os.environ.get("ARL_CONTRIBUTE", "false").lower() == "true"
 
@@ -108,10 +111,12 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
 async def _get_guardrail_rules() -> list[TextContent]:
     rules = load_active_rules()
     if not rules:
-        return [TextContent(
-            type="text",
-            text="No guardrail rules yet. Run sync_sessions first, then trigger analysis on your Space.",
-        )]
+        return [
+            TextContent(
+                type="text",
+                text="No guardrail rules yet. Run sync_sessions first, then trigger analysis on your Space.",
+            )
+        ]
     lines = ["## Your AI Guardrail Rules\n"]
     for i, rule in enumerate(rules, 1):
         lines.extend(_format_rule(i, rule))

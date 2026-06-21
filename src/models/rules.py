@@ -1,11 +1,9 @@
-from pydantic import BaseModel
-from pydantic import Field
-from typing import Any
-from typing import Dict
-from typing import List
-from typing import Optional
 from datetime import datetime
 from enum import Enum
+from typing import Any
+
+from pydantic import BaseModel
+from pydantic import Field
 
 
 class RulePriority(int, Enum):
@@ -25,15 +23,15 @@ class RuleType(str, Enum):
 class RuleAction(BaseModel):
     type: str
     instruction: str
-    template: Optional[str] = None
+    template: str | None = None
 
 
 class RuleTrigger(BaseModel):
-    sentiment_threshold: Optional[float] = None
-    keywords: List[str] = []
-    topics: List[str] = []
-    embedding: Optional[List[float]] = None
-    pattern: Optional[str] = None
+    sentiment_threshold: float | None = None
+    keywords: list[str] = []
+    topics: list[str] = []
+    embedding: list[float] | None = None
+    pattern: str | None = None
 
 
 class Rule(BaseModel):
@@ -45,7 +43,7 @@ class Rule(BaseModel):
     priority: RulePriority
     trigger: RuleTrigger
     action: RuleAction
-    languages: List[str] = ["python"]
+    languages: list[str] = ["python"]
     is_active: bool = True
     effectiveness_score: float = 0.0
     times_triggered: int = 0
@@ -53,8 +51,8 @@ class Rule(BaseModel):
     failure_count: int = 0
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
-    source_conversation: Optional[str] = None
-    metadata: Dict[str, Any] = {}
+    source_conversation: str | None = None
+    metadata: dict[str, Any] = {}
 
     @property
     def success_rate(self) -> float:

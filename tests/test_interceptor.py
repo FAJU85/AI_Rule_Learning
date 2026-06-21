@@ -1,7 +1,7 @@
 """Tests for ConversationInterceptor."""
+
 from __future__ import annotations
 
-import uuid
 from unittest.mock import MagicMock
 from unittest.mock import patch
 
@@ -10,7 +10,6 @@ import pytest
 from src.core.interceptor import ConversationInterceptor
 from src.core.rule_engine import RuleEngine
 from src.models.conversation import Conversation
-
 
 # ---------------------------------------------------------------------------
 # Helpers

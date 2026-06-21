@@ -7,13 +7,12 @@ Workflow:
 4. Persist the updated score back to the DatasetManager.
 5. Deactivate rules whose score falls below settings.EFFECTIVENESS_THRESHOLD.
 """
+
 from __future__ import annotations
 
 import random
 from datetime import datetime
 from typing import Any
-from typing import List
-from typing import Optional
 
 from config.settings import settings
 from src.utils.logger import get_logger
@@ -31,10 +30,10 @@ class ValidationService:
     # Public API
     # ------------------------------------------------------------------
 
-    def validate_all_rules(self) -> List[str]:
+    def validate_all_rules(self) -> list[str]:
         """Validate every active rule and return the list of deactivated rule IDs."""
         rules = self._dm.load_rules(active_only=True)
-        deactivated: List[str] = []
+        deactivated: list[str] = []
 
         for rule in rules:
             score = self._compute_effectiveness(rule)
@@ -61,7 +60,7 @@ class ValidationService:
 
         return deactivated
 
-    def validate_rule(self, rule_id: str) -> Optional[float]:
+    def validate_rule(self, rule_id: str) -> float | None:
         """Validate a single rule by ID.  Returns the computed effectiveness score."""
         rule = self._dm.get_rule(rule_id)
         if rule is None:
@@ -102,7 +101,7 @@ class ValidationService:
             # Fall back to stored counters
             return rule.success_rate
 
-        sentiments_delta: List[float] = []
+        sentiments_delta: list[float] = []
 
         for conv in conversations:
             for turn in conv.turns:
@@ -129,7 +128,7 @@ class ValidationService:
         )
         return score
 
-    def _load_conversations_for_rule(self, rule_id: str) -> List[Any]:
+    def _load_conversations_for_rule(self, rule_id: str) -> list[Any]:
         """Sample at most VALIDATION_SAMPLE_SIZE conversations that used this rule."""
         try:
             all_conversations = self._dm.load_conversations()
@@ -141,11 +140,7 @@ class ValidationService:
             return []
 
         # Filter to conversations that applied the rule
-        relevant = [
-            conv
-            for conv in all_conversations
-            if any(rule_id in turn.rules_applied for turn in conv.turns)
-        ]
+        relevant = [conv for conv in all_conversations if any(rule_id in turn.rules_applied for turn in conv.turns)]
 
         # Random sample to stay within budget
         if len(relevant) > settings.VALIDATION_SAMPLE_SIZE:

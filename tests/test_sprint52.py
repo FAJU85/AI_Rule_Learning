@@ -1,8 +1,8 @@
 """Unit tests for sprint 52: rule learning detection, gaming detection, meta-governance, policy export."""
-import unittest
-import json
-from datetime import datetime, timedelta
 
+import json
+import unittest
+from datetime import datetime
 
 # ---------------------------------------------------------------------------
 # Inline pure-logic implementations
@@ -34,22 +34,27 @@ def detect_rule_learning(rules_list):
     for rule in rules_list:
         history = rule.get("score_history", [])
         slope, status = _compute_slope(history)
-        results.append({
-            "rule_id": rule["rule_id"],
-            "rule_name": rule.get("name", rule["rule_id"]),
-            "slope": slope,
-            "status": status,
-            "history_len": len(history),
-        })
+        results.append(
+            {
+                "rule_id": rule["rule_id"],
+                "rule_name": rule.get("name", rule["rule_id"]),
+                "slope": slope,
+                "status": status,
+                "history_len": len(history),
+            }
+        )
     return results
 
 
-import re as _re
+import re as _re  # noqa: E402
 
 _GAMING_PATTERNS = [
     (r"ignore\b.{0,20}\b(instructions?|rules?|prompt|guidelines?)", "instruction override"),
     (r"pretend (you are|you're|to be) (not |un)?restricted", "persona jailbreak"),
-    (r"(jailbreak|bypass|circumvent|disable|override|forget).{0,20}(rule|filter|guard|limit|policy)", "explicit bypass"),
+    (
+        r"(jailbreak|bypass|circumvent|disable|override|forget).{0,20}(rule|filter|guard|limit|policy)",
+        "explicit bypass",
+    ),
     (r"(encode|base64|rot13|hex|morse|leetspeak).{0,30}(restrict|rule|forbid|ban)", "encoding evasion"),
     (r"(as (a|an|the) (developer|admin|root|god|system|assistant|ai|language model))", "role escalation"),
     (r"(repeat|echo|print).{0,20}(system prompt|instructions?|rules?)", "prompt extraction"),
@@ -79,8 +84,8 @@ def check_permission(entries, user_id, action):
         return False, f"User '{user_id}' has no assigned role."
     perms = roles[-1].get("permissions", [])
     if action in perms or "all" in perms:
-        return True, f"Permitted"
-    return False, f"Denied"
+        return True, "Permitted"
+    return False, "Denied"
 
 
 def export_policy_json_logic(rules):
@@ -150,6 +155,7 @@ FAKE_RULES = [
 # Tests: Rule Learning Detection
 # ---------------------------------------------------------------------------
 
+
 class TestRuleLearningDetection(unittest.TestCase):
     def test_improving_history_classified_as_learning(self):
         results = detect_rule_learning([FAKE_RULES[0]])
@@ -181,8 +187,11 @@ class TestRuleLearningDetection(unittest.TestCase):
 
     def test_slope_uses_only_last_window_points(self):
         # Force improvement only in last 5 of 8 points
-        rule = {"rule_id": "r_late", "name": "Late Learner",
-                 "score_history": [0.9, 0.85, 0.80, 0.60, 0.65, 0.70, 0.75, 0.80]}
+        rule = {
+            "rule_id": "r_late",
+            "name": "Late Learner",
+            "score_history": [0.9, 0.85, 0.80, 0.60, 0.65, 0.70, 0.75, 0.80],
+        }
         results = detect_rule_learning([rule])
         self.assertEqual(results[0]["status"], "learning")
 
@@ -190,6 +199,7 @@ class TestRuleLearningDetection(unittest.TestCase):
 # ---------------------------------------------------------------------------
 # Tests: Gaming Detection
 # ---------------------------------------------------------------------------
+
 
 class TestGamingDetection(unittest.TestCase):
     def test_instruction_override_detected(self):
@@ -232,6 +242,7 @@ class TestGamingDetection(unittest.TestCase):
 # ---------------------------------------------------------------------------
 # Tests: Meta-Governance
 # ---------------------------------------------------------------------------
+
 
 class TestMetaGovernance(unittest.TestCase):
     def test_assign_role_creates_entry(self):
@@ -282,6 +293,7 @@ class TestMetaGovernance(unittest.TestCase):
 # ---------------------------------------------------------------------------
 # Tests: Policy Export
 # ---------------------------------------------------------------------------
+
 
 class TestPolicyExport(unittest.TestCase):
     def test_json_export_valid_json(self):

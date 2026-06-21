@@ -1,10 +1,11 @@
 """Unit tests for the Maturity Model (Levels 1–6) assessment logic."""
-import unittest
 
+import unittest
 
 # ---------------------------------------------------------------------------
 # Inline pure-logic implementations (mirrors space/app.py without gradio/HF)
 # ---------------------------------------------------------------------------
+
 
 def assess_maturity(capability_results: dict[str, bool]) -> dict:
     """
@@ -106,15 +107,17 @@ def assess_maturity(capability_results: dict[str, bool]) -> dict:
         elif all_previous_passed and passed_count < total:
             all_previous_passed = False
 
-        level_results.append({
-            "level": level_def["level"],
-            "name": level_def["name"],
-            "caps": caps,
-            "passed": passed_count,
-            "total": total,
-            "pct": pct,
-            "achieved": achieved,
-        })
+        level_results.append(
+            {
+                "level": level_def["level"],
+                "name": level_def["name"],
+                "caps": caps,
+                "passed": passed_count,
+                "total": total,
+                "pct": pct,
+                "achieved": achieved,
+            }
+        )
 
     next_level_idx = current_level
     gaps = []
@@ -136,11 +139,48 @@ def _all_caps_for_levels(up_to_level: int) -> dict[str, bool]:
     """Build a capability_results dict where all caps up to given level are True."""
     LEVEL_CAPS = {
         1: ["Rules defined", "Rule categories used", "At least one active rule", "Rule descriptions present"],
-        2: ["Rule lifecycle tracked", "Rule ownership assigned", "Sessions imported", "Exceptions managed", "Dependencies mapped"],
-        3: ["Incidents tracked", "Rule enforcement logged", "AI audits conducted", "Human overrides logged", "Conflict detection run", "RCA log entries present"],
-        4: ["Trust score computed", "SLOs defined", "Benchmark cases defined", "Rule coverage measured", "Compliance forecasts run", "Decision provenance recorded"],
-        5: ["Regression detection run", "Rule learning detected", "Improvement cycles active", "Reputation snapshots taken", "Adversarial robustness tested", "Goal alignment monitored", "Predictive compliance horizon set"],
-        6: ["Certifications registered", "Audit trail integrity chain active", "Fairness/bias analyses run", "Control mapping complete", "Meta-governance roles assigned", "Compliance calendar active", "Stakeholder reports generated", "Gaming detection active"],
+        2: [
+            "Rule lifecycle tracked",
+            "Rule ownership assigned",
+            "Sessions imported",
+            "Exceptions managed",
+            "Dependencies mapped",
+        ],
+        3: [
+            "Incidents tracked",
+            "Rule enforcement logged",
+            "AI audits conducted",
+            "Human overrides logged",
+            "Conflict detection run",
+            "RCA log entries present",
+        ],
+        4: [
+            "Trust score computed",
+            "SLOs defined",
+            "Benchmark cases defined",
+            "Rule coverage measured",
+            "Compliance forecasts run",
+            "Decision provenance recorded",
+        ],
+        5: [
+            "Regression detection run",
+            "Rule learning detected",
+            "Improvement cycles active",
+            "Reputation snapshots taken",
+            "Adversarial robustness tested",
+            "Goal alignment monitored",
+            "Predictive compliance horizon set",
+        ],
+        6: [
+            "Certifications registered",
+            "Audit trail integrity chain active",
+            "Fairness/bias analyses run",
+            "Control mapping complete",
+            "Meta-governance roles assigned",
+            "Compliance calendar active",
+            "Stakeholder reports generated",
+            "Gaming detection active",
+        ],
     }
     result = {}
     for lvl in range(1, up_to_level + 1):
@@ -153,8 +193,8 @@ def _all_caps_for_levels(up_to_level: int) -> dict[str, bool]:
 # Tests
 # ---------------------------------------------------------------------------
 
-class TestMaturityLevelProgression(unittest.TestCase):
 
+class TestMaturityLevelProgression(unittest.TestCase):
     def test_no_capabilities_gives_level_0(self):
         result = assess_maturity({})
         self.assertEqual(result["current_level"], 0)
@@ -203,10 +243,19 @@ class TestMaturityLevelProgression(unittest.TestCase):
     def test_skipping_level_2_blocks_higher_levels(self):
         # All L1 done, skip L2, all L3+ done → still only level 1
         caps = _all_caps_for_levels(1)
-        caps.update({c: True for c in [
-            "Incidents tracked", "Rule enforcement logged", "AI audits conducted",
-            "Human overrides logged", "Conflict detection run", "RCA log entries present",
-        ]})
+        caps.update(
+            {
+                c: True
+                for c in [
+                    "Incidents tracked",
+                    "Rule enforcement logged",
+                    "AI audits conducted",
+                    "Human overrides logged",
+                    "Conflict detection run",
+                    "RCA log entries present",
+                ]
+            }
+        )
         result = assess_maturity(caps)
         self.assertEqual(result["current_level"], 1)  # L2 not achieved → L3 can't count
 
@@ -242,7 +291,7 @@ class TestMaturityLevelProgression(unittest.TestCase):
     def test_all_level_results_present(self):
         result = assess_maturity({})
         self.assertEqual(len(result["level_results"]), 6)
-        self.assertEqual([l["level"] for l in result["level_results"]], [1, 2, 3, 4, 5, 6])
+        self.assertEqual([lvl["level"] for lvl in result["level_results"]], [1, 2, 3, 4, 5, 6])
 
     def test_pct_correct_for_partial_level(self):
         caps = _all_caps_for_levels(1)  # all L1 = 4 caps

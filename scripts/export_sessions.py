@@ -24,7 +24,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-
 # ---------------------------------------------------------------------------
 # Config
 # ---------------------------------------------------------------------------
@@ -70,6 +69,7 @@ def _sanitize_path(cwd: str) -> str:
 # ---------------------------------------------------------------------------
 # Parse a single session JSONL file → Conversation dict
 # ---------------------------------------------------------------------------
+
 
 def _extract_text(content: Any) -> str:
     """Pull plain text out of either a string or a Gradio/Anthropic content block list."""
@@ -125,20 +125,25 @@ def parse_session(path: Path) -> dict | None:
 
                 # Skip system-injected messages (webhook activity, tool results wrapped as user)
                 if role == "user" and any(
-                    tag in text for tag in [
-                        "<github-webhook-activity>", "<system-reminder>",
-                        "<task-notification>", "<untrusted_external_data",
+                    tag in text
+                    for tag in [
+                        "<github-webhook-activity>",
+                        "<system-reminder>",
+                        "<task-notification>",
+                        "<untrusted_external_data",
                     ]
                 ):
                     continue
 
-                messages.append({
-                    "role": role,
-                    "text": text,
-                    "timestamp": obj.get("timestamp", ""),
-                    "uuid": obj.get("uuid", ""),
-                    "parent_uuid": obj.get("parentUuid"),
-                })
+                messages.append(
+                    {
+                        "role": role,
+                        "text": text,
+                        "timestamp": obj.get("timestamp", ""),
+                        "uuid": obj.get("uuid", ""),
+                        "parent_uuid": obj.get("parentUuid"),
+                    }
+                )
     except Exception as exc:
         print(f"  ⚠️  Could not read {path.name}: {exc}", file=sys.stderr)
         return None
@@ -160,15 +165,17 @@ def parse_session(path: Path) -> dict | None:
             if j < len(messages):
                 assistant_text = messages[j]["text"]
                 turn_number += 1
-                turns.append({
-                    "turn_number": turn_number,
-                    "user_input": _scrub_pii(user_text[:4000]),
-                    "agent_response": _scrub_pii(assistant_text[:4000]),
-                    "timestamp": messages[i]["timestamp"],
-                    "gaps_detected": [],
-                    "rules_applied": [],
-                    "sensor_reading": None,
-                })
+                turns.append(
+                    {
+                        "turn_number": turn_number,
+                        "user_input": _scrub_pii(user_text[:4000]),
+                        "agent_response": _scrub_pii(assistant_text[:4000]),
+                        "timestamp": messages[i]["timestamp"],
+                        "gaps_detected": [],
+                        "rules_applied": [],
+                        "sensor_reading": None,
+                    }
+                )
                 i = j + 1
                 continue
         i += 1
@@ -197,6 +204,7 @@ def parse_session(path: Path) -> dict | None:
 # Discover session files
 # ---------------------------------------------------------------------------
 
+
 def find_sessions(projects_dir: Path, session_filter: str | None = None) -> list[Path]:
     """Return all session JSONL paths under *projects_dir*."""
     paths = []
@@ -217,10 +225,11 @@ def find_sessions(projects_dir: Path, session_filter: str | None = None) -> list
 # HF dataset I/O
 # ---------------------------------------------------------------------------
 
+
 def _download_existing(filename: str) -> list[dict]:
     try:
         from huggingface_hub import hf_hub_download
-        from huggingface_hub.errors import EntryNotFoundError, RepositoryNotFoundError
+
         path = hf_hub_download(
             repo_id=DATASET_ID,
             filename=filename,
@@ -241,6 +250,7 @@ def _download_existing(filename: str) -> list[dict]:
 
 def _upload(filename: str, records: list[dict]) -> None:
     from huggingface_hub import HfApi
+
     api = HfApi(token=HF_TOKEN)
     content = "\n".join(json.dumps(r, ensure_ascii=False) for r in records) + "\n"
     api.upload_file(
@@ -270,14 +280,8 @@ def _save_rules_locally(rules: list[dict]) -> None:
     for i, rule in enumerate(rules, 1):
         priority = rule.get("priority_label", "MEDIUM")
         name = rule.get("name", rule.get("rule_id", f"Rule {i}"))
-        instruction = (
-            rule.get("action", {}).get("instruction")
-            or rule.get("instruction", "")
-        )
-        triggers = (
-            rule.get("trigger", {}).get("keywords")
-            or rule.get("triggers", [])
-        )
+        instruction = rule.get("action", {}).get("instruction") or rule.get("instruction", "")
+        triggers = rule.get("trigger", {}).get("keywords") or rule.get("triggers", [])
         lines.append(f"**Rule {i}: {name}** [{priority}]")
         if instruction:
             lines.append(f"→ {instruction}")

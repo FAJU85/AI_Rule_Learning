@@ -16,11 +16,13 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from .store import scrub_pii, _SKIP_TAGS
+from .store import _SKIP_TAGS
+from .store import scrub_pii
 
 # ---------------------------------------------------------------------------
 # Common turn format
 # ---------------------------------------------------------------------------
+
 
 def _make_turn(n: int, user: str, agent: str, ts: str = "") -> dict:
     return {
@@ -55,14 +57,12 @@ def _make_conv(session_id: str, turns: list[dict], source: str, slug: str = "", 
 # Provider: Claude Code
 # ---------------------------------------------------------------------------
 
+
 def _extract_text(content: Any) -> str:
     if isinstance(content, str):
         return content.strip()
     if isinstance(content, list):
-        return " ".join(
-            b.get("text", "") for b in content
-            if isinstance(b, dict) and b.get("type") == "text"
-        ).strip()
+        return " ".join(b.get("text", "") for b in content if isinstance(b, dict) and b.get("type") == "text").strip()
     return ""
 
 
@@ -119,6 +119,7 @@ def parse_claude_code_session(path: Path) -> dict | None:
 # Provider: OpenAI / ChatGPT export
 # ---------------------------------------------------------------------------
 
+
 def parse_openai_export(path: Path) -> list[dict]:
     """Parse a ChatGPT/OpenAI conversations.json export file.
 
@@ -147,6 +148,7 @@ def parse_openai_export(path: Path) -> list[dict]:
             nodes = {k: v for k, v in mapping.items() if v.get("message")}
             # Find root(s) and walk in order
             visited: set = set()
+
             def _walk(node_id: str):
                 if node_id in visited:
                     return
@@ -158,10 +160,13 @@ def parse_openai_export(path: Path) -> list[dict]:
                     parts = msg.get("content", {}).get("parts", [])
                     text = " ".join(str(p) for p in parts if isinstance(p, str)).strip()
                     if role in ("user", "assistant") and text:
-                        messages.append({
-                            "role": role, "text": text,
-                            "ts": str(msg.get("create_time", "")),
-                        })
+                        messages.append(
+                            {
+                                "role": role,
+                                "text": text,
+                                "ts": str(msg.get("create_time", "")),
+                            }
+                        )
                 for child_id in node.get("children", []):
                     _walk(child_id)
 
@@ -189,6 +194,7 @@ def parse_openai_export(path: Path) -> list[dict]:
 # ---------------------------------------------------------------------------
 # Provider: Generic JSONL (Cursor, Windsurf, any tool)
 # ---------------------------------------------------------------------------
+
 
 def parse_generic_jsonl(path: Path) -> dict | None:
     """Parse any JSONL file with {role, content} or {user, assistant} messages."""
@@ -227,6 +233,7 @@ def parse_generic_jsonl(path: Path) -> dict | None:
 # Shared: pair user→assistant messages into turns
 # ---------------------------------------------------------------------------
 
+
 def _pair_messages(messages: list[dict]) -> list[dict]:
     turns = []
     i = 0
@@ -236,12 +243,14 @@ def _pair_messages(messages: list[dict]) -> list[dict]:
             while j < len(messages) and messages[j]["role"] != "assistant":
                 j += 1
             if j < len(messages):
-                turns.append(_make_turn(
-                    len(turns) + 1,
-                    messages[i]["text"],
-                    messages[j]["text"],
-                    messages[i].get("ts", ""),
-                ))
+                turns.append(
+                    _make_turn(
+                        len(turns) + 1,
+                        messages[i]["text"],
+                        messages[j]["text"],
+                        messages[i].get("ts", ""),
+                    )
+                )
                 i = j + 1
                 continue
         i += 1
@@ -251,6 +260,7 @@ def _pair_messages(messages: list[dict]) -> list[dict]:
 # ---------------------------------------------------------------------------
 # Auto-detect and parse any file
 # ---------------------------------------------------------------------------
+
 
 def parse_any(path: Path) -> list[dict]:
     """Parse any session file — returns a list of Conversation dicts."""

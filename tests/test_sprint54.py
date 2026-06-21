@@ -1,10 +1,11 @@
 """Unit tests for sprint 54: adversarial robustness, fairness/bias detection,
 audit trail integrity, compliance trend analytics."""
-import unittest
-import json
-import hashlib
-from datetime import datetime, timedelta
 
+import hashlib
+import json
+import unittest
+from datetime import datetime
+from datetime import timedelta
 
 # ---------------------------------------------------------------------------
 # Inline pure-logic implementations
@@ -50,12 +51,15 @@ def analyze_bias(rule, group_a_label, group_a_inputs, group_b_label, group_b_inp
         if not inputs:
             return 0.0
         return round(sum(1 for i in inputs if _rule_triggers_on(rule, i)) / len(inputs) * 100, 1)
+
     rate_a = trigger_rate(group_a_inputs)
     rate_b = trigger_rate(group_b_inputs)
     disparity = round(abs(rate_a - rate_b), 1)
     return {
-        "group_a": group_a_label, "rate_a": rate_a,
-        "group_b": group_b_label, "rate_b": rate_b,
+        "group_a": group_a_label,
+        "rate_a": rate_a,
+        "group_b": group_b_label,
+        "rate_b": rate_b,
         "disparity": disparity,
         "bias_detected": disparity > 10.0,
         "severity": "high" if disparity > 25 else "medium" if disparity > 10 else "low",
@@ -148,6 +152,7 @@ def _rep_entry(rule_id, score, days_ago):
 # Tests: Adversarial Robustness
 # ---------------------------------------------------------------------------
 
+
 class TestAdversarialRobustness(unittest.TestCase):
     def test_generates_correct_number_of_attacks(self):
         adversarials = generate_adversarial_inputs(RULE_WITH_TRIGGER, "test input")
@@ -188,6 +193,7 @@ class TestAdversarialRobustness(unittest.TestCase):
 # Tests: Fairness & Bias Detection
 # ---------------------------------------------------------------------------
 
+
 class TestFairnessBiasDetection(unittest.TestCase):
     def test_no_bias_when_trigger_rates_equal(self):
         # Both groups have same inputs → same trigger rate
@@ -224,13 +230,20 @@ class TestFairnessBiasDetection(unittest.TestCase):
         self.assertEqual(res1["disparity"], res2["disparity"])
 
     def test_empty_group_gives_zero_rate(self):
-        result = analyze_bias(RULE_WITH_TRIGGER, "empty", [], "group_b", ["clean text"], )
+        result = analyze_bias(
+            RULE_WITH_TRIGGER,
+            "empty",
+            [],
+            "group_b",
+            ["clean text"],
+        )
         self.assertEqual(result["rate_a"], 0.0)
 
 
 # ---------------------------------------------------------------------------
 # Tests: Audit Trail Integrity
 # ---------------------------------------------------------------------------
+
 
 class TestAuditTrailIntegrity(unittest.TestCase):
     def test_first_entry_uses_zero_prev_hash(self):
@@ -292,6 +305,7 @@ class TestAuditTrailIntegrity(unittest.TestCase):
 # Tests: Compliance Trend Analytics
 # ---------------------------------------------------------------------------
 
+
 class TestComplianceTrendAnalytics(unittest.TestCase):
     def test_improving_trend_detected(self):
         entries = [
@@ -324,7 +338,7 @@ class TestComplianceTrendAnalytics(unittest.TestCase):
     def test_old_entries_excluded_from_window(self):
         entries = [
             _rep_entry("r4", 40.0, days_ago=60),  # outside 30d window
-            _rep_entry("r4", 90.0, days_ago=5),   # inside
+            _rep_entry("r4", 90.0, days_ago=5),  # inside
         ]
         trends = compute_compliance_trends(entries, window_days=30)
         # Only 1 point in window → insufficient_data

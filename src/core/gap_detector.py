@@ -6,12 +6,11 @@ Detects:
 - Repeated questions (user asks same thing more than once)
 - Code anti-patterns (bare except, eval, hardcoded secrets, etc.)
 """
+
 from __future__ import annotations
 
 import re
 from typing import Any
-from typing import Dict
-from typing import List
 
 from config.settings import settings
 from src.utils.logger import get_logger
@@ -21,12 +20,12 @@ logger = get_logger(__name__)
 # ---------------------------------------------------------------------------
 # Type alias for a detected gap
 # ---------------------------------------------------------------------------
-Gap = Dict[str, Any]
+Gap = dict[str, Any]
 
 # ---------------------------------------------------------------------------
 # Patterns used in code-level detection
 # ---------------------------------------------------------------------------
-_CODE_ANTI_PATTERNS: List[Dict[str, Any]] = [
+_CODE_ANTI_PATTERNS: list[dict[str, Any]] = [
     {
         "name": "bare_except",
         "pattern": re.compile(r"\bexcept\s*:", re.MULTILINE),
@@ -41,9 +40,7 @@ _CODE_ANTI_PATTERNS: List[Dict[str, Any]] = [
     },
     {
         "name": "hardcoded_secret",
-        "pattern": re.compile(
-            r'(?i)(password|secret|api_key|token)\s*=\s*["\'][^"\']{4,}["\']'
-        ),
+        "pattern": re.compile(r'(?i)(password|secret|api_key|token)\s*=\s*["\'][^"\']{4,}["\']'),
         "description": "Hardcoded secret or credential detected.",
         "severity": 5,
     },
@@ -67,7 +64,7 @@ _CODE_ANTI_PATTERNS: List[Dict[str, Any]] = [
     },
 ]
 
-_CORRECTION_PHRASES: List[str] = [
+_CORRECTION_PHRASES: list[str] = [
     "actually",
     "no, that",
     "that's wrong",
@@ -97,7 +94,7 @@ class GapDetector:
     # Public API
     # ------------------------------------------------------------------
 
-    def detect(self, turns: List[Any]) -> List[Gap]:
+    def detect(self, turns: list[Any]) -> list[Gap]:
         """Return all gaps found in *turns*.
 
         Each Gap dict contains at minimum:
@@ -107,7 +104,7 @@ class GapDetector:
             evidence    str   — relevant text excerpt
             description str   — human-readable explanation
         """
-        gaps: List[Gap] = []
+        gaps: list[Gap] = []
 
         gaps.extend(self._detect_sentiment_drops(turns))
         gaps.extend(self._detect_explicit_corrections(turns))
@@ -124,8 +121,8 @@ class GapDetector:
     # Individual detectors
     # ------------------------------------------------------------------
 
-    def _detect_sentiment_drops(self, turns: List[Any]) -> List[Gap]:
-        gaps: List[Gap] = []
+    def _detect_sentiment_drops(self, turns: list[Any]) -> list[Gap]:
+        gaps: list[Gap] = []
         for turn in turns:
             before = turn.sentiment_before
             after = turn.sentiment_after
@@ -147,8 +144,8 @@ class GapDetector:
                 )
         return gaps
 
-    def _detect_explicit_corrections(self, turns: List[Any]) -> List[Gap]:
-        gaps: List[Gap] = []
+    def _detect_explicit_corrections(self, turns: list[Any]) -> list[Gap]:
+        gaps: list[Gap] = []
         for turn in turns:
             text_lower = turn.user_input.lower()
             for phrase in _CORRECTION_PHRASES:
@@ -160,7 +157,7 @@ class GapDetector:
                             "turn_number": turn.turn_number,
                             "evidence": turn.user_input[:200],
                             "description": (
-                                f'User explicitly corrected the AI at turn {turn.turn_number} '
+                                f"User explicitly corrected the AI at turn {turn.turn_number} "
                                 f'(matched phrase: "{phrase}").'
                             ),
                         }
@@ -168,10 +165,10 @@ class GapDetector:
                     break  # one gap per turn
         return gaps
 
-    def _detect_repeated_questions(self, turns: List[Any]) -> List[Gap]:
+    def _detect_repeated_questions(self, turns: list[Any]) -> list[Gap]:
         """Flag when the user asks essentially the same question more than once."""
-        gaps: List[Gap] = []
-        seen: Dict[str, int] = {}  # normalised question → first turn number
+        gaps: list[Gap] = []
+        seen: dict[str, int] = {}  # normalised question → first turn number
 
         for turn in turns:
             normalised = self._normalise(turn.user_input)
@@ -194,8 +191,8 @@ class GapDetector:
 
         return gaps
 
-    def _detect_code_anti_patterns(self, turns: List[Any]) -> List[Gap]:
-        gaps: List[Gap] = []
+    def _detect_code_anti_patterns(self, turns: list[Any]) -> list[Gap]:
+        gaps: list[Gap] = []
         for turn in turns:
             response = turn.agent_response
             for rule in _CODE_ANTI_PATTERNS:

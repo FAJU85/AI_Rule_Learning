@@ -5,14 +5,12 @@ DatasetManager handles:
 - Pushing / updating Rule objects in the HF rules dataset
 - Loading conversations and rules back for analysis and validation
 """
+
 from __future__ import annotations
 
 import json
 from datetime import datetime
 from typing import Any
-from typing import Dict
-from typing import List
-from typing import Optional
 
 from config.settings import settings
 from src.utils.logger import get_logger
@@ -24,7 +22,7 @@ class DatasetManager:
     """Manages persistent storage of conversations and rules on Hugging Face Hub."""
 
     def __init__(self) -> None:
-        self._hf_token: Optional[str] = settings.HF_TOKEN
+        self._hf_token: str | None = settings.HF_TOKEN
         self._conversations_dataset: str = settings.HF_DATASET_NAME
         self._rules_dataset: str = settings.HF_RULES_DATASET
         self._api = None  # lazy-loaded
@@ -45,7 +43,7 @@ class DatasetManager:
                 raise
         return self._api
 
-    def _load_dataset(self, dataset_name: str) -> List[Dict[str, Any]]:
+    def _load_dataset(self, dataset_name: str) -> list[dict[str, Any]]:
         """Download and parse a JSONL dataset from the Hub."""
         try:
             from datasets import load_dataset  # type: ignore
@@ -59,9 +57,8 @@ class DatasetManager:
             )
             return []
 
-    def _push_rows(self, dataset_name: str, rows: List[Dict[str, Any]]) -> None:
+    def _push_rows(self, dataset_name: str, rows: list[dict[str, Any]]) -> None:
         """Append *rows* to a Hub dataset by uploading a JSONL file."""
-        import io
 
         try:
             from datasets import Dataset  # type: ignore
@@ -85,9 +82,8 @@ class DatasetManager:
     # Conversation CRUD
     # ------------------------------------------------------------------
 
-    def save_conversation(self, conversation: "Conversation") -> None:  # type: ignore[name-defined]  # noqa: F821
+    def save_conversation(self, conversation: Conversation) -> None:  # type: ignore[name-defined]  # noqa: F821
         """Persist a completed Conversation to the HF conversations dataset."""
-        from src.models.conversation import Conversation
 
         row = json.loads(conversation.model_dump_json())
         self._push_rows(self._conversations_dataset, [row])
@@ -98,25 +94,21 @@ class DatasetManager:
 
     def load_conversations(
         self,
-        limit: Optional[int] = None,
-        since: Optional[datetime] = None,
-    ) -> List["Conversation"]:  # type: ignore[name-defined]  # noqa: F821
+        limit: int | None = None,
+        since: datetime | None = None,
+    ) -> list[Conversation]:  # type: ignore[name-defined]  # noqa: F821
         """Load conversations from the HF dataset, optionally filtered by date."""
         from src.models.conversation import Conversation
 
         rows = self._load_dataset(self._conversations_dataset)
 
         if since is not None:
-            rows = [
-                r
-                for r in rows
-                if datetime.fromisoformat(r.get("started_at", "1970-01-01")) >= since
-            ]
+            rows = [r for r in rows if datetime.fromisoformat(r.get("started_at", "1970-01-01")) >= since]
 
         if limit is not None:
             rows = rows[-limit:]  # most recent last
 
-        conversations: List[Conversation] = []
+        conversations: list[Conversation] = []
         for row in rows:
             try:
                 conversations.append(Conversation(**row))
@@ -132,7 +124,7 @@ class DatasetManager:
         )
         return conversations
 
-    def get_conversation(self, conversation_id: str) -> Optional["Conversation"]:  # type: ignore[name-defined]  # noqa: F821
+    def get_conversation(self, conversation_id: str) -> Conversation | None:  # type: ignore[name-defined]  # noqa: F821
         """Fetch a single conversation by ID."""
         from src.models.conversation import Conversation
 
@@ -152,7 +144,7 @@ class DatasetManager:
     # Rule CRUD
     # ------------------------------------------------------------------
 
-    def save_rule(self, rule: "Rule") -> None:  # type: ignore[name-defined]  # noqa: F821
+    def save_rule(self, rule: Rule) -> None:  # type: ignore[name-defined]  # noqa: F821
         """Persist a new Rule to the HF rules dataset."""
         row = json.loads(rule.model_dump_json())
         rows = self._load_dataset(self._rules_dataset)
@@ -174,12 +166,12 @@ class DatasetManager:
             )
             raise
 
-    def load_rules(self, active_only: bool = True) -> List["Rule"]:  # type: ignore[name-defined]  # noqa: F821
+    def load_rules(self, active_only: bool = True) -> list[Rule]:  # type: ignore[name-defined]  # noqa: F821
         """Load rules from the HF rules dataset."""
         from src.models.rules import Rule
 
         rows = self._load_dataset(self._rules_dataset)
-        rules: List[Rule] = []
+        rules: list[Rule] = []
         for row in rows:
             try:
                 rule = Rule(**row)
@@ -195,7 +187,7 @@ class DatasetManager:
         logger.info("Rules loaded", extra={"count": len(rules)})
         return rules
 
-    def get_rule(self, rule_id: str) -> Optional["Rule"]:  # type: ignore[name-defined]  # noqa: F821
+    def get_rule(self, rule_id: str) -> Rule | None:  # type: ignore[name-defined]  # noqa: F821
         """Fetch a single rule by ID."""
         from src.models.rules import Rule
 
@@ -211,7 +203,7 @@ class DatasetManager:
                     )
         return None
 
-    def update_rule(self, rule: "Rule") -> None:  # type: ignore[name-defined]  # noqa: F821
+    def update_rule(self, rule: Rule) -> None:  # type: ignore[name-defined]  # noqa: F821
         """Update an existing rule (full replacement by rule_id)."""
         self.save_rule(rule)
 
