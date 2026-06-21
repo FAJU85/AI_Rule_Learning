@@ -32,6 +32,7 @@ dev = ["pytest>=8.0", "pytest-asyncio>=0.23"]
 
 [project.scripts]
 ai-rule-learning-mcp = "ai_rule_learning_mcp.server:main"
+ai-rule-learning = "ai_rule_learning_mcp.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/faju85/ai_rule_learning"

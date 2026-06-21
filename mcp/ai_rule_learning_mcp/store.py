@@ -1,4 +1,9 @@
-"""Read and write rules/conversations to the user's HF dataset."""
+"""Read and write rules/conversations — local-first, HF optional.
+
+Priority:
+  1. Local storage at ~/.ai-rule-learning/ (always works, no config)
+  2. HuggingFace dataset (sync/backup when HF_TOKEN + ARL_DATASET are set)
+"""
 
 from __future__ import annotations
 
@@ -12,6 +17,50 @@ from typing import Any
 
 HF_DATASET = os.environ.get("ARL_DATASET", "")
 HF_TOKEN = os.environ.get("HF_TOKEN", "")
+
+# ── Local storage ──────────────────────────────────────────────────────────
+LOCAL_DIR = Path.home() / ".ai-rule-learning"
+
+
+def _local_path(filename: str) -> Path:
+    LOCAL_DIR.mkdir(parents=True, exist_ok=True)
+    return LOCAL_DIR / filename
+
+
+def _local_load(filename: str) -> list[dict]:
+    p = _local_path(filename)
+    if not p.exists():
+        return []
+    try:
+        return [json.loads(ln) for ln in p.read_text(encoding="utf-8").splitlines() if ln.strip()]
+    except Exception:
+        return []
+
+
+def _local_save(filename: str, records: list[dict]) -> None:
+    _local_path(filename).write_text(
+        "\n".join(json.dumps(r, ensure_ascii=False) for r in records) + "\n",
+        encoding="utf-8",
+    )
+
+
+def _processed_path() -> Path:
+    return _local_path("processed.jsonl")
+
+
+def is_already_processed(file_path: Path) -> bool:
+    """Return True if this file has been synced before."""
+    key = str(file_path.resolve())
+    processed = _local_load("processed.jsonl")
+    return any(r.get("path") == key for r in processed)
+
+
+def mark_processed(file_path: Path) -> None:
+    key = str(file_path.resolve())
+    processed = _local_load("processed.jsonl")
+    if not any(r.get("path") == key for r in processed):
+        processed.append({"path": key, "at": datetime.utcnow().isoformat()})
+        _local_save("processed.jsonl", processed)
 
 # PII patterns
 _EMAIL_RE = re.compile(r"[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}", re.IGNORECASE)
@@ -37,35 +86,41 @@ def _hf_api():
 
 
 def _download(filename: str) -> list[dict]:
-    if not HF_DATASET or not HF_TOKEN:
-        return []
-    try:
-        from huggingface_hub import hf_hub_download
+    """Load from HF if configured, otherwise fall back to local storage."""
+    if HF_DATASET and HF_TOKEN:
+        try:
+            from huggingface_hub import hf_hub_download
 
-        path = hf_hub_download(
-            repo_id=HF_DATASET,
-            filename=filename,
-            repo_type="dataset",
-            token=HF_TOKEN,
-            force_download=True,
-        )
-        with open(path, encoding="utf-8") as f:
-            return [json.loads(l) for l in f if l.strip()]
-    except Exception:
-        return []
+            path = hf_hub_download(
+                repo_id=HF_DATASET,
+                filename=filename,
+                repo_type="dataset",
+                token=HF_TOKEN,
+                force_download=True,
+            )
+            with open(path, encoding="utf-8") as f:
+                return [json.loads(ln) for ln in f if ln.strip()]
+        except Exception:
+            pass
+    return _local_load(filename)
 
 
 def _upload(filename: str, records: list[dict]) -> None:
+    """Save to local storage always; also push to HF if configured."""
+    _local_save(filename, records)
     if not HF_DATASET or not HF_TOKEN:
         return
     content = "\n".join(json.dumps(r, ensure_ascii=False) for r in records) + "\n"
-    _hf_api().upload_file(
-        path_or_fileobj=content.encode(),
-        path_in_repo=filename,
-        repo_id=HF_DATASET,
-        repo_type="dataset",
-        commit_message=f"mcp: update {filename}",
-    )
+    try:
+        _hf_api().upload_file(
+            path_or_fileobj=content.encode(),
+            path_in_repo=filename,
+            repo_id=HF_DATASET,
+            repo_type="dataset",
+            commit_message=f"mcp: update {filename}",
+        )
+    except Exception:
+        pass
 
 
 _UNSAFE_PHRASES = [

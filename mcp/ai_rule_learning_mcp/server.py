@@ -2,16 +2,16 @@
 
 Works with any AI provider: Claude, ChatGPT, Cursor, Windsurf, Copilot, etc.
 
-Analyses YOUR sessions → generates YOUR personalised rules → injects them back.
-Optionally contributes anonymised gap patterns to the community pool.
+Analyses YOUR sessions → generates YOUR personalised rules → writes them to
+~/.claude/CLAUDE.md so they apply automatically to every future Claude session
+with ZERO additional configuration.
 
-Environment variables (set in your MCP config):
-  HF_TOKEN        Your Hugging Face write token (required)
-  ARL_DATASET     Your personal HF dataset, e.g. "yourname/AI_Rule_Learning"
-  ARL_SESSIONS    Comma-separated paths to session directories or files.
+Environment variables (all optional):
+  HF_TOKEN        HuggingFace write token — enables cloud backup/sync
+  ARL_DATASET     Your HF dataset, e.g. "yourname/AI_Rule_Learning"
+  ARL_SESSIONS    Comma-separated paths to session dirs/files.
                   Defaults to ~/.claude/projects (Claude Code).
-                  Also accepts ChatGPT export directories, generic JSONL dirs.
-  ARL_CONTRIBUTE  "true" to opt in to anonymised community contribution (default: false)
+  ARL_CONTRIBUTE  "true" to contribute anonymised gap patterns (default: false)
 """
 
 from __future__ import annotations
@@ -26,11 +26,17 @@ from mcp.server.stdio import stdio_server
 from mcp.types import TextContent
 from mcp.types import Tool
 
+from .claude_md import write_rules
 from .community import contribute_gaps
+from .gap_detector import analyze_conversations
 from .providers import parse_any
 from .store import append_conversations
 from .store import auto_activate_pending_rules
+from .store import is_already_processed
 from .store import load_active_rules
+from .store import mark_processed
+from .store import _local_load
+from .store import _local_save
 
 _CONTRIBUTE = os.environ.get("ARL_CONTRIBUTE", "false").lower() == "true"
 
@@ -59,10 +65,11 @@ async def list_tools() -> list[Tool]:
         Tool(
             name="sync_sessions",
             description=(
-                "Scan your local AI session history, scrub PII, upload new conversations "
-                "to your private HF dataset, and pull back the latest generated rules. "
-                "Run weekly or after significant work to keep your rules current. "
-                "Supports Claude Code, ChatGPT exports, and generic JSONL session files."
+                "Scan your local AI session history, detect recurring friction patterns, "
+                "generate personalised guardrail rules, and write them to "
+                "~/.claude/CLAUDE.md so they apply automatically to every future session. "
+                "No HuggingFace account needed — works fully offline. "
+                "Supports Claude Code, ChatGPT exports, and generic JSONL files."
             ),
             inputSchema={
                 "type": "object",
@@ -114,10 +121,18 @@ async def _get_guardrail_rules() -> list[TextContent]:
         return [
             TextContent(
                 type="text",
-                text="No guardrail rules yet. Run sync_sessions first, then trigger analysis on your Space.",
+                text=(
+                    "No guardrail rules yet.\n"
+                    "Run sync_sessions to analyse your session history and generate rules.\n"
+                    "Rules are written automatically to ~/.claude/CLAUDE.md — "
+                    "no further steps needed after that."
+                ),
             )
         ]
-    lines = ["## Your AI Guardrail Rules\n"]
+    # Always keep CLAUDE.md in sync
+    write_rules(rules)
+    lines = ["## Your Active Guardrail Rules\n",
+             "_These are also written to ~/.claude/CLAUDE.md and apply automatically._\n"]
     for i, rule in enumerate(rules, 1):
         lines.extend(_format_rule(i, rule))
     return [TextContent(type="text", text="\n".join(lines))]
@@ -150,19 +165,45 @@ async def _sync_sessions(paths: list[Path] | None = None, contribute: bool = Fal
 
     log.append(f"📂 Found {len(session_files)} session file(s) across {len(scan_paths)} path(s)")
 
+    # Only process files we haven't seen before
+    new_files = [f for f in session_files if not is_already_processed(f)]
+    log.append(f"🆕 {len(new_files)} new file(s) to process")
+
     all_conversations: list[dict] = []
-    for path in session_files:
+    for path in new_files:
         convs = parse_any(path)
-        all_conversations.extend(convs)
+        if convs:
+            all_conversations.extend(convs)
+            mark_processed(path)
 
     log.append(f"✅ Parsed {len(all_conversations)} valid conversation(s)")
 
     if not all_conversations:
-        log.append("ℹ️  Nothing to upload.")
+        # Still load existing rules and refresh CLAUDE.md
+        rules = load_active_rules()
+        if rules:
+            md_path = write_rules(rules)
+            log.append(f"📝 {len(rules)} existing rule(s) re-written to {md_path}")
+        else:
+            log.append("ℹ️  No new conversations and no existing rules yet.")
         return [TextContent(type="text", text="\n".join(log))]
 
+    # ── Local gap detection (works with zero config) ───────────────────────
+    detected_rules = analyze_conversations(all_conversations)
+    if detected_rules:
+        existing = _local_load("rules.jsonl")
+        existing_ids = {r.get("rule_id") for r in existing}
+        new_rules = [r for r in detected_rules if r.get("rule_id") not in existing_ids]
+        if new_rules:
+            _local_save("rules.jsonl", existing + new_rules)
+            log.append(f"🧠 Generated {len(new_rules)} new rule(s) from detected patterns")
+        else:
+            log.append("ℹ️  All detected patterns already have rules")
+
+    # ── Upload to HF dataset if configured ────────────────────────────────
     added = append_conversations(all_conversations)
-    log.append(f"⬆️  Uploaded {added} new conversation(s) to your dataset")
+    if added:
+        log.append(f"⬆️  Uploaded {added} new conversation(s) to HF dataset")
 
     if contribute:
         contributed = 0
@@ -176,14 +217,21 @@ async def _sync_sessions(paths: list[Path] | None = None, contribute: bool = Fal
                 h = hashlib.sha256(conv["session_id"].encode()).hexdigest()
                 if contribute_gaps(gaps_by_type, h):
                     contributed += 1
-        log.append(f"🤝 Contributed anonymised patterns from {contributed} session(s) to community pool")
+        if contributed:
+            log.append(f"🤝 Contributed anonymised patterns from {contributed} session(s)")
 
     activated = auto_activate_pending_rules()
     if activated:
-        log.append(f"✅ Auto-activated {activated} safe pending rule(s)")
+        log.append(f"✅ Auto-activated {activated} safe pending rule(s) from HF dataset")
 
+    # ── Write all active rules to ~/.claude/CLAUDE.md ─────────────────────
     rules = load_active_rules()
-    log.append(f"📥 Pulled {len(rules)} active rule(s) from your dataset")
+    if rules:
+        md_path = write_rules(rules)
+        log.append(f"📝 {len(rules)} rule(s) written to {md_path}")
+        log.append("🎉 Rules will apply automatically to every future Claude session!")
+    else:
+        log.append("ℹ️  No active rules yet — need more session data")
 
     return [TextContent(type="text", text="\n".join(log))]
 
