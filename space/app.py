@@ -245,17 +245,21 @@ def build_rules_table(query: str = "") -> str:
     for r in matched:
         name = r.get("name", r.get("rule_id", "?"))
         display_name = (name[:42] + "…") if len(name) > 42 else name
-        layer = _infer_rule_layer(r).replace("_", " ").title()
+        layer_label = r.get("failure_layer_label") or _infer_rule_layer(r).replace("_", " ").title()
+        cat_label = r.get("failure_category_label", "—")
         hits = r.get("times_triggered", 0)
+        supp = r.get("suppression_count", 0)
         score = r.get("effectiveness_score", 0)
         pri = r.get("priority", 0)
         rows_html += (
             f"<tr>"
             f"<td>{_status_badge(r)}</td>"
-            f"<td style='max-width:240px'>{display_name}</td>"
-            f"<td>{layer}</td>"
+            f"<td style='max-width:220px'>{display_name}</td>"
+            f"<td style='font-size:0.8rem'>{layer_label}</td>"
+            f"<td style='font-size:0.8rem;color:#64748b'>{cat_label}</td>"
             f"<td>{_pri_cell(pri)}</td>"
             f"<td style='text-align:right'>{hits}</td>"
+            f"<td style='text-align:right'>{supp}</td>"
             f"<td>{_score_cell(score)}</td>"
             f"</tr>"
         )
@@ -264,7 +268,8 @@ def build_rules_table(query: str = "") -> str:
         f'<div class="rl-table-wrap">'
         f'<table class="rl-table">'
         f"<thead><tr>"
-        f"<th>Status</th><th>Name</th><th>Layer</th><th>Priority</th><th>Hits</th><th>Score</th>"
+        f"<th>Status</th><th>Name</th><th>Layer</th><th>Category</th>"
+        f"<th>Priority</th><th>Hits</th><th>Suppressed</th><th>Score</th>"
         f"</tr></thead>"
         f"<tbody>{rows_html}</tbody>"
         f"</table></div>"
@@ -7920,6 +7925,111 @@ def build_testing_stat_bar() -> str:
     return f'<div class="tab-stat-bar">{"  ".join(chips)}</div>'
 
 
+def compute_session_health_score(rules: list[dict] | None = None) -> dict:
+    """Compute a 0–100 session health score based on gap layer weights.
+
+    Layer weights (Planit 4-layer taxonomy):
+      Layer 1 — Model Behaviour:   -5 pts per gap
+      Layer 2 — Retrieval/Context: -10 pts per gap
+      Layer 3 — Orchestration:     -20 pts per gap
+      Layer 4 — Human/Trust:       -15 pts per gap
+    """
+    if rules is None:
+        rules = load_rules()
+    active = [r for r in rules if r.get("is_active")]
+    layer_weights = {1: 5, 2: 10, 3: 20, 4: 15}
+    layer_counts: dict[int, int] = {1: 0, 2: 0, 3: 0, 4: 0}
+    for r in active:
+        layer = r.get("failure_layer", 1)
+        if layer in layer_counts:
+            layer_counts[layer] += r.get("instance_count", 1)
+    deduction = sum(layer_weights[l] * layer_counts[l] for l in layer_counts)
+    score = max(0, min(100, 100 - deduction))
+    top_issues = sorted(layer_counts.items(), key=lambda x: layer_weights[x[0]] * x[1], reverse=True)
+    top3 = [
+        f"Layer {l}: {c} gap(s) (−{layer_weights[l] * c} pts)"
+        for l, c in top_issues if c > 0
+    ][:3]
+    return {"score": score, "layer_counts": layer_counts, "top_issues": top3}
+
+
+def build_failure_heatmap() -> Any:
+    """Plotly grouped bar chart: rule counts by failure category, coloured by layer."""
+    rules = load_rules()
+    active = [r for r in rules if r.get("is_active")]
+    if not active:
+        fig = go.Figure()
+        fig.add_annotation(
+            text="No rules yet — run analysis to populate the failure heatmap",
+            xref="paper", yref="paper", x=0.5, y=0.5,
+            showarrow=False, font=dict(color="#64748b", size=13), align="center",
+        )
+        fig.update_layout(height=280, xaxis=dict(visible=False), yaxis=dict(visible=False))
+        return _dark_fig(fig)
+
+    from collections import defaultdict
+    layer_labels = {1: "L1 Model", 2: "L2 Context", 3: "L3 Orchestration", 4: "L4 Human/Trust"}
+    layer_colors = {1: "#6366f1", 2: "#0ea5e9", 3: "#f59e0b", 4: "#ef4444"}
+    counts: dict[int, dict[str, int]] = defaultdict(lambda: defaultdict(int))
+    all_cats: set[str] = set()
+    for r in active:
+        layer = r.get("failure_layer", 1)
+        cat = r.get("failure_category_label") or r.get("failure_category", "unknown")
+        counts[layer][cat] += 1
+        all_cats.add(cat)
+    categories = sorted(all_cats)
+    fig = go.Figure()
+    for layer in sorted(layer_labels):
+        fig.add_trace(go.Bar(
+            name=layer_labels[layer],
+            x=categories,
+            y=[counts[layer].get(cat, 0) for cat in categories],
+            marker_color=layer_colors[layer],
+            hovertemplate="<b>%{x}</b><br>" + layer_labels[layer] + ": %{y} rule(s)<extra></extra>",
+        ))
+    fig.update_layout(
+        barmode="stack",
+        title=dict(text="Failure Mode Distribution by Category & Layer", font=dict(size=14, color="#334155")),
+        xaxis=dict(title="Failure Category", tickangle=-20, tickfont=dict(size=11)),
+        yaxis=dict(title="Rule Count"),
+        legend=dict(orientation="h", y=1.12, font=dict(size=11)),
+        height=340,
+        margin=dict(t=60, b=80),
+    )
+    return _dark_fig(fig)
+
+
+def build_session_health_html() -> str:
+    """HTML panel showing the session health score and top contributing issues."""
+    result = compute_session_health_score()
+    score = result["score"]
+    top3 = result["top_issues"]
+    if score >= 70:
+        colour, label, icon = "#10b981", "Healthy", "✅"
+    elif score >= 40:
+        colour, label, icon = "#f59e0b", "Needs Attention", "⚠️"
+    else:
+        colour, label, icon = "#ef4444", "Critical", "🔴"
+    issues_html = "".join(
+        f'<li style="font-size:0.85rem;color:#475569;margin:2px 0">{issue}</li>'
+        for issue in (top3 or ["No gaps detected — looking good!"])
+    )
+    return (
+        f'<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;'
+        f'padding:18px 22px;display:flex;gap:32px;align-items:flex-start">'
+        f'<div style="text-align:center;min-width:90px">'
+        f'<div style="font-size:2.6rem;font-weight:700;color:{colour}">{score:.0f}</div>'
+        f'<div style="font-size:0.78rem;color:#64748b;font-weight:600">/ 100</div>'
+        f'<div style="font-size:0.88rem;color:{colour};font-weight:600;margin-top:4px">{icon} {label}</div>'
+        f'</div>'
+        f'<div style="flex:1">'
+        f'<div style="font-size:0.9rem;font-weight:600;color:#1e293b;margin-bottom:6px">Top contributing issues</div>'
+        f'<ul style="margin:0;padding-left:16px">{issues_html}</ul>'
+        f'</div>'
+        f'</div>'
+    )
+
+
 def build_action_items_html() -> str:
     """Aggregate critical items requiring user attention into a single panel."""
     items: list[tuple[str, str, str]] = []  # (priority_class, icon, text)
@@ -12323,6 +12433,22 @@ updates the block without duplicating it.
             convs_search.change(build_conversations_table, inputs=[convs_search], outputs=conversations_table)
             analytics_tab.select(build_conversations_table, outputs=[conversations_table])
             analytics_tab.select(build_analytics_stat_bar, outputs=[analytics_stat_bar])
+
+            gr.HTML('<div class="section-title">Session Health Score</div>')
+            gr.Markdown("Composite 0–100 score weighted by failure layer severity (Planit taxonomy). Lower layer penalties are heavier.")
+            session_health_html = gr.HTML()
+            with gr.Row():
+                refresh_health_btn = gr.Button("↻ Refresh Health", variant="secondary", size="sm")
+            refresh_health_btn.click(build_session_health_html, outputs=[session_health_html])
+            analytics_tab.select(build_session_health_html, outputs=[session_health_html])
+
+            gr.HTML('<div class="section-title">Failure Mode Heatmap</div>')
+            gr.Markdown("Active rules grouped by failure category and Planit layer. Stacked = multiple layers contributing to the same category.")
+            failure_heatmap = gr.Plot()
+            with gr.Row():
+                refresh_heatmap_btn = gr.Button("↻ Refresh Heatmap", variant="secondary", size="sm")
+            refresh_heatmap_btn.click(build_failure_heatmap, outputs=[failure_heatmap])
+            analytics_tab.select(build_failure_heatmap, outputs=[failure_heatmap])
 
             gr.HTML('<div class="section-title">Alignment Sensor</div>')
             gr.Markdown("Per-conversation task focus, rule compliance, and drift across turns.")
