@@ -25,6 +25,7 @@ from mcp.types import TextContent
 from mcp.types import Tool
 
 from .community import contribute_gaps
+from .analyzer import run_analyze
 from .gap_detector import analyze_conversations, generate_rules
 from .injector import detected_targets, format_rules_block, write_memory_all, write_rules_all, write_skills_all
 from .memory import (
@@ -50,6 +51,7 @@ from .store import (
     is_already_processed,
     load_active_rules,
     mark_processed,
+    record_rule_outcome,
 )
 
 _CONTRIBUTE = os.environ.get("ARL_CONTRIBUTE", "false").lower() == "true"
@@ -282,6 +284,53 @@ async def list_tools() -> list[Tool]:
                 "required": ["name"],
             },
         ),
+        Tool(
+            name="analyze",
+            description=(
+                "All-in-one analysis tool. Call with action='all' for a complete report, "
+                "or choose a specific action:\n"
+                "• failure_modes — breakdown of active rules by Composo failure category and Planit layer\n"
+                "• session_health — 0-100 session health score with top contributing issues\n"
+                "• check_injection — scan a prompt for injection attack patterns\n"
+                "• effectiveness — summary of rule effectiveness scores (green/amber/red)\n"
+                "• record_outcome — update effectiveness tracking for a specific rule\n"
+                "• all — run all of the above and return a unified report"
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "action": {
+                        "type": "string",
+                        "enum": [
+                            "all",
+                            "failure_modes",
+                            "session_health",
+                            "check_injection",
+                            "effectiveness",
+                            "record_outcome",
+                        ],
+                        "description": "Which analysis to perform. Defaults to 'all'.",
+                    },
+                    "prompt": {
+                        "type": "string",
+                        "description": "Required for action='check_injection'. The text to scan.",
+                    },
+                    "rule_id": {
+                        "type": "string",
+                        "description": "Required for action='record_outcome'. The rule_id to update.",
+                    },
+                    "fired_again": {
+                        "type": "boolean",
+                        "description": (
+                            "Required for action='record_outcome'. "
+                            "True if the gap recurred (rule not working); "
+                            "False if the gap stopped (rule suppressed it)."
+                        ),
+                    },
+                },
+                "required": ["action"],
+            },
+        ),
     ]
 
 
@@ -321,6 +370,13 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
         return await _list_skills()
     if name == "get_skill":
         return await _get_skill(arguments.get("name", ""))
+    if name == "analyze":
+        return await _analyze(
+            action=arguments.get("action", "all"),
+            prompt=arguments.get("prompt", ""),
+            rule_id=arguments.get("rule_id", ""),
+            fired_again=arguments.get("fired_again"),
+        )
     return [TextContent(type="text", text=f"Unknown tool: {name}")]
 
 
@@ -623,6 +679,16 @@ async def _get_skill(name: str) -> list[TextContent]:
             )
         ]
     return [TextContent(type="text", text=format_skill_detail(skill))]
+
+
+async def _analyze(
+    action: str,
+    prompt: str,
+    rule_id: str,
+    fired_again: bool | None,
+) -> list[TextContent]:
+    text = run_analyze(action=action, prompt=prompt, rule_id=rule_id, fired_again=fired_again)
+    return [TextContent(type="text", text=text)]
 
 
 def main() -> None:
