@@ -3154,7 +3154,7 @@ def set_rule_dependencies(rule_id: str, depends_on: list[str], blocks: list[str]
         return f"Rule {rule_id} not found."
     target["depends_on"] = [d for d in depends_on if d != rule_id]
     target["blocks"] = [b for b in blocks if b != rule_id]
-    _snapshot_rule(target, "dependencies_updated")
+    _snapshot_rule_version(target, "dependencies_updated")
     _upload_jsonl("rules.jsonl", rules)
     return f"Dependencies saved: depends_on={target['depends_on']}, blocks={target['blocks']}"
 
