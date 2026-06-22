@@ -21,29 +21,66 @@ work, without you having to change anything.
 
 ## MCP tools
 
-| Tool                  | Description                                        |
-| --------------------- | -------------------------------------------------- |
-| `get_guardrail_rules` | Return active rules for the current session        |
-| `record_feedback`     | Create a rule immediately from in-session feedback |
-| `sync_sessions`       | Parse conversation history and generate new rules  |
-| `remember`            | Store a fact or preference in persistent memory    |
-| `recall`              | Search memory for relevant context                 |
-| `save_skill`          | Save a reusable workflow                           |
-| `list_skills`         | List saved skills with optional keyword filter     |
-| `get_skill`           | Retrieve a specific skill by name                  |
-| `install_scheduler`   | Install the nightly auto-sync job                  |
-| `list_providers`      | Show detected conversation history locations       |
+| Tool                  | Description                                                                          |
+| --------------------- | ------------------------------------------------------------------------------------ |
+| `get_guardrail_rules` | Return active rules for the current session                                          |
+| `record_feedback`     | Create a rule immediately from in-session feedback                                   |
+| `sync_sessions`       | Parse conversation history and generate new rules                                    |
+| `remember`            | Store a fact or preference in persistent memory                                      |
+| `recall`              | Search memory for relevant context                                                   |
+| `save_skill`          | Save a reusable workflow                                                             |
+| `list_skills`         | List saved skills with optional keyword filter                                       |
+| `get_skill`           | Retrieve a specific skill by name                                                    |
+| `install_scheduler`   | Install the nightly auto-sync job                                                    |
+| `list_providers`      | Show detected conversation history locations                                         |
+| `analyze`             | Session health, failure modes, injection check, effectiveness, and outcome recording |
 
 ## What it detects
+
+### Conversation patterns
 
 - Explicit corrections ("that's wrong", "actually,")
 - Repeated context ("I already told you", "as I said")
 - Incomplete responses ("you forgot", "you missed", "what about")
 - Repeated questions (word-overlap across turns)
+- Sycophancy — position reversals after user pushback
+- Hallucination risk signals ("I think", "I believe", unverified claims)
+- Overconfidence ("definitely", "certainly", "guaranteed")
+- Prompt injection attempts ("ignore previous instructions", "jailbreak")
+- Format failures — unexpected schema changes across turns
+- Reasoning gaps — conclusions without supporting evidence
+
+### Code quality
+
 - Code without error handling
 - Bare `except:` clauses
 - `eval()` usage
 - Hardcoded API keys and secrets
+
+### Failure taxonomy
+
+Every detected gap is tagged with a Planit failure layer (L1 Model Behaviour → L4 Human & Trust)
+and a Composo failure category (e.g. `behavioral_alignment`, `safety_security`) for structured
+analysis.
+
+## The `analyze` tool
+
+The `analyze` tool is a single combined endpoint with six actions:
+
+| Action            | What it returns                                                               |
+| ----------------- | ----------------------------------------------------------------------------- |
+| `all`             | Full report: session health + failure modes + effectiveness + injection check |
+| `session_health`  | 0–100 health score with per-layer gap counts and deductions                   |
+| `failure_modes`   | Active rules grouped by Planit layer and Composo category                     |
+| `effectiveness`   | Green / amber / red breakdown of rule effectiveness scores                    |
+| `check_injection` | Scan a prompt string for injection and jailbreak patterns                     |
+| `record_outcome`  | Update a rule's effectiveness score after observing it fire or be suppressed  |
+
+Example (Claude Code tool call):
+
+```json
+{ "name": "analyze", "arguments": { "action": "all", "prompt": "<user message>" } }
+```
 
 ## Works with
 
