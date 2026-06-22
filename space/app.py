@@ -220,11 +220,11 @@ def build_rules_table(query: str = "") -> str:
     def _score_cell(score: float) -> str:
         pct = int(score * 100)
         bar_w = max(2, min(80, pct))
-        color = "#10b981" if pct >= 70 else "#f59e0b" if pct >= 40 else "#ef4444"
+        color = "#34d399" if pct >= 70 else "#fbbf24" if pct >= 40 else "#f87171"
         return (
             f'<div class="rl-score-bar">'
             f'<div class="rl-score-fill" style="width:{bar_w}px;background:{color}"></div>'
-            f'<span style="font-size:0.78rem;color:#334155">{pct}%</span></div>'
+            f'<span style="font-size:0.78rem;color:#9d99c4">{pct}%</span></div>'
         )
 
     matched = []
@@ -256,7 +256,7 @@ def build_rules_table(query: str = "") -> str:
             f"<td>{_status_badge(r)}</td>"
             f"<td style='max-width:220px'>{display_name}</td>"
             f"<td style='font-size:0.8rem'>{layer_label}</td>"
-            f"<td style='font-size:0.8rem;color:#64748b'>{cat_label}</td>"
+            f"<td style='font-size:0.8rem;color:#6b6892'>{cat_label}</td>"
             f"<td>{_pri_cell(pri)}</td>"
             f"<td style='text-align:right'>{hits}</td>"
             f"<td style='text-align:right'>{supp}</td>"
@@ -382,15 +382,15 @@ def build_rule_score_trend(rule_name: str) -> Any:
             y=scores,
             mode="lines+markers",
             line=dict(
-                color="#10b981" if scores[-1] >= 0.7 else ("#f59e0b" if scores[-1] >= 0.4 else "#be123c"), width=2
+                color="#34d399" if scores[-1] >= 0.7 else ("#fbbf24" if scores[-1] >= 0.4 else "#f87171"), width=2
             ),
             marker=dict(size=8),
             name="Effectiveness",
             hovertemplate="<b>%{x}</b><br>Score: %{y:.0%}<extra></extra>",
         )
     )
-    fig.add_hline(y=0.7, line_dash="dot", line_color="#10b981", annotation_text="Good (70%)")
-    fig.add_hline(y=0.3, line_dash="dot", line_color="#be123c", annotation_text="Evolve threshold (30%)")
+    fig.add_hline(y=0.7, line_dash="dot", line_color="#34d399", annotation_text="Good (70%)")
+    fig.add_hline(y=0.3, line_dash="dot", line_color="#f87171", annotation_text="Evolve threshold (30%)")
     fig.update_layout(
         title=f"{rule.get('name', rule_name)} — effectiveness over time",
         yaxis=dict(range=[0, 1], tickformat=".0%"),
@@ -429,19 +429,19 @@ def build_rule_version_history(rule_name: str) -> str:
         score = v.get("effectiveness_score")
         if score is not None:
             score_pct = int(score * 100) if score <= 1 else int(score)
-            score_color = "#166534" if score_pct >= 70 else "#d97706" if score_pct >= 40 else "#dc2626"
+            score_color = "#34d399" if score_pct >= 70 else "#fbbf24" if score_pct >= 40 else "#f87171"
             score_html = f'<span style="color:{score_color};font-weight:700">{score_pct}%</span>'
         else:
-            score_html = '<span style="color:#94a3b8">—</span>'
+            score_html = '<span style="color:#6b6892">—</span>'
         triggered = v.get("times_triggered", 0)
         success = v.get("success_count", 0)
         rows_html += (
             f"<tr>"
-            f"<td style='font-size:0.75rem;color:#94a3b8'>{v.get('timestamp', '')[:16]}</td>"
+            f"<td style='font-size:0.75rem;color:#6b6892'>{v.get('timestamp', '')[:16]}</td>"
             f"<td>{badge}</td>"
             f"<td>{score_html}</td>"
             f"<td style='text-align:center;color:#4f46e5'>{triggered}</td>"
-            f"<td style='text-align:center;color:#166534'>{success}</td>"
+            f"<td style='text-align:center;color:#34d399'>{success}</td>"
             f"<td style='font-size:0.78rem;color:#475569;max-width:240px'>{(v.get('instruction', '') or '')[:80]}</td>"
             f"</tr>"
         )
@@ -479,15 +479,15 @@ def build_conversations_table(query: str = "") -> str:
         slug = conv.get("slug", conv.get("git_branch", ""))
         cid = conv.get("conversation_id", "?")
         session_label = (slug or cid[:12])[:40]
-        gap_color = "#dc2626" if gaps > 5 else "#d97706" if gaps > 0 else "#94a3b8"
+        gap_color = "#f87171" if gaps > 5 else "#fbbf24" if gaps > 0 else "#6b6892"
         rows_html += (
             f"<tr>"
             f"<td style='max-width:200px;font-size:0.82rem'>{session_label}</td>"
-            f"<td style='font-family:monospace;font-size:0.75rem;color:#64748b'>{cid[:12]}</td>"
+            f"<td style='font-family:monospace;font-size:0.75rem;color:#6b6892'>{cid[:12]}</td>"
             f"<td style='text-align:center'>{len(turns)}</td>"
             f"<td style='text-align:center;color:{gap_color};font-weight:600'>{gaps}</td>"
             f"<td style='text-align:center;color:#4f46e5'>{rules_applied}</td>"
-            f"<td style='font-size:0.75rem;color:#94a3b8'>{str(conv.get('created_at', conv.get('updated_at', '')))[:16]}</td>"
+            f"<td style='font-size:0.75rem;color:#6b6892'>{str(conv.get('created_at', conv.get('updated_at', '')))[:16]}</td>"
             f"</tr>"
         )
     return (
@@ -551,11 +551,11 @@ def build_project_compass() -> tuple[Any, Any, str]:
 
     # Direction
     if health_score >= 70:
-        direction = ("on_track", "🟢", "#22c55e")
+        direction = ("on_track", "🟢", "#34d399")
     elif health_score >= 40:
-        direction = ("needs_attention", "🟡", "#f59e0b")
+        direction = ("needs_attention", "🟡", "#fbbf24")
     else:
-        direction = ("off_course", "🔴", "#ef4444")
+        direction = ("off_course", "🔴", "#f87171")
 
     # --- Gauge ---
     fig_gauge = go.Figure(
@@ -566,11 +566,11 @@ def build_project_compass() -> tuple[Any, Any, str]:
                 "axis": {"range": [0, 100]},
                 "bar": {"color": direction[2]},
                 "steps": [
-                    {"range": [0, 40], "color": "#fee2e2"},
-                    {"range": [40, 70], "color": "#fef9c3"},
-                    {"range": [70, 100], "color": "#dcfce7"},
+                    {"range": [0, 40], "color": "rgba(248,113,113,0.15)"},
+                    {"range": [40, 70], "color": "rgba(251,191,36,0.12)"},
+                    {"range": [70, 100], "color": "rgba(52,211,153,0.15)"},
                 ],
-                "threshold": {"line": {"color": "#4f46e5", "width": 4}, "value": 70},
+                "threshold": {"line": {"color": "#8b5cf6", "width": 4}, "value": 70},
             },
             title={
                 "text": f"Project Health<br><span style='font-size:0.9em'>"
@@ -579,13 +579,13 @@ def build_project_compass() -> tuple[Any, Any, str]:
             number={"suffix": " / 100"},
         )
     )
-    fig_gauge.update_layout(height=320, paper_bgcolor="#ffffff")
+    fig_gauge.update_layout(height=320, paper_bgcolor="#1a1929")
 
     # --- Metrics bar chart ---
     categories = ["Space Running", "Has Data", "Active Rules", "Recent Deploy"]
     scores = [space_pts, data_pts, rules_pts, deploy_pts]
     max_scores = [40, 20, 20, 20]
-    colors = ["#22c55e" if s == m else "#f59e0b" if s > 0 else "#ef4444" for s, m in zip(scores, max_scores)]
+    colors = ["#34d399" if s == m else "#fbbf24" if s > 0 else "#f87171" for s, m in zip(scores, max_scores)]
 
     fig_metrics = go.Figure(
         go.Bar(
@@ -602,8 +602,8 @@ def build_project_compass() -> tuple[Any, Any, str]:
         title="Health Score Breakdown",
         yaxis_range=[0, 45],
         yaxis_title="Points",
-        plot_bgcolor="#f8fafc",
-        paper_bgcolor="#ffffff",
+        plot_bgcolor="#0f0e17",
+        paper_bgcolor="#1a1929",
         height=320,
     )
 
@@ -642,14 +642,14 @@ def get_conversation_ids() -> list[str]:
 def build_compass(conv_id: str) -> tuple[Any, Any, str]:
     if not conv_id:
         empty = go.Figure()
-        empty.update_layout(title="Select a conversation", height=300, plot_bgcolor="#f8fafc", paper_bgcolor="#ffffff")
+        empty.update_layout(title="Select a conversation", height=300, plot_bgcolor="#0f0e17", paper_bgcolor="#1a1929")
         return _dark_fig(empty), _dark_fig(go.Figure()), "Select a conversation from the dropdown."
 
     convs = load_conversations()
     conv = next((c for c in convs if c.get("conversation_id", "").startswith(conv_id)), None)
     if conv is None:
         empty = go.Figure()
-        empty.update_layout(title="Conversation not found", height=300, plot_bgcolor="#f8fafc", paper_bgcolor="#ffffff")
+        empty.update_layout(title="Conversation not found", height=300, plot_bgcolor="#0f0e17", paper_bgcolor="#1a1929")
         return _dark_fig(empty), _dark_fig(go.Figure()), "Conversation not found."
 
     turns = conv.get("turns", [])
@@ -661,8 +661,8 @@ def build_compass(conv_id: str) -> tuple[Any, Any, str]:
         empty.update_layout(
             title="No sensor data — readings are generated during live conversations",
             height=300,
-            plot_bgcolor="#f8fafc",
-            paper_bgcolor="#ffffff",
+            plot_bgcolor="#0f0e17",
+            paper_bgcolor="#1a1929",
         )
         return (
             _dark_fig(empty),
@@ -695,18 +695,18 @@ def build_compass(conv_id: str) -> tuple[Any, Any, str]:
             value=round(latest_composite * 100, 1),
             delta={
                 "reference": round((latest_composite - latest_heading) * 100, 1),
-                "increasing": {"color": "#22c55e"},
-                "decreasing": {"color": "#ef4444"},
+                "increasing": {"color": "#34d399"},
+                "decreasing": {"color": "#f87171"},
             },
             gauge={
                 "axis": {"range": [0, 100]},
-                "bar": {"color": "#4f46e5"},
+                "bar": {"color": "#8b5cf6"},
                 "steps": [
-                    {"range": [0, 40], "color": "#fee2e2"},
-                    {"range": [40, 70], "color": "#fef9c3"},
-                    {"range": [70, 100], "color": "#dcfce7"},
+                    {"range": [0, 40], "color": "rgba(248,113,113,0.15)"},
+                    {"range": [40, 70], "color": "rgba(251,191,36,0.12)"},
+                    {"range": [70, 100], "color": "rgba(52,211,153,0.15)"},
                 ],
-                "threshold": {"line": {"color": "#4f46e5", "width": 4}, "value": 70},
+                "threshold": {"line": {"color": "#8b5cf6", "width": 4}, "value": 70},
             },
             title={
                 "text": f"Alignment Score<br><span style='font-size:0.8em'>"
@@ -735,7 +735,7 @@ def build_compass(conv_id: str) -> tuple[Any, Any, str]:
                 y=task_scores,
                 name="Task Alignment",
                 mode="lines+markers",
-                line={"color": "#4f46e5"},
+                line={"color": "#8b5cf6"},
                 hovertemplate="Turn %{x}<br>Task Alignment: %{y:.0%}<extra></extra>",
             )
         )
@@ -745,7 +745,7 @@ def build_compass(conv_id: str) -> tuple[Any, Any, str]:
                 y=rule_scores,
                 name="Rule Compliance",
                 mode="lines+markers",
-                line={"color": "#22c55e"},
+                line={"color": "#34d399"},
                 hovertemplate="Turn %{x}<br>Rule Compliance: %{y:.0%}<extra></extra>",
             )
         )
@@ -755,20 +755,20 @@ def build_compass(conv_id: str) -> tuple[Any, Any, str]:
                 y=focus_scores,
                 name="Focus (1-drift)",
                 mode="lines+markers",
-                line={"color": "#f59e0b"},
+                line={"color": "#fbbf24"},
                 hovertemplate="Turn %{x}<br>Focus: %{y:.0%}<extra></extra>",
             )
         )
-        fig_timeline.add_hline(y=0.7, line_dash="dash", line_color="#22c55e", annotation_text="On-track threshold")
-        fig_timeline.add_hline(y=0.4, line_dash="dash", line_color="#ef4444", annotation_text="Off-course threshold")
+        fig_timeline.add_hline(y=0.7, line_dash="dash", line_color="#34d399", annotation_text="On-track threshold")
+        fig_timeline.add_hline(y=0.4, line_dash="dash", line_color="#f87171", annotation_text="Off-course threshold")
 
     fig_timeline.update_layout(
         title="Alignment Timeline per Turn",
         xaxis_title="Turn",
         yaxis_title="Score",
         yaxis_range=[0, 1.05],
-        plot_bgcolor="#f8fafc",
-        paper_bgcolor="#ffffff",
+        plot_bgcolor="#0f0e17",
+        paper_bgcolor="#1a1929",
         height=350,
         legend={"orientation": "h", "y": -0.2},
     )
@@ -2497,11 +2497,11 @@ def build_pending_rules_table(query: str = "") -> str:
         instruction = (r.get("action") or {}).get("instruction", "")
         rows_html += (
             f"<tr>"
-            f"<td style='font-family:monospace;font-size:0.75rem;color:#64748b'>{r.get('rule_id', '?')[:16]}</td>"
+            f"<td style='font-family:monospace;font-size:0.75rem;color:#6b6892'>{r.get('rule_id', '?')[:16]}</td>"
             f"<td style='font-weight:600'>{r.get('name', '?')[:40]}</td>"
             f"<td class='{pri_cls}'>{pri}</td>"
             f"<td style='font-size:0.78rem;color:#475569' title='{r.get('empirical_basis', '')}'>{r.get('empirical_basis', '')[:60]}</td>"
-            f"<td style='font-size:0.78rem;color:#64748b' title='{instruction}'>{instruction[:80]}</td>"
+            f"<td style='font-size:0.78rem;color:#6b6892' title='{instruction}'>{instruction[:80]}</td>"
             f"<td>{safety_html}</td>"
             f"</tr>"
         )
@@ -2635,9 +2635,9 @@ def set_rule_owner(rule_id: str, owner: str, team: str, contact: str) -> str:
 # ---------------------------------------------------------------------------
 
 _RISK_LABELS = {
-    (0.0, 0.25): ("Low", "#10b981"),
-    (0.25, 0.5): ("Medium", "#f59e0b"),
-    (0.5, 0.75): ("High", "#ef4444"),
+    (0.0, 0.25): ("Low", "#34d399"),
+    (0.25, 0.5): ("Medium", "#fbbf24"),
+    (0.5, 0.75): ("High", "#f87171"),
     (0.75, 1.1): ("Critical", "#ff4444"),
 }
 
@@ -2668,10 +2668,10 @@ def build_risk_table(query: str = "") -> str:
     rules = load_rules()
     q = query.strip().lower()
     _level_badge = {
-        "Critical": '<span class="rl-badge" style="background:#fee2e2;color:#991b1b">Critical</span>',
+        "Critical": '<span class="rl-badge" style="background:rgba(248,113,113,0.15);color:#f87171">Critical</span>',
         "High": '<span class="rl-badge" style="background:#fef3c7;color:#92400e">High</span>',
         "Medium": '<span class="rl-badge" style="background:#ede9fe;color:#5b21b6">Medium</span>',
-        "Low": '<span class="rl-badge" style="background:#f0fdf4;color:#166534">Low</span>',
+        "Low": '<span class="rl-badge" style="background:#f0fdf4;color:#34d399">Low</span>',
     }
     matched = []
     for r in rules:
@@ -2693,7 +2693,7 @@ def build_risk_table(query: str = "") -> str:
     for r, score, label, name, owner, team in matched:
         bypass = r.get("bypass_rate")
         eff = r.get("effectiveness_score", 0)
-        eff_color = "#059669" if eff >= 0.7 else "#d97706" if eff >= 0.4 else "#dc2626"
+        eff_color = "#34d399" if eff >= 0.7 else "#fbbf24" if eff >= 0.4 else "#f87171"
         level_html = _level_badge.get(label, '<span class="rl-badge rl-badge-inactive">' + label + "</span>")
         bypass_html = "—" if bypass is None else f"{bypass:.0%}"
         rows_html += (
@@ -2701,11 +2701,11 @@ def build_risk_table(query: str = "") -> str:
             f"<td style='max-width:180px'>{name[:32]}</td>"
             f"<td style='font-size:0.8rem;color:#475569'>{owner}</td>"
             f"<td style='font-size:0.8rem;color:#475569'>{team}</td>"
-            f"<td style='text-align:right;font-weight:700;color:#334155'>{score:.2f}</td>"
+            f"<td style='text-align:right;font-weight:700;color:#9d99c4'>{score:.2f}</td>"
             f"<td>{level_html}</td>"
             f"<td style='text-align:right'>{r.get('priority', '?')}</td>"
             f"<td style='text-align:right;color:{eff_color};font-weight:600'>{eff:.0%}</td>"
-            f"<td style='text-align:right;color:#94a3b8'>{bypass_html}</td>"
+            f"<td style='text-align:right;color:#6b6892'>{bypass_html}</td>"
             f"</tr>"
         )
     return (
@@ -2857,8 +2857,8 @@ def build_lifecycle_table(query: str = "") -> str:
             f"<td style='font-size:0.8rem;color:#475569'>{owner}</td>"
             f"<td style='font-size:0.8rem;color:#475569'>{team}</td>"
             f"<td style='text-align:right'>{r.get('priority', '?')}</td>"
-            f"<td style='font-size:0.75rem;color:#94a3b8'>{str(r.get('created_at', ''))[:10]}</td>"
-            f"<td style='font-size:0.75rem;color:#94a3b8'>{last_changed}</td>"
+            f"<td style='font-size:0.75rem;color:#6b6892'>{str(r.get('created_at', ''))[:10]}</td>"
+            f"<td style='font-size:0.75rem;color:#6b6892'>{last_changed}</td>"
             f"</tr>"
         )
     return (
@@ -2976,14 +2976,14 @@ def build_drift_chart() -> Any:
         )
         return _dark_fig(fig)
 
-    palette = ["#6366f1", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4", "#ec4899"]
+    palette = ["#6366f1", "#34d399", "#fbbf24", "#f87171", "#8b5cf6", "#06b6d4", "#ec4899"]
     fig = go.Figure()
     for i, rule in enumerate(active_with_history):
         history = rule["score_history"]
         xs = list(range(len(history)))
         ys = [h.get("score", 0) if isinstance(h, dict) else 0 for h in history]
         drift = _compute_drift(history)
-        color = "#ef4444" if drift["is_drifting"] else palette[i % len(palette)]
+        color = "#f87171" if drift["is_drifting"] else palette[i % len(palette)]
         fig.add_trace(
             go.Scatter(
                 x=xs,
@@ -2996,8 +2996,8 @@ def build_drift_chart() -> Any:
             )
         )
 
-    fig.add_hline(y=0.7, line_dash="dot", line_color="#10b981", annotation_text="Good")
-    fig.add_hline(y=0.3, line_dash="dot", line_color="#ef4444", annotation_text="Evolve threshold")
+    fig.add_hline(y=0.7, line_dash="dot", line_color="#34d399", annotation_text="Good")
+    fig.add_hline(y=0.3, line_dash="dot", line_color="#f87171", annotation_text="Evolve threshold")
     fig.update_layout(
         title=dict(text="Effectiveness Trend (red = drifting)", font=dict(size=14, color="#334155")),
         xaxis_title="Measurement #",
@@ -3227,7 +3227,7 @@ def build_dependency_graph() -> Any:
             x=node_x,
             y=node_y,
             mode="markers+text",
-            marker=dict(size=14, color="#059669", line=dict(width=1, color="#10b981")),
+            marker=dict(size=14, color="#34d399", line=dict(width=1, color="#34d399")),
             text=node_text,
             textposition="top center",
             hoverinfo="text",
@@ -3235,8 +3235,8 @@ def build_dependency_graph() -> Any:
         )
     )
     fig.update_layout(
-        paper_bgcolor="#ffffff",
-        plot_bgcolor="#f8fafc",
+        paper_bgcolor="#1a1929",
+        plot_bgcolor="#0f0e17",
         showlegend=False,
         margin=dict(l=20, r=20, t=30, b=20),
         title=dict(text="Rule Dependency Graph", font=dict(color="#334155")),
@@ -3272,16 +3272,16 @@ def build_dependency_table(query: str = "") -> str:
         dep_badge = (
             f'<span class="rl-badge" style="background:#e0e7ff;color:#3730a3">{dep_count} deps</span>'
             if dep_count
-            else '<span style="color:#94a3b8">—</span>'
+            else '<span style="color:#6b6892">—</span>'
         )
         blk_badge = (
-            f'<span class="rl-badge" style="background:#fee2e2;color:#991b1b">{block_count} blocks</span>'
+            f'<span class="rl-badge" style="background:rgba(248,113,113,0.15);color:#f87171">{block_count} blocks</span>'
             if block_count
-            else '<span style="color:#94a3b8">—</span>'
+            else '<span style="color:#6b6892">—</span>'
         )
         rows_html += (
             f"<tr>"
-            f"<td style='font-family:monospace;font-size:0.75rem;color:#64748b'>{r.get('rule_id', '')[:20]}</td>"
+            f"<td style='font-family:monospace;font-size:0.75rem;color:#6b6892'>{r.get('rule_id', '')[:20]}</td>"
             f"<td style='font-weight:600'>{r.get('name', '')[:40]}</td>"
             f"<td style='font-size:0.78rem;color:#475569'>{(', '.join(dep_list) or '—')[:60]}</td>"
             f"<td style='font-size:0.78rem;color:#475569'>{(', '.join(block_list) or '—')[:60]}</td>"
@@ -3381,14 +3381,14 @@ def build_coverage_chart() -> Any:
             labels=["Covered", "Uncovered"],
             values=[covered, uncovered],
             hole=0.6,
-            marker=dict(colors=["#059669", "#ef4444"]),
+            marker=dict(colors=["#34d399", "#f87171"]),
             textfont=dict(color="#334155"),
             hovertemplate="<b>%{label}</b><br>%{value} turns (%{percent})<extra></extra>",
         )
     )
     fig.update_layout(
-        paper_bgcolor="#ffffff",
-        plot_bgcolor="#f8fafc",
+        paper_bgcolor="#1a1929",
+        plot_bgcolor="#0f0e17",
         legend=dict(font=dict(color="#334155")),
         height=280,
         margin=dict(l=20, r=20, t=40, b=20),
@@ -3522,7 +3522,7 @@ def build_benchmark_table(query: str = "") -> str:
     rows_html = ""
     for c, rule_id, input_text, expected in matched:
         exp_badge = (
-            '<span class="rl-badge" style="background:#dcfce7;color:#166534">trigger</span>'
+            '<span class="rl-badge" style="background:rgba(52,211,153,0.15);color:#34d399">trigger</span>'
             if c.get("should_trigger")
             else '<span class="rl-badge" style="background:#f1f5f9;color:#475569">no trigger</span>'
         )
@@ -3532,7 +3532,7 @@ def build_benchmark_table(query: str = "") -> str:
             f"<td style='font-size:0.78rem;color:#475569'>{rule_id[:22]}</td>"
             f"<td style='max-width:240px;font-size:0.8rem'>{input_text[:65]}</td>"
             f"<td>{exp_badge}</td>"
-            f"<td style='font-size:0.75rem;color:#94a3b8'>{c.get('created_at', '')[:10]}</td>"
+            f"<td style='font-size:0.75rem;color:#6b6892'>{c.get('created_at', '')[:10]}</td>"
             f"</tr>"
         )
     return (
@@ -3736,12 +3736,12 @@ def build_rca_table(query: str = "") -> str:
         badge = _st_badge.get(status, f'<span class="rl-badge rl-badge-inactive">{status}</span>')
         rows_html += (
             f"<tr>"
-            f"<td style='font-family:monospace;font-size:0.75rem;color:#64748b'>{e.get('rca_id', '')[:8]}</td>"
+            f"<td style='font-family:monospace;font-size:0.75rem;color:#6b6892'>{e.get('rca_id', '')[:8]}</td>"
             f"<td style='max-width:140px'>{e.get('rule_name', e.get('rule_id', ''))[:30]}</td>"
             f"<td style='color:#4f46e5;font-size:0.78rem'>{e.get('category', '')}</td>"
             f"<td style='font-size:0.78rem;color:#475569;max-width:240px' title='{e.get('root_cause', '')}'>{e.get('root_cause', '')[:80]}</td>"
             f"<td>{badge}</td>"
-            f"<td style='font-size:0.75rem;color:#94a3b8'>{e.get('logged_at', '')[:10]}</td>"
+            f"<td style='font-size:0.75rem;color:#6b6892'>{e.get('logged_at', '')[:10]}</td>"
             f"</tr>"
         )
     return (
@@ -3814,18 +3814,18 @@ def build_trace_table(conversation_id: str = "") -> str:
     for t in sorted(traces, key=lambda x: x.get("traced_at", ""), reverse=True)[:200]:
         fired = t.get("rules_fired", [])
         fired_str = ", ".join(fired) if fired else "—"
-        fired_color = "#166534" if fired else "#94a3b8"
+        fired_color = "#34d399" if fired else "#6b6892"
         latency = t.get("latency_ms", 0)
-        lat_color = "#dc2626" if latency > 500 else "#d97706" if latency > 100 else "#166534"
+        lat_color = "#f87171" if latency > 500 else "#fbbf24" if latency > 100 else "#34d399"
         rows_html += (
             f"<tr>"
-            f"<td style='font-family:monospace;font-size:0.75rem;color:#64748b'>{t.get('trace_id', '')[:8]}</td>"
-            f"<td style='font-family:monospace;font-size:0.75rem;color:#94a3b8'>{t.get('correlation_id', '')}</td>"
+            f"<td style='font-family:monospace;font-size:0.75rem;color:#6b6892'>{t.get('trace_id', '')[:8]}</td>"
+            f"<td style='font-family:monospace;font-size:0.75rem;color:#6b6892'>{t.get('correlation_id', '')}</td>"
             f"<td style='text-align:center'>{t.get('turn_number', 0)}</td>"
             f"<td style='font-size:0.78rem;color:{fired_color}'>{fired_str[:60]}</td>"
             f"<td style='font-size:0.78rem;color:#475569'>{t.get('decision', '')[:40]}</td>"
             f"<td style='color:{lat_color};font-weight:600'>{latency}</td>"
-            f"<td style='font-size:0.75rem;color:#94a3b8'>{t.get('traced_at', '')[:19]}</td>"
+            f"<td style='font-size:0.75rem;color:#6b6892'>{t.get('traced_at', '')[:19]}</td>"
             f"</tr>"
         )
     return (
@@ -3924,8 +3924,8 @@ def build_trace_heatmap() -> Any:
         )
     )
     fig.update_layout(
-        paper_bgcolor="#ffffff",
-        plot_bgcolor="#f8fafc",
+        paper_bgcolor="#1a1929",
+        plot_bgcolor="#0f0e17",
         title=dict(text="Decision Trace Heatmap (last 20 conversations)", font=dict(color="#334155")),
         xaxis=dict(title="Turn", tickfont=dict(color="#334155"), titlefont=dict(color="#334155")),
         yaxis=dict(tickfont=dict(color="#334155"), autorange="reversed"),
@@ -4022,12 +4022,12 @@ def build_explanations_table(query: str = "") -> str:
         keywords = ", ".join(e.get("matched_keywords", [])) or "—"
         rows_html += (
             f"<tr>"
-            f"<td style='font-family:monospace;font-size:0.75rem;color:#64748b'>{e.get('explain_id', '')[:8]}</td>"
+            f"<td style='font-family:monospace;font-size:0.75rem;color:#6b6892'>{e.get('explain_id', '')[:8]}</td>"
             f"<td style='max-width:140px'>{e.get('rule_name', '')[:30]}</td>"
             f"<td>{fired_badge}</td>"
             f"<td style='font-size:0.78rem;color:#4f46e5'>{keywords[:60]}</td>"
             f"<td style='font-size:0.78rem;color:#475569;max-width:260px' title='{e.get('explanation', '')}'>{e.get('explanation', '')[:100]}</td>"
-            f"<td style='font-size:0.75rem;color:#94a3b8'>{e.get('explained_at', '')[:10]}</td>"
+            f"<td style='font-size:0.75rem;color:#6b6892'>{e.get('explained_at', '')[:10]}</td>"
             f"</tr>"
         )
     return (
@@ -4102,12 +4102,12 @@ def build_kg_graph() -> Any:
     import math
 
     type_colors = {
-        "policy": "#4f46e5",
-        "requirement": "#818cf8",
-        "control": "#059669",
-        "kpi": "#f59e0b",
-        "audit_finding": "#ef4444",
-        "rule": "#94a3b8",
+        "policy": "#8b5cf6",
+        "requirement": "#c4b5fd",
+        "control": "#34d399",
+        "kpi": "#fbbf24",
+        "audit_finding": "#f87171",
+        "rule": "#6b6892",
     }
     n = len(nodes)
     positions = {
@@ -4145,7 +4145,7 @@ def build_kg_graph() -> Any:
                 y=[positions[nd["node_id"]][1] for nd in grp],
                 mode="markers+text",
                 name=nt,
-                marker=dict(size=14, color=type_colors.get(nt, "#94a3b8"), line=dict(width=1, color="#e2e8f0")),
+                marker=dict(size=14, color=type_colors.get(nt, "#6b6892"), line=dict(width=1, color="#e2e8f0")),
                 text=[nd.get("name", "") for nd in grp],
                 textposition="top center",
                 textfont=dict(size=8, color="#334155"),
@@ -4156,8 +4156,8 @@ def build_kg_graph() -> Any:
             )
         )
     fig.update_layout(
-        paper_bgcolor="#ffffff",
-        plot_bgcolor="#f8fafc",
+        paper_bgcolor="#1a1929",
+        plot_bgcolor="#0f0e17",
         showlegend=True,
         legend=dict(font=dict(color="#334155")),
         margin=dict(l=20, r=20, t=40, b=20),
@@ -4185,26 +4185,26 @@ def build_kg_table(query: str = "") -> str:
         return f'<div class="rl-empty">No nodes match "<b>{query}</b>".</div>'
     _type_colors = {
         "policy": ("background:#e0e7ff", "color:#3730a3"),
-        "requirement": ("background:#dcfce7", "color:#166534"),
+        "requirement": ("background:#dcfce7", "color:#34d399"),
         "control": ("background:#fce7f3", "color:#9d174d"),
         "kpi": ("background:#fef3c7", "color:#92400e"),
         "audit_finding": ("background:#fee2e2", "color:#991b1b"),
-        "rule": ("background:#f1f5f9", "color:#334155"),
+        "rule": ("background:#f1f5f9", "color:#9d99c4"),
     }
     rows_html = ""
     for n in matched:
         node_type = n.get("node_type", "")
-        colors = _type_colors.get(node_type, ("background:#f1f5f9", "color:#64748b"))
+        colors = _type_colors.get(node_type, ("background:#f1f5f9", "color:#6b6892"))
         type_badge = f'<span class="rl-badge" style="{colors[0]};{colors[1]}">{node_type}</span>'
         edge_count = len(n.get("edges", []))
         rows_html += (
             f"<tr>"
-            f"<td style='font-family:monospace;font-size:0.75rem;color:#64748b'>{n.get('node_id', '')[:8]}</td>"
+            f"<td style='font-family:monospace;font-size:0.75rem;color:#6b6892'>{n.get('node_id', '')[:8]}</td>"
             f"<td>{type_badge}</td>"
             f"<td style='font-weight:600'>{n.get('name', '')[:40]}</td>"
             f"<td style='font-size:0.78rem;color:#475569;max-width:200px' title='{n.get('description', '')}'>{n.get('description', '')[:60]}</td>"
             f"<td style='text-align:center;color:#4f46e5;font-weight:600'>{edge_count}</td>"
-            f"<td style='font-size:0.75rem;color:#94a3b8'>{n.get('created_at', '')[:10]}</td>"
+            f"<td style='font-size:0.75rem;color:#6b6892'>{n.get('created_at', '')[:10]}</td>"
             f"</tr>"
         )
     return (
@@ -4386,10 +4386,10 @@ def build_conflicts_table(query: str = "") -> str:
     conflicts = _download_jsonl("conflicts.jsonl")
     q = query.strip().lower()
     _sev_badge = {
-        "critical": '<span class="rl-badge" style="background:#fee2e2;color:#991b1b">critical</span>',
+        "critical": '<span class="rl-badge" style="background:rgba(248,113,113,0.15);color:#f87171">critical</span>',
         "high": '<span class="rl-badge" style="background:#fef3c7;color:#92400e">high</span>',
         "medium": '<span class="rl-badge" style="background:#ede9fe;color:#5b21b6">medium</span>',
-        "low": '<span class="rl-badge" style="background:#f0fdf4;color:#166534">low</span>',
+        "low": '<span class="rl-badge" style="background:#f0fdf4;color:#34d399">low</span>',
     }
     _st_badge = {
         "open": '<span class="rl-badge rl-badge-deprecated">open</span>',
@@ -4421,7 +4421,7 @@ def build_conflicts_table(query: str = "") -> str:
             f"<td style='font-size:0.8rem'>{c.get('rule_name_b', '')[:22]}</td>"
             f"<td style='font-size:0.78rem;color:#475569'>{c.get('conflict_type', '')}</td>"
             f"<td>{sev_html}</td>"
-            f"<td style='max-width:200px;font-size:0.78rem;color:#64748b'>{c.get('explanation', '')[:70]}</td>"
+            f"<td style='max-width:200px;font-size:0.78rem;color:#6b6892'>{c.get('explanation', '')[:70]}</td>"
             f"<td>{st_html}</td>"
             f"</tr>"
         )
@@ -4550,12 +4550,12 @@ def build_slo_table(query: str = "") -> str:
             st_badge = '<span class="rl-badge rl-badge-deprecated">breached</span>'
         else:
             st_badge = '<span class="rl-badge rl-badge-inactive">unknown</span>'
-        sli_html = f"{sli}%" if sli is not None else '<span style="color:#94a3b8">n/a</span>'
-        budget_color = "#059669" if budget is not None and budget >= 0 else "#dc2626"
+        sli_html = f"{sli}%" if sli is not None else '<span style="color:#6b6892">n/a</span>'
+        budget_color = "#34d399" if budget is not None and budget >= 0 else "#f87171"
         budget_html = (
             f'<span style="color:{budget_color};font-weight:600">{budget}%</span>'
             if budget is not None
-            else '<span style="color:#94a3b8">n/a</span>'
+            else '<span style="color:#6b6892">n/a</span>'
         )
         rows_html += (
             f"<tr>"
@@ -4592,7 +4592,7 @@ def build_slo_chart() -> Any:
     names = [f"{r['rule_name'][:20]} / {r['slo_name']}" for r in rows]
     slis = [r["sli_pct"] if r["sli_pct"] is not None else 0 for r in rows]
     targets = [r["target_pct"] for r in rows]
-    colors = ["#059669" if s == "ok" else "#ef4444" for s in [r["status"] for r in rows]]
+    colors = ["#34d399" if s == "ok" else "#f87171" for s in [r["status"] for r in rows]]
     fig = go.Figure()
     fig.add_trace(
         go.Bar(
@@ -4609,13 +4609,13 @@ def build_slo_chart() -> Any:
             y=targets,
             name="Target",
             mode="markers",
-            marker=dict(symbol="line-ew", size=16, color="#f59e0b", line=dict(width=3, color="#f59e0b")),
+            marker=dict(symbol="line-ew", size=16, color="#fbbf24", line=dict(width=3, color="#fbbf24")),
             hovertemplate="<b>%{x}</b><br>Target: %{y:.1f}%<extra></extra>",
         )
     )
     fig.update_layout(
-        paper_bgcolor="#ffffff",
-        plot_bgcolor="#f8fafc",
+        paper_bgcolor="#1a1929",
+        plot_bgcolor="#0f0e17",
         title=dict(text="SLO Status", font=dict(color="#334155")),
         legend=dict(font=dict(color="#334155")),
         xaxis=dict(tickfont=dict(color="#334155"), tickangle=-30),
@@ -4716,9 +4716,9 @@ def build_improvement_table(query: str = "") -> str:
             f"<td style='font-family:monospace;font-size:0.75rem'>{c.get('cycle_id', '')[:8]}</td>"
             f"<td style='max-width:160px'>{c.get('rule_name', c.get('rule_id', ''))[:28]}</td>"
             f"<td style='max-width:180px;font-size:0.78rem;color:#475569'>{c.get('trigger_event', '')[:36]}</td>"
-            f"<td style='font-size:0.78rem;color:#64748b'>{c.get('stage', '')}</td>"
+            f"<td style='font-size:0.78rem;color:#6b6892'>{c.get('stage', '')}</td>"
             f"<td>{badge}</td>"
-            f"<td style='font-size:0.75rem;color:#94a3b8'>{c.get('opened_at', '')[:10]}</td>"
+            f"<td style='font-size:0.75rem;color:#6b6892'>{c.get('opened_at', '')[:10]}</td>"
             f"</tr>"
         )
     return (
@@ -4754,13 +4754,13 @@ def build_improvement_funnel() -> Any:
             y=IMPROVEMENT_STAGES,
             x=values,
             textinfo="value+percent initial",
-            marker=dict(color=["#4f46e5", "#818cf8", "#059669", "#f59e0b", "#10b981"]),
+            marker=dict(color=["#8b5cf6", "#c4b5fd", "#34d399", "#fbbf24", "#34d399"]),
             connector=dict(line=dict(color="#e2e8f0")),
         )
     )
     fig.update_layout(
-        paper_bgcolor="#ffffff",
-        plot_bgcolor="#f8fafc",
+        paper_bgcolor="#1a1929",
+        plot_bgcolor="#0f0e17",
         title=dict(text="Improvement Cycle Pipeline (open cycles)", font=dict(color="#334155")),
         yaxis=dict(tickfont=dict(color="#334155")),
         margin=dict(l=160, r=20, t=50, b=20),
@@ -4923,21 +4923,21 @@ def build_trust_gauge() -> Any:
     """Gauge chart for the composite trust score."""
     ts = compute_trust_score()
     score = ts["trust_score"]
-    color = "#10b981" if score >= 80 else "#f59e0b" if score >= 60 else "#ef4444"
+    color = "#34d399" if score >= 80 else "#fbbf24" if score >= 60 else "#f87171"
     fig = go.Figure(
         go.Indicator(
             mode="gauge+number+delta",
             value=score,
-            delta={"reference": 80, "increasing": {"color": "#10b981"}, "decreasing": {"color": "#ef4444"}},
+            delta={"reference": 80, "increasing": {"color": "#34d399"}, "decreasing": {"color": "#f87171"}},
             gauge={
                 "axis": {"range": [0, 100], "tickcolor": "#64748b", "tickfont": {"color": "#64748b"}},
                 "bar": {"color": color},
                 "bgcolor": "#f8fafc",
                 "bordercolor": "#e2e8f0",
                 "steps": [
-                    {"range": [0, 60], "color": "#fee2e2"},
-                    {"range": [60, 80], "color": "#fef9c3"},
-                    {"range": [80, 100], "color": "#dcfce7"},
+                    {"range": [0, 60], "color": "rgba(248,113,113,0.15)"},
+                    {"range": [60, 80], "color": "rgba(251,191,36,0.12)"},
+                    {"range": [80, 100], "color": "rgba(52,211,153,0.15)"},
                 ],
                 "threshold": {
                     "line": {"color": "#334155", "width": 2},
@@ -4950,7 +4950,7 @@ def build_trust_gauge() -> Any:
         )
     )
     fig.update_layout(
-        paper_bgcolor="#ffffff",
+        paper_bgcolor="#1a1929",
         margin=dict(l=20, r=20, t=60, b=20),
         height=250,
     )
@@ -4962,7 +4962,7 @@ def build_trust_breakdown() -> Any:
     ts = compute_trust_score()
     components = ["Compliance", "Drift Health", "Coverage", "Audit Pass Rate", "Incident Health"]
     values = [ts["compliance"], ts["drift_health"], ts["coverage"], ts["audit_pass_rate"], ts["incident_health"]]
-    colors = ["#10b981" if v >= 80 else "#f59e0b" if v >= 60 else "#ef4444" for v in values]
+    colors = ["#34d399" if v >= 80 else "#fbbf24" if v >= 60 else "#f87171" for v in values]
     fig = go.Figure(
         go.Bar(
             x=components,
@@ -4975,14 +4975,14 @@ def build_trust_breakdown() -> Any:
         )
     )
     fig.update_layout(
-        paper_bgcolor="#ffffff",
-        plot_bgcolor="#f8fafc",
+        paper_bgcolor="#1a1929",
+        plot_bgcolor="#0f0e17",
         title=dict(text="Trust Score Components", font=dict(color="#334155")),
         xaxis=dict(tickfont=dict(color="#334155")),
         yaxis=dict(tickfont=dict(color="#334155"), range=[0, 110]),
         margin=dict(l=20, r=20, t=50, b=60),
         height=260,
-        shapes=[dict(type="line", x0=-0.5, x1=4.5, y0=80, y1=80, line=dict(color="#f59e0b", width=1, dash="dash"))],
+        shapes=[dict(type="line", x0=-0.5, x1=4.5, y0=80, y1=80, line=dict(color="#fbbf24", width=1, dash="dash"))],
     )
     return _dark_fig(fig)
 
@@ -4998,9 +4998,9 @@ INCIDENT_STATUSES = ["open", "investigating", "mitigating", "resolved", "closed"
 
 _SEVERITY_COLORS = {
     "P0_critical": "#ff4444",
-    "P1_high": "#ef4444",
-    "P2_medium": "#f59e0b",
-    "P3_low": "#10b981",
+    "P1_high": "#f87171",
+    "P2_medium": "#fbbf24",
+    "P3_low": "#34d399",
 }
 
 
@@ -5067,7 +5067,7 @@ def build_incidents_table(query: str = "") -> str:
     q = query.strip().lower()
 
     _sev_badge = {
-        "P0_critical": '<span class="rl-badge" style="background:#fee2e2;color:#991b1b">P0 critical</span>',
+        "P0_critical": '<span class="rl-badge" style="background:rgba(248,113,113,0.15);color:#f87171">P0 critical</span>',
         "P1_high": '<span class="rl-badge" style="background:#fef3c7;color:#92400e">P1 high</span>',
         "P2_medium": '<span class="rl-badge" style="background:#ede9fe;color:#5b21b6">P2 medium</span>',
         "P3_low": '<span class="rl-badge" style="background:#f1f5f9;color:#475569">P3 low</span>',
@@ -5109,7 +5109,7 @@ def build_incidents_table(query: str = "") -> str:
             f"<td>{sev_html}</td>"
             f"<td>{st_html}</td>"
             f"<td style='text-align:center'>{rec_html}</td>"
-            f"<td style='font-size:0.75rem;color:#94a3b8'>{i.get('opened_at', '')[:10]}</td>"
+            f"<td style='font-size:0.75rem;color:#6b6892'>{i.get('opened_at', '')[:10]}</td>"
             f"</tr>"
         )
     return (
@@ -5189,8 +5189,8 @@ def build_incident_chart() -> Any:
         )
     fig.update_layout(
         barmode="stack",
-        paper_bgcolor="#ffffff",
-        plot_bgcolor="#f8fafc",
+        paper_bgcolor="#1a1929",
+        plot_bgcolor="#0f0e17",
         title=dict(text="Incidents by Severity & Status", font=dict(color="#334155")),
         xaxis=dict(tickfont=dict(color="#334155")),
         yaxis=dict(tickfont=dict(color="#334155"), title="Count", titlefont=dict(color="#334155")),
@@ -5262,7 +5262,7 @@ def build_forecast_chart(horizon: int = 3) -> Any:
     x_future = [f"T+{i + 1}" for i in range(horizon)]
     x_all = x_current + x_future
     for f in at_risk[:8]:
-        color = "#ef4444" if f["at_risk"] else "#10b981"
+        color = "#f87171" if f["at_risk"] else "#34d399"
         y_vals = [f["current_eff"]] + f["predicted"]
         fig.add_trace(
             go.Scatter(
@@ -5276,11 +5276,11 @@ def build_forecast_chart(horizon: int = 3) -> Any:
             )
         )
     fig.add_hline(
-        y=70, line_dash="dot", line_color="#f59e0b", annotation_text="70% threshold", annotation_font_color="#92400e"
+        y=70, line_dash="dot", line_color="#fbbf24", annotation_text="70% threshold", annotation_font_color="#92400e"
     )
     fig.update_layout(
-        paper_bgcolor="#ffffff",
-        plot_bgcolor="#f8fafc",
+        paper_bgcolor="#1a1929",
+        plot_bgcolor="#0f0e17",
         title=dict(text=f"Compliance Forecast (next {horizon} measurements)", font=dict(color="#334155")),
         xaxis=dict(tickfont=dict(color="#334155")),
         yaxis=dict(
@@ -5441,10 +5441,10 @@ def build_enforcement_log_table(query: str = "") -> str:
             f"<td style='font-family:monospace;font-size:0.75rem'>{e.get('enforcement_id', '')[:8]}</td>"
             f"<td>{badge}</td>"
             f"<td style='text-align:center;color:#059669'>{e.get('passed_count', 0)}</td>"
-            f"<td style='text-align:center;color:#dc2626'>{e.get('failed_count', 0)}</td>"
-            f"<td style='text-align:center;color:#d97706'>{e.get('warning_count', 0)}</td>"
-            f"<td style='font-size:0.78rem;color:#64748b'>{failed_rules}</td>"
-            f"<td style='font-size:0.75rem;color:#94a3b8'>{e.get('enforced_at', '')[:19]}</td>"
+            f"<td style='text-align:center;color:#f87171'>{e.get('failed_count', 0)}</td>"
+            f"<td style='text-align:center;color:#fbbf24'>{e.get('warning_count', 0)}</td>"
+            f"<td style='font-size:0.78rem;color:#6b6892'>{failed_rules}</td>"
+            f"<td style='font-size:0.75rem;color:#6b6892'>{e.get('enforced_at', '')[:19]}</td>"
             f"</tr>"
         )
     return (
@@ -5640,14 +5640,14 @@ def build_audit_table(query: str = "") -> str:
         )
         rows_html += (
             f"<tr>"
-            f"<td style='font-family:monospace;font-size:0.75rem;color:#64748b'>{e.get('audit_id', '')[:8]}</td>"
-            f"<td style='font-family:monospace;font-size:0.75rem;color:#94a3b8'>{e.get('conversation_id', '')[-8:]}</td>"
+            f"<td style='font-family:monospace;font-size:0.75rem;color:#6b6892'>{e.get('audit_id', '')[:8]}</td>"
+            f"<td style='font-family:monospace;font-size:0.75rem;color:#6b6892'>{e.get('conversation_id', '')[-8:]}</td>"
             f"<td style='text-align:center'>{e.get('turn_number', 0)}</td>"
             f"<td style='font-size:0.78rem;color:#4f46e5'>{e.get('worker_verdict', '')[:30]}</td>"
-            f"<td style='font-size:0.78rem;color:#334155'>{e.get('auditor_verdict', '')[:30]}</td>"
+            f"<td style='font-size:0.78rem;color:#9d99c4'>{e.get('auditor_verdict', '')[:30]}</td>"
             f"<td>{agreed_badge}</td>"
             f"<td style='font-size:0.78rem;color:#475569;max-width:200px' title='{e.get('auditor_note', '')}'>{e.get('auditor_note', '')[:60]}</td>"
-            f"<td style='font-size:0.75rem;color:#94a3b8'>{e.get('audited_at', '')[:10]}</td>"
+            f"<td style='font-size:0.75rem;color:#6b6892'>{e.get('audited_at', '')[:10]}</td>"
             f"</tr>"
         )
     return (
@@ -5749,13 +5749,13 @@ def build_overrides_table(query: str = "") -> str:
         rows_html += (
             f"<tr>"
             f"<td style='font-family:monospace;font-size:0.75rem'>{e.get('override_id', '')[:8]}</td>"
-            f"<td style='font-family:monospace;font-size:0.75rem;color:#94a3b8'>{e.get('conversation_id', '')[-8:]}</td>"
+            f"<td style='font-family:monospace;font-size:0.75rem;color:#6b6892'>{e.get('conversation_id', '')[-8:]}</td>"
             f"<td style='text-align:center'>{e.get('turn_number', 0)}</td>"
             f"<td style='max-width:140px;font-size:0.8rem'>{e.get('ai_decision', '')[:28]}</td>"
             f"<td style='max-width:140px;font-size:0.8rem'>{e.get('human_decision', '')[:28]}</td>"
-            f"<td style='max-width:160px;font-size:0.78rem;color:#64748b'>{e.get('override_reason', '')[:38]}</td>"
+            f"<td style='max-width:160px;font-size:0.78rem;color:#6b6892'>{e.get('override_reason', '')[:38]}</td>"
             f"<td>{correct_badge}</td>"
-            f"<td style='font-size:0.75rem;color:#94a3b8'>{e.get('logged_at', '')[:10]}</td>"
+            f"<td style='font-size:0.75rem;color:#6b6892'>{e.get('logged_at', '')[:10]}</td>"
             f"</tr>"
         )
     return (
@@ -5860,13 +5860,13 @@ def build_escalations_table(query: str = "") -> str:
         rows_html += (
             f"<tr>"
             f"<td style='font-family:monospace;font-size:0.75rem'>{e.get('escalation_id', '')[:8]}</td>"
-            f"<td style='font-family:monospace;font-size:0.75rem;color:#94a3b8'>{e.get('conversation_id', '')[-8:]}</td>"
+            f"<td style='font-family:monospace;font-size:0.75rem;color:#6b6892'>{e.get('conversation_id', '')[-8:]}</td>"
             f"<td style='text-align:center'>{e.get('turn_number', 0)}</td>"
             f"<td style='font-size:0.78rem;color:#475569'>{e.get('escalation_type', '')[:20]}</td>"
             f"<td>{badge}</td>"
             f"<td style='max-width:140px;font-size:0.8rem'>{e.get('ai_action', '')[:28]}</td>"
-            f"<td style='max-width:140px;font-size:0.8rem;color:#64748b'>{e.get('expected_action', '')[:28]}</td>"
-            f"<td style='font-size:0.75rem;color:#94a3b8'>{e.get('logged_at', '')[:10]}</td>"
+            f"<td style='max-width:140px;font-size:0.8rem;color:#6b6892'>{e.get('expected_action', '')[:28]}</td>"
+            f"<td style='font-size:0.75rem;color:#6b6892'>{e.get('logged_at', '')[:10]}</td>"
             f"</tr>"
         )
     return (
@@ -5964,17 +5964,17 @@ def build_provenance_table(conversation_id: str = "") -> str:
     for e in sorted(entries, key=lambda x: x.get("recorded_at", ""), reverse=True)[:100]:
         lineage = e.get("lineage", {})
         rules_applied = ", ".join(lineage.get("rules_applied", [])) or "—"
-        rules_color = "#166534" if lineage.get("rules_applied") else "#94a3b8"
+        rules_color = "#34d399" if lineage.get("rules_applied") else "#6b6892"
         rows_html += (
             f"<tr>"
-            f"<td style='font-family:monospace;font-size:0.75rem;color:#64748b'>{e.get('provenance_id', '')[:8]}</td>"
-            f"<td style='font-family:monospace;font-size:0.75rem;color:#94a3b8'>{e.get('conversation_id', '')[-8:]}</td>"
+            f"<td style='font-family:monospace;font-size:0.75rem;color:#6b6892'>{e.get('provenance_id', '')[:8]}</td>"
+            f"<td style='font-family:monospace;font-size:0.75rem;color:#6b6892'>{e.get('conversation_id', '')[-8:]}</td>"
             f"<td style='text-align:center'>{e.get('turn_number', 0)}</td>"
             f"<td style='font-size:0.78rem;color:#475569;max-width:140px'>{lineage.get('input', '')[:40]}</td>"
             f"<td style='font-size:0.78rem;color:{rules_color};max-width:160px'>{rules_applied[:60]}</td>"
             f"<td style='font-size:0.78rem;color:#475569;max-width:140px'>{lineage.get('output', '')[:40]}</td>"
             f"<td style='font-size:0.78rem;color:#4f46e5'>{e.get('model_used', '')}</td>"
-            f"<td style='font-size:0.75rem;color:#94a3b8'>{e.get('recorded_at', '')[:10]}</td>"
+            f"<td style='font-size:0.75rem;color:#6b6892'>{e.get('recorded_at', '')[:10]}</td>"
             f"</tr>"
         )
     return (
@@ -6047,16 +6047,16 @@ def build_data_provenance_table(query: str = "") -> str:
         trust = e.get("trust_level", "")
         trust_badge = _trust_badge.get(trust, f'<span class="rl-badge rl-badge-inactive">{trust}</span>')
         use_count = e.get("use_count", 0)
-        use_color = "#4f46e5" if use_count > 0 else "#94a3b8"
+        use_color = "#8b5cf6" if use_count > 0 else "#6b6892"
         rows_html += (
             f"<tr>"
-            f"<td style='font-family:monospace;font-size:0.75rem;color:#64748b'>{e.get('source_id', '')[:8]}</td>"
+            f"<td style='font-family:monospace;font-size:0.75rem;color:#6b6892'>{e.get('source_id', '')[:8]}</td>"
             f"<td style='font-weight:600'>{e.get('source_name', '')}</td>"
             f"<td style='color:#475569;font-size:0.78rem'>{e.get('source_type', '')}</td>"
             f"<td>{trust_badge}</td>"
-            f"<td style='color:#64748b;font-size:0.78rem'>{e.get('owner', '')}</td>"
+            f"<td style='color:#6b6892;font-size:0.78rem'>{e.get('owner', '')}</td>"
             f"<td style='text-align:center;color:{use_color};font-weight:600'>{use_count}</td>"
-            f"<td style='font-size:0.75rem;color:#94a3b8'>{e.get('registered_at', '')[:10]}</td>"
+            f"<td style='font-size:0.75rem;color:#6b6892'>{e.get('registered_at', '')[:10]}</td>"
             f"</tr>"
         )
     return (
@@ -6085,10 +6085,10 @@ def build_data_trust_chart() -> Any:
     from collections import Counter
 
     counts = Counter(e.get("trust_level", "medium") for e in entries)
-    color_map = {"high": "#10b981", "medium": "#f59e0b", "low": "#ef4444", "untrusted": "#be123c"}
+    color_map = {"high": "#34d399", "medium": "#fbbf24", "low": "#f87171", "untrusted": "#f87171"}
     labels = list(counts.keys())
     values = [counts[l] for l in labels]
-    colors = [color_map.get(l, "#94a3b8") for l in labels]
+    colors = [color_map.get(l, "#6b6892") for l in labels]
     fig = go.Figure(
         go.Pie(
             labels=labels,
@@ -6099,7 +6099,7 @@ def build_data_trust_chart() -> Any:
         )
     )
     fig.update_layout(
-        paper_bgcolor="#ffffff",
+        paper_bgcolor="#1a1929",
         legend=dict(font=dict(color="#334155")),
         title=dict(text="Data Sources by Trust Level", font=dict(color="#334155")),
         margin=dict(l=20, r=20, t=40, b=20),
@@ -6182,26 +6182,26 @@ def build_evidence_table(evidence_type: str = "") -> str:
         return '<div class="rl-empty">No evidence stored yet — go to <b>📁 Evidence → Store</b>, choose a type, fill in the title and content, then click <b>💾 Store Evidence</b>.</div>'
     _type_colors = {
         "log": ("background:#e0e7ff", "color:#3730a3"),
-        "screenshot": ("background:#dcfce7", "color:#166534"),
+        "screenshot": ("background:#dcfce7", "color:#34d399"),
         "document": ("background:#fef3c7", "color:#92400e"),
         "conversation": ("background:#fce7f3", "color:#9d174d"),
-        "test_result": ("background:#f1f5f9", "color:#334155"),
+        "test_result": ("background:#f1f5f9", "color:#9d99c4"),
     }
     rows_html = ""
     for e in sorted(entries, key=lambda x: x.get("stored_at", ""), reverse=True)[:100]:
         ev_type = e.get("evidence_type", "")
-        colors = _type_colors.get(ev_type, ("background:#f1f5f9", "color:#64748b"))
+        colors = _type_colors.get(ev_type, ("background:#f1f5f9", "color:#6b6892"))
         type_badge = f'<span class="rl-badge" style="{colors[0]};{colors[1]}">{ev_type}</span>'
         tags = ", ".join(e.get("tags", [])) or "—"
         rows_html += (
             f"<tr>"
-            f"<td style='font-family:monospace;font-size:0.75rem;color:#64748b'>{e.get('evidence_id', '')[:8]}</td>"
+            f"<td style='font-family:monospace;font-size:0.75rem;color:#6b6892'>{e.get('evidence_id', '')[:8]}</td>"
             f"<td>{type_badge}</td>"
             f"<td style='font-weight:600;max-width:180px'>{e.get('title', '')[:50]}</td>"
-            f"<td style='font-family:monospace;font-size:0.75rem;color:#94a3b8'>{e.get('related_rule_id', '')[:12] or '—'}</td>"
-            f"<td style='font-family:monospace;font-size:0.75rem;color:#94a3b8'>{e.get('related_incident_id', '')[:12] or '—'}</td>"
+            f"<td style='font-family:monospace;font-size:0.75rem;color:#6b6892'>{e.get('related_rule_id', '')[:12] or '—'}</td>"
+            f"<td style='font-family:monospace;font-size:0.75rem;color:#6b6892'>{e.get('related_incident_id', '')[:12] or '—'}</td>"
             f"<td style='font-size:0.78rem;color:#4f46e5'>{tags[:50]}</td>"
-            f"<td style='font-size:0.75rem;color:#94a3b8'>{e.get('stored_at', '')[:10]}</td>"
+            f"<td style='font-size:0.75rem;color:#6b6892'>{e.get('stored_at', '')[:10]}</td>"
             f"</tr>"
         )
     return (
@@ -6284,13 +6284,13 @@ def build_behavior_radar() -> Any:
             r=values_closed,
             theta=labels_closed,
             fill="toself",
-            line=dict(color="#059669"),
+            line=dict(color="#34d399"),
             fillcolor="rgba(35,134,54,0.2)",
             hovertemplate="<b>%{theta}</b><br>%{r:.1f}%<extra></extra>",
         )
     )
     fig.update_layout(
-        paper_bgcolor="#ffffff",
+        paper_bgcolor="#1a1929",
         polar=dict(
             bgcolor="#f8fafc",
             radialaxis=dict(visible=True, range=[0, 100], tickfont=dict(color="#334155"), gridcolor="#e2e8f0"),
@@ -7039,40 +7039,47 @@ Gap detected → Group similar gaps → ≥2 occurrences?
 # ---------------------------------------------------------------------------
 
 _CSS = """
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 
-/* Horizon UI Design System */
+/* ── Flux Design System — Dark Mode ──────────────────────────────────── */
 :root {
-  --hz-brand: #422AFB;
-  --hz-brand-light: #868CFF;
-  --hz-bg: #F4F7FE;
-  --hz-surface: #FFFFFF;
-  --hz-navy: #1B2559;
-  --hz-text-primary: #1B2559;
-  --hz-text-secondary: #A3AED0;
-  --hz-text-muted: #707EAE;
-  --hz-border: #E0E5F2;
-  --hz-shadow: 14px 17px 40px 4px rgba(112,144,176,0.08);
-  --hz-shadow-hover: 14px 17px 40px 4px rgba(112,144,176,0.18);
-  --hz-radius: 20px;
-  --hz-radius-sm: 10px;
-  --hz-green: #01B574;
-  --hz-red: #EE5D50;
-  --hz-orange: #FFB547;
-  --hz-blue: #0075FF;
+  --hz-brand:          #8b5cf6;
+  --hz-brand-light:    #a78bfa;
+  --hz-accent:         #3b82f6;
+  --hz-accent-light:   #60a5fa;
+  --hz-bg:             #0f0e17;
+  --hz-surface:        #1a1929;
+  --hz-surface-2:      #211f35;
+  --hz-navy:           #e2e0ff;
+  --hz-text-primary:   #ede9ff;
+  --hz-text-secondary: #9d99c4;
+  --hz-text-muted:     #6b6892;
+  --hz-border:         #2d2b4a;
+  --hz-shadow:         0 4px 24px rgba(139,92,246,0.12), 0 1px 4px rgba(0,0,0,0.4);
+  --hz-shadow-hover:   0 8px 32px rgba(139,92,246,0.24), 0 2px 8px rgba(0,0,0,0.5);
+  --hz-glow-violet:    0 0 28px rgba(139,92,246,0.35);
+  --hz-glow-blue:      0 0 24px rgba(59,130,246,0.3);
+  --hz-radius:         14px;
+  --hz-radius-sm:      10px;
+  --hz-green:          #34d399;
+  --hz-red:            #f87171;
+  --hz-orange:         #fbbf24;
+  --hz-blue:           #60a5fa;
 }
 
 /* Reset & base */
 *, *::before, *::after { box-sizing: border-box; }
 body, .gradio-container {
-  background: var(--hz-bg) !important;
+  background-color: var(--hz-bg) !important;
+  background-image: radial-gradient(circle, rgba(139,92,246,0.12) 1px, transparent 1px);
+  background-size: 24px 24px;
   color: var(--hz-text-primary);
-  font-family: 'DM Sans', ui-sans-serif, system-ui, sans-serif;
+  font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
   font-size: 14px;
   line-height: 1.5;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.01em;
 }
-.app { background: var(--hz-bg) !important; }
+.app { background-color: var(--hz-bg) !important; }
 
 /* Main padding */
 .gradio-container > .main { padding: 0 !important; }
@@ -7083,47 +7090,57 @@ body, .gradio-container {
 .js-plotly-plot .main-svg { width: 100% !important; }
 .gr-plot, [data-testid="plot"] { width: 100% !important; min-width: 0; overflow: hidden; }
 
-/* ── Horizon Navbar ─────────────────────────────────────────────────── */
+/* ── Flux Navbar ─────────────────────────────────────────────────────── */
 .hz-navbar {
   display: flex; align-items: center; justify-content: space-between;
   padding: 20px 24px 16px;
-  background: var(--hz-surface);
-  box-shadow: var(--hz-shadow);
+  background: rgba(26,25,41,0.75) !important;
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  border-bottom: 1px solid rgba(139,92,246,0.18);
   border-radius: 0 0 var(--hz-radius) var(--hz-radius);
   margin-bottom: 24px;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.4);
 }
 .hz-navbar-brand { display: flex; align-items: center; gap: 14px; }
 .hz-brand-icon {
   width: 42px; height: 42px; border-radius: var(--hz-radius-sm);
-  background: linear-gradient(135deg, #868CFF 0%, #4318FF 100%);
+  background: linear-gradient(135deg, #a78bfa 0%, #8b5cf6 50%, #3b82f6 100%);
   display: flex; align-items: center; justify-content: center;
   font-size: 1.3rem;
+  box-shadow: 0 0 18px rgba(139,92,246,0.5);
 }
 .hz-brand-title {
-  font-size: 1.15rem; font-weight: 700; color: var(--hz-text-primary);
+  font-size: 1.15rem; font-weight: 700;
+  background: linear-gradient(135deg, #a78bfa 0%, #60a5fa 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text;
   letter-spacing: -0.03em;
 }
 .hz-brand-sub { font-size: 0.78rem; color: var(--hz-text-muted); margin-top: 1px; }
 .hz-navbar-right { display: flex; align-items: center; gap: 12px; }
 .hz-navbar-badge {
   font-size: 0.75rem; font-weight: 600; color: var(--hz-green);
-  background: rgba(1,181,116,0.1); border-radius: 20px; padding: 4px 12px;
+  background: rgba(52,211,153,0.12); border-radius: 20px; padding: 4px 12px;
+  border: 1px solid rgba(52,211,153,0.2);
 }
 
-/* ── Horizon Stat Cards ─────────────────────────────────────────────── */
+/* ── Flux Stat Cards ─────────────────────────────────────────────────── */
 .hz-stats-row { display: flex; flex-wrap: wrap; gap: 16px; margin: 0 0 20px; }
 .hz-stat-card {
   flex: 1 1 200px; min-width: 0;
   background: var(--hz-surface);
+  border: 1px solid var(--hz-border);
   border-radius: var(--hz-radius);
   padding: 20px;
   box-shadow: var(--hz-shadow);
   display: flex; align-items: flex-start; justify-content: space-between;
-  transition: box-shadow 0.2s ease, transform 0.2s ease;
+  transition: box-shadow 0.2s ease, transform 0.2s ease, border-color 0.2s ease;
 }
 .hz-stat-card:hover {
-  box-shadow: var(--hz-shadow-hover);
+  box-shadow: var(--hz-shadow-hover), var(--hz-glow-violet);
   transform: translateY(-2px);
+  border-color: rgba(139,92,246,0.3);
 }
 .hz-stat-body { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 0; }
 .hz-stat-label {
@@ -7132,6 +7149,7 @@ body, .gradio-container {
 }
 .hz-stat-value {
   font-size: 2.2rem; font-weight: 700; color: var(--hz-text-primary);
+  font-family: 'JetBrains Mono', monospace;
   margin: 4px 0 0; line-height: 1.1;
 }
 .hz-stat-value.green { color: var(--hz-green); }
@@ -7145,23 +7163,27 @@ body, .gradio-container {
   display: flex; align-items: center; justify-content: center;
   font-size: 1.3rem; flex-shrink: 0; margin-left: 12px;
 }
-/* Small variant for secondary row */
 .hz-stat-card.hz-sm .hz-stat-value { font-size: 1.5rem; }
 .hz-stat-card.hz-sm .hz-stat-icon-box { width: 36px; height: 36px; font-size: 1.05rem; }
 .hz-stat-card.hz-sm { padding: 14px 16px; }
 
-/* ── Legacy metric cards (keep for backward compat) ─────────────────── */
+/* ── Legacy metric cards ─────────────────────────────────────────────── */
 .metrics-row { display: flex; flex-wrap: wrap; gap: 16px; margin: 0 0 20px; }
 .metric-card {
   flex: 1 1 150px; min-width: 0;
   background: var(--hz-surface);
+  border: 1px solid var(--hz-border);
   border-radius: var(--hz-radius);
   padding: 20px; text-align: center;
   box-shadow: var(--hz-shadow);
-  transition: box-shadow 0.2s ease, transform 0.2s ease;
+  transition: box-shadow 0.2s ease, transform 0.2s ease, border-color 0.2s ease;
 }
-.metric-card:hover { box-shadow: var(--hz-shadow-hover); transform: translateY(-2px); }
-.metric-value  { font-size: 1.9rem; font-weight: 700; color: var(--hz-brand); display: block; }
+.metric-card:hover {
+  box-shadow: var(--hz-shadow-hover), var(--hz-glow-violet);
+  transform: translateY(-2px);
+  border-color: rgba(139,92,246,0.3);
+}
+.metric-value  { font-size: 1.9rem; font-weight: 700; color: var(--hz-brand-light); display: block; font-family: 'JetBrains Mono', monospace; }
 .metric-value.green { color: var(--hz-green); }
 .metric-value.amber { color: var(--hz-orange); }
 .metric-value.red   { color: var(--hz-red); }
@@ -7174,16 +7196,19 @@ body, .gradio-container {
 .kpi-primary .metric-value { font-size: 2.4rem; }
 .metric-sublabel { font-size: 0.85rem; color: var(--hz-text-muted); font-weight: 500; display: block; margin-top: 2px; }
 .metric-delta { font-size: 0.68rem; color: var(--hz-text-secondary); display: block; margin-top: 8px; }
-.kpi-urgent { box-shadow: 0 0 0 2px rgba(238,93,80,0.3), var(--hz-shadow) !important; }
+.kpi-urgent { box-shadow: 0 0 0 2px rgba(248,113,113,0.35), var(--hz-shadow) !important; border-color: rgba(248,113,113,0.3) !important; }
 .secondary-kpis .metric-card { padding: 14px 16px; }
 .secondary-kpis .metric-value { font-size: 1.35rem; }
 
 /* ── Section headers ─────────────────────────────────────────────────── */
 .section-title {
-  font-size: 0.82rem; font-weight: 700; color: var(--hz-text-muted);
+  font-size: 0.82rem; font-weight: 700;
+  background: linear-gradient(90deg, var(--hz-brand-light), var(--hz-accent-light));
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text;
   text-transform: uppercase; letter-spacing: 0.09em;
   margin: 24px 0 12px; padding: 10px 16px;
-  background: var(--hz-surface);
+  background-color: var(--hz-surface);
   border-left: 3px solid var(--hz-brand);
   border-radius: 0 var(--hz-radius-sm) var(--hz-radius-sm) 0;
   box-shadow: var(--hz-shadow);
@@ -7192,12 +7217,13 @@ body, .gradio-container {
 /* ── Activity feed ───────────────────────────────────────────────────── */
 .activity-feed { display: flex; flex-direction: column; gap: 8px; }
 .activity-item {
-  background: var(--hz-surface); border-radius: var(--hz-radius-sm);
+  background: var(--hz-surface); border: 1px solid var(--hz-border);
+  border-radius: var(--hz-radius-sm);
   padding: 12px 16px; display: flex; align-items: flex-start; gap: 12px;
   font-size: 0.85rem; box-shadow: var(--hz-shadow);
-  transition: box-shadow 0.15s ease;
+  transition: box-shadow 0.15s ease, border-color 0.15s ease;
 }
-.activity-item:hover { box-shadow: var(--hz-shadow-hover); }
+.activity-item:hover { box-shadow: var(--hz-shadow-hover); border-color: rgba(139,92,246,0.25); }
 .activity-icon { font-size: 1rem; width: 22px; flex-shrink: 0; text-align: center; }
 .activity-text { color: var(--hz-text-primary); flex: 1; min-width: 0; word-break: break-word; }
 .activity-text strong { color: var(--hz-navy); }
@@ -7205,27 +7231,26 @@ body, .gradio-container {
 
 /* ── Alerts ──────────────────────────────────────────────────────────── */
 .pending-alert {
-  background: rgba(255,181,71,0.1); border-left: 3px solid var(--hz-orange);
+  background: rgba(251,191,36,0.08); border-left: 3px solid var(--hz-orange);
   border-radius: var(--hz-radius-sm); padding: 12px 16px;
-  color: #7A4F00; font-size: 0.85rem; margin-bottom: 12px;
+  color: #fcd34d; font-size: 0.85rem; margin-bottom: 12px;
 }
 .pending-alert.none {
-  background: rgba(1,181,116,0.08); border-color: var(--hz-green); color: #0A5940;
+  background: rgba(52,211,153,0.08); border-color: var(--hz-green); color: #6ee7b7;
 }
 .action-items-panel { border-radius: var(--hz-radius-sm); overflow: hidden; margin-bottom: 12px; box-shadow: var(--hz-shadow); }
-.action-items-panel.all-clear { background: rgba(1,181,116,0.08); padding: 12px 16px; color: #0A5940; font-size: 0.85rem; border-radius: var(--hz-radius-sm); }
+.action-items-panel.all-clear { background: rgba(52,211,153,0.08); padding: 12px 16px; color: #6ee7b7; font-size: 0.85rem; border-radius: var(--hz-radius-sm); }
 .action-item { display: flex; align-items: flex-start; gap: 10px; padding: 10px 16px; font-size: 0.85rem; border-bottom: 1px solid var(--hz-bg); background: var(--hz-surface); }
 .action-item:last-child { border-bottom: none; }
-.action-critical { background: rgba(238,93,80,0.06) !important; color: #8B1A1A; }
-.action-warning  { background: rgba(255,181,71,0.06) !important; color: #7A4F00; }
-.action-info     { background: rgba(66,42,251,0.05) !important; color: #1B2559; }
+.action-critical { background: rgba(248,113,113,0.08) !important; color: #fca5a5; }
+.action-warning  { background: rgba(251,191,36,0.08) !important; color: #fcd34d; }
+.action-info     { background: rgba(139,92,246,0.06) !important; color: #c4b5fd; }
 .action-icon { font-size: 1rem; flex-shrink: 0; margin-top: 1px; }
 .action-text { flex: 1; line-height: 1.4; }
 
-/* ── Tab navigation — scrollable horizontal bar ─────────────────────── */
+/* ── Tab navigation ─────────────────────────────────────────────────── */
 .gradio-container { max-width: 100% !important; padding: 0 !important; }
 .contain { max-width: 100% !important; padding: 0 !important; }
-/* tab-wrapper is the real tab nav container in Gradio's DOM */
 .tab-wrapper {
   display: flex !important;
   flex-direction: row !important;
@@ -7234,9 +7259,11 @@ body, .gradio-container {
   overflow-y: hidden !important;
   scrollbar-width: none !important;
   -ms-overflow-style: none !important;
-  background: var(--hz-surface) !important;
-  border-bottom: 2px solid var(--hz-border) !important;
-  box-shadow: 0 2px 12px rgba(112,144,176,0.08) !important;
+  background: rgba(26,25,41,0.85) !important;
+  backdrop-filter: blur(16px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(16px) saturate(180%) !important;
+  border-bottom: 1px solid rgba(139,92,246,0.2) !important;
+  box-shadow: 0 2px 16px rgba(0,0,0,0.4) !important;
   padding: 0 8px !important;
   width: 100% !important;
   position: sticky !important;
@@ -7244,7 +7271,6 @@ body, .gradio-container {
   z-index: 20 !important;
 }
 .tab-wrapper::-webkit-scrollbar { display: none !important; }
-/* Visible tab-container: let its children overflow into the scrollable wrapper */
 .tab-wrapper .tab-container:not(.visually-hidden) {
   overflow: visible !important;
   flex-shrink: 0 !important;
@@ -7253,10 +7279,8 @@ body, .gradio-container {
   max-width: none !important;
   width: auto !important;
 }
-/* Hide branding injected into the tab bar (takes up space, causes overflow) */
 .hz-sidebar-brand { display: none !important; }
 .hz-quick-actions { display: none !important; }
-/* Inline the overflow dropdown — show it as a flat continuation of the tab row */
 .overflow-menu { display: contents !important; }
 .overflow-menu > button { display: none !important; }
 .overflow-dropdown,
@@ -7271,7 +7295,6 @@ body, .gradio-container {
   overflow: visible !important;
   padding: 0 !important;
 }
-/* Tab buttons — shared style for both visible and overflow tabs */
 .tab-wrapper .tab-container button,
 .overflow-dropdown button {
   display: inline-flex !important;
@@ -7285,7 +7308,7 @@ body, .gradio-container {
   font-size: 0.875rem !important;
   font-weight: 500 !important;
   color: var(--hz-text-secondary) !important;
-  font-family: 'DM Sans', sans-serif !important;
+  font-family: 'Inter', sans-serif !important;
   min-height: 52px !important;
   background: transparent !important;
   transition: all 0.15s ease !important;
@@ -7295,31 +7318,30 @@ body, .gradio-container {
   border-bottom-color: var(--hz-brand) !important;
   border-left-color: transparent !important;
   background: transparent !important;
-  color: var(--hz-brand) !important;
+  color: var(--hz-brand-light) !important;
   font-weight: 700 !important;
 }
 .tab-wrapper .tab-container button:hover:not(.selected),
 .overflow-dropdown button:hover {
-  background: var(--hz-bg) !important;
+  background: rgba(139,92,246,0.08) !important;
   color: var(--hz-navy) !important;
-  border-bottom-color: var(--hz-border) !important;
+  border-bottom-color: rgba(139,92,246,0.3) !important;
   border-left-color: transparent !important;
 }
-/* Tab content area */
 [data-testid="tabitem"],
 .tabitem { padding: 24px 20px !important; }
 
 /* ── Inputs ──────────────────────────────────────────────────────────── */
 .gr-textbox textarea, .gr-textbox input,
 textarea, input[type="text"], input[type="number"] {
-  background: var(--hz-bg) !important; border-color: var(--hz-border) !important;
+  background: var(--hz-surface-2) !important; border-color: var(--hz-border) !important;
   color: var(--hz-text-primary) !important; border-radius: var(--hz-radius-sm) !important;
   min-height: 42px; width: 100% !important; font-size: 0.875rem !important;
-  font-family: 'DM Sans', sans-serif !important;
+  font-family: 'Inter', sans-serif !important;
 }
 textarea:focus, input:focus {
   border-color: var(--hz-brand) !important;
-  box-shadow: 0 0 0 3px rgba(66,42,251,0.12) !important; outline: none !important;
+  box-shadow: 0 0 0 3px rgba(139,92,246,0.2) !important; outline: none !important;
 }
 label, label.gr-form { color: var(--hz-text-muted) !important; font-size: 0.78rem !important; font-weight: 500 !important; }
 
@@ -7340,12 +7362,12 @@ label, label.gr-form { color: var(--hz-text-muted) !important; font-size: 0.78re
 .gr-accordion > .label-wrap,
 [data-testid="accordion"] > button,
 [data-testid="accordion"] > .label-wrap {
-  background: var(--hz-bg) !important; border-bottom: 1px solid var(--hz-border) !important;
+  background: var(--hz-surface-2) !important; border-bottom: 1px solid var(--hz-border) !important;
   color: var(--hz-text-primary) !important; padding: 14px 18px !important;
   font-weight: 600 !important; font-size: 0.88rem !important;
   cursor: pointer; min-height: 48px; align-items: center;
   width: 100% !important; text-align: left !important;
-  font-family: 'DM Sans', sans-serif !important;
+  font-family: 'Inter', sans-serif !important;
 }
 .gr-accordion > .label-wrap span,
 [data-testid="accordion"] > button span,
@@ -7355,7 +7377,7 @@ label, label.gr-form { color: var(--hz-text-muted) !important; font-size: 0.78re
 
 /* Dropdown */
 .gr-dropdown, select {
-  background: var(--hz-bg) !important; border-color: var(--hz-border) !important;
+  background: var(--hz-surface-2) !important; border-color: var(--hz-border) !important;
   color: var(--hz-text-primary) !important; border-radius: var(--hz-radius-sm) !important;
   max-width: 100%; min-height: 42px; font-size: 0.875rem !important;
 }
@@ -7370,50 +7392,54 @@ label, label.gr-form { color: var(--hz-text-muted) !important; font-size: 0.78re
   min-width: max-content;
 }
 .gr-dataframe th, [data-testid="dataframe"] th {
-  background: var(--hz-bg) !important; color: var(--hz-text-secondary) !important;
+  background: var(--hz-surface-2) !important; color: var(--hz-text-secondary) !important;
   font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em;
   white-space: nowrap; padding: 12px 14px !important;
   position: sticky; top: 0; z-index: 2; box-shadow: 0 1px 0 var(--hz-border);
-  font-family: 'DM Sans', sans-serif !important;
+  font-family: 'Inter', sans-serif !important;
 }
 .gr-dataframe td, [data-testid="dataframe"] td {
   color: var(--hz-text-primary) !important; border-color: var(--hz-bg) !important;
   padding: 10px 14px !important; font-size: 0.85rem;
   white-space: nowrap; max-width: 320px; overflow: hidden; text-overflow: ellipsis;
 }
-.gr-dataframe tr:hover td, [data-testid="dataframe"] tr:hover td { background: var(--hz-bg) !important; }
-.gr-dataframe tr:nth-child(even) td, [data-testid="dataframe"] tr:nth-child(even) td { background: rgba(244,247,254,0.5) !important; }
+.gr-dataframe tr:hover td, [data-testid="dataframe"] tr:hover td { background: var(--hz-surface-2) !important; }
+.gr-dataframe tr:nth-child(even) td, [data-testid="dataframe"] tr:nth-child(even) td { background: rgba(33,31,53,0.6) !important; }
 
 /* Buttons */
 button.primary {
-  background: linear-gradient(135deg, #868CFF 0%, #4318FF 100%) !important;
+  background: linear-gradient(135deg, #a78bfa 0%, #8b5cf6 50%, #6d28d9 100%) !important;
   border-color: transparent !important; color: #ffffff !important;
   border-radius: var(--hz-radius-sm) !important; min-height: 42px;
   padding: 0 20px !important; font-weight: 700 !important; font-size: 0.875rem !important;
-  font-family: 'DM Sans', sans-serif !important;
+  font-family: 'Inter', sans-serif !important;
   transition: opacity 0.15s ease, box-shadow 0.15s ease;
-  box-shadow: 0 4px 14px rgba(66,42,251,0.3);
+  box-shadow: 0 4px 14px rgba(139,92,246,0.4);
 }
-button.primary:hover { opacity: 0.9 !important; box-shadow: 0 6px 20px rgba(66,42,251,0.4) !important; }
+button.primary:hover { opacity: 0.9 !important; box-shadow: 0 6px 24px rgba(139,92,246,0.55) !important; }
 button.secondary {
   background: var(--hz-surface) !important; border-color: var(--hz-border) !important;
   color: var(--hz-text-primary) !important; border-radius: var(--hz-radius-sm) !important;
   min-height: 42px; padding: 0 16px !important; font-size: 0.875rem !important;
-  font-family: 'DM Sans', sans-serif !important;
+  font-family: 'Inter', sans-serif !important;
   transition: background 0.15s ease, border-color 0.15s ease;
 }
-button.secondary:hover { background: var(--hz-bg) !important; border-color: var(--hz-brand) !important; }
+button.secondary:hover { background: var(--hz-surface-2) !important; border-color: var(--hz-brand) !important; }
 
 /* Slider */
 input[type="range"] { accent-color: var(--hz-brand); }
 
 /* Markdown */
 .gr-prose, .prose, .gr-markdown { color: var(--hz-text-primary) !important; }
-.gr-markdown h1, .gr-markdown h2, .gr-markdown h3 { color: var(--hz-navy) !important; font-weight: 700; }
-.gr-markdown code { background: var(--hz-bg); border-radius: 6px; padding: 1px 6px; font-size: 0.82em; }
-.gr-markdown pre { background: var(--hz-bg) !important; border: 1px solid var(--hz-border); border-radius: var(--hz-radius-sm); overflow-x: auto; }
-.gr-markdown a { color: var(--hz-brand); text-decoration: none; }
-.gr-markdown a:hover { text-decoration: underline; }
+.gr-markdown h1, .gr-markdown h2, .gr-markdown h3 {
+  background: linear-gradient(135deg, #a78bfa 0%, #60a5fa 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+  font-weight: 700;
+}
+.gr-markdown code { background: var(--hz-surface-2); border-radius: 6px; padding: 1px 6px; font-size: 0.82em; color: #a78bfa; font-family: 'JetBrains Mono', monospace; }
+.gr-markdown pre { background: var(--hz-surface-2) !important; border: 1px solid var(--hz-border); border-radius: var(--hz-radius-sm); overflow-x: auto; }
+.gr-markdown a { color: var(--hz-brand-light); text-decoration: none; }
+.gr-markdown a:hover { text-decoration: underline; color: var(--hz-accent-light); }
 .gr-markdown strong { color: var(--hz-navy); }
 .gr-markdown hr { margin: 10px 0 !important; border: none !important; border-top: 1px solid var(--hz-border) !important; background: none !important; box-shadow: none !important; }
 
@@ -7425,38 +7451,38 @@ img, video, canvas, iframe { max-width: 100%; height: auto; }
 .tab-stat-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 10px 4px 14px; margin-bottom: 4px; }
 
 /* ── Rules table ─────────────────────────────────────────────────────── */
-.rl-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: var(--hz-radius); box-shadow: var(--hz-shadow); }
+.rl-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: var(--hz-radius); box-shadow: var(--hz-shadow); border: 1px solid var(--hz-border); }
 .rl-table { width: 100%; border-collapse: collapse; font-size: 0.83rem; }
-.rl-table thead tr { background: var(--hz-bg); }
+.rl-table thead tr { background: var(--hz-surface-2); }
 .rl-table th {
   padding: 11px 14px; text-align: left; font-size: 0.7rem; font-weight: 700;
   text-transform: uppercase; letter-spacing: 0.07em; color: var(--hz-text-secondary);
-  border-bottom: 1px solid var(--hz-border); position: sticky; top: 0; background: var(--hz-bg); z-index: 2;
+  border-bottom: 1px solid var(--hz-border); position: sticky; top: 0; background: var(--hz-surface-2); z-index: 2;
 }
-.rl-table td { padding: 10px 14px; border-bottom: 1px solid var(--hz-bg); color: var(--hz-text-primary); vertical-align: middle; }
+.rl-table td { padding: 10px 14px; border-bottom: 1px solid rgba(45,43,74,0.5); color: var(--hz-text-primary); vertical-align: middle; }
 .rl-table tr:last-child td { border-bottom: none; }
-.rl-table tr:hover td { background: var(--hz-bg); }
-.rl-table tr:nth-child(even) td { background: rgba(244,247,254,0.4); }
+.rl-table tr:hover td { background: var(--hz-surface-2); }
+.rl-table tr:nth-child(even) td { background: rgba(33,31,53,0.4); }
 .rl-badge { display: inline-block; border-radius: 20px; padding: 3px 10px; font-size: 0.68rem; font-weight: 700; white-space: nowrap; letter-spacing: 0.04em; }
-.rl-badge-active   { background: rgba(1,181,116,0.12); color: #017A4A; }
-.rl-badge-pending  { background: rgba(255,181,71,0.15); color: #7A4F00; }
-.rl-badge-inactive { background: var(--hz-bg); color: var(--hz-text-secondary); }
-.rl-badge-deprecated { background: rgba(238,93,80,0.1); color: #8B1A1A; }
+.rl-badge-active   { background: rgba(52,211,153,0.15); color: #6ee7b7; border: 1px solid rgba(52,211,153,0.25); }
+.rl-badge-pending  { background: rgba(251,191,36,0.12); color: #fcd34d; border: 1px solid rgba(251,191,36,0.2); }
+.rl-badge-inactive { background: var(--hz-surface-2); color: var(--hz-text-secondary); border: 1px solid var(--hz-border); }
+.rl-badge-deprecated { background: rgba(248,113,113,0.1); color: #fca5a5; border: 1px solid rgba(248,113,113,0.2); }
 .rl-pri-critical { color: var(--hz-red); font-weight: 700; }
 .rl-pri-high     { color: var(--hz-orange); font-weight: 700; }
-.rl-pri-medium   { color: var(--hz-brand); font-weight: 600; }
+.rl-pri-medium   { color: var(--hz-brand-light); font-weight: 600; }
 .rl-pri-low      { color: var(--hz-text-secondary); }
 .rl-score-bar { display: flex; align-items: center; gap: 6px; }
-.rl-score-fill { height: 6px; border-radius: 4px; min-width: 2px; background: linear-gradient(90deg, #868CFF, #4318FF); }
+.rl-score-fill { height: 6px; border-radius: 4px; min-width: 2px; background: linear-gradient(90deg, #8b5cf6, #60a5fa); }
 .rl-empty { padding: 28px; text-align: center; color: var(--hz-text-secondary); font-size: 0.88rem; }
-.rl-step2-hint { background: rgba(66,42,251,0.05); border: 1px solid rgba(66,42,251,0.15); border-radius: var(--hz-radius-sm); padding: 12px 16px; font-size: 0.83rem; color: var(--hz-brand); margin-bottom: 10px; line-height: 1.5; }
-.rl-section-nav { background: var(--hz-bg); border: 1px solid var(--hz-border); border-radius: var(--hz-radius-sm); padding: 10px 16px; font-size: 0.78rem; color: var(--hz-text-muted); margin-bottom: 4px; line-height: 1.6; }
+.rl-step2-hint { background: rgba(139,92,246,0.08); border: 1px solid rgba(139,92,246,0.2); border-radius: var(--hz-radius-sm); padding: 12px 16px; font-size: 0.83rem; color: var(--hz-brand-light); margin-bottom: 10px; line-height: 1.5; }
+.rl-section-nav { background: var(--hz-surface-2); border: 1px solid var(--hz-border); border-radius: var(--hz-radius-sm); padding: 10px 16px; font-size: 0.78rem; color: var(--hz-text-muted); margin-bottom: 4px; line-height: 1.6; }
 .rl-group-label { font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--hz-text-secondary); margin: 12px 0 4px 2px; }
-.rl-onboard-card { background: linear-gradient(135deg, rgba(134,140,255,0.06) 0%, rgba(67,24,255,0.04) 100%); border: 1px solid rgba(66,42,251,0.15); border-radius: var(--hz-radius); padding: 24px; margin-top: 14px; }
+.rl-onboard-card { background: linear-gradient(135deg, rgba(139,92,246,0.08) 0%, rgba(59,130,246,0.05) 100%); border: 1px solid rgba(139,92,246,0.2); border-radius: var(--hz-radius); padding: 24px; margin-top: 14px; }
 .rl-onboard-title { font-size: 1rem; font-weight: 700; color: var(--hz-navy); margin-bottom: 16px; }
 .rl-onboard-steps { display: flex; flex-direction: column; gap: 12px; }
 .rl-onboard-step { display: flex; align-items: flex-start; gap: 14px; }
-.rl-onboard-num { flex-shrink: 0; width: 28px; height: 28px; border-radius: 50%; background: linear-gradient(135deg, #868CFF 0%, #4318FF 100%); color: #fff; font-size: 0.78rem; font-weight: 800; display: flex; align-items: center; justify-content: center; }
+.rl-onboard-num { flex-shrink: 0; width: 28px; height: 28px; border-radius: 50%; background: linear-gradient(135deg, #a78bfa 0%, #8b5cf6 100%); color: #fff; font-size: 0.78rem; font-weight: 800; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 12px rgba(139,92,246,0.4); }
 .rl-onboard-step > div { display: flex; flex-direction: column; gap: 2px; }
 .rl-onboard-step strong { font-size: 0.88rem; color: var(--hz-navy); }
 .rl-onboard-step span { font-size: 0.8rem; color: var(--hz-text-muted); line-height: 1.45; }
@@ -7537,35 +7563,35 @@ img, video, canvas, iframe { max-width: 100%; height: auto; }
 
 
 def _dark_fig(fig: Any) -> Any:
-    """Apply consistent Horizon UI styling to a Plotly figure."""
+    """Apply consistent Flux dark theme styling to a Plotly figure."""
     fig.update_layout(
-        paper_bgcolor="#FFFFFF",
-        plot_bgcolor="#F8FAFF",
-        font=dict(family="DM Sans, ui-sans-serif, sans-serif", color="#1B2559", size=12),
+        paper_bgcolor="#1a1929",
+        plot_bgcolor="#0f0e17",
+        font=dict(family="Inter, ui-sans-serif, sans-serif", color="#ede9ff", size=12),
         xaxis=dict(
-            gridcolor="#E8EEF6",
-            linecolor="#E0E5F2",
-            tickfont=dict(color="#A3AED0", size=11),
-            title_font=dict(color="#707EAE"),
+            gridcolor="#2d2b4a",
+            linecolor="#2d2b4a",
+            tickfont=dict(color="#9d99c4", size=11),
+            title_font=dict(color="#6b6892"),
         ),
         yaxis=dict(
-            gridcolor="#E8EEF6",
-            linecolor="#E0E5F2",
-            tickfont=dict(color="#A3AED0", size=11),
-            title_font=dict(color="#707EAE"),
+            gridcolor="#2d2b4a",
+            linecolor="#2d2b4a",
+            tickfont=dict(color="#9d99c4", size=11),
+            title_font=dict(color="#6b6892"),
         ),
         margin=dict(l=16, r=16, t=44, b=16),
         autosize=True,
         legend=dict(
-            bgcolor="rgba(255,255,255,0.8)",
-            bordercolor="#E0E5F2",
+            bgcolor="rgba(26,25,41,0.85)",
+            bordercolor="#2d2b4a",
             borderwidth=1,
-            font=dict(color="#1B2559", size=11),
+            font=dict(color="#ede9ff", size=11),
         ),
         hoverlabel=dict(
-            bgcolor="#1B2559",
-            font=dict(color="#FFFFFF", size=12),
-            bordercolor="#422AFB",
+            bgcolor="#211f35",
+            font=dict(color="#ede9ff", size=12),
+            bordercolor="#8b5cf6",
         ),
     )
     return fig
@@ -7623,7 +7649,7 @@ def build_metrics_html() -> str:
 
     # Color helpers
     def _vc(cls):
-        return {"green": "#01B574", "amber": "#FFB547", "red": "#EE5D50"}.get(cls, "#1B2559")
+        return {"green": "#34d399", "amber": "#fbbf24", "red": "#f87171"}.get(cls, "#ede9ff")
 
     return f"""
 <div class="hz-stats-row">
@@ -7702,7 +7728,7 @@ def build_metrics_html() -> str:
 def build_activity_html() -> str:
     versions = load_rule_versions()
     if not versions:
-        return '<div class="activity-item"><span class="activity-text" style="color:#64748b">No activity yet — import sessions and run analysis to get started.</span></div>'
+        return '<div class="activity-item"><span class="activity-text" style="color:#6b6892">No activity yet — import sessions and run analysis to get started.</span></div>'
     recent = sorted(versions, key=lambda x: x.get("timestamp", ""), reverse=True)[:5]
     icons = {
         "approved": "✅",
@@ -7737,7 +7763,7 @@ def build_activity_html() -> str:
     return f'<div class="activity-feed">{"".join(items)}</div>'
 
 
-def _stat_chip(label: str, value: str, color: str = "#422AFB") -> str:
+def _stat_chip(label: str, value: str, color: str = "#8b5cf6") -> str:
     return (
         f'<span style="display:inline-flex;align-items:center;gap:6px;'
         f'background:{color}26;border-radius:10px;'
@@ -7763,12 +7789,12 @@ def build_rules_stat_bar() -> str:
         if r.get("is_active") and r.get("effectiveness_score", 1) < 0.3 and r.get("times_triggered", 0) >= 3
     )
     chips = [
-        _stat_chip("active", str(active), "#059669"),
-        _stat_chip("pending review", str(pending), "#f59e0b" if pending else "#94a3b8"),
-        _stat_chip("deprecated/retired", str(deprecated), "#94a3b8"),
+        _stat_chip("active", str(active), "#34d399"),
+        _stat_chip("pending review", str(pending), "#fbbf24" if pending else "#6b6892"),
+        _stat_chip("deprecated/retired", str(deprecated), "#6b6892"),
     ]
     if exceptions:
-        chips.append(_stat_chip("exceptions", str(exceptions), "#ef4444"))
+        chips.append(_stat_chip("exceptions", str(exceptions), "#f87171"))
     if low_eff:
         chips.append(_stat_chip("low effectiveness", str(low_eff), "#f97316"))
     chips_html = " ".join(chips)
@@ -7798,13 +7824,13 @@ def build_monitoring_stat_bar() -> str:
     except Exception:
         open_inc = crit_inc = 0
     chips = [
-        _stat_chip("total enforcements", str(total_enf), "#4f46e5"),
+        _stat_chip("total enforcements", str(total_enf), "#8b5cf6"),
         _stat_chip("last 24h", str(recent), "#0ea5e9"),
-        _stat_chip("violations 24h", str(failed_recent), "#ef4444" if failed_recent else "#94a3b8"),
-        _stat_chip("open incidents", str(open_inc), "#f59e0b" if open_inc else "#94a3b8"),
+        _stat_chip("violations 24h", str(failed_recent), "#f87171" if failed_recent else "#6b6892"),
+        _stat_chip("open incidents", str(open_inc), "#fbbf24" if open_inc else "#6b6892"),
     ]
     if crit_inc:
-        chips.append(_stat_chip("critical/high", str(crit_inc), "#ef4444"))
+        chips.append(_stat_chip("critical/high", str(crit_inc), "#f87171"))
     return f'<div class="tab-stat-bar">{"  ".join(chips)}</div>'
 
 
@@ -7814,11 +7840,11 @@ def build_governance_stat_bar() -> str:
         trust = compute_trust_score()
         trust_val = f"{trust.get('score', 0):.0f}"
         trust_color = (
-            "#059669" if trust.get("score", 0) >= 70 else "#f59e0b" if trust.get("score", 0) >= 40 else "#ef4444"
+            "#34d399" if trust.get("score", 0) >= 70 else "#fbbf24" if trust.get("score", 0) >= 40 else "#f87171"
         )
     except Exception:
         trust_val = "?"
-        trust_color = "#94a3b8"
+        trust_color = "#6b6892"
     try:
         slos = compute_slo_status()
         breached = sum(1 for s in slos if s.get("status") == "breached")
@@ -7833,13 +7859,13 @@ def build_governance_stat_bar() -> str:
         expiring = expired = 0
     chips = [
         _stat_chip("trust score", f"{trust_val}/100", trust_color),
-        _stat_chip("slos defined", str(slo_total), "#4f46e5"),
-        _stat_chip("slos breached", str(breached), "#ef4444" if breached else "#94a3b8"),
+        _stat_chip("slos defined", str(slo_total), "#8b5cf6"),
+        _stat_chip("slos breached", str(breached), "#f87171" if breached else "#6b6892"),
     ]
     if expiring:
-        chips.append(_stat_chip("certs expiring", str(expiring), "#f59e0b"))
+        chips.append(_stat_chip("certs expiring", str(expiring), "#fbbf24"))
     if expired:
-        chips.append(_stat_chip("certs expired", str(expired), "#ef4444"))
+        chips.append(_stat_chip("certs expired", str(expired), "#f87171"))
     return f'<div class="tab-stat-bar">{"  ".join(chips)}</div>'
 
 
@@ -7864,11 +7890,11 @@ def build_analytics_stat_bar() -> str:
     except Exception:
         bench_count = 0
     chips = [
-        _stat_chip("conversations", str(total_convs), "#4f46e5"),
+        _stat_chip("conversations", str(total_convs), "#8b5cf6"),
         _stat_chip("turns recorded", str(total_turns), "#0ea5e9"),
-        _stat_chip("high-risk rules", str(high_risk), "#ef4444" if high_risk else "#94a3b8"),
-        _stat_chip("drifting rules", str(drift_rules), "#f59e0b" if drift_rules else "#94a3b8"),
-        _stat_chip("benchmark cases", str(bench_count), "#059669"),
+        _stat_chip("high-risk rules", str(high_risk), "#f87171" if high_risk else "#6b6892"),
+        _stat_chip("drifting rules", str(drift_rules), "#fbbf24" if drift_rules else "#6b6892"),
+        _stat_chip("benchmark cases", str(bench_count), "#34d399"),
     ]
     return f'<div class="tab-stat-bar">{"  ".join(chips)}</div>'
 
@@ -7888,10 +7914,10 @@ def build_sessions_stat_bar() -> str:
     except Exception:
         pending = active = 0
     chips = [
-        _stat_chip("conversations", str(total_convs), "#4f46e5"),
+        _stat_chip("conversations", str(total_convs), "#8b5cf6"),
         _stat_chip("turns", str(total_turns), "#0ea5e9"),
-        _stat_chip("active rules", str(active), "#059669"),
-        _stat_chip("pending review", str(pending), "#f59e0b" if pending else "#94a3b8"),
+        _stat_chip("active rules", str(active), "#34d399"),
+        _stat_chip("pending review", str(pending), "#fbbf24" if pending else "#6b6892"),
     ]
     return f'<div class="tab-stat-bar">{"  ".join(chips)}</div>'
 
@@ -7916,11 +7942,11 @@ def build_testing_stat_bar() -> str:
     except Exception:
         chain_entries = 0
     chips = [
-        _stat_chip("robustness tests", str(rob_total), "#4f46e5"),
-        _stat_chip("vulnerable", str(rob_vuln), "#ef4444" if rob_vuln else "#94a3b8"),
+        _stat_chip("robustness tests", str(rob_total), "#8b5cf6"),
+        _stat_chip("vulnerable", str(rob_vuln), "#f87171" if rob_vuln else "#6b6892"),
         _stat_chip("bias analyses", str(bias_total), "#0ea5e9"),
-        _stat_chip("bias detected", str(bias_detected), "#f59e0b" if bias_detected else "#94a3b8"),
-        _stat_chip("audit entries", str(chain_entries), "#059669"),
+        _stat_chip("bias detected", str(bias_detected), "#fbbf24" if bias_detected else "#6b6892"),
+        _stat_chip("audit entries", str(chain_entries), "#34d399"),
     ]
     return f'<div class="tab-stat-bar">{"  ".join(chips)}</div>'
 
@@ -7969,7 +7995,7 @@ def build_failure_heatmap() -> Any:
 
     from collections import defaultdict
     layer_labels = {1: "L1 Model", 2: "L2 Context", 3: "L3 Orchestration", 4: "L4 Human/Trust"}
-    layer_colors = {1: "#6366f1", 2: "#0ea5e9", 3: "#f59e0b", 4: "#ef4444"}
+    layer_colors = {1: "#6366f1", 2: "#0ea5e9", 3: "#fbbf24", 4: "#f87171"}
     counts: dict[int, dict[str, int]] = defaultdict(lambda: defaultdict(int))
     all_cats: set[str] = set()
     for r in active:
@@ -8005,11 +8031,11 @@ def build_session_health_html() -> str:
     score = result["score"]
     top3 = result["top_issues"]
     if score >= 70:
-        colour, label, icon = "#10b981", "Healthy", "✅"
+        colour, label, icon = "#34d399", "Healthy", "✅"
     elif score >= 40:
-        colour, label, icon = "#f59e0b", "Needs Attention", "⚠️"
+        colour, label, icon = "#fbbf24", "Needs Attention", "⚠️"
     else:
-        colour, label, icon = "#ef4444", "Critical", "🔴"
+        colour, label, icon = "#f87171", "Critical", "🔴"
     issues_html = "".join(
         f'<li style="font-size:0.85rem;color:#475569;margin:2px 0">{issue}</li>'
         for issue in (top3 or ["No gaps detected — looking good!"])
@@ -8019,7 +8045,7 @@ def build_session_health_html() -> str:
         f'padding:18px 22px;display:flex;gap:32px;align-items:flex-start">'
         f'<div style="text-align:center;min-width:90px">'
         f'<div style="font-size:2.6rem;font-weight:700;color:{colour}">{score:.0f}</div>'
-        f'<div style="font-size:0.78rem;color:#64748b;font-weight:600">/ 100</div>'
+        f'<div style="font-size:0.78rem;color:#6b6892;font-weight:600">/ 100</div>'
         f'<div style="font-size:0.88rem;color:{colour};font-weight:600;margin-top:4px">{icon} {label}</div>'
         f'</div>'
         f'<div style="flex:1">'
@@ -8166,7 +8192,7 @@ def build_effectiveness_chart() -> Any:
     names = [r.get("name", r.get("rule_id", "?"))[:30] for r in active]
     scores = [r.get("effectiveness_score", 0) for r in active]
     triggered = [r.get("times_triggered", 0) for r in active]
-    colors = ["#10b981" if s >= 0.7 else ("#f59e0b" if s >= 0.4 else "#be123c") for s in scores]
+    colors = ["#34d399" if s >= 0.7 else ("#fbbf24" if s >= 0.4 else "#f87171") for s in scores]
     fig = go.Figure(
         go.Bar(
             x=scores,
@@ -8235,7 +8261,7 @@ def build_cluster_chart() -> Any:
 
     contexts = list(cluster_gaps.keys())
     gap_types = sorted({gt for b in cluster_gaps.values() for gt in b})
-    palette = ["#6366f1", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4", "#ec4899"]
+    palette = ["#6366f1", "#34d399", "#fbbf24", "#f87171", "#8b5cf6", "#06b6d4", "#ec4899"]
 
     fig = go.Figure()
     for i, gtype in enumerate(gap_types):
@@ -8569,11 +8595,11 @@ def build_regression_table(query: str = "") -> str:
         else:
             st_badge = '<span class="rl-badge rl-badge-inactive">stable</span>'
         if delta is None:
-            delta_html = '<span style="color:#94a3b8">first run</span>'
+            delta_html = '<span style="color:#6b6892">first run</span>'
         elif delta >= 0:
             delta_html = f'<span style="color:#059669;font-weight:600">+{delta}%</span>'
         else:
-            delta_html = f'<span style="color:#dc2626;font-weight:600">{delta}%</span>'
+            delta_html = f'<span style="color:#f87171;font-weight:600">{delta}%</span>'
         rule_name = entry.get("rule_name", entry.get("rule_id", ""))
         rows_html += (
             f"<tr>"
@@ -8581,7 +8607,7 @@ def build_regression_table(query: str = "") -> str:
             f"<td style='text-align:right'>{entry.get('pass_rate', 0)}%</td>"
             f"<td style='text-align:right'>{delta_html}</td>"
             f"<td>{st_badge}</td>"
-            f"<td style='font-size:0.75rem;color:#94a3b8'>{entry.get('timestamp', '')[:16]}</td>"
+            f"<td style='font-size:0.75rem;color:#6b6892'>{entry.get('timestamp', '')[:16]}</td>"
             f"</tr>"
         )
     return (
@@ -8647,11 +8673,11 @@ def build_ratings_before_after() -> Any:
     if baseline:
         categories.append(f"Baseline<br><sub>({len(baseline)} sessions, 0 rules)</sub>")
         values.append(round(sum(baseline) / len(baseline), 2))
-        colors.append("#94a3b8")
+        colors.append("#6b6892")
     if with_rules:
         categories.append(f"With Rules<br><sub>({len(with_rules)} sessions, 1+ rules)</sub>")
         values.append(round(sum(with_rules) / len(with_rules), 2))
-        colors.append("#4f46e5")
+        colors.append("#8b5cf6")
 
     if not categories:
         fig = go.Figure()
@@ -8708,7 +8734,7 @@ def build_ratings_trend() -> Any:
     dates = [r.get("rated_at", "")[:10] for r in ratings]
     scores = [r["rating"] for r in ratings]
     rule_counts = [r.get("active_rule_count", 0) for r in ratings]
-    marker_colors = ["#94a3b8" if c == 0 else "#4f46e5" for c in rule_counts]
+    marker_colors = ["#6b6892" if c == 0 else "#8b5cf6" for c in rule_counts]
 
     fig = go.Figure()
     fig.add_trace(
@@ -8763,16 +8789,16 @@ def build_ratings_table(query: str = "") -> str:
     for r in matched:
         score = r.get("rating", 0)
         stars = "★" * int(score) + "☆" * (5 - int(score))
-        score_color = "#059669" if score >= 4 else "#d97706" if score >= 3 else "#dc2626"
+        score_color = "#34d399" if score >= 4 else "#fbbf24" if score >= 3 else "#f87171"
         rows_html += (
             f"<tr>"
-            f"<td style='font-size:0.75rem;color:#94a3b8'>{r.get('rated_at', '')[:10]}</td>"
+            f"<td style='font-size:0.75rem;color:#6b6892'>{r.get('rated_at', '')[:10]}</td>"
             f"<td style='font-family:monospace;font-size:0.75rem'>{r.get('conversation_id', '')[:22]}</td>"
             f"<td style='text-align:center'>"
             f"<span style='color:{score_color};font-weight:700'>{score}/5</span>"
             f"<span style='color:{score_color};font-size:0.7rem;margin-left:4px'>{stars}</span></td>"
             f"<td style='text-align:center'>{r.get('active_rule_count', 0)}</td>"
-            f"<td style='max-width:160px;font-size:0.78rem;color:#64748b'>{r.get('friction_notes', '')[:55]}</td>"
+            f"<td style='max-width:160px;font-size:0.78rem;color:#6b6892'>{r.get('friction_notes', '')[:55]}</td>"
             f"<td style='max-width:160px;font-size:0.78rem;color:#475569'>{r.get('helped_notes', '')[:55]}</td>"
             f"</tr>"
         )
@@ -8869,8 +8895,8 @@ def build_reputation_table(query: str = "") -> str:
 
     def _avg_cell(val) -> str:
         if val is None:
-            return '<span style="color:#94a3b8">—</span>'
-        color = "#059669" if val >= 70 else "#d97706" if val >= 40 else "#dc2626"
+            return '<span style="color:#6b6892">—</span>'
+        color = "#34d399" if val >= 70 else "#fbbf24" if val >= 40 else "#f87171"
         return f'<span style="color:{color};font-weight:600">{val}%</span>'
 
     rows_html = ""
@@ -9014,15 +9040,15 @@ def build_goal_table(query: str = "") -> str:
         status = r["alignment_status"]
         badge = _status_badge.get(status, f'<span class="rl-badge rl-badge-inactive">{status}</span>')
         gap = r.get("gap", 0)
-        gap_color = "#dc2626" if gap < -10 else "#d97706" if gap < 0 else "#166534"
+        gap_color = "#f87171" if gap < -10 else "#fbbf24" if gap < 0 else "#34d399"
         actual = r.get("actual_score", 0)
-        actual_color = "#166534" if actual >= r.get("target_score", 80) else "#d97706"
+        actual_color = "#34d399" if actual >= r.get("target_score", 80) else "#fbbf24"
         rows_html += (
             f"<tr>"
             f"<td style='max-width:160px;font-weight:600'>{r.get('objective', '')[:40]}</td>"
             f"<td style='max-width:160px;font-size:0.78rem;color:#475569'>{r.get('business_outcome', '')[:40]}</td>"
             f"<td style='text-align:center'>{r.get('linked_count', 0)}</td>"
-            f"<td style='text-align:center;color:#64748b'>{r.get('target_score', 0)}%</td>"
+            f"<td style='text-align:center;color:#6b6892'>{r.get('target_score', 0)}%</td>"
             f"<td style='text-align:center;color:{actual_color};font-weight:700'>{actual}%</td>"
             f"<td style='text-align:center;color:{gap_color};font-weight:700'>{gap:+.1f}%</td>"
             f"<td>{badge}</td>"
@@ -9046,11 +9072,11 @@ def build_goal_chart() -> Any:
     actuals = [r["actual_score"] for r in results]
     targets = [r["target_score"] for r in results]
     colors = [
-        "#10b981"
+        "#34d399"
         if r["alignment_status"] == "aligned"
-        else "#f59e0b"
+        else "#fbbf24"
         if r["alignment_status"] == "warning"
-        else "#ef4444"
+        else "#f87171"
         for r in results
     ]
 
@@ -9070,8 +9096,8 @@ def build_goal_chart() -> Any:
             x=names,
             y=targets,
             mode="markers+lines",
-            marker=dict(symbol="diamond", size=10, color="#4f46e5"),
-            line=dict(dash="dot", color="#4f46e5"),
+            marker=dict(symbol="diamond", size=10, color="#8b5cf6"),
+            line=dict(dash="dot", color="#8b5cf6"),
             hovertemplate="<b>%{x}</b><br>Target: %{y:.1f}%<extra></extra>",
         )
     )
@@ -9179,7 +9205,7 @@ def build_control_table(query: str = "") -> str:
         risk = r.get("risk_level", "")
         risk_badge = _risk_badge.get(risk, f'<span class="rl-badge rl-badge-inactive">{risk}</span>')
         eff = r.get("effectiveness", 0)
-        eff_color = "#166534" if eff >= 80 else "#d97706" if eff >= 50 else "#dc2626"
+        eff_color = "#34d399" if eff >= 80 else "#fbbf24" if eff >= 50 else "#f87171"
         bar_w = max(2, int(eff * 0.6))
         eff_html = (
             f'<div class="rl-score-bar">'
@@ -9189,13 +9215,13 @@ def build_control_table(query: str = "") -> str:
         )
         rows_html += (
             f"<tr>"
-            f"<td style='font-family:monospace;font-size:0.75rem;color:#64748b'>{r.get('control_id', '')[-8:]}</td>"
+            f"<td style='font-family:monospace;font-size:0.75rem;color:#6b6892'>{r.get('control_id', '')[-8:]}</td>"
             f"<td style='font-weight:600;max-width:160px'>{r.get('name', '')[:40]}</td>"
             f"<td style='color:#4f46e5;font-size:0.78rem'>{r.get('category', '')}</td>"
             f"<td>{risk_badge}</td>"
             f"<td style='text-align:center'>{r.get('rule_count', 0)}</td>"
             f"<td>{eff_html}</td>"
-            f"<td style='font-size:0.75rem;color:#94a3b8'>{r.get('audit_reference', '')[:30]}</td>"
+            f"<td style='font-size:0.75rem;color:#6b6892'>{r.get('audit_reference', '')[:30]}</td>"
             f"</tr>"
         )
     return (
@@ -9214,7 +9240,7 @@ def build_control_chart() -> Any:
 
     # Group by risk level
     risk_order = ["critical", "high", "medium", "low"]
-    risk_colors = {"critical": "#ef4444", "high": "#f59e0b", "medium": "#4f46e5", "low": "#10b981"}
+    risk_colors = {"critical": "#f87171", "high": "#fbbf24", "medium": "#8b5cf6", "low": "#34d399"}
     by_risk: dict[str, list] = {r: [] for r in risk_order}
     for ctrl in results:
         rl = ctrl.get("risk_level", "low")
@@ -9383,7 +9409,7 @@ def build_learning_table(query: str = "") -> str:
         "improving": '<span class="rl-badge rl-badge-active">improving</span>',
         "declining": '<span class="rl-badge rl-badge-deprecated">declining</span>',
         "stable": '<span class="rl-badge rl-badge-inactive">stable</span>',
-        "insufficient_data": '<span class="rl-badge" style="background:#f1f5f9;color:#94a3b8">insufficient data</span>',
+        "insufficient_data": '<span class="rl-badge" style="background:#f1f5f9;color:#6b6892">insufficient data</span>',
     }
     rows_html = ""
     for e in matched:
@@ -9391,17 +9417,17 @@ def build_learning_table(query: str = "") -> str:
         badge = _status_badge.get(status, f'<span class="rl-badge rl-badge-inactive">{status}</span>')
         slope = e.get("slope")
         if slope is not None:
-            slope_color = "#166534" if slope > 0 else "#dc2626" if slope < 0 else "#64748b"
+            slope_color = "#34d399" if slope > 0 else "#f87171" if slope < 0 else "#64748b"
             slope_str = f'<span style="color:{slope_color};font-weight:700">{slope:+.4f}</span>'
         else:
-            slope_str = '<span style="color:#94a3b8">N/A</span>'
+            slope_str = '<span style="color:#6b6892">N/A</span>'
         rows_html += (
             f"<tr>"
             f"<td style='max-width:200px'>{e.get('rule_name', e.get('rule_id', ''))[:40]}</td>"
             f"<td>{badge}</td>"
             f"<td style='font-family:monospace;font-size:0.8rem'>{slope_str}</td>"
-            f"<td style='text-align:center;color:#64748b'>{e.get('history_len', 0)}</td>"
-            f"<td style='font-size:0.75rem;color:#94a3b8'>{e.get('timestamp', '')[:16]}</td>"
+            f"<td style='text-align:center;color:#6b6892'>{e.get('history_len', 0)}</td>"
+            f"<td style='font-size:0.75rem;color:#6b6892'>{e.get('timestamp', '')[:16]}</td>"
             f"</tr>"
         )
     return (
@@ -9520,11 +9546,11 @@ def build_gaming_table(query: str = "") -> str:
         rows_html += (
             f"<tr>"
             f"<td style='font-family:monospace;font-size:0.75rem'>{e.get('gaming_id', '')[:10]}</td>"
-            f"<td style='font-family:monospace;font-size:0.75rem;color:#94a3b8'>{e.get('conv_id', '')[:10]}</td>"
+            f"<td style='font-family:monospace;font-size:0.75rem;color:#6b6892'>{e.get('conv_id', '')[:10]}</td>"
             f"<td style='text-align:center'>{e.get('turn_number', '')}</td>"
             f"<td style='font-size:0.78rem;color:#475569;max-width:200px'>{patterns[:60]}</td>"
             f"<td>{conf_badge}</td>"
-            f"<td style='font-size:0.75rem;color:#94a3b8'>{e.get('timestamp', '')[:16]}</td>"
+            f"<td style='font-size:0.75rem;color:#6b6892'>{e.get('timestamp', '')[:16]}</td>"
             f"</tr>"
         )
     return (
@@ -9652,7 +9678,7 @@ def build_meta_gov_table(query: str = "") -> str:
     _role_badge = {
         "admin": '<span class="rl-badge" style="background:#fce7f3;color:#9d174d">admin</span>',
         "reviewer": '<span class="rl-badge" style="background:#e0e7ff;color:#3730a3">reviewer</span>',
-        "auditor": '<span class="rl-badge" style="background:#dcfce7;color:#166534">auditor</span>',
+        "auditor": '<span class="rl-badge" style="background:rgba(52,211,153,0.15);color:#34d399">auditor</span>',
     }
     rows_html = ""
     for e in matched:
@@ -9664,8 +9690,8 @@ def build_meta_gov_table(query: str = "") -> str:
             f"<td style='font-weight:600'>{e.get('user_id', '')}</td>"
             f"<td>{badge}</td>"
             f"<td style='font-size:0.78rem;color:#475569'>{perms}</td>"
-            f"<td style='color:#64748b'>{e.get('granted_by', '')}</td>"
-            f"<td style='font-size:0.75rem;color:#94a3b8'>{e.get('granted_at', '')[:16]}</td>"
+            f"<td style='color:#6b6892'>{e.get('granted_by', '')}</td>"
+            f"<td style='font-size:0.75rem;color:#6b6892'>{e.get('granted_at', '')[:16]}</td>"
             f"</tr>"
         )
     return (
@@ -9696,7 +9722,7 @@ def build_governance_audit_log() -> str:
             f"<td style='color:#4f46e5;font-size:0.78rem'>{e.get('action', '')}</td>"
             f"<td style='font-size:0.78rem;color:#475569;max-width:200px'>{e.get('target', '')[:40]}</td>"
             f"<td>{outcome_badge}</td>"
-            f"<td style='font-size:0.75rem;color:#94a3b8'>{e.get('timestamp', '')[:16]}</td>"
+            f"<td style='font-size:0.75rem;color:#6b6892'>{e.get('timestamp', '')[:16]}</td>"
             f"</tr>"
         )
     return (
@@ -9882,14 +9908,14 @@ def build_cert_table(query: str = "") -> str:
         status = c.get("current_status", "")
         days = c.get("days_until_expiry")
         days_color = (
-            "#dc2626" if days is not None and days <= 7 else "#d97706" if days is not None and days <= 30 else "#334155"
+            "#f87171" if days is not None and days <= 7 else "#fbbf24" if days is not None and days <= 30 else "#334155"
         )
         badge = _cert_badge.get(status, f'<span class="rl-badge rl-badge-inactive">{status}</span>')
         rows_html += (
             f"<tr>"
             f"<td style='max-width:180px'>{c.get('name', '')[:35]}</td>"
             f"<td style='font-size:0.78rem;color:#475569'>{c.get('type', '')}</td>"
-            f"<td style='font-size:0.78rem;color:#64748b'>{c.get('issuing_body', '')[:25]}</td>"
+            f"<td style='font-size:0.78rem;color:#6b6892'>{c.get('issuing_body', '')[:25]}</td>"
             f"<td style='font-size:0.78rem;color:#475569'>{c.get('expiry_date', '')[:10]}</td>"
             f"<td>{badge}</td>"
             f"<td style='text-align:right;color:{days_color};font-weight:600'>"
@@ -10107,7 +10133,7 @@ def compute_compliance_health() -> dict:
 def build_compliance_health_gauge() -> Any:
     health = compute_compliance_health()
     overall = health["overall"]
-    color = "#10b981" if overall >= 80 else "#f59e0b" if overall >= 60 else "#ef4444"
+    color = "#34d399" if overall >= 80 else "#fbbf24" if overall >= 60 else "#f87171"
     fig = go.Figure(
         go.Indicator(
             mode="gauge+number+delta",
@@ -10117,9 +10143,9 @@ def build_compliance_health_gauge() -> Any:
                 "axis": {"range": [0, 100], "tickcolor": "#64748b"},
                 "bar": {"color": color},
                 "steps": [
-                    {"range": [0, 60], "color": "#fee2e2"},
+                    {"range": [0, 60], "color": "rgba(248,113,113,0.15)"},
                     {"range": [60, 80], "color": "#fef3c7"},
-                    {"range": [80, 100], "color": "#dcfce7"},
+                    {"range": [80, 100], "color": "rgba(52,211,153,0.15)"},
                 ],
                 "threshold": {"line": {"color": "#334155", "width": 2}, "thickness": 0.75, "value": 80},
             },
@@ -10139,7 +10165,7 @@ def build_compliance_health_breakdown() -> Any:
         health["cert_health"],
         health["goal_health"],
     ]
-    colors = ["#10b981" if v >= 80 else "#f59e0b" if v >= 60 else "#ef4444" for v in vals]
+    colors = ["#34d399" if v >= 80 else "#fbbf24" if v >= 60 else "#f87171" for v in vals]
     fig = go.Figure(
         go.Bar(x=dims, y=vals, marker_color=colors, hovertemplate="<b>%{x}</b><br>%{y:.0f}%<extra></extra>")
     )
@@ -10282,7 +10308,7 @@ def build_calendar_table(query: str = "") -> str:
         status = item.get("status", "")
         urgency = item.get("urgency", "") if status == "pending" else ""
         status_badge = _status_badge.get(status, f'<span class="rl-badge rl-badge-inactive">{status}</span>')
-        urgency_badge = _urgency_badge.get(urgency, '<span style="color:#94a3b8">—</span>')
+        urgency_badge = _urgency_badge.get(urgency, '<span style="color:#6b6892">—</span>')
         pri = item.get("priority", "")
         pri_cls = _pri_cls.get(pri, "")
         rows_html += (
@@ -10291,7 +10317,7 @@ def build_calendar_table(query: str = "") -> str:
             f"<td style='color:#4f46e5;font-size:0.78rem'>{item.get('type', '')}</td>"
             f"<td style='font-size:0.78rem'>{item.get('due_date', '')[:10]}</td>"
             f"<td class='{pri_cls}'>{pri}</td>"
-            f"<td style='color:#64748b;font-size:0.78rem'>{item.get('owner', '')[:20]}</td>"
+            f"<td style='color:#6b6892;font-size:0.78rem'>{item.get('owner', '')[:20]}</td>"
             f"<td>{status_badge}</td>"
             f"<td>{urgency_badge}</td>"
             f"</tr>"
@@ -10456,11 +10482,11 @@ def build_robustness_table(query: str = "") -> str:
     for e in matched:
         score = e.get("robustness_score", 0)
         if score >= 80:
-            score_color = "#166534"
+            score_color = "#34d399"
         elif score >= 50:
-            score_color = "#d97706"
+            score_color = "#fbbf24"
         else:
-            score_color = "#dc2626"
+            score_color = "#f87171"
         resisted = e.get("attacks_resisted", 0)
         bypassed = e.get("attacks_bypassed", 0)
         tested = e.get("attacks_tested", 0)
@@ -10475,10 +10501,10 @@ def build_robustness_table(query: str = "") -> str:
             f"<tr>"
             f"<td style='max-width:200px'>{e.get('rule_name', e.get('rule_id', ''))[:40]}</td>"
             f"<td>{score_html}</td>"
-            f"<td style='color:#166534;font-weight:600'>{resisted}</td>"
-            f"<td style='color:#dc2626;font-weight:600'>{bypassed}</td>"
-            f"<td style='color:#64748b'>{tested}</td>"
-            f"<td style='font-size:0.75rem;color:#94a3b8'>{e.get('timestamp', '')[:16]}</td>"
+            f"<td style='color:#34d399;font-weight:600'>{resisted}</td>"
+            f"<td style='color:#f87171;font-weight:600'>{bypassed}</td>"
+            f"<td style='color:#6b6892'>{tested}</td>"
+            f"<td style='font-size:0.75rem;color:#6b6892'>{e.get('timestamp', '')[:16]}</td>"
             f"</tr>"
         )
     return (
@@ -10593,7 +10619,7 @@ def build_bias_table(query: str = "") -> str:
         severity = e.get("severity", "")
         sev_badge = _sev_badge.get(severity, f'<span class="rl-badge rl-badge-inactive">{severity}</span>')
         disparity = e.get("disparity", 0)
-        disp_color = "#dc2626" if disparity > 25 else "#d97706" if disparity > 10 else "#64748b"
+        disp_color = "#f87171" if disparity > 25 else "#fbbf24" if disparity > 10 else "#64748b"
         rows_html += (
             f"<tr>"
             f"<td style='max-width:160px'>{e.get('rule_name', e.get('rule_id', ''))[:30]}</td>"
@@ -10707,10 +10733,10 @@ def build_audit_chain_table(query: str = "") -> str:
     if not matched:
         return f'<div class="rl-empty">No audit entries match "<b>{query}</b>".</div>'
     _action_colors = {
-        "rule_created": "#166534",
-        "rule_updated": "#4f46e5",
-        "rule_deleted": "#dc2626",
-        "override": "#d97706",
+        "rule_created": "#34d399",
+        "rule_updated": "#8b5cf6",
+        "rule_deleted": "#f87171",
+        "override": "#fbbf24",
         "escalation": "#9d174d",
     }
     rows_html = ""
@@ -10721,12 +10747,12 @@ def build_audit_chain_table(query: str = "") -> str:
         hash_display = f"{entry_hash[:12]}…" if entry_hash else "—"
         rows_html += (
             f"<tr>"
-            f"<td style='font-family:monospace;font-size:0.75rem;color:#64748b'>{e.get('seq', '')}</td>"
+            f"<td style='font-family:monospace;font-size:0.75rem;color:#6b6892'>{e.get('seq', '')}</td>"
             f"<td style='color:{action_color};font-weight:600;font-size:0.78rem'>{action[:30]}</td>"
-            f"<td style='color:#334155'>{e.get('actor', '')[:20]}</td>"
+            f"<td style='color:#9d99c4'>{e.get('actor', '')[:20]}</td>"
             f"<td style='color:#475569;font-size:0.78rem'>{e.get('target', '')[:30]}</td>"
-            f"<td style='font-family:monospace;font-size:0.72rem;color:#94a3b8'>{hash_display}</td>"
-            f"<td style='font-size:0.75rem;color:#94a3b8'>{e.get('timestamp', '')[:16]}</td>"
+            f"<td style='font-family:monospace;font-size:0.72rem;color:#6b6892'>{hash_display}</td>"
+            f"<td style='font-size:0.75rem;color:#6b6892'>{e.get('timestamp', '')[:16]}</td>"
             f"</tr>"
         )
     return (
@@ -10789,7 +10815,7 @@ def build_trend_chart(window_days: int = 30) -> Any:
         return _dark_fig(fig)
 
     fig = go.Figure()
-    palette = ["#38bdf8", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4", "#4f46e5", "#ec4899"]
+    palette = ["#38bdf8", "#34d399", "#fbbf24", "#f87171", "#8b5cf6", "#06b6d4", "#8b5cf6", "#ec4899"]
     for i, (rid, data) in enumerate(trends.items()):
         color = palette[i % len(palette)]
         timestamps = data["timestamps"]
@@ -10864,7 +10890,7 @@ MATURITY_LEVELS: list[dict] = [
         "level": 1,
         "name": "Initial",
         "description": "Rules exist and are structured. The foundation is in place.",
-        "color": "#ef4444",
+        "color": "#f87171",
         "capabilities": [
             ("Rules defined", lambda: _has_data("rules.jsonl", 1)),
             ("Rule categories used (layer field)", lambda: any(r.get("layer") for r in _download_jsonl("rules.jsonl"))),
@@ -10901,7 +10927,7 @@ MATURITY_LEVELS: list[dict] = [
         "level": 3,
         "name": "Managed",
         "description": "Active monitoring and response. Incidents are tracked, enforcement is running, audits are conducted.",
-        "color": "#4f46e5",
+        "color": "#8b5cf6",
         "capabilities": [
             ("Incidents tracked", lambda: _has_data(INCIDENT_FILE, 1)),
             ("Rule enforcement logged", lambda: _has_data(ENFORCEMENT_FILE, 1)),
@@ -10915,7 +10941,7 @@ MATURITY_LEVELS: list[dict] = [
         "level": 4,
         "name": "Measured",
         "description": "Quantitative management. Trust scores, SLOs, benchmarks, and coverage are actively measured.",
-        "color": "#10b981",
+        "color": "#34d399",
         "capabilities": [
             (
                 "Trust score computed (score_history present)",
@@ -11047,7 +11073,7 @@ def build_maturity_chart() -> Any:
 
     names = [f"L{l['level']}: {l['name']}" for l in levels]
     pcts = [l["pct"] for l in levels]
-    colors = [l["color"] if l["achieved"] else ("#94a3b8" if l["level"] > current + 1 else l["color"]) for l in levels]
+    colors = [l["color"] if l["achieved"] else ("#6b6892" if l["level"] > current + 1 else l["color"]) for l in levels]
     opacities = [1.0 if l["level"] <= current + 1 else 0.4 for l in levels]
 
     fig = go.Figure()
@@ -11234,7 +11260,7 @@ updates the block without duplicating it.
             # ── Top bar: title + refresh ──────────────────────────────────────
             with gr.Row():
                 gr.HTML(
-                    '<div style="flex:1;min-width:0;display:flex;align-items:center"><span style="font-size:0.8rem;color:#64748b;text-transform:uppercase;letter-spacing:.08em;font-weight:600">Overview</span></div>'
+                    '<div style="flex:1;min-width:0;display:flex;align-items:center"><span style="font-size:0.8rem;color:#6b6892;text-transform:uppercase;letter-spacing:.08em;font-weight:600">Overview</span></div>'
                 )
                 dashboard_refresh = gr.Button("↻ Refresh", variant="secondary", size="sm")
             gr.HTML(
