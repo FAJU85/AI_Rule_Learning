@@ -473,8 +473,10 @@ def generate_rules(gaps: dict[str, list[dict]]) -> list[dict]:
                 "status": "active",
                 "source": "local_detector",
                 "created_at": now,
-                "effectiveness_score": 0.0,
+                "effectiveness_score": 0.5,
                 "times_triggered": 0,
+                "suppression_count": 0,
+                "last_fired_at": None,
             }
         )
 
