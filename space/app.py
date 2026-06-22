@@ -7554,6 +7554,87 @@ img, video, canvas, iframe { max-width: 100%; height: auto; }
   .rl-table td { flex: 1 1 auto !important; padding: 4px 6px !important; font-size: 0.78rem !important; white-space: normal !important; border-bottom: none !important; }
   .rl-table td:first-child { flex: 0 0 auto !important; }
 }
+
+/* ── Dual-mode layout: Control Panel + Dashboard ──────────────────────────── */
+.cp-sidebar {
+  background: linear-gradient(180deg, #f0eeff 0%, #f8f7ff 100%);
+  border: 1px solid var(--hz-border);
+  border-radius: var(--hz-radius);
+  padding: 20px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  position: sticky;
+  top: 72px;
+  max-height: calc(100vh - 100px);
+  overflow-y: auto;
+  box-shadow: var(--hz-shadow);
+}
+.cp-sidebar::-webkit-scrollbar { width: 4px; }
+.cp-sidebar::-webkit-scrollbar-thumb { background: var(--hz-border); border-radius: 4px; }
+.cp-mode-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: linear-gradient(135deg, rgba(124,58,237,0.1) 0%, rgba(37,99,235,0.08) 100%);
+  border: 1px solid rgba(124,58,237,0.2);
+  border-radius: 20px; padding: 4px 12px;
+  font-size: 0.68rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--hz-brand); margin-bottom: 16px; align-self: flex-start;
+}
+.cp-section-head {
+  font-size: 0.68rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.08em; color: var(--hz-text-secondary);
+  margin: 16px 0 10px; padding-bottom: 6px;
+  border-bottom: 1px solid var(--hz-border);
+}
+.cp-section-head:first-of-type { margin-top: 0; }
+.cp-stat-mini {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 8px 10px; background: var(--hz-surface);
+  border: 1px solid var(--hz-border); border-radius: var(--hz-radius-sm);
+  margin-bottom: 6px; font-size: 0.78rem;
+}
+.cp-stat-mini-label { color: var(--hz-text-secondary); font-weight: 500; }
+.cp-stat-mini-val { font-weight: 700; color: var(--hz-text-primary); font-size: 0.85rem; }
+.cp-stat-mini-val.good { color: #059669; }
+.cp-stat-mini-val.warn { color: #d97706; }
+.cp-stat-mini-val.bad  { color: #dc2626; }
+.cp-divider {
+  height: 1px; background: var(--hz-border);
+  margin: 14px 0; border: none;
+}
+.cp-action-btn {
+  width: 100%; padding: 9px 14px;
+  background: linear-gradient(135deg, var(--hz-brand) 0%, var(--hz-accent) 100%);
+  color: #fff !important; border: none; border-radius: var(--hz-radius-sm);
+  font-size: 0.78rem; font-weight: 700; cursor: pointer; letter-spacing: 0.03em;
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  margin-bottom: 6px; transition: opacity 0.15s;
+  box-shadow: 0 2px 8px rgba(124,58,237,0.2);
+}
+.cp-action-btn:hover { opacity: 0.88; }
+.cp-action-btn.secondary {
+  background: var(--hz-surface);
+  color: var(--hz-text-primary) !important;
+  border: 1px solid var(--hz-border);
+  box-shadow: none;
+}
+.cp-toggle-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 0; font-size: 0.8rem; color: var(--hz-text-primary);
+  border-bottom: 1px solid rgba(229,226,248,0.5);
+}
+.cp-toggle-row:last-child { border-bottom: none; }
+.cp-toggle-label { font-weight: 500; }
+.cp-toggle-hint { font-size: 0.7rem; color: var(--hz-text-muted); margin-top: 2px; }
+.dash-view-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: rgba(37,99,235,0.07); border: 1px solid rgba(37,99,235,0.15);
+  border-radius: 20px; padding: 4px 12px;
+  font-size: 0.68rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--hz-accent); margin-bottom: 12px; align-self: flex-start; display: inline-flex;
+}
+/* Override Gradio column padding in dual-mode */
+.dual-col-ctrl > .form { padding: 0 !important; }
 """
 
 
@@ -7649,7 +7730,7 @@ def build_metrics_html() -> str:
 
     # Color helpers
     def _vc(cls):
-        return {"green": "#34d399", "amber": "#fbbf24", "red": "#f87171"}.get(cls, "#ede9ff")
+        return {"green": "#059669", "amber": "#d97706", "red": "#dc2626"}.get(cls, "#6d6a8a")
 
     return f"""
 <div class="hz-stats-row">
@@ -8155,6 +8236,53 @@ def build_action_items_html() -> str:
         for cls, icon, text in items
     )
     return f'<div class="action-items-panel">{rows}</div>'
+
+
+def build_control_panel_status_html() -> str:
+    """Build mini status block for the Control Panel sidebar."""
+    rules = load_rules()
+    conversations = load_conversations()
+    active = [r for r in rules if r.get("is_active")]
+    pending = [r for r in rules if r.get("status") == "pending_review"]
+    avg_eff = sum(r.get("effectiveness_score", 0) for r in active) / max(len(active), 1)
+
+    try:
+        health = compute_compliance_health()
+        health_score = int(health.get("overall", 0.0))
+    except Exception:
+        health_score = 0
+
+    def _cls(val, good, warn):
+        return "good" if val >= good else ("warn" if val >= warn else "bad")
+
+    eff_pct = int(avg_eff * 100)
+    health_cls = _cls(health_score, 70, 40)
+    eff_cls = _cls(eff_pct, 70, 40)
+    pend_cls = "bad" if len(pending) > 3 else ("warn" if pending else "good")
+
+    return f"""
+<div class="cp-section-head">Live Status</div>
+<div class="cp-stat-mini">
+  <span class="cp-stat-mini-label">Health Score</span>
+  <span class="cp-stat-mini-val {health_cls}">{health_score}%</span>
+</div>
+<div class="cp-stat-mini">
+  <span class="cp-stat-mini-label">Avg Effectiveness</span>
+  <span class="cp-stat-mini-val {eff_cls}">{eff_pct}%</span>
+</div>
+<div class="cp-stat-mini">
+  <span class="cp-stat-mini-label">Active Rules</span>
+  <span class="cp-stat-mini-val">{len(active)}</span>
+</div>
+<div class="cp-stat-mini">
+  <span class="cp-stat-mini-label">Pending Review</span>
+  <span class="cp-stat-mini-val {pend_cls}">{len(pending)}</span>
+</div>
+<div class="cp-stat-mini">
+  <span class="cp-stat-mini-label">Sessions</span>
+  <span class="cp-stat-mini-val">{len(conversations)}</span>
+</div>
+"""
 
 
 def build_pending_alert_html() -> str:
@@ -11255,46 +11383,123 @@ updates the block without duplicating it.
 - Community contributions share only gap type, severity, and turn count — nothing else
 """)
 
-        # ── Dashboard ────────────────────────────────────────────────────────
+        # ── Dashboard (Dual-Mode: Control Panel + Dashboard View) ────────────
         with gr.Tab("📊 Dashboard"):
-            # ── Top bar: title + refresh ──────────────────────────────────────
+            # ── Top bar ──────────────────────────────────────────────────────
             with gr.Row():
                 gr.HTML(
-                    '<div style="flex:1;min-width:0;display:flex;align-items:center"><span style="font-size:0.8rem;color:#6b6892;text-transform:uppercase;letter-spacing:.08em;font-weight:600">Overview</span></div>'
+                    '<div style="flex:1;min-width:0;display:flex;align-items:center;gap:12px">'
+                    '<span class="dash-view-badge">📊 Dashboard View</span>'
+                    '<span class="cp-mode-badge" style="margin-bottom:0">🎛 Control Panel</span>'
+                    '</div>'
                 )
                 dashboard_refresh = gr.Button("↻ Refresh", variant="secondary", size="sm")
-            gr.HTML(
-                '<div class="rl-section-nav"><strong>Sections:</strong> ⚠️ Action Alerts · 📈 Analytics · 🕐 Recent Activity</div>'
-            )
 
-            # ── Section 1: Action alerts ──────────────────────────────────────
-            pending_alert = gr.HTML()
-            action_items = gr.HTML()
+            # ── Dual-mode split: Control Panel (left) + Dashboard (right) ────
+            with gr.Row(equal_height=False):
+                # ── LEFT: Control Panel ───────────────────────────────────────
+                with gr.Column(scale=1, min_width=230, elem_classes=["dual-col-ctrl"]):
+                    gr.HTML('<div class="cp-sidebar" id="cp-sidebar">')
 
-            # ── Section 2: Primary KPIs + secondary row ───────────────────────
-            metrics_html = gr.HTML()
+                    # Live status mini-stats
+                    cp_status_html = gr.HTML()
 
-            # ── Section 3: Analytics charts (3:2 ratio) ───────────────────────
-            gr.HTML('<div class="section-title">Analytics</div>')
-            gr.Markdown("Rule effectiveness trend over time and AI governance maturity assessment.")
-            with gr.Row():
+                    gr.HTML('<hr class="cp-divider">')
+                    gr.HTML('<div class="cp-section-head">Quick Actions</div>')
+
+                    cp_sync_btn = gr.Button(
+                        "⟳  Sync Sessions",
+                        variant="primary",
+                        size="sm",
+                        elem_classes=["cp-action-btn"],
+                    )
+                    cp_reassess_btn = gr.Button(
+                        "↻  Re-assess Maturity",
+                        variant="secondary",
+                        size="sm",
+                        elem_classes=["cp-action-btn", "secondary"],
+                    )
+
+                    gr.HTML('<hr class="cp-divider">')
+                    gr.HTML('<div class="cp-section-head">View Filters</div>')
+
+                    cp_severity = gr.Radio(
+                        choices=["All", "Critical", "High", "Medium", "Low"],
+                        value="All",
+                        label="Alert Severity",
+                        container=True,
+                    )
+                    cp_active_only = gr.Checkbox(
+                        label="Active rules only",
+                        value=False,
+                        container=True,
+                    )
+
+                    gr.HTML('<hr class="cp-divider">')
+                    gr.HTML('<div class="cp-section-head">Thresholds</div>')
+
+                    cp_eff_threshold = gr.Slider(
+                        minimum=0.0,
+                        maximum=1.0,
+                        value=0.0,
+                        step=0.05,
+                        label="Min Effectiveness",
+                        container=True,
+                    )
+                    cp_health_warn = gr.Slider(
+                        minimum=0,
+                        maximum=100,
+                        value=40,
+                        step=5,
+                        label="Health Warning Threshold",
+                        container=True,
+                    )
+
+                    gr.HTML('</div>')  # close cp-sidebar
+
+                # ── RIGHT: Dashboard View ─────────────────────────────────────
                 with gr.Column(scale=3):
-                    dash_eff_chart = gr.Plot()
-                with gr.Column(scale=2):
-                    maturity_chart = gr.Plot()
+                    gr.HTML(
+                        '<div class="rl-section-nav"><strong>Sections:</strong>'
+                        ' ⚠️ Action Alerts · 📈 Analytics · 🕐 Recent Activity</div>'
+                    )
 
-            # ── Section 4: Maturity drill-down (progressive disclosure) ────────
-            with gr.Accordion("Maturity Assessment Detail", open=False):
-                maturity_report_md = gr.Markdown(min_height=28)
-                maturity_refresh_btn = gr.Button("↻ Re-assess", variant="secondary", size="sm")
+                    # Section 1: Action alerts
+                    pending_alert = gr.HTML()
+                    action_items = gr.HTML()
 
-            # ── Section 5: Activity feed (last 5) ─────────────────────────────
-            gr.HTML('<div class="section-title">Recent Activity</div>')
-            gr.Markdown("The 5 most recent events across rules, incidents, and benchmarks.")
-            activity_html = gr.HTML()
+                    # Section 2: Primary KPIs
+                    metrics_html = gr.HTML()
 
+                    # Section 3: Analytics charts (3:2 ratio)
+                    gr.HTML('<div class="section-title">Analytics</div>')
+                    gr.Markdown(
+                        "Rule effectiveness trend over time and AI governance maturity assessment."
+                    )
+                    with gr.Row():
+                        with gr.Column(scale=3):
+                            dash_eff_chart = gr.Plot()
+                        with gr.Column(scale=2):
+                            maturity_chart = gr.Plot()
+
+                    # Section 4: Maturity drill-down
+                    with gr.Accordion("Maturity Assessment Detail", open=False):
+                        maturity_report_md = gr.Markdown(min_height=28)
+                        maturity_refresh_btn = gr.Button(
+                            "↻ Re-assess", variant="secondary", size="sm"
+                        )
+
+                    # Section 5: Activity feed
+                    gr.HTML('<div class="section-title">Recent Activity</div>')
+                    gr.Markdown(
+                        "The 5 most recent events across rules, incidents, and benchmarks."
+                    )
+                    activity_html = gr.HTML()
+
+            # ── Event wiring ──────────────────────────────────────────────────
             def refresh_dashboard():
                 return (
+                    build_control_panel_status_html(),
                     build_pending_alert_html(),
                     build_action_items_html(),
                     build_metrics_html(),
@@ -11304,34 +11509,44 @@ updates the block without duplicating it.
                     build_activity_html(),
                 )
 
+            _dash_outputs = [
+                cp_status_html,
+                pending_alert,
+                action_items,
+                metrics_html,
+                dash_eff_chart,
+                maturity_chart,
+                maturity_report_md,
+                activity_html,
+            ]
+
+            dashboard_refresh.click(refresh_dashboard, outputs=_dash_outputs)
+            cp_sync_btn.click(refresh_dashboard, outputs=_dash_outputs)
+            cp_severity.change(
+                lambda: (
+                    build_control_panel_status_html(),
+                    build_pending_alert_html(),
+                    build_action_items_html(),
+                ),
+                outputs=[cp_status_html, pending_alert, action_items],
+            )
+            cp_active_only.change(
+                lambda: (build_control_panel_status_html(), build_metrics_html()),
+                outputs=[cp_status_html, metrics_html],
+            )
+            cp_eff_threshold.change(
+                lambda: (build_control_panel_status_html(), build_effectiveness_chart()),
+                outputs=[cp_status_html, dash_eff_chart],
+            )
             maturity_refresh_btn.click(
                 lambda: (build_maturity_chart(), build_maturity_report()),
                 outputs=[maturity_chart, maturity_report_md],
             )
-            dashboard_refresh.click(
-                refresh_dashboard,
-                outputs=[
-                    pending_alert,
-                    action_items,
-                    metrics_html,
-                    dash_eff_chart,
-                    maturity_chart,
-                    maturity_report_md,
-                    activity_html,
-                ],
+            cp_reassess_btn.click(
+                lambda: (build_maturity_chart(), build_maturity_report()),
+                outputs=[maturity_chart, maturity_report_md],
             )
-            demo.load(
-                refresh_dashboard,
-                outputs=[
-                    pending_alert,
-                    action_items,
-                    metrics_html,
-                    dash_eff_chart,
-                    maturity_chart,
-                    maturity_report_md,
-                    activity_html,
-                ],
-            )
+            demo.load(refresh_dashboard, outputs=_dash_outputs)
 
         # ── Rules ────────────────────────────────────────────────────────────
         with gr.Tab("📋 Rules") as rules_tab:
