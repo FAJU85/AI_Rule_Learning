@@ -7217,125 +7217,92 @@ body, .gradio-container {
 .action-icon { font-size: 1rem; flex-shrink: 0; margin-top: 1px; }
 .action-text { flex: 1; line-height: 1.4; }
 
-/* ── Sidebar navigation layout ───────────────────────────────────────── */
-/* Page root: remove default padding so sidebar touches the edge */
+/* ── Tab navigation — scrollable horizontal bar ─────────────────────── */
 .gradio-container { max-width: 100% !important; padding: 0 !important; }
 .contain { max-width: 100% !important; padding: 0 !important; }
-/* Tabs wrapper becomes the flex shell */
-[data-testid="tabs"] {
+/* tab-wrapper is the real tab nav container in Gradio's DOM */
+.tab-wrapper {
   display: flex !important;
   flex-direction: row !important;
   align-items: stretch !important;
-  gap: 0 !important;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+  background: var(--hz-surface) !important;
+  border-bottom: 2px solid var(--hz-border) !important;
+  box-shadow: 0 2px 12px rgba(112,144,176,0.08) !important;
+  padding: 0 8px !important;
   width: 100% !important;
-  min-height: 100vh;
-}
-/* Tab nav → sidebar */
-.tab-nav {
-  display: flex !important;
-  flex-direction: column !important;
-  width: 256px !important;
-  min-width: 256px !important;
-  max-width: 256px !important;
-  flex-shrink: 0 !important;
-  height: 100vh !important;
   position: sticky !important;
   top: 0 !important;
-  overflow-y: auto !important;
-  overflow-x: hidden !important;
-  background: var(--hz-surface) !important;
-  box-shadow: 4px 0 24px rgba(112,144,176,0.12) !important;
-  border-radius: 0 !important;
-  padding: 0 0 24px !important;
-  margin: 0 !important;
-  white-space: normal !important;
-  z-index: 10;
-  scrollbar-width: thin;
-  scrollbar-color: var(--hz-border) transparent;
+  z-index: 20 !important;
 }
-.tab-nav::-webkit-scrollbar { width: 4px; }
-.tab-nav::-webkit-scrollbar-thumb { background: var(--hz-border); border-radius: 2px; }
-/* Nav buttons = vertical sidebar items */
-.tab-nav button {
+.tab-wrapper::-webkit-scrollbar { display: none !important; }
+/* Visible tab-container: let its children overflow into the scrollable wrapper */
+.tab-wrapper .tab-container:not(.visually-hidden) {
+  overflow: visible !important;
+  flex-shrink: 0 !important;
   display: flex !important;
+  flex-direction: row !important;
+  max-width: none !important;
+  width: auto !important;
+}
+/* Hide branding injected into the tab bar (takes up space, causes overflow) */
+.hz-sidebar-brand { display: none !important; }
+.hz-quick-actions { display: none !important; }
+/* Inline the overflow dropdown — show it as a flat continuation of the tab row */
+.overflow-menu { display: contents !important; }
+.overflow-menu > button { display: none !important; }
+.overflow-dropdown,
+.overflow-dropdown.hide {
+  display: flex !important;
+  position: static !important;
+  flex-direction: row !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  border: none !important;
+  max-height: none !important;
+  overflow: visible !important;
+  padding: 0 !important;
+}
+/* Tab buttons — shared style for both visible and overflow tabs */
+.tab-wrapper .tab-container button,
+.overflow-dropdown button {
+  display: inline-flex !important;
   align-items: center !important;
-  width: 100% !important;
-  text-align: left !important;
-  padding: 12px 20px !important;
-  border-left: 3px solid transparent !important;
-  border-bottom: none !important;
+  flex-shrink: 0 !important;
+  white-space: nowrap !important;
+  padding: 14px 14px !important;
+  border-bottom: 3px solid transparent !important;
+  border-left: none !important;
   border-radius: 0 !important;
-  font-size: 0.88rem !important;
+  font-size: 0.875rem !important;
   font-weight: 500 !important;
   color: var(--hz-text-secondary) !important;
   font-family: 'DM Sans', sans-serif !important;
-  white-space: nowrap !important;
-  min-height: 46px !important;
+  min-height: 52px !important;
+  background: transparent !important;
   transition: all 0.15s ease !important;
 }
-.tab-nav button.selected,
-.tab-nav button[aria-selected="true"] {
-  border-left-color: var(--hz-brand) !important;
-  border-bottom-color: transparent !important;
-  background: rgba(66,42,251,0.07) !important;
+.tab-wrapper .tab-container button.selected,
+.overflow-dropdown button.selected {
+  border-bottom-color: var(--hz-brand) !important;
+  border-left-color: transparent !important;
+  background: transparent !important;
   color: var(--hz-brand) !important;
   font-weight: 700 !important;
 }
-.tab-nav button:hover:not(.selected):not([aria-selected="true"]) {
+.tab-wrapper .tab-container button:hover:not(.selected),
+.overflow-dropdown button:hover {
   background: var(--hz-bg) !important;
   color: var(--hz-navy) !important;
-  border-left-color: var(--hz-border) !important;
+  border-bottom-color: var(--hz-border) !important;
+  border-left-color: transparent !important;
 }
-/* Tab content area = main panel */
+/* Tab content area */
 [data-testid="tabitem"],
-.tabitem {
-  flex: 1 !important;
-  min-width: 0 !important;
-  padding: 24px 20px !important;
-  overflow-y: auto !important;
-}
-/* Sidebar brand header (injected by JS) */
-.hz-sidebar-brand {
-  display: flex !important;
-  align-items: center !important;
-  gap: 14px !important;
-  padding: 24px 20px 20px !important;
-  border-bottom: 1px solid var(--hz-border) !important;
-  margin-bottom: 8px !important;
-}
-/* Quick actions section (injected by JS) */
-.hz-quick-actions {
-  padding: 12px 12px 0 !important;
-  border-top: 1px solid var(--hz-border) !important;
-  margin-top: 8px !important;
-}
-.hz-qa-label {
-  font-size: 0.62rem !important;
-  font-weight: 700 !important;
-  text-transform: uppercase !important;
-  letter-spacing: 0.1em !important;
-  color: var(--hz-text-secondary) !important;
-  padding: 0 8px 8px !important;
-  display: block !important;
-}
-.hz-qa-item {
-  display: flex !important;
-  align-items: center !important;
-  gap: 9px !important;
-  padding: 9px 12px !important;
-  border-radius: var(--hz-radius-sm) !important;
-  font-size: 0.82rem !important;
-  color: var(--hz-text-primary) !important;
-  text-decoration: none !important;
-  cursor: pointer !important;
-  transition: all 0.15s ease !important;
-  margin-bottom: 2px !important;
-  display: flex !important;
-}
-.hz-qa-item:hover {
-  background: rgba(66,42,251,0.06) !important;
-  color: var(--hz-brand) !important;
-}
+.tabitem { padding: 24px 20px !important; }
 
 /* ── Inputs ──────────────────────────────────────────────────────────── */
 .gr-textbox textarea, .gr-textbox input,
@@ -7443,6 +7410,7 @@ input[type="range"] { accent-color: var(--hz-brand); }
 .gr-markdown a { color: var(--hz-brand); text-decoration: none; }
 .gr-markdown a:hover { text-decoration: underline; }
 .gr-markdown strong { color: var(--hz-navy); }
+.gr-markdown hr { margin: 10px 0 !important; border: none !important; border-top: 1px solid var(--hz-border) !important; background: none !important; box-shadow: none !important; }
 
 /* Media */
 img, video, canvas, iframe { max-width: 100%; height: auto; }
@@ -7518,13 +7486,9 @@ img, video, canvas, iframe { max-width: 100%; height: auto; }
   .rl-table td { font-size: 0.78rem !important; padding: 7px 10px !important; }
   .rl-table th { font-size: 0.64rem !important; padding: 7px 10px !important; }
   button, .gr-button { min-height: 44px !important; }
-  [data-testid="tabs"] { flex-direction: column !important; }
-  .tab-nav { flex-direction: row !important; width: 100% !important; min-width: 100% !important; max-width: 100% !important; height: auto !important; position: sticky !important; overflow-x: auto !important; overflow-y: hidden !important; box-shadow: 0 4px 12px rgba(112,144,176,0.1) !important; padding: 0 !important; flex-shrink: 0 !important; }
-  .hz-sidebar-brand { display: none !important; }
-  .hz-quick-actions { display: none !important; }
   [data-testid="tabitem"], .tabitem { padding: 16px 12px !important; }
-  .tab-nav button { border-left: none !important; border-bottom: 3px solid transparent !important; white-space: nowrap !important; flex-shrink: 0 !important; padding: 10px 12px !important; font-size: 0.78rem !important; min-height: 44px !important; }
-  .tab-nav button.selected, .tab-nav button[aria-selected="true"] { border-left-color: transparent !important; border-bottom-color: var(--hz-brand) !important; background: transparent !important; }
+  .tab-wrapper .tab-container button,
+  .overflow-dropdown button { padding: 10px 10px !important; font-size: 0.78rem !important; min-height: 44px !important; }
   textarea, input[type="text"], input[type="number"], select { min-height: 44px; font-size: 16px !important; }
   .search-row-wrapper, .search-row-wrapper[data-testid="row"] { flex-direction: row !important; gap: 8px !important; align-items: center !important; }
   .search-row-wrapper .gr-textbox { flex: 1 !important; min-width: 0; }
@@ -11048,35 +11012,15 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
 <script>
 (function () {
   'use strict';
-  var BRAND = '<div class="hz-sidebar-brand"><div class="hz-brand-icon" style="width:40px;height:40px;border-radius:10px;background:linear-gradient(135deg,#868CFF 0%,#4318FF 100%);display:flex;align-items:center;justify-content:center;font-size:1.2rem;flex-shrink:0">🧠</div><div><div style="font-size:1rem;font-weight:700;color:#1B2559;letter-spacing:-0.03em">AI Rule Learning</div><div style="font-size:0.72rem;color:#707EAE;margin-top:2px">Governance Platform</div></div></div>';
-  var QA = '<div class="hz-quick-actions"><span class="hz-qa-label">Quick Actions</span><a class="hz-qa-item" onclick="hzGoto(2);return false;">📤 Import Sessions</a><a class="hz-qa-item" onclick="hzGoto(2);return false;">🔬 Run Analysis</a><a class="hz-qa-item" onclick="hzGoto(1);return false;">📋 Review Rules</a><a class="hz-qa-item" onclick="hzGoto(3);return false;">🔍 Monitor Health</a><a class="hz-qa-item" onclick="hzGoto(5);return false;">⚖️ Governance</a><a class="hz-qa-item" onclick="hzGoto(6);return false;">🧪 Testing</a></div>';
-
+  /* hzGoto(idx) — click tab by zero-based index */
   window.hzGoto = function (idx) {
-    var tabs = document.querySelectorAll('[role="tablist"] [role="tab"]');
-    if (tabs[idx]) tabs[idx].click();
+    /* Try the overflow-dropdown buttons first, then the visible container */
+    var allBtns = Array.from(document.querySelectorAll(
+      '.tab-wrapper .tab-container:not(.visually-hidden) button, .overflow-dropdown button'
+    ));
+    if (allBtns[idx]) { allBtns[idx].click(); return false; }
     return false;
   };
-
-  function install() {
-    var nav = document.querySelector('[role="tablist"]');
-    if (!nav) { setTimeout(install, 200); return; }
-    if (nav.dataset.hzDone) return;
-    nav.dataset.hzDone = '1';
-    if (!nav.querySelector('.hz-sidebar-brand')) {
-      nav.insertAdjacentHTML('afterbegin', BRAND);
-    }
-    if (!nav.querySelector('.hz-quick-actions')) {
-      nav.insertAdjacentHTML('beforeend', QA);
-    }
-  }
-
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', install);
-  } else {
-    install();
-  }
-  setTimeout(install, 600);
-  setTimeout(install, 2500);
 })();
 </script>
 """)
