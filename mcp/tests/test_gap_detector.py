@@ -78,6 +78,45 @@ class TestDetectGaps:
         gaps = detect_gaps(turns)
         assert "repeated_question" in gaps
 
+    def test_bare_except_detected(self):
+        agent = "```python\ndef f():\n    try:\n        pass\n    except:\n        pass\n```"
+        turns = [_turn("show me code", agent)]
+        gaps = detect_gaps(turns)
+        assert "code_bare_except" in gaps
+        assert gaps["code_bare_except"][0]["evidence"] == "except:"
+
+    def test_bare_except_not_flagged_when_typed(self):
+        agent = "```python\ndef f():\n    try:\n        pass\n    except ValueError:\n        pass\n```"
+        turns = [_turn("show me code", agent)]
+        gaps = detect_gaps(turns)
+        assert "code_bare_except" not in gaps
+
+    def test_eval_usage_detected(self):
+        agent = "```python\nresult = eval(user_input)\n```"
+        turns = [_turn("run dynamic code", agent)]
+        gaps = detect_gaps(turns)
+        assert "code_eval_usage" in gaps
+        assert gaps["code_eval_usage"][0]["evidence"] == "eval("
+
+    def test_eval_not_flagged_when_absent(self):
+        agent = "```python\nimport ast\nresult = ast.literal_eval(user_input)\n```"
+        turns = [_turn("parse safely", agent)]
+        gaps = detect_gaps(turns)
+        assert "code_eval_usage" not in gaps
+
+    def test_hardcoded_secret_detected(self):
+        agent = '```python\napi_key = "sk-abc123def456"\n```'
+        turns = [_turn("connect to api", agent)]
+        gaps = detect_gaps(turns)
+        assert "code_hardcoded_secret" in gaps
+        assert gaps["code_hardcoded_secret"][0]["evidence"] == "hardcoded credential"
+
+    def test_hardcoded_secret_not_flagged_for_env_var(self):
+        agent = "```python\nimport os\napi_key = os.environ.get('API_KEY')\n```"
+        turns = [_turn("connect to api", agent)]
+        gaps = detect_gaps(turns)
+        assert "code_hardcoded_secret" not in gaps
+
     def test_empty_turns_no_crash(self):
         assert detect_gaps([]) == {}
 

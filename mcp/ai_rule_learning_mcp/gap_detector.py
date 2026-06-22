@@ -7,6 +7,7 @@ for recurring friction patterns and maps them to actionable guardrail rules.
 from __future__ import annotations
 
 import hashlib
+import re
 import uuid
 from datetime import datetime
 from typing import Any
@@ -32,6 +33,15 @@ _INCOMPLETE = [
 ]
 _STOP_WORDS = {"the", "a", "an", "is", "are", "was", "be", "to", "of",
                "and", "or", "in", "on", "at", "for", "with", "that", "this"}
+
+# ── Code anti-pattern regexes ──────────────────────────────────────────────
+
+_BARE_EXCEPT_RE = re.compile(r"\bexcept\s*:", re.MULTILINE)
+_EVAL_RE = re.compile(r"\beval\s*\(")
+_HARDCODED_SECRET_RE = re.compile(
+    r'(?:api[_-]?key|secret|token|password|passwd|pwd)\s*=\s*["\'][^"\']{6,}["\']',
+    re.IGNORECASE,
+)
 
 # ── Rule templates keyed by gap type ──────────────────────────────────────
 
@@ -86,6 +96,36 @@ _TEMPLATES: dict[str, dict[str, Any]] = {
         "priority": 3,
         "triggers": ["error", "exception", "handle", "try"],
     },
+    "code_bare_except": {
+        "name": "never-use-bare-except",
+        "instruction": (
+            "Never write `except:` without specifying an exception type. "
+            "Bare except clauses swallow all errors including KeyboardInterrupt "
+            "and SystemExit. Always catch the narrowest exception possible."
+        ),
+        "priority": 4,
+        "triggers": ["except:", "bare except", "exception type"],
+    },
+    "code_eval_usage": {
+        "name": "avoid-eval",
+        "instruction": (
+            "Avoid `eval()` — it executes arbitrary code and is a critical "
+            "security risk. Use safe alternatives like `ast.literal_eval()` "
+            "for parsing, or refactor to avoid dynamic evaluation entirely."
+        ),
+        "priority": 4,
+        "triggers": ["eval", "exec", "arbitrary code", "dynamic execution"],
+    },
+    "code_hardcoded_secret": {
+        "name": "never-hardcode-secrets",
+        "instruction": (
+            "Never hardcode API keys, tokens, passwords, or secrets in code. "
+            "Use environment variables (`os.environ.get`) or a secrets manager. "
+            "Hardcoded credentials are a critical security vulnerability."
+        ),
+        "priority": 5,
+        "triggers": ["api_key", "secret", "token", "password", "credential"],
+    },
 }
 
 
@@ -98,7 +138,8 @@ def detect_gaps(turns: list[dict]) -> dict[str, list[dict]]:
 
     for i, turn in enumerate(turns):
         user = turn.get("user_input", "").lower()
-        agent = turn.get("agent_response", "").lower()
+        agent = turn.get("agent_response", "")
+        agent_lower = agent.lower()
 
         # Explicit corrections
         if any(p in user for p in _CORRECTION):
@@ -137,16 +178,34 @@ def detect_gaps(turns: list[dict]) -> dict[str, list[dict]]:
                     break
             seen_questions.append((words, i))
 
-        # Code without error handling
+        # Code without error handling (general)
         has_code = "```" in agent or "def " in agent or "function " in agent
         has_error_handling = any(
-            w in agent for w in
+            w in agent_lower for w in
             ["try:", "except", "catch (", "catch{", ".catch(", "raise ",
              "throws ", "error handling", "exception"]
         )
         if has_code and not has_error_handling:
             gaps.setdefault("code_no_error_handling", []).append(
                 {"turn": i + 1}
+            )
+
+        # Bare except
+        if has_code and _BARE_EXCEPT_RE.search(agent):
+            gaps.setdefault("code_bare_except", []).append(
+                {"turn": i + 1, "evidence": "except:"}
+            )
+
+        # eval() usage
+        if has_code and _EVAL_RE.search(agent):
+            gaps.setdefault("code_eval_usage", []).append(
+                {"turn": i + 1, "evidence": "eval("}
+            )
+
+        # Hardcoded secrets
+        if has_code and _HARDCODED_SECRET_RE.search(agent):
+            gaps.setdefault("code_hardcoded_secret", []).append(
+                {"turn": i + 1, "evidence": "hardcoded credential"}
             )
 
     return gaps
