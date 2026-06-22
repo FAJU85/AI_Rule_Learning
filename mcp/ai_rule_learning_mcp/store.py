@@ -174,6 +174,38 @@ def load_active_rules() -> list[dict]:
     return sorted(active, key=lambda r: r.get("priority", 0), reverse=True)
 
 
+def record_rule_outcome(rule_id: str, fired_again: bool) -> dict | None:
+    """Update effectiveness tracking for a rule.
+
+    fired_again=True  → gap recurred after rule injection (rule not working).
+    fired_again=False → gap stopped recurring (rule suppressed the problem).
+
+    Returns the updated rule dict, or None if rule_id not found.
+    """
+    rules = _download("rules.jsonl")
+    now = datetime.utcnow().isoformat()
+    target = next((r for r in rules if r.get("rule_id") == rule_id), None)
+    if target is None:
+        return None
+
+    target["last_fired_at"] = now
+    if fired_again:
+        target["times_triggered"] = target.get("times_triggered", 0) + 1
+        # Decay score — cap at 0.0
+        target["effectiveness_score"] = max(
+            0.0, round(target.get("effectiveness_score", 0.5) - 0.1, 2)
+        )
+    else:
+        target["suppression_count"] = target.get("suppression_count", 0) + 1
+        # Grow score — cap at 1.0
+        target["effectiveness_score"] = min(
+            1.0, round(target.get("effectiveness_score", 0.5) + 0.1, 2)
+        )
+
+    _upload("rules.jsonl", rules)
+    return target
+
+
 def append_conversations(convs: list[dict]) -> int:
     """Merge new conversations into dataset. Returns count added."""
     existing = _download("conversations.jsonl")
