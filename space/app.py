@@ -7885,11 +7885,14 @@ def _dark_fig(fig: Any) -> Any:
     return fig
 
 
-def build_metrics_html() -> str:
+def build_metrics_html(active_only: bool = False, min_eff: float = 0.0) -> str:
     rules = load_rules()
     conversations = load_conversations()
     active = [r for r in rules if r.get("is_active")]
     pending = [r for r in rules if r.get("status") == "pending_review"]
+    # CP-filtered pool for secondary metrics
+    stats_pool = active if active_only else rules
+    stats_rules = [r for r in stats_pool if r.get("effectiveness_score", 1.0) >= min_eff] if min_eff > 0 else stats_pool
 
     # KPI 1: Governance Maturity
     try:
@@ -7921,11 +7924,11 @@ def build_metrics_html() -> str:
     actions_delta = f"{len(active)} active rules · {len(conversations)} sessions"
     urgent_class = " kpi-urgent" if pending else ""
 
-    # Secondary row: Avg effectiveness + FPR + Bypass
-    avg_eff = sum(r.get("effectiveness_score", 0) for r in active) / max(len(active), 1)
-    eff_cls = "green" if avg_eff >= 0.7 else ("amber" if avg_eff >= 0.4 else ("red" if active else ""))
-    fpr_vals = [r["false_positive_rate"] for r in active if r.get("false_positive_rate") is not None]
-    bypass_vals = [r["bypass_rate"] for r in active if r.get("bypass_rate") is not None]
+    # Secondary row: Avg effectiveness + FPR + Bypass (uses CP-filtered stats_rules)
+    avg_eff = sum(r.get("effectiveness_score", 0) for r in stats_rules) / max(len(stats_rules), 1)
+    eff_cls = "green" if avg_eff >= 0.7 else ("amber" if avg_eff >= 0.4 else ("red" if stats_rules else ""))
+    fpr_vals = [r["false_positive_rate"] for r in stats_rules if r.get("false_positive_rate") is not None]
+    bypass_vals = [r["bypass_rate"] for r in stats_rules if r.get("bypass_rate") is not None]
     avg_fpr = sum(fpr_vals) / len(fpr_vals) if fpr_vals else None
     avg_bypass = sum(bypass_vals) / len(bypass_vals) if bypass_vals else None
     fpr_cls = ("green" if avg_fpr <= 0.2 else ("amber" if avg_fpr <= 0.5 else "red")) if avg_fpr is not None else ""
@@ -8344,7 +8347,7 @@ def build_session_health_html() -> str:
     )
 
 
-def build_action_items_html() -> str:
+def build_action_items_html(severity: str = "All") -> str:
     """Aggregate critical items requiring user attention into a single panel."""
     items: list[tuple[str, str, str]] = []  # (priority_class, icon, text)
 
@@ -8434,6 +8437,18 @@ def build_action_items_html() -> str:
             )
         return '<div class="action-items-panel all-clear"><span>✅ Nothing needs attention right now — all systems nominal.</span></div>'
 
+    # Apply CP severity filter
+    if severity != "All":
+        _sev_map: dict[str, set[str]] = {
+            "Critical": {"critical"},
+            "High": {"critical", "warning"},
+            "Medium": {"warning"},
+            "Low": {"info"},
+        }
+        allowed = _sev_map.get(severity)
+        if allowed:
+            items = [(cls, icon, text) for cls, icon, text in items if cls in allowed]
+
     priority_order = {"critical": 0, "warning": 1, "info": 2}
     items.sort(key=lambda x: priority_order.get(x[0], 9))
 
@@ -8492,25 +8507,46 @@ def build_control_panel_status_html() -> str:
 """
 
 
-def build_pending_alert_html() -> str:
+def build_pending_alert_html(health_warn: int = 40) -> str:
     rules = load_rules()
     pending = [r for r in rules if r.get("status") == "pending_review"]
+    parts: list[str] = []
+
+    # Health threshold alert (driven by cp_health_warn slider)
+    try:
+        health = compute_compliance_health()
+        health_score = health.get("overall", 0.0)
+        if health_score < health_warn:
+            parts.append(
+                f'<div class="pending-alert warn">'
+                f"⚠️ Health score <strong>{health_score:.0f}%</strong> is below your warning threshold"
+                f" ({health_warn}%)"
+                f"</div>"
+            )
+    except Exception:
+        pass
+
     if pending:
         names = ", ".join(f"<em>{r.get('name', '?')}</em>" for r in pending[:3])
         more = f" +{len(pending) - 3} more" if len(pending) > 3 else ""
-        return (
+        parts.append(
             f'<div class="pending-alert">'
             f"<strong>⚠️ {len(pending)} rule{'s' if len(pending) != 1 else ''} require your decision</strong> — "
             f"{names}{more}. "
             f"Open the <strong>Rules → Pending Review</strong> tab to approve or reject."
             f"</div>"
         )
+
+    if parts:
+        return "".join(parts)
     return '<div class="pending-alert none">✅ All rules reviewed — no pending decisions.</div>'
 
 
-def build_effectiveness_chart() -> Any:
+def build_effectiveness_chart(min_eff: float = 0.0) -> Any:
     rules = load_rules()
     active = [r for r in rules if r.get("is_active")]
+    if min_eff > 0:
+        active = [r for r in active if r.get("effectiveness_score", 0) >= min_eff]
     if not active:
         fig = go.Figure()
         fig.add_annotation(
@@ -11880,20 +11916,39 @@ updates the block without duplicating it.
             dashboard_refresh.click(refresh_dashboard, outputs=_dash_outputs)
             cp_sync_btn.click(refresh_dashboard, outputs=_dash_outputs)
             cp_severity.change(
-                lambda: (
+                lambda sev, hw: (
                     build_control_panel_status_html(),
-                    build_pending_alert_html(),
-                    build_action_items_html(),
+                    build_pending_alert_html(int(hw)),
+                    build_action_items_html(sev),
                 ),
+                inputs=[cp_severity, cp_health_warn],
                 outputs=[cp_status_html, pending_alert, action_items],
             )
             cp_active_only.change(
-                lambda: (build_control_panel_status_html(), build_metrics_html()),
+                lambda ao, me: (
+                    build_control_panel_status_html(),
+                    build_metrics_html(ao, me),
+                ),
+                inputs=[cp_active_only, cp_eff_threshold],
                 outputs=[cp_status_html, metrics_html],
             )
             cp_eff_threshold.change(
-                lambda: (build_control_panel_status_html(), build_effectiveness_chart()),
-                outputs=[cp_status_html, dash_eff_chart],
+                lambda me, ao: (
+                    build_control_panel_status_html(),
+                    build_metrics_html(ao, me),
+                    build_effectiveness_chart(me),
+                ),
+                inputs=[cp_eff_threshold, cp_active_only],
+                outputs=[cp_status_html, metrics_html, dash_eff_chart],
+            )
+            cp_health_warn.change(
+                lambda hw, sev: (
+                    build_control_panel_status_html(),
+                    build_pending_alert_html(int(hw)),
+                    build_action_items_html(sev),
+                ),
+                inputs=[cp_health_warn, cp_severity],
+                outputs=[cp_status_html, pending_alert, action_items],
             )
             maturity_refresh_btn.click(
                 lambda: (build_maturity_chart(), build_maturity_report()),
