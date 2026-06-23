@@ -7736,6 +7736,112 @@ img, video, canvas, iframe { max-width: 100%; height: auto; }
   .page-title { font-size: 1.1rem; }
   #group-indicator { top: 44px; padding: 5px 12px; }
 }
+
+/* ── Mobile structuring pattern (≤ 768 px) ──────────────────────────────── */
+@media (max-width: 768px) {
+  /* Tab nav: horizontal scroll strip, group labels abbreviated */
+  .tab-group-label {
+    font-size: 0.55rem !important;
+    padding: 0 4px 0 8px !important;
+    letter-spacing: 0.06em !important;
+  }
+  #group-indicator {
+    overflow-x: auto !important;
+    flex-wrap: nowrap !important;
+    scrollbar-width: none !important;
+    top: 44px !important;
+    gap: 2px !important;
+  }
+  #group-indicator::-webkit-scrollbar { display: none !important; }
+  .gi-item { padding: 3px 8px !important; font-size: 0.62rem !important; white-space: nowrap !important; }
+
+  /* Control Panel sidebar: unstick, full-width, collapsed by default */
+  .cp-sidebar {
+    position: static !important;
+    max-height: none !important;
+    width: 100% !important;
+    border-radius: var(--hz-radius) !important;
+    padding: 14px 12px !important;
+  }
+  .cp-sidebar.cp-mobile-collapsed {
+    display: none !important;
+  }
+
+  /* CP toggle button (mobile only) */
+  .cp-mobile-toggle {
+    display: flex !important;
+    width: 100%;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    background: linear-gradient(135deg, rgba(124,58,237,0.08) 0%, rgba(37,99,235,0.06) 100%);
+    border: 1px solid rgba(124,58,237,0.18);
+    border-radius: var(--hz-radius-sm);
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: var(--hz-brand);
+    cursor: pointer;
+    margin-bottom: 8px;
+    letter-spacing: 0.03em;
+  }
+  .cp-mobile-toggle-arrow { transition: transform 0.2s; }
+  .cp-mobile-toggle.open .cp-mobile-toggle-arrow { transform: rotate(180deg); }
+
+  /* Page header: single column, reduced font */
+  .page-header { padding: 14px 0 12px !important; margin-bottom: 12px !important; }
+  .page-title { font-size: 1.05rem !important; }
+  .page-desc { font-size: 0.77rem !important; }
+
+  /* Section nav: wrap on mobile */
+  .rl-section-nav { font-size: 0.72rem !important; line-height: 1.7 !important; }
+
+  /* Ensure touch targets for accordions */
+  .gr-accordion > .label-wrap button { min-height: 48px !important; }
+
+  /* Stat cards: 2-column grid on medium-mobile */
+  .hz-stats-row { display: grid !important; grid-template-columns: 1fr 1fr !important; gap: 10px !important; }
+  .hz-stat-card { flex: none !important; }
+}
+
+/* ── Small phone (≤ 480 px) — card-stack pattern ────────────────────────── */
+@media (max-width: 480px) {
+  /* Tab group labels: hide text, keep separator only */
+  .tab-group-label { display: none !important; }
+  #group-indicator { display: none !important; }
+
+  /* Stat cards: single column stack */
+  .hz-stats-row { grid-template-columns: 1fr !important; }
+
+  /* Touch targets: minimum 48×48 */
+  button, .gr-button, .cp-action-btn { min-height: 48px !important; }
+  .cp-mobile-toggle { min-height: 48px !important; }
+
+  /* Reduce padding on tabitem for more content space */
+  [data-testid="tabitem"], .tabitem { padding: 12px 8px !important; }
+
+  /* Page header: compact */
+  .page-header { padding: 10px 0 8px !important; gap: 6px !important; }
+  .page-group-chip { font-size: 0.58rem !important; padding: 2px 8px !important; }
+  .page-title { font-size: 0.95rem !important; }
+  .page-desc { display: none !important; }
+
+  /* Charts: constrain height to avoid scroll traps */
+  .js-plotly-plot .plot-container { max-height: 260px !important; overflow: hidden !important; }
+  .gr-plot, [data-testid="plot"] { max-height: 280px !important; overflow: hidden !important; }
+
+  /* Score bar: compact */
+  .rl-score-bar { gap: 4px !important; }
+
+  /* Section title: compact */
+  .section-title { font-size: 0.7rem !important; padding: 8px 12px !important; margin: 16px 0 8px !important; }
+
+  /* Badges: slightly smaller */
+  .rl-badge { font-size: 0.62rem !important; padding: 2px 7px !important; }
+
+  /* Ensure no horizontal overflow */
+  body, .gradio-container, .contain { overflow-x: hidden !important; }
+  .gr-row, [data-testid="row"] { max-width: 100vw !important; }
+}
 """
 
 
@@ -11457,15 +11563,58 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
     bar.innerHTML = html;
   }
 
+  /* ── Mobile Control Panel toggle ── */
+  function initMobileCpToggle() {
+    var sidebar = document.getElementById('cp-sidebar');
+    if (!sidebar || sidebar.dataset.toggleBuilt) return;
+    if (window.innerWidth > 768) return;
+    sidebar.dataset.toggleBuilt = '1';
+
+    /* Start collapsed on mobile */
+    sidebar.classList.add('cp-mobile-collapsed');
+
+    /* Insert toggle button before the sidebar */
+    var toggle = document.createElement('button');
+    toggle.className = 'cp-mobile-toggle';
+    toggle.innerHTML = '🎛&nbsp; Control Panel <span class="cp-mobile-toggle-arrow">▾</span>';
+    toggle.setAttribute('aria-expanded', 'false');
+    toggle.setAttribute('aria-controls', 'cp-sidebar');
+    toggle.addEventListener('click', function () {
+      var collapsed = sidebar.classList.toggle('cp-mobile-collapsed');
+      toggle.classList.toggle('open', !collapsed);
+      toggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+    });
+    sidebar.parentNode.insertBefore(toggle, sidebar);
+  }
+
   function init() {
     buildGroupIndicator();
     injectTabGroups();
+    initMobileCpToggle();
     /* re-run after Gradio may re-render tabs */
     var observer = new MutationObserver(function () {
       injectTabGroups();
+      initMobileCpToggle();
     });
     var wrap = document.querySelector('.tab-wrapper');
     if (wrap) observer.observe(wrap, { childList: true, subtree: true });
+    /* Reset toggle state on resize crossing 768px boundary */
+    var lastMobile = window.innerWidth <= 768;
+    window.addEventListener('resize', function () {
+      var nowMobile = window.innerWidth <= 768;
+      if (nowMobile !== lastMobile) {
+        lastMobile = nowMobile;
+        var sidebar = document.getElementById('cp-sidebar');
+        var toggle = document.querySelector('.cp-mobile-toggle');
+        if (!nowMobile && sidebar) {
+          sidebar.classList.remove('cp-mobile-collapsed');
+          if (toggle) toggle.remove();
+          delete sidebar.dataset.toggleBuilt;
+        } else {
+          initMobileCpToggle();
+        }
+      }
+    });
   }
 
   if (document.readyState === 'loading') {
