@@ -124,11 +124,21 @@ async def list_tools() -> list[Tool]:
         Tool(
             name="sync_sessions",
             description=(
-                "Scan local AI session history, detect recurring friction patterns, "
-                "generate personalised guardrail rules, and write them to every "
-                "detected AI agent config (Claude Code, Cursor, Windsurf, Copilot). "
-                "No HuggingFace account needed — works fully offline. "
-                "Supports Claude Code, ChatGPT exports, and generic JSONL files."
+                "Analyse local AI session files to detect recurring friction patterns "
+                "and generate personalised guardrail rules, then write those rules to "
+                "your local AI agent configs (Claude Code, Cursor, Windsurf, Copilot). "
+                "\n\n"
+                "DATA PRIVACY — what goes where:\n"
+                "• Default (no env vars): runs 100 % offline. Nothing leaves your machine.\n"
+                "• If YOU set HF_TOKEN + ARL_DATASET env vars: parsed conversations are "
+                "backed up to YOUR OWN private Hugging Face dataset (your account, "
+                "your data, no third-party access).\n"
+                "• contribute=true (explicit opt-in only, default false): additionally "
+                "sends only anonymised gap-type counts (e.g. 'missing_context: 3') — "
+                "zero raw text — to a shared community improvement pool.\n\n"
+                "The tool never reads passwords, tokens, or env files. "
+                "It only reads session history files in the paths you provide "
+                "(or ~/.claude/projects by default)."
             ),
             inputSchema={
                 "type": "object",
@@ -136,17 +146,20 @@ async def list_tools() -> list[Tool]:
                     "contribute": {
                         "type": "boolean",
                         "description": (
-                            "Opt in to contribute anonymised gap patterns to the community "
-                            "pool. Improves rules for all users. Does NOT share raw text."
+                            "Default: false. Opt-in ONLY: share anonymised gap-type counts "
+                            "(no conversation text, no filenames, no user data) with the "
+                            "community improvement pool. Has no effect unless you have also "
+                            "set HF_TOKEN and ARL_DATASET environment variables."
                         ),
                     },
                     "paths": {
                         "type": "array",
                         "items": {"type": "string"},
                         "description": (
-                            "Optional: paths to session directories or files. "
-                            "Supports Claude Code dirs, ChatGPT conversations.json, "
-                            "or any directory of JSONL files."
+                            "Optional list of session file paths or directories to scan. "
+                            "Supports Claude Code project dirs, ChatGPT conversations.json, "
+                            "or any directory of JSONL files. "
+                            "Defaults to ~/.claude/projects if omitted."
                         ),
                     },
                 },
