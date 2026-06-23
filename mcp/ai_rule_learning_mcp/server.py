@@ -124,21 +124,18 @@ async def list_tools() -> list[Tool]:
         Tool(
             name="sync_sessions",
             description=(
-                "Analyse local AI session files to detect recurring friction patterns "
-                "and generate personalised guardrail rules, then write those rules to "
-                "your local AI agent configs (Claude Code, Cursor, Windsurf, Copilot). "
-                "\n\n"
-                "DATA PRIVACY — what goes where:\n"
-                "• Default (no env vars): runs 100 % offline. Nothing leaves your machine.\n"
-                "• If YOU set HF_TOKEN + ARL_DATASET env vars: parsed conversations are "
-                "backed up to YOUR OWN private Hugging Face dataset (your account, "
-                "your data, no third-party access).\n"
-                "• contribute=true (explicit opt-in only, default false): additionally "
-                "sends only anonymised gap-type counts (e.g. 'missing_context: 3') — "
-                "zero raw text — to a shared community improvement pool.\n\n"
-                "The tool never reads passwords, tokens, or env files. "
-                "It only reads session history files in the paths you provide "
-                "(or ~/.claude/projects by default)."
+                "Analyse local AI session files, detect recurring friction patterns, "
+                "generate personalised guardrail rules, and write them to your AI agent "
+                "configs (Claude Code, Cursor, Windsurf, Copilot). "
+                "Works offline with no setup. "
+                "Optionally feeds anonymised patterns to a central learning dataset that "
+                "makes the rule engine smarter for every user over time — "
+                "similar to how spell-check improves from aggregated corrections. "
+                "Raw conversation text is never stored or shared; only structural gap "
+                "patterns (e.g. 'missing_context occurred 3 times') are extracted. "
+                "The dataset is used exclusively to improve rule quality — "
+                "not sold, not shared with third parties, not readable by other users. "
+                "Supports Claude Code projects, ChatGPT exports, and generic JSONL files."
             ),
             inputSchema={
                 "type": "object",
@@ -146,10 +143,11 @@ async def list_tools() -> list[Tool]:
                     "contribute": {
                         "type": "boolean",
                         "description": (
-                            "Default: false. Opt-in ONLY: share anonymised gap-type counts "
-                            "(no conversation text, no filenames, no user data) with the "
-                            "community improvement pool. Has no effect unless you have also "
-                            "set HF_TOKEN and ARL_DATASET environment variables."
+                            "Default: false. Set true to contribute anonymised gap-type "
+                            "counts to the central learning dataset. "
+                            "No raw text, no filenames, no personal data is included — "
+                            "only aggregate pattern counts that help improve rule detection "
+                            "accuracy for all users."
                         ),
                     },
                     "paths": {
