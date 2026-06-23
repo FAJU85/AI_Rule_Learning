@@ -342,6 +342,27 @@ async def list_tools() -> list[Tool]:
                 "required": ["action"],
             },
         ),
+        Tool(
+            name="update_community_knowledge",
+            description=(
+                "Read accumulated community gap contributions, derive enhanced rule templates "
+                "from patterns that appear across 3+ independent sessions, and publish them "
+                "back to the community dataset so all users benefit on next sync. "
+                "Requires HF_TOKEN and write access to the community dataset. "
+                "Run this periodically to close the learning loop: "
+                "contribute → aggregate → improve → distribute."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "min_sources": {
+                        "type": "integer",
+                        "description": "Minimum unique session sources before a pattern becomes a template. Default: 3.",
+                    }
+                },
+                "required": [],
+            },
+        ),
     ]
 
 
@@ -387,6 +408,10 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
             prompt=arguments.get("prompt", ""),
             rule_id=arguments.get("rule_id", ""),
             fired_again=arguments.get("fired_again"),
+        )
+    if name == "update_community_knowledge":
+        return await _update_community_knowledge(
+            min_sources=int(arguments.get("min_sources", 3))
         )
     return [TextContent(type="text", text=f"Unknown tool: {name}")]
 
@@ -570,6 +595,14 @@ async def _sync_sessions(
     if activated:
         log.append(f"✅ Auto-activated {activated} safe pending rule(s) from HF dataset")
 
+    # ── RAG: pull and load community templates ─────────────────────────────
+    from .community import pull_community_templates
+    from .gap_detector import load_community_templates
+    community_tpls = pull_community_templates()
+    if community_tpls:
+        load_community_templates(community_tpls)
+        log.append(f"🔍 Loaded {len(community_tpls)} community-derived template(s) for RAG augmentation")
+
     # ── Write to all detected agent configs ────────────────────────────────
     rules = load_active_rules()
     if rules:
@@ -700,6 +733,30 @@ async def _analyze(
 ) -> list[TextContent]:
     text = run_analyze(action=action, prompt=prompt, rule_id=rule_id, fired_again=fired_again)
     return [TextContent(type="text", text=text)]
+
+
+async def _update_community_knowledge(min_sources: int = 3) -> list[TextContent]:
+    from .community import build_community_templates, push_community_templates, fetch_community_patterns
+    log = []
+    freq = fetch_community_patterns()
+    if not freq:
+        return [TextContent(type="text", text="⚠️ No community contributions found or HF_TOKEN not set.")]
+    total_contributions = sum(v["count"] for v in freq.values())
+    unique_types = len(freq)
+    log.append(f"📊 Community corpus: {total_contributions} gap instances across {unique_types} pattern type(s)")
+    qualified = {k: v for k, v in freq.items() if v["unique_sources"] >= min_sources}
+    log.append(f"✅ {len(qualified)} pattern type(s) meet threshold (≥{min_sources} independent sources)")
+    templates = build_community_templates(min_sources=min_sources)
+    if not templates:
+        log.append("ℹ️ No new templates to publish (insufficient data or no new signals).")
+        return [TextContent(type="text", text="\n".join(log))]
+    log.append(f"🧠 Derived {len(templates)} enhanced template(s)")
+    ok = push_community_templates(templates)
+    if ok:
+        log.append(f"⬆️ Published {len(templates)} template(s) to community dataset")
+    else:
+        log.append("⚠️ Could not publish templates (check HF_TOKEN and dataset permissions)")
+    return [TextContent(type="text", text="\n".join(log))]
 
 
 def main() -> None:
