@@ -35,6 +35,9 @@ _INCOMPLETE = [
 _STOP_WORDS = {"the", "a", "an", "is", "are", "was", "be", "to", "of",
                "and", "or", "in", "on", "at", "for", "with", "that", "this"}
 
+# Community-derived templates loaded at runtime (RAG augmentation)
+_community_extra: dict[str, dict] = {}
+
 # Sycophancy: agent reverses after user challenge
 _SYCOPHANCY_REVERSAL = [
     "you're right", "you are right", "i was wrong", "good point",
@@ -294,6 +297,14 @@ _CATEGORY_LABELS = {
 }
 
 
+# ── Community RAG augmentation ─────────────────────────────────────────────
+
+def load_community_templates(templates: list[dict]) -> None:
+    """Load community-derived templates into the runtime augmentation store."""
+    global _community_extra
+    _community_extra = {t["gap_type"]: t for t in templates if t.get("gap_type")}
+
+
 # ── Core detection ─────────────────────────────────────────────────────────
 
 def detect_gaps(turns: list[dict]) -> dict[str, list[dict]]:
@@ -434,6 +445,24 @@ def detect_gaps(turns: list[dict]) -> dict[str, list[dict]]:
                         )
                         break
 
+    # RAG: community-derived trigger augmentation
+    for gap_type, template in _community_extra.items():
+        extra_triggers = template.get("triggers", [])
+        if not extra_triggers:
+            continue
+        for i, turn in enumerate(turns):
+            user = turn.get("user_input", "").lower()
+            matched = next((t for t in extra_triggers if t in user), None)
+            if matched:
+                instances = gaps.setdefault(gap_type, [])
+                if not any(g.get("turn") == i + 1 for g in instances):
+                    instances.append({
+                        "turn": i + 1,
+                        "signal": matched,
+                        "snippet": user[:160],
+                        "source": "community",
+                    })
+
     return gaps
 
 
@@ -446,6 +475,8 @@ def generate_rules(gaps: dict[str, list[dict]]) -> list[dict]:
         if not instances:
             continue
         tpl = _TEMPLATES.get(gap_type)
+        if not tpl:
+            tpl = _community_extra.get(gap_type)
         if not tpl:
             continue
         rule_id = "rul_" + hashlib.sha256(
