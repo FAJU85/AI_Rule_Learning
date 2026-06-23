@@ -7635,6 +7635,107 @@ img, video, canvas, iframe { max-width: 100%; height: auto; }
 }
 /* Override Gradio column padding in dual-mode */
 .dual-col-ctrl > .form { padding: 0 !important; }
+
+/* ── Tab group separators ────────────────────────────────────────────────── */
+.tab-group-sep {
+  display: inline-flex !important;
+  align-items: center !important;
+  padding: 0 4px !important;
+  color: var(--hz-border) !important;
+  font-size: 1rem !important;
+  user-select: none !important;
+  pointer-events: none !important;
+  flex-shrink: 0 !important;
+}
+.tab-group-label {
+  display: inline-flex !important;
+  align-items: center !important;
+  padding: 0 8px 0 12px !important;
+  font-size: 0.62rem !important;
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.1em !important;
+  color: var(--hz-text-muted) !important;
+  border-left: 1px solid var(--hz-border) !important;
+  height: 52px !important;
+  flex-shrink: 0 !important;
+  white-space: nowrap !important;
+}
+.tab-group-label:first-child { border-left: none !important; padding-left: 8px !important; }
+/* keyboard focus ring on tab buttons */
+.tab-wrapper .tab-container button:focus-visible,
+.overflow-dropdown button:focus-visible {
+  outline: 2px solid var(--hz-brand) !important;
+  outline-offset: -2px !important;
+  border-radius: 4px !important;
+}
+
+/* ── Group indicator bar ─────────────────────────────────────────────────── */
+#group-indicator {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 20px;
+  background: var(--hz-surface-2);
+  border-bottom: 1px solid var(--hz-border);
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  position: sticky;
+  top: 52px;
+  z-index: 19;
+}
+.gi-sep { color: var(--hz-border); margin: 0 2px; }
+.gi-item {
+  color: var(--hz-text-muted);
+  padding: 3px 10px;
+  border-radius: 20px;
+  cursor: pointer;
+  transition: all 0.12s;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.gi-item:hover { color: var(--hz-brand); background: rgba(124,58,237,0.06); }
+.gi-item.active {
+  color: var(--hz-brand);
+  background: rgba(124,58,237,0.1);
+  font-weight: 700;
+}
+
+/* ── Page header component ───────────────────────────────────────────────── */
+.page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px 0 16px;
+  border-bottom: 1px solid var(--hz-border);
+  margin-bottom: 20px;
+}
+.page-header-meta { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.page-group-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  background: rgba(124,58,237,0.08); border: 1px solid rgba(124,58,237,0.15);
+  border-radius: 20px; padding: 2px 10px;
+  font-size: 0.62rem; font-weight: 700; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--hz-brand); align-self: flex-start;
+  margin-bottom: 4px;
+}
+.page-title {
+  font-size: 1.35rem; font-weight: 800;
+  background: linear-gradient(135deg, var(--hz-navy) 0%, var(--hz-brand) 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text; margin: 0; line-height: 1.25;
+}
+.page-desc {
+  font-size: 0.82rem; color: var(--hz-text-secondary);
+  margin: 0; line-height: 1.5; max-width: 560px;
+}
+@media (max-width: 600px) {
+  .page-header { flex-direction: column; gap: 10px; }
+  .page-title { font-size: 1.1rem; }
+  #group-indicator { top: 44px; padding: 5px 12px; }
+}
 """
 
 
@@ -11276,22 +11377,120 @@ with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as de
 <script>
 (function () {
   'use strict';
+
+  /* Tab groups: [groupLabel, firstTabIndex, lastTabIndex] */
+  var GROUPS = [
+    { label: 'Overview',         first: 0, last: 1, tabs: [0, 1] },
+    { label: 'Rule Management',  first: 2, last: 3, tabs: [2, 3] },
+    { label: 'Observability',    first: 4, last: 5, tabs: [4, 5] },
+    { label: 'Governance',       first: 6, last: 7, tabs: [6, 7] }
+  ];
+
+  function getGroupForTab(idx) {
+    for (var i = 0; i < GROUPS.length; i++) {
+      if (idx >= GROUPS[i].first && idx <= GROUPS[i].last) return i;
+    }
+    return 0;
+  }
+
   /* hzGoto(idx) — click tab by zero-based index */
   window.hzGoto = function (idx) {
-    /* Try the overflow-dropdown buttons first, then the visible container */
     var allBtns = Array.from(document.querySelectorAll(
       '.tab-wrapper .tab-container:not(.visually-hidden) button, .overflow-dropdown button'
-    ));
+    )).filter(function (b) { return !b.classList.contains('tab-group-label') && !b.classList.contains('tab-group-sep'); });
     if (allBtns[idx]) { allBtns[idx].click(); return false; }
     return false;
   };
+
+  function updateGroupIndicator(activeIdx) {
+    var bar = document.getElementById('group-indicator');
+    if (!bar) return;
+    var activeGrp = getGroupForTab(activeIdx);
+    var items = bar.querySelectorAll('.gi-item');
+    items.forEach(function (el, i) {
+      el.classList.toggle('active', i === activeGrp);
+    });
+  }
+
+  function injectTabGroups() {
+    var container = document.querySelector(
+      '.tab-wrapper .tab-container:not(.visually-hidden), .overflow-dropdown'
+    );
+    if (!container || container.dataset.grouped) return;
+    container.dataset.grouped = '1';
+
+    /* collect real tab buttons */
+    var btns = Array.from(container.querySelectorAll('button'));
+    if (btns.length < 2) return;
+
+    /* insert group labels before the first button of each group */
+    GROUPS.slice().reverse().forEach(function (g) {
+      var refBtn = btns[g.first];
+      if (!refBtn) return;
+      var lbl = document.createElement('span');
+      lbl.className = 'tab-group-label';
+      lbl.textContent = g.label;
+      container.insertBefore(lbl, refBtn);
+    });
+
+    /* track active tab on click */
+    btns.forEach(function (btn, idx) {
+      btn.addEventListener('click', function () {
+        updateGroupIndicator(idx);
+      });
+    });
+
+    /* set initial state */
+    var selectedIdx = btns.findIndex(function (b) { return b.classList.contains('selected'); });
+    updateGroupIndicator(selectedIdx >= 0 ? selectedIdx : 0);
+  }
+
+  function buildGroupIndicator() {
+    var bar = document.getElementById('group-indicator');
+    if (!bar || bar.dataset.built) return;
+    bar.dataset.built = '1';
+    var html = '';
+    GROUPS.forEach(function (g, i) {
+      if (i > 0) html += '<span class="gi-sep">·</span>';
+      html += '<span class="gi-item" data-grp="' + i + '" onclick="hzGoto(' + g.first + ')">' + g.label + '</span>';
+    });
+    bar.innerHTML = html;
+  }
+
+  function init() {
+    buildGroupIndicator();
+    injectTabGroups();
+    /* re-run after Gradio may re-render tabs */
+    var observer = new MutationObserver(function () {
+      injectTabGroups();
+    });
+    var wrap = document.querySelector('.tab-wrapper');
+    if (wrap) observer.observe(wrap, { childList: true, subtree: true });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function () { setTimeout(init, 200); });
+  } else {
+    setTimeout(init, 200);
+  }
 })();
 </script>
 """)
 
+    gr.HTML('<div id="group-indicator" aria-label="Navigation groups"></div>')
+
     with gr.Tabs(elem_id="main-tabs"):
         # ── Get Started ──────────────────────────────────────────────────────
         with gr.Tab("🚀 Get Started"):
+            gr.HTML("""
+<div class="page-header">
+  <div class="page-header-meta">
+    <span class="page-group-chip">🗂 Overview</span>
+    <h1 class="page-title">Get Started</h1>
+    <p class="page-desc">Install the MCP server, connect to your AI agent, and start learning from your sessions in minutes.</p>
+  </div>
+</div>
+""")
             gr.Markdown("""
 ## AI Rule Learning — MCP for any AI agent
 
@@ -11385,6 +11584,15 @@ updates the block without duplicating it.
 
         # ── Dashboard (Dual-Mode: Control Panel + Dashboard View) ────────────
         with gr.Tab("📊 Dashboard"):
+            gr.HTML("""
+<div class="page-header">
+  <div class="page-header-meta">
+    <span class="page-group-chip">🗂 Overview</span>
+    <h1 class="page-title">Dashboard</h1>
+    <p class="page-desc">Live MCP analytics with a persistent Control Panel — view metrics and manage settings side by side.</p>
+  </div>
+</div>
+""")
             # ── Top bar ──────────────────────────────────────────────────────
             with gr.Row():
                 gr.HTML(
@@ -11550,6 +11758,15 @@ updates the block without duplicating it.
 
         # ── Rules ────────────────────────────────────────────────────────────
         with gr.Tab("📋 Rules") as rules_tab:
+            gr.HTML("""
+<div class="page-header">
+  <div class="page-header-meta">
+    <span class="page-group-chip">📐 Rule Management</span>
+    <h1 class="page-title">Rules</h1>
+    <p class="page-desc">Manage active guardrail rules — review, test, organise by lifecycle, and track effectiveness.</p>
+  </div>
+</div>
+""")
             rules_stat_bar = gr.HTML()
             gr.HTML(
                 '<div class="rl-section-nav"><strong>Sections:</strong> Active Rules · 📋 Review Queue & A/B Testing · 👥 Ownership & Lifecycle · 🔗 Dependencies, Conflicts & Export</div>'
@@ -11965,6 +12182,15 @@ updates the block without duplicating it.
 
         # ── Sessions ─────────────────────────────────────────────────────────
         with gr.Tab("🔄 Sessions") as sessions_tab:
+            gr.HTML("""
+<div class="page-header">
+  <div class="page-header-meta">
+    <span class="page-group-chip">📐 Rule Management</span>
+    <h1 class="page-title">Sessions</h1>
+    <p class="page-desc">Import AI conversation sessions, analyse patterns, and generate new guardrail rules in three steps.</p>
+  </div>
+</div>
+""")
             sessions_stat_bar = gr.HTML()
             gr.HTML(
                 '<div class="rl-section-nav"><strong>Sections:</strong> Step 1 — Import Sessions · Step 2 — Analyse · Step 3 — Review New Rules</div>'
@@ -12065,6 +12291,15 @@ updates the block without duplicating it.
 
         # ── Insights ─────────────────────────────────────────────────────────
         with gr.Tab("🔍 Monitoring") as monitoring_tab:
+            gr.HTML("""
+<div class="page-header">
+  <div class="page-header-meta">
+    <span class="page-group-chip">🔭 Observability</span>
+    <h1 class="page-title">Monitoring</h1>
+    <p class="page-desc">Real-time conversation cluster analysis, rule enforcement validation, AI audit trails, and behavioural tracking.</p>
+  </div>
+</div>
+""")
             monitoring_stat_bar = gr.HTML()
             gr.HTML(
                 '<div class="rl-section-nav"><strong>Sections:</strong> Conversation Clusters · Rule Enforcement Validator · 🤖 AI Audit & Human Oversight · 📋 Provenance & Evidence · 🧠 Behavioral Tracking</div>'
@@ -12659,6 +12894,15 @@ updates the block without duplicating it.
                 monitoring_tab.select(lambda: gr.update(choices=get_conversation_ids()), outputs=beh_conv_id)
 
         with gr.Tab("📈 Analytics") as analytics_tab:
+            gr.HTML("""
+<div class="page-header">
+  <div class="page-header-meta">
+    <span class="page-group-chip">🔭 Observability</span>
+    <h1 class="page-title">Analytics</h1>
+    <p class="page-desc">Deep-dive into conversation data, alignment sensors, risk indicators, performance coverage, and incident tracing.</p>
+  </div>
+</div>
+""")
             analytics_stat_bar = gr.HTML()
             gr.HTML(
                 '<div class="rl-section-nav"><strong>Sections:</strong> Conversations · Alignment Sensor · ⚠️ Risk & Compliance · 📈 Performance & Coverage · 🧪 Benchmarks & Root Cause · 🚨 Incidents & Tracing · 💡 Explainability & Feedback</div>'
@@ -13245,6 +13489,15 @@ updates the block without duplicating it.
                 analytics_tab.select(lambda: gr.update(choices=get_conversation_ids()), outputs=rating_conv_id)
 
         with gr.Tab("⚖️ Governance") as gov_tab:
+            gr.HTML("""
+<div class="page-header">
+  <div class="page-header-meta">
+    <span class="page-group-chip">⚖️ Governance</span>
+    <h1 class="page-title">Governance</h1>
+    <p class="page-desc">Trust scores, SLOs, compliance calendars, meta-governance controls, and learning integrity detection.</p>
+  </div>
+</div>
+""")
             governance_stat_bar = gr.HTML()
             gr.HTML(
                 '<div class="rl-section-nav"><strong>Sections:</strong> Trust Score · 📐 SLOs & Improvement · 🗺️ Knowledge & Reputation · 🎯 Goals & Controls · 🔍 Learning & Gaming Detection · 🔑 Meta-Governance · 📋 Compliance, Reporting & Calendar</div>'
@@ -14278,6 +14531,15 @@ updates the block without duplicating it.
                 gov_tab.select(lambda: gr.update(choices=get_rule_ids()), outputs=cal_rule_csv)
 
         with gr.Tab("🧪 Testing") as testing_tab:
+            gr.HTML("""
+<div class="page-header">
+  <div class="page-header-meta">
+    <span class="page-group-chip">⚖️ Governance</span>
+    <h1 class="page-title">Testing</h1>
+    <p class="page-desc">Adversarial robustness testing, fairness audits, and simulation analytics to validate rule strength.</p>
+  </div>
+</div>
+""")
             testing_stat_bar = gr.HTML()
             gr.HTML(
                 '<div class="rl-section-nav"><strong>Sections:</strong> Adversarial Robustness · ⚖️ Fairness & Audit · 📊 Analytics & Simulation</div>'
