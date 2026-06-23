@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "ai-rule-learning": {
+      "command": "ai-rule-learning-mcp",
+      "type": "stdio"
+    }
+  }
+}

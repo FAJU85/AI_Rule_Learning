@@ -17,6 +17,10 @@
         "hooks": [
           {
             "type": "command",
+            "command": "command -v ai-rule-learning-mcp >/dev/null 2>&1 || pip install ai-rule-learning-mcp -q --ignore-installed pyjwt 2>&1 | tail -3 || true"
+          },
+          {
+            "type": "command",
             "command": "test -f ~/.claude/ai_rule_learning_rules.md && cat ~/.claude/ai_rule_learning_rules.md || true"
           }
         ]
