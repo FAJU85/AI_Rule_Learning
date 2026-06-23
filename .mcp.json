@@ -3,6 +3,10 @@
     "ai-rule-learning": {
       "command": "ai-rule-learning-mcp",
       "type": "stdio"
+    },
+    "agileforagents": {
+      "command": "agileforagents",
+      "type": "stdio"
     }
   }
 }
