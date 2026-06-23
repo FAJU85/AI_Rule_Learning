@@ -220,7 +220,7 @@ def build_rules_table(query: str = "") -> str:
     def _score_cell(score: float) -> str:
         pct = int(score * 100)
         bar_w = max(2, min(80, pct))
-        color = "#34d399" if pct >= 70 else "#fbbf24" if pct >= 40 else "#f87171"
+        color = "#059669" if pct >= 70 else "#d97706" if pct >= 40 else "#dc2626"
         return (
             f'<div class="rl-score-bar">'
             f'<div class="rl-score-fill" style="width:{bar_w}px;background:{color}"></div>'
@@ -382,15 +382,15 @@ def build_rule_score_trend(rule_name: str) -> Any:
             y=scores,
             mode="lines+markers",
             line=dict(
-                color="#34d399" if scores[-1] >= 0.7 else ("#fbbf24" if scores[-1] >= 0.4 else "#f87171"), width=2
+                color="#059669" if scores[-1] >= 0.7 else ("#d97706" if scores[-1] >= 0.4 else "#dc2626"), width=2
             ),
             marker=dict(size=8),
             name="Effectiveness",
             hovertemplate="<b>%{x}</b><br>Score: %{y:.0%}<extra></extra>",
         )
     )
-    fig.add_hline(y=0.7, line_dash="dot", line_color="#34d399", annotation_text="Good (70%)")
-    fig.add_hline(y=0.3, line_dash="dot", line_color="#f87171", annotation_text="Evolve threshold (30%)")
+    fig.add_hline(y=0.7, line_dash="dot", line_color="#059669", annotation_text="Good (70%)")
+    fig.add_hline(y=0.3, line_dash="dot", line_color="#dc2626", annotation_text="Evolve threshold (30%)")
     fig.update_layout(
         title=f"{rule.get('name', rule_name)} — effectiveness over time",
         yaxis=dict(range=[0, 1], tickformat=".0%"),
@@ -479,7 +479,7 @@ def build_conversations_table(query: str = "") -> str:
         slug = conv.get("slug", conv.get("git_branch", ""))
         cid = conv.get("conversation_id", "?")
         session_label = (slug or cid[:12])[:40]
-        gap_color = "#f87171" if gaps > 5 else "#fbbf24" if gaps > 0 else "#6b6892"
+        gap_color = "#dc2626" if gaps > 5 else "#d97706" if gaps > 0 else "#6b6892"
         rows_html += (
             f"<tr>"
             f"<td style='max-width:200px;font-size:0.82rem'>{session_label}</td>"
@@ -551,11 +551,11 @@ def build_project_compass() -> tuple[Any, Any, str]:
 
     # Direction
     if health_score >= 70:
-        direction = ("on_track", "🟢", "#34d399")
+        direction = ("on_track", "🟢", "#059669")
     elif health_score >= 40:
-        direction = ("needs_attention", "🟡", "#fbbf24")
+        direction = ("needs_attention", "🟡", "#d97706")
     else:
-        direction = ("off_course", "🔴", "#f87171")
+        direction = ("off_course", "🔴", "#dc2626")
 
     # --- Gauge ---
     fig_gauge = go.Figure(
@@ -585,7 +585,7 @@ def build_project_compass() -> tuple[Any, Any, str]:
     categories = ["Space Running", "Has Data", "Active Rules", "Recent Deploy"]
     scores = [space_pts, data_pts, rules_pts, deploy_pts]
     max_scores = [40, 20, 20, 20]
-    colors = ["#34d399" if s == m else "#fbbf24" if s > 0 else "#f87171" for s, m in zip(scores, max_scores)]
+    colors = ["#059669" if s == m else "#d97706" if s > 0 else "#dc2626" for s, m in zip(scores, max_scores)]
 
     fig_metrics = go.Figure(
         go.Bar(
@@ -695,8 +695,8 @@ def build_compass(conv_id: str) -> tuple[Any, Any, str]:
             value=round(latest_composite * 100, 1),
             delta={
                 "reference": round((latest_composite - latest_heading) * 100, 1),
-                "increasing": {"color": "#34d399"},
-                "decreasing": {"color": "#f87171"},
+                "increasing": {"color": "#059669"},
+                "decreasing": {"color": "#dc2626"},
             },
             gauge={
                 "axis": {"range": [0, 100]},
@@ -745,7 +745,7 @@ def build_compass(conv_id: str) -> tuple[Any, Any, str]:
                 y=rule_scores,
                 name="Rule Compliance",
                 mode="lines+markers",
-                line={"color": "#34d399"},
+                line={"color": "#059669"},
                 hovertemplate="Turn %{x}<br>Rule Compliance: %{y:.0%}<extra></extra>",
             )
         )
@@ -755,12 +755,12 @@ def build_compass(conv_id: str) -> tuple[Any, Any, str]:
                 y=focus_scores,
                 name="Focus (1-drift)",
                 mode="lines+markers",
-                line={"color": "#fbbf24"},
+                line={"color": "#d97706"},
                 hovertemplate="Turn %{x}<br>Focus: %{y:.0%}<extra></extra>",
             )
         )
-        fig_timeline.add_hline(y=0.7, line_dash="dash", line_color="#34d399", annotation_text="On-track threshold")
-        fig_timeline.add_hline(y=0.4, line_dash="dash", line_color="#f87171", annotation_text="Off-course threshold")
+        fig_timeline.add_hline(y=0.7, line_dash="dash", line_color="#059669", annotation_text="On-track threshold")
+        fig_timeline.add_hline(y=0.4, line_dash="dash", line_color="#dc2626", annotation_text="Off-course threshold")
 
     fig_timeline.update_layout(
         title="Alignment Timeline per Turn",
@@ -2635,9 +2635,9 @@ def set_rule_owner(rule_id: str, owner: str, team: str, contact: str) -> str:
 # ---------------------------------------------------------------------------
 
 _RISK_LABELS = {
-    (0.0, 0.25): ("Low", "#34d399"),
-    (0.25, 0.5): ("Medium", "#fbbf24"),
-    (0.5, 0.75): ("High", "#f87171"),
+    (0.0, 0.25): ("Low", "#059669"),
+    (0.25, 0.5): ("Medium", "#d97706"),
+    (0.5, 0.75): ("High", "#dc2626"),
     (0.75, 1.1): ("Critical", "#ff4444"),
 }
 
@@ -2976,14 +2976,14 @@ def build_drift_chart() -> Any:
         )
         return _dark_fig(fig)
 
-    palette = ["#6366f1", "#34d399", "#fbbf24", "#f87171", "#8b5cf6", "#06b6d4", "#ec4899"]
+    palette = ["#4f46e5", "#059669", "#d97706", "#dc2626", "#7c3aed", "#0891b2", "#db2777"]
     fig = go.Figure()
     for i, rule in enumerate(active_with_history):
         history = rule["score_history"]
         xs = list(range(len(history)))
         ys = [h.get("score", 0) if isinstance(h, dict) else 0 for h in history]
         drift = _compute_drift(history)
-        color = "#f87171" if drift["is_drifting"] else palette[i % len(palette)]
+        color = "#dc2626" if drift["is_drifting"] else palette[i % len(palette)]
         fig.add_trace(
             go.Scatter(
                 x=xs,
@@ -2996,8 +2996,8 @@ def build_drift_chart() -> Any:
             )
         )
 
-    fig.add_hline(y=0.7, line_dash="dot", line_color="#34d399", annotation_text="Good")
-    fig.add_hline(y=0.3, line_dash="dot", line_color="#f87171", annotation_text="Evolve threshold")
+    fig.add_hline(y=0.7, line_dash="dot", line_color="#059669", annotation_text="Good")
+    fig.add_hline(y=0.3, line_dash="dot", line_color="#dc2626", annotation_text="Evolve threshold")
     fig.update_layout(
         title=dict(text="Effectiveness Trend (red = drifting)", font=dict(size=14, color="#334155")),
         xaxis_title="Measurement #",
@@ -3227,7 +3227,7 @@ def build_dependency_graph() -> Any:
             x=node_x,
             y=node_y,
             mode="markers+text",
-            marker=dict(size=14, color="#34d399", line=dict(width=1, color="#34d399")),
+            marker=dict(size=14, color="#059669", line=dict(width=1, color="#059669")),
             text=node_text,
             textposition="top center",
             hoverinfo="text",
@@ -3381,7 +3381,7 @@ def build_coverage_chart() -> Any:
             labels=["Covered", "Uncovered"],
             values=[covered, uncovered],
             hole=0.6,
-            marker=dict(colors=["#34d399", "#f87171"]),
+            marker=dict(colors=["#059669", "#dc2626"]),
             textfont=dict(color="#334155"),
             hovertemplate="<b>%{label}</b><br>%{value} turns (%{percent})<extra></extra>",
         )
@@ -3814,9 +3814,9 @@ def build_trace_table(conversation_id: str = "") -> str:
     for t in sorted(traces, key=lambda x: x.get("traced_at", ""), reverse=True)[:200]:
         fired = t.get("rules_fired", [])
         fired_str = ", ".join(fired) if fired else "—"
-        fired_color = "#34d399" if fired else "#6b6892"
+        fired_color = "#059669" if fired else "#6b6892"
         latency = t.get("latency_ms", 0)
-        lat_color = "#f87171" if latency > 500 else "#fbbf24" if latency > 100 else "#34d399"
+        lat_color = "#dc2626" if latency > 500 else "#d97706" if latency > 100 else "#059669"
         rows_html += (
             f"<tr>"
             f"<td style='font-family:monospace;font-size:0.75rem;color:#6b6892'>{t.get('trace_id', '')[:8]}</td>"
@@ -4104,9 +4104,9 @@ def build_kg_graph() -> Any:
     type_colors = {
         "policy": "#8b5cf6",
         "requirement": "#c4b5fd",
-        "control": "#34d399",
-        "kpi": "#fbbf24",
-        "audit_finding": "#f87171",
+        "control": "#059669",
+        "kpi": "#d97706",
+        "audit_finding": "#dc2626",
         "rule": "#6b6892",
     }
     n = len(nodes)
@@ -4551,7 +4551,7 @@ def build_slo_table(query: str = "") -> str:
         else:
             st_badge = '<span class="rl-badge rl-badge-inactive">unknown</span>'
         sli_html = f"{sli}%" if sli is not None else '<span style="color:#6b6892">n/a</span>'
-        budget_color = "#34d399" if budget is not None and budget >= 0 else "#f87171"
+        budget_color = "#059669" if budget is not None and budget >= 0 else "#dc2626"
         budget_html = (
             f'<span style="color:{budget_color};font-weight:600">{budget}%</span>'
             if budget is not None
@@ -4592,7 +4592,7 @@ def build_slo_chart() -> Any:
     names = [f"{r['rule_name'][:20]} / {r['slo_name']}" for r in rows]
     slis = [r["sli_pct"] if r["sli_pct"] is not None else 0 for r in rows]
     targets = [r["target_pct"] for r in rows]
-    colors = ["#34d399" if s == "ok" else "#f87171" for s in [r["status"] for r in rows]]
+    colors = ["#059669" if s == "ok" else "#dc2626" for s in [r["status"] for r in rows]]
     fig = go.Figure()
     fig.add_trace(
         go.Bar(
@@ -4609,7 +4609,7 @@ def build_slo_chart() -> Any:
             y=targets,
             name="Target",
             mode="markers",
-            marker=dict(symbol="line-ew", size=16, color="#fbbf24", line=dict(width=3, color="#fbbf24")),
+            marker=dict(symbol="line-ew", size=16, color="#d97706", line=dict(width=3, color="#d97706")),
             hovertemplate="<b>%{x}</b><br>Target: %{y:.1f}%<extra></extra>",
         )
     )
@@ -4754,7 +4754,7 @@ def build_improvement_funnel() -> Any:
             y=IMPROVEMENT_STAGES,
             x=values,
             textinfo="value+percent initial",
-            marker=dict(color=["#8b5cf6", "#c4b5fd", "#34d399", "#fbbf24", "#34d399"]),
+            marker=dict(color=["#8b5cf6", "#c4b5fd", "#059669", "#d97706", "#059669"]),
             connector=dict(line=dict(color="#e2e8f0")),
         )
     )
@@ -4923,12 +4923,12 @@ def build_trust_gauge() -> Any:
     """Gauge chart for the composite trust score."""
     ts = compute_trust_score()
     score = ts["trust_score"]
-    color = "#34d399" if score >= 80 else "#fbbf24" if score >= 60 else "#f87171"
+    color = "#059669" if score >= 80 else "#d97706" if score >= 60 else "#dc2626"
     fig = go.Figure(
         go.Indicator(
             mode="gauge+number+delta",
             value=score,
-            delta={"reference": 80, "increasing": {"color": "#34d399"}, "decreasing": {"color": "#f87171"}},
+            delta={"reference": 80, "increasing": {"color": "#059669"}, "decreasing": {"color": "#dc2626"}},
             gauge={
                 "axis": {"range": [0, 100], "tickcolor": "#64748b", "tickfont": {"color": "#64748b"}},
                 "bar": {"color": color},
@@ -4962,7 +4962,7 @@ def build_trust_breakdown() -> Any:
     ts = compute_trust_score()
     components = ["Compliance", "Drift Health", "Coverage", "Audit Pass Rate", "Incident Health"]
     values = [ts["compliance"], ts["drift_health"], ts["coverage"], ts["audit_pass_rate"], ts["incident_health"]]
-    colors = ["#34d399" if v >= 80 else "#fbbf24" if v >= 60 else "#f87171" for v in values]
+    colors = ["#059669" if v >= 80 else "#d97706" if v >= 60 else "#dc2626" for v in values]
     fig = go.Figure(
         go.Bar(
             x=components,
@@ -4982,7 +4982,7 @@ def build_trust_breakdown() -> Any:
         yaxis=dict(tickfont=dict(color="#334155"), range=[0, 110]),
         margin=dict(l=20, r=20, t=50, b=60),
         height=260,
-        shapes=[dict(type="line", x0=-0.5, x1=4.5, y0=80, y1=80, line=dict(color="#fbbf24", width=1, dash="dash"))],
+        shapes=[dict(type="line", x0=-0.5, x1=4.5, y0=80, y1=80, line=dict(color="#d97706", width=1, dash="dash"))],
     )
     return _dark_fig(fig)
 
@@ -4998,9 +4998,9 @@ INCIDENT_STATUSES = ["open", "investigating", "mitigating", "resolved", "closed"
 
 _SEVERITY_COLORS = {
     "P0_critical": "#ff4444",
-    "P1_high": "#f87171",
-    "P2_medium": "#fbbf24",
-    "P3_low": "#34d399",
+    "P1_high": "#dc2626",
+    "P2_medium": "#d97706",
+    "P3_low": "#059669",
 }
 
 
@@ -5262,7 +5262,7 @@ def build_forecast_chart(horizon: int = 3) -> Any:
     x_future = [f"T+{i + 1}" for i in range(horizon)]
     x_all = x_current + x_future
     for f in at_risk[:8]:
-        color = "#f87171" if f["at_risk"] else "#34d399"
+        color = "#dc2626" if f["at_risk"] else "#059669"
         y_vals = [f["current_eff"]] + f["predicted"]
         fig.add_trace(
             go.Scatter(
@@ -5276,7 +5276,7 @@ def build_forecast_chart(horizon: int = 3) -> Any:
             )
         )
     fig.add_hline(
-        y=70, line_dash="dot", line_color="#fbbf24", annotation_text="70% threshold", annotation_font_color="#92400e"
+        y=70, line_dash="dot", line_color="#d97706", annotation_text="70% threshold", annotation_font_color="#92400e"
     )
     fig.update_layout(
         paper_bgcolor="#ffffff",
@@ -5964,7 +5964,7 @@ def build_provenance_table(conversation_id: str = "") -> str:
     for e in sorted(entries, key=lambda x: x.get("recorded_at", ""), reverse=True)[:100]:
         lineage = e.get("lineage", {})
         rules_applied = ", ".join(lineage.get("rules_applied", [])) or "—"
-        rules_color = "#34d399" if lineage.get("rules_applied") else "#6b6892"
+        rules_color = "#059669" if lineage.get("rules_applied") else "#6b6892"
         rows_html += (
             f"<tr>"
             f"<td style='font-family:monospace;font-size:0.75rem;color:#6b6892'>{e.get('provenance_id', '')[:8]}</td>"
@@ -6085,7 +6085,7 @@ def build_data_trust_chart() -> Any:
     from collections import Counter
 
     counts = Counter(e.get("trust_level", "medium") for e in entries)
-    color_map = {"high": "#34d399", "medium": "#fbbf24", "low": "#f87171", "untrusted": "#f87171"}
+    color_map = {"high": "#059669", "medium": "#d97706", "low": "#dc2626", "untrusted": "#dc2626"}
     labels = list(counts.keys())
     values = [counts[l] for l in labels]
     colors = [color_map.get(l, "#6b6892") for l in labels]
@@ -6284,7 +6284,7 @@ def build_behavior_radar() -> Any:
             r=values_closed,
             theta=labels_closed,
             fill="toself",
-            line=dict(color="#34d399"),
+            line=dict(color="#059669"),
             fillcolor="rgba(35,134,54,0.2)",
             hovertemplate="<b>%{theta}</b><br>%{r:.1f}%<extra></extra>",
         )
@@ -8080,12 +8080,12 @@ def build_rules_stat_bar() -> str:
         if r.get("is_active") and r.get("effectiveness_score", 1) < 0.3 and r.get("times_triggered", 0) >= 3
     )
     chips = [
-        _stat_chip("active", str(active), "#34d399"),
-        _stat_chip("pending review", str(pending), "#fbbf24" if pending else "#6b6892"),
+        _stat_chip("active", str(active), "#059669"),
+        _stat_chip("pending review", str(pending), "#d97706" if pending else "#6b6892"),
         _stat_chip("deprecated/retired", str(deprecated), "#6b6892"),
     ]
     if exceptions:
-        chips.append(_stat_chip("exceptions", str(exceptions), "#f87171"))
+        chips.append(_stat_chip("exceptions", str(exceptions), "#dc2626"))
     if low_eff:
         chips.append(_stat_chip("low effectiveness", str(low_eff), "#f97316"))
     chips_html = " ".join(chips)
@@ -8117,11 +8117,11 @@ def build_monitoring_stat_bar() -> str:
     chips = [
         _stat_chip("total enforcements", str(total_enf), "#8b5cf6"),
         _stat_chip("last 24h", str(recent), "#0ea5e9"),
-        _stat_chip("violations 24h", str(failed_recent), "#f87171" if failed_recent else "#6b6892"),
-        _stat_chip("open incidents", str(open_inc), "#fbbf24" if open_inc else "#6b6892"),
+        _stat_chip("violations 24h", str(failed_recent), "#dc2626" if failed_recent else "#6b6892"),
+        _stat_chip("open incidents", str(open_inc), "#d97706" if open_inc else "#6b6892"),
     ]
     if crit_inc:
-        chips.append(_stat_chip("critical/high", str(crit_inc), "#f87171"))
+        chips.append(_stat_chip("critical/high", str(crit_inc), "#dc2626"))
     return f'<div class="tab-stat-bar">{"  ".join(chips)}</div>'
 
 
@@ -8131,7 +8131,7 @@ def build_governance_stat_bar() -> str:
         trust = compute_trust_score()
         trust_val = f"{trust.get('score', 0):.0f}"
         trust_color = (
-            "#34d399" if trust.get("score", 0) >= 70 else "#fbbf24" if trust.get("score", 0) >= 40 else "#f87171"
+            "#059669" if trust.get("score", 0) >= 70 else "#d97706" if trust.get("score", 0) >= 40 else "#dc2626"
         )
     except Exception:
         trust_val = "?"
@@ -8151,12 +8151,12 @@ def build_governance_stat_bar() -> str:
     chips = [
         _stat_chip("trust score", f"{trust_val}/100", trust_color),
         _stat_chip("slos defined", str(slo_total), "#8b5cf6"),
-        _stat_chip("slos breached", str(breached), "#f87171" if breached else "#6b6892"),
+        _stat_chip("slos breached", str(breached), "#dc2626" if breached else "#6b6892"),
     ]
     if expiring:
-        chips.append(_stat_chip("certs expiring", str(expiring), "#fbbf24"))
+        chips.append(_stat_chip("certs expiring", str(expiring), "#d97706"))
     if expired:
-        chips.append(_stat_chip("certs expired", str(expired), "#f87171"))
+        chips.append(_stat_chip("certs expired", str(expired), "#dc2626"))
     return f'<div class="tab-stat-bar">{"  ".join(chips)}</div>'
 
 
@@ -8183,9 +8183,9 @@ def build_analytics_stat_bar() -> str:
     chips = [
         _stat_chip("conversations", str(total_convs), "#8b5cf6"),
         _stat_chip("turns recorded", str(total_turns), "#0ea5e9"),
-        _stat_chip("high-risk rules", str(high_risk), "#f87171" if high_risk else "#6b6892"),
-        _stat_chip("drifting rules", str(drift_rules), "#fbbf24" if drift_rules else "#6b6892"),
-        _stat_chip("benchmark cases", str(bench_count), "#34d399"),
+        _stat_chip("high-risk rules", str(high_risk), "#dc2626" if high_risk else "#6b6892"),
+        _stat_chip("drifting rules", str(drift_rules), "#d97706" if drift_rules else "#6b6892"),
+        _stat_chip("benchmark cases", str(bench_count), "#059669"),
     ]
     return f'<div class="tab-stat-bar">{"  ".join(chips)}</div>'
 
@@ -8207,8 +8207,8 @@ def build_sessions_stat_bar() -> str:
     chips = [
         _stat_chip("conversations", str(total_convs), "#8b5cf6"),
         _stat_chip("turns", str(total_turns), "#0ea5e9"),
-        _stat_chip("active rules", str(active), "#34d399"),
-        _stat_chip("pending review", str(pending), "#fbbf24" if pending else "#6b6892"),
+        _stat_chip("active rules", str(active), "#059669"),
+        _stat_chip("pending review", str(pending), "#d97706" if pending else "#6b6892"),
     ]
     return f'<div class="tab-stat-bar">{"  ".join(chips)}</div>'
 
@@ -8234,10 +8234,10 @@ def build_testing_stat_bar() -> str:
         chain_entries = 0
     chips = [
         _stat_chip("robustness tests", str(rob_total), "#8b5cf6"),
-        _stat_chip("vulnerable", str(rob_vuln), "#f87171" if rob_vuln else "#6b6892"),
+        _stat_chip("vulnerable", str(rob_vuln), "#dc2626" if rob_vuln else "#6b6892"),
         _stat_chip("bias analyses", str(bias_total), "#0ea5e9"),
-        _stat_chip("bias detected", str(bias_detected), "#fbbf24" if bias_detected else "#6b6892"),
-        _stat_chip("audit entries", str(chain_entries), "#34d399"),
+        _stat_chip("bias detected", str(bias_detected), "#d97706" if bias_detected else "#6b6892"),
+        _stat_chip("audit entries", str(chain_entries), "#059669"),
     ]
     return f'<div class="tab-stat-bar">{"  ".join(chips)}</div>'
 
@@ -8286,7 +8286,7 @@ def build_failure_heatmap() -> Any:
 
     from collections import defaultdict
     layer_labels = {1: "L1 Model", 2: "L2 Context", 3: "L3 Orchestration", 4: "L4 Human/Trust"}
-    layer_colors = {1: "#6366f1", 2: "#0ea5e9", 3: "#fbbf24", 4: "#f87171"}
+    layer_colors = {1: "#6366f1", 2: "#0ea5e9", 3: "#d97706", 4: "#dc2626"}
     counts: dict[int, dict[str, int]] = defaultdict(lambda: defaultdict(int))
     all_cats: set[str] = set()
     for r in active:
@@ -8322,11 +8322,11 @@ def build_session_health_html() -> str:
     score = result["score"]
     top3 = result["top_issues"]
     if score >= 70:
-        colour, label, icon = "#34d399", "Healthy", "✅"
+        colour, label, icon = "#059669", "Healthy", "✅"
     elif score >= 40:
-        colour, label, icon = "#fbbf24", "Needs Attention", "⚠️"
+        colour, label, icon = "#d97706", "Needs Attention", "⚠️"
     else:
-        colour, label, icon = "#f87171", "Critical", "🔴"
+        colour, label, icon = "#dc2626", "Critical", "🔴"
     issues_html = "".join(
         f'<li style="font-size:0.85rem;color:#475569;margin:2px 0">{issue}</li>'
         for issue in (top3 or ["No gaps detected — looking good!"])
@@ -8563,7 +8563,7 @@ def build_effectiveness_chart(min_eff: float = 0.0) -> Any:
     names = [r.get("name", r.get("rule_id", "?"))[:30] for r in active]
     scores = [r.get("effectiveness_score", 0) for r in active]
     triggered = [r.get("times_triggered", 0) for r in active]
-    colors = ["#34d399" if s >= 0.7 else ("#fbbf24" if s >= 0.4 else "#f87171") for s in scores]
+    colors = ["#059669" if s >= 0.7 else ("#d97706" if s >= 0.4 else "#dc2626") for s in scores]
     fig = go.Figure(
         go.Bar(
             x=scores,
@@ -8632,7 +8632,7 @@ def build_cluster_chart() -> Any:
 
     contexts = list(cluster_gaps.keys())
     gap_types = sorted({gt for b in cluster_gaps.values() for gt in b})
-    palette = ["#6366f1", "#34d399", "#fbbf24", "#f87171", "#8b5cf6", "#06b6d4", "#ec4899"]
+    palette = ["#4f46e5", "#059669", "#d97706", "#dc2626", "#7c3aed", "#0891b2", "#db2777"]
 
     fig = go.Figure()
     for i, gtype in enumerate(gap_types):
@@ -9267,7 +9267,7 @@ def build_reputation_table(query: str = "") -> str:
     def _avg_cell(val) -> str:
         if val is None:
             return '<span style="color:#6b6892">—</span>'
-        color = "#34d399" if val >= 70 else "#fbbf24" if val >= 40 else "#f87171"
+        color = "#059669" if val >= 70 else "#d97706" if val >= 40 else "#dc2626"
         return f'<span style="color:{color};font-weight:600">{val}%</span>'
 
     rows_html = ""
@@ -9297,7 +9297,7 @@ def build_reputation_chart() -> Any:
 
     names = [r.get("rule_name", r["rule_id"])[:30] for r in summary]
     fig = go.Figure()
-    colors = {"7d_avg": "#38bdf8", "30d_avg": "#34d399", "90d_avg": "#fbbf24"}
+    colors = {"7d_avg": "#38bdf8", "30d_avg": "#059669", "90d_avg": "#d97706"}
     for key, label in [("7d_avg", "7 days"), ("30d_avg", "30 days"), ("90d_avg", "90 days")]:
         vals = [r.get(key) for r in summary]
         fig.add_trace(
@@ -9411,9 +9411,9 @@ def build_goal_table(query: str = "") -> str:
         status = r["alignment_status"]
         badge = _status_badge.get(status, f'<span class="rl-badge rl-badge-inactive">{status}</span>')
         gap = r.get("gap", 0)
-        gap_color = "#f87171" if gap < -10 else "#fbbf24" if gap < 0 else "#34d399"
+        gap_color = "#dc2626" if gap < -10 else "#d97706" if gap < 0 else "#059669"
         actual = r.get("actual_score", 0)
-        actual_color = "#34d399" if actual >= r.get("target_score", 80) else "#fbbf24"
+        actual_color = "#059669" if actual >= r.get("target_score", 80) else "#d97706"
         rows_html += (
             f"<tr>"
             f"<td style='max-width:160px;font-weight:600'>{r.get('objective', '')[:40]}</td>"
@@ -9443,11 +9443,11 @@ def build_goal_chart() -> Any:
     actuals = [r["actual_score"] for r in results]
     targets = [r["target_score"] for r in results]
     colors = [
-        "#34d399"
+        "#059669"
         if r["alignment_status"] == "aligned"
-        else "#fbbf24"
+        else "#d97706"
         if r["alignment_status"] == "warning"
-        else "#f87171"
+        else "#dc2626"
         for r in results
     ]
 
@@ -9611,7 +9611,7 @@ def build_control_chart() -> Any:
 
     # Group by risk level
     risk_order = ["critical", "high", "medium", "low"]
-    risk_colors = {"critical": "#f87171", "high": "#fbbf24", "medium": "#8b5cf6", "low": "#34d399"}
+    risk_colors = {"critical": "#dc2626", "high": "#d97706", "medium": "#8b5cf6", "low": "#059669"}
     by_risk: dict[str, list] = {r: [] for r in risk_order}
     for ctrl in results:
         rl = ctrl.get("risk_level", "low")
@@ -9788,7 +9788,7 @@ def build_learning_table(query: str = "") -> str:
         badge = _status_badge.get(status, f'<span class="rl-badge rl-badge-inactive">{status}</span>')
         slope = e.get("slope")
         if slope is not None:
-            slope_color = "#34d399" if slope > 0 else "#f87171" if slope < 0 else "#64748b"
+            slope_color = "#059669" if slope > 0 else "#dc2626" if slope < 0 else "#64748b"
             slope_str = f'<span style="color:{slope_color};font-weight:700">{slope:+.4f}</span>'
         else:
             slope_str = '<span style="color:#6b6892">N/A</span>'
@@ -10279,7 +10279,7 @@ def build_cert_table(query: str = "") -> str:
         status = c.get("current_status", "")
         days = c.get("days_until_expiry")
         days_color = (
-            "#f87171" if days is not None and days <= 7 else "#fbbf24" if days is not None and days <= 30 else "#334155"
+            "#dc2626" if days is not None and days <= 7 else "#d97706" if days is not None and days <= 30 else "#334155"
         )
         badge = _cert_badge.get(status, f'<span class="rl-badge rl-badge-inactive">{status}</span>')
         rows_html += (
@@ -10504,7 +10504,7 @@ def compute_compliance_health() -> dict:
 def build_compliance_health_gauge() -> Any:
     health = compute_compliance_health()
     overall = health["overall"]
-    color = "#34d399" if overall >= 80 else "#fbbf24" if overall >= 60 else "#f87171"
+    color = "#059669" if overall >= 80 else "#d97706" if overall >= 60 else "#dc2626"
     fig = go.Figure(
         go.Indicator(
             mode="gauge+number+delta",
@@ -10536,7 +10536,7 @@ def build_compliance_health_breakdown() -> Any:
         health["cert_health"],
         health["goal_health"],
     ]
-    colors = ["#34d399" if v >= 80 else "#fbbf24" if v >= 60 else "#f87171" for v in vals]
+    colors = ["#059669" if v >= 80 else "#d97706" if v >= 60 else "#dc2626" for v in vals]
     fig = go.Figure(
         go.Bar(x=dims, y=vals, marker_color=colors, hovertemplate="<b>%{x}</b><br>%{y:.0f}%<extra></extra>")
     )
@@ -10990,7 +10990,7 @@ def build_bias_table(query: str = "") -> str:
         severity = e.get("severity", "")
         sev_badge = _sev_badge.get(severity, f'<span class="rl-badge rl-badge-inactive">{severity}</span>')
         disparity = e.get("disparity", 0)
-        disp_color = "#f87171" if disparity > 25 else "#fbbf24" if disparity > 10 else "#64748b"
+        disp_color = "#dc2626" if disparity > 25 else "#d97706" if disparity > 10 else "#64748b"
         rows_html += (
             f"<tr>"
             f"<td style='max-width:160px'>{e.get('rule_name', e.get('rule_id', ''))[:30]}</td>"
@@ -11104,10 +11104,10 @@ def build_audit_chain_table(query: str = "") -> str:
     if not matched:
         return f'<div class="rl-empty">No audit entries match "<b>{query}</b>".</div>'
     _action_colors = {
-        "rule_created": "#34d399",
+        "rule_created": "#059669",
         "rule_updated": "#8b5cf6",
-        "rule_deleted": "#f87171",
-        "override": "#fbbf24",
+        "rule_deleted": "#dc2626",
+        "override": "#d97706",
         "escalation": "#9d174d",
     }
     rows_html = ""
@@ -11186,7 +11186,7 @@ def build_trend_chart(window_days: int = 30) -> Any:
         return _dark_fig(fig)
 
     fig = go.Figure()
-    palette = ["#38bdf8", "#34d399", "#fbbf24", "#f87171", "#8b5cf6", "#06b6d4", "#8b5cf6", "#ec4899"]
+    palette = ["#0284c7", "#059669", "#d97706", "#dc2626", "#7c3aed", "#0891b2", "#7c3aed", "#db2777"]
     for i, (rid, data) in enumerate(trends.items()):
         color = palette[i % len(palette)]
         timestamps = data["timestamps"]
@@ -11261,7 +11261,7 @@ MATURITY_LEVELS: list[dict] = [
         "level": 1,
         "name": "Initial",
         "description": "Rules exist and are structured. The foundation is in place.",
-        "color": "#f87171",
+        "color": "#dc2626",
         "capabilities": [
             ("Rules defined", lambda: _has_data("rules.jsonl", 1)),
             ("Rule categories used (layer field)", lambda: any(r.get("layer") for r in _download_jsonl("rules.jsonl"))),
@@ -11276,7 +11276,7 @@ MATURITY_LEVELS: list[dict] = [
         "level": 2,
         "name": "Defined",
         "description": "Governance processes are defined. Lifecycle, ownership, and session data are managed.",
-        "color": "#fbbf24",
+        "color": "#d97706",
         "capabilities": [
             (
                 "Rule lifecycle tracked (status transitions)",
@@ -11312,7 +11312,7 @@ MATURITY_LEVELS: list[dict] = [
         "level": 4,
         "name": "Measured",
         "description": "Quantitative management. Trust scores, SLOs, benchmarks, and coverage are actively measured.",
-        "color": "#34d399",
+        "color": "#059669",
         "capabilities": [
             (
                 "Trust score computed (score_history present)",
@@ -11791,9 +11791,7 @@ updates the block without duplicating it.
             # ── Dual-mode split: Control Panel (left) + Dashboard (right) ────
             with gr.Row(equal_height=False):
                 # ── LEFT: Control Panel ───────────────────────────────────────
-                with gr.Column(scale=1, min_width=230, elem_classes=["dual-col-ctrl"]):
-                    gr.HTML('<div class="cp-sidebar" id="cp-sidebar">')
-
+                with gr.Column(scale=1, min_width=230, elem_id="cp-sidebar", elem_classes=["dual-col-ctrl", "cp-sidebar"]):
                     # Live status mini-stats
                     cp_status_html = gr.HTML()
 
@@ -11848,7 +11846,6 @@ updates the block without duplicating it.
                         container=True,
                     )
 
-                    gr.HTML('</div>')  # close cp-sidebar
 
                 # ── RIGHT: Dashboard View ─────────────────────────────────────
                 with gr.Column(scale=3):
