@@ -1,8 +1,8 @@
 .agents/tools.md — Tool Decision Matrix
 
-Parent Document: AGENTS.md v2.1.0 (Reference Files)
-Purpose: This file contains the complete language-specific tool selection matrix referenced by AGENTS.md.
-Standalone: This file should be readable independently of AGENTS.md.
+Parent Document: CLAUDE.md v2.1.0 (Reference Files)
+Purpose: This file contains the complete language-specific tool selection matrix referenced by CLAUDE.md.
+Standalone: This file should be readable independently of CLAUDE.md.
 
 ---
 

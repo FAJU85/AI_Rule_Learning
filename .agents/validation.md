@@ -1,9 +1,9 @@
 .agents/validation.md — Validation Matrix (Single Source of Truth)
 
-Parent Document: AGENTS.md v2.1.0 (Reference Files)
+Parent Document: CLAUDE.md v2.1.0 (Reference Files)
 Purpose: This is the single source of truth for all pass/fail criteria.
-Usage: The Verification Phase and End-of-Session Report in AGENTS.md defer to this file.
-Standalone: This file should be readable independently of AGENTS.md.
+Usage: The Verification Phase and End-of-Session Report in CLAUDE.md defer to this file.
+Standalone: This file should be readable independently of CLAUDE.md.
 
 ---
 
@@ -15,7 +15,7 @@ Linting ruff check . exits with code 0 (no errors; warnings allowed per project 
 Type Safety mypy src exits with code 0 Any type error
 Unit Testing All unit tests pass (pytest exits 0) ≥1 failed unit test
 Integration Testing All integration tests pass (if run) ≥1 failed integration test
-E2E Testing All E2E tests pass (run only if changes affect critical flows; see AGENTS.md §2.4) ≥1 failed E2E test or flaky test after 2 retries
+E2E Testing All E2E tests pass (run only if changes affect critical flows; see CLAUDE.md §2.4) ≥1 failed E2E test or flaky test after 2 retries
 Coverage Test coverage ≥ 80% (measured by pytest --cov=src --cov-report=term-missing) Coverage < threshold
 Secret Scanning Secret scanner (e.g., Gitleaks) reports zero secrets Any secret match (verified as real)
 Dependency Scanning pip-audit reports zero critical vulnerabilities ≥1 critical vulnerability found
@@ -46,6 +46,6 @@ Model Validation Model drift (e.g., performance change) is below threshold Drift
 
 Notes
 
-· The Verification Phase in AGENTS.md runs the core gate: ruff format --check ., npm run format:check, ruff check ., mypy src, pytest, and (conditionally) pytest tests/e2e. All other validation items may be executed as part of CI or separate quality gates.
+· The Verification Phase in CLAUDE.md runs the core gate: ruff format --check ., npm run format:check, ruff check ., mypy src, pytest, and (conditionally) pytest tests/e2e. All other validation items may be executed as part of CI or separate quality gates.
 · For any validation item that requires a tool, the tool must be installed and configured as per the Tool Decision Matrix (.agents/tools.md).
-· Coverage threshold is 80% project-wide (see AGENTS.md Project Identity).
+· Coverage threshold is 80% project-wide (see CLAUDE.md Project Identity).
