@@ -25,7 +25,7 @@
           },
           {
             "type": "command",
-            "command": "command -v agileforagents >/dev/null 2>&1 || pip install agileforagents -q 2>&1 | tail -3 || true"
+            "command": "command -v agileforagents >/dev/null 2>&1 || pip install 'agileforagents==0.3.1' -q 2>&1 | tail -3 || true"
           },
           {
             "type": "command",
