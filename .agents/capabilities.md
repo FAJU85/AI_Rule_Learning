@@ -1,8 +1,8 @@
 .agents/capabilities.md — Capability Definitions & Profile Matrix
 
-Parent Document: AGENTS.md v2.1.0 (Layer 3)
-Purpose: This file contains the complete capability definitions and canonical Project Profile Matrix referenced by AGENTS.md.
-Standalone: This file should be readable independently of AGENTS.md.
+Parent Document: CLAUDE.md v2.1.0 (Layer 3)
+Purpose: This file contains the complete capability definitions and canonical Project Profile Matrix referenced by CLAUDE.md.
+Standalone: This file should be readable independently of CLAUDE.md.
 
 ---
 
