@@ -3,5 +3,7 @@ plotly>=5.17.0
 pandas>=2.0.0
 pydantic>=2.0.0
 huggingface_hub>=0.24.0
-ai-rule-learning-mcp>=0.2.0
+# Pinned exactly for reproducible Space builds — this is the showcased package
+# whose version drives the dashboard. Bump deliberately when a new release ships.
+ai-rule-learning-mcp==0.2.0
 mcp>=1.0.0
