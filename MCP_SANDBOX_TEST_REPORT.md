@@ -78,10 +78,11 @@ The published package (what the SessionStart hook installs) is missing **9 of 12
   neither exact substring ("all" splits one, "previous" splits the other), so it evades detection.
 - **Contrast:** `"ignore previous instructions"` and `"you are now DAN"` _are_ caught — the feature works but is
   brittle to trivial filler-word variations.
-- **Secondary:** two divergent pattern lists exist (`analyzer._INJECTION_PATTERNS` vs
-  `gap_detector._INJECTION_PATTERNS`); only the analyzer one is wired into the tool. They should be unified.
-- **Suggested fix:** match with a normalized regex allowing optional filler, e.g.
-  `ignore\s+(all\s+)?(the\s+)?(previous\s+|prior\s+|above\s+)?instructions`, and consolidate to one shared list.
+- **Note:** the list is shared, not divergent — `analyzer.py` imports `_INJECTION_PATTERNS` from `gap_detector`,
+  and `check_injection` matches via `p in prompt.lower()` (analyzer.py:74). The defect is solely that literal
+  substring match, not list duplication.
+- **Suggested fix:** replace the substring match with a normalized regex allowing optional filler, e.g.
+  `\bignore\s+(all\s+)?(the\s+)?(previous\s+|prior\s+|above\s+)?instructions\b`.
 
 ### A2 — Stale published package (see §2) 🟠 Major
 
@@ -92,11 +93,15 @@ The published package (what the SessionStart hook installs) is missing **9 of 12
 
 - Runtime version string matches neither package version (0.1.1 / 0.2.0). Should be sourced from package metadata.
 
-### A4 — Outbound HF calls even when unauthenticated 🟡 Minor / Note
+### A4 — Misleading "Uploaded to HF dataset" message in local-only mode 🟡 Minor
 
-- `sync_sessions` and `update_community_knowledge` make outbound Hugging Face Hub requests even with no token
-  (stderr: "sending unauthenticated requests to the HF Hub"). No data is written externally without a token, but
-  reads do leave the machine. The "Uploaded … to HF dataset" message prints even in local-only mode — misleading.
+- **Uploads are correctly gated:** `store._upload` returns early when `HF_TOKEN`/`ARL_DATASET` are unset
+  (store.py:111), so nothing is written externally without credentials.
+- **But the log is misleading:** `append_conversations` returns the count of newly-detected records regardless of
+  whether an upload happened, so `server.py` prints "⬆️ Uploaded N … to HF dataset" even in local-only mode. Gate
+  the message on an actual upload, or reword to "saved locally".
+- **Minor:** the community-pull path still emits unauthenticated _read_ requests to the HF Hub (stderr warning) —
+  not a write, but worth noting.
 
 ---
 
@@ -128,6 +133,6 @@ in well under ~100 ms. Memory footprint is modest and stable (no leak across the
 | **Repo source (v0.2.0)**       | **PASS, with conditions** — all 12 tools functional and fast; isolation clean. Fix A1. |
 | **Published package (v0.1.1)** | **FAIL for production-readiness** — exposes only 3 of 12 tools (A2). Publish v0.2.0.   |
 
-**Recommendation:** Ship v0.2.0, fix A1 (security-relevant), unify the injection pattern lists, correct the
-version string (A3), and clarify the HF messaging (A4). After A1 + A2, the MCP is production-ready for single-user
-use.
+**Recommendation:** Ship v0.2.0 and fix A1 (security-relevant) as the priority pair, then close A3 and A4. The MCP
+is **fully production-ready for single-user use once all four anomalies (A1–A4) are resolved**; with only A1 + A2
+done it is functionally usable but not yet fully production-ready.
