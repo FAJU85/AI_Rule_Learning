@@ -3,3 +3,7 @@ plotly>=5.17.0
 pandas>=2.0.0
 pydantic>=2.0.0
 huggingface_hub>=0.24.0
+# 0.2.0 (12-tool build) is not yet on PyPI — install from the repo subdirectory.
+# Switch back to a pinned PyPI release once 0.2.0 is published.
+ai-rule-learning-mcp @ git+https://github.com/FAJU85/AI_Rule_Learning.git@main#subdirectory=mcp
+mcp>=1.0.0

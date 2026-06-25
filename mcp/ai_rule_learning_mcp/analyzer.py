@@ -6,8 +6,19 @@ prompt injection check, and rule effectiveness summary.
 
 from __future__ import annotations
 
+import re
+
 from .gap_detector import _INJECTION_PATTERNS, _LAYER_LABELS
 from .store import load_active_rules, record_rule_outcome
+
+# Filler-tolerant matcher for the instruction-override family. Literal substring
+# matching misses common phrasings like "ignore all previous instructions"
+# (filler words split the canonical patterns), so this catches an override verb
+# followed by up to three filler words and then "instruction(s)".
+_OVERRIDE_RE = re.compile(
+    r"\b(?:ignore|disregard|forget|override|bypass)\b(?:\s+\w+){0,3}\s+instructions?\b",
+    re.IGNORECASE,
+)
 
 
 def analyze_failure_modes(rules: list[dict] | None = None) -> str:
@@ -71,7 +82,12 @@ def check_injection(prompt: str) -> str:
     """Scan a prompt string for injection patterns. Returns a status report."""
     if not prompt:
         return "❌ Provide a `prompt` argument to scan for injection patterns."
-    found = [p for p in _INJECTION_PATTERNS if p in prompt.lower()]
+    # Normalise whitespace so multi-space / newline variants still match.
+    norm = re.sub(r"\s+", " ", prompt.lower()).strip()
+    found = [p for p in _INJECTION_PATTERNS if p in norm]
+    # Filler-tolerant catch for instruction-override phrasings the literal list misses.
+    if _OVERRIDE_RE.search(norm) and not any("instruction" in p for p in found):
+        found.append("instruction-override request")
     if not found:
         return "✅ No prompt injection patterns detected."
     lines = [f"🚨 **{len(found)} injection pattern(s) detected:**"]

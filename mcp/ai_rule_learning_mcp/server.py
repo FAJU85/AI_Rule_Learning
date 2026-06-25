@@ -43,11 +43,13 @@ from .skills import (
     save_skill,
 )
 from .providers import parse_any
+from . import __version__
 from .store import (
     _local_load,
     _local_save,
     append_conversations,
     auto_activate_pending_rules,
+    hf_enabled,
     is_already_processed,
     load_active_rules,
     mark_processed,
@@ -574,7 +576,10 @@ async def _sync_sessions(
     # ── HF upload (optional) ───────────────────────────────────────────────
     added = append_conversations(all_conversations)
     if added:
-        log.append(f"⬆️  Uploaded {added} new conversation(s) to HF dataset")
+        if hf_enabled():
+            log.append(f"⬆️  Uploaded {added} new conversation(s) to HF dataset")
+        else:
+            log.append(f"💾 Saved {added} new conversation(s) locally (no HF token — upload skipped)")
 
     if contribute:
         contributed = 0
@@ -762,7 +767,12 @@ async def _update_community_knowledge(min_sources: int = 3) -> list[TextContent]
 def main() -> None:
     async def _run():
         async with stdio_server() as streams:
-            await app.run(streams[0], streams[1], app.create_initialization_options())
+            # Set our package version on InitializationOptions rather than the
+            # Server() constructor — the latter's `version=` kwarg is not present
+            # in older mcp SDKs (the package floor is mcp>=1.0.0).
+            opts = app.create_initialization_options()
+            opts.server_version = __version__
+            await app.run(streams[0], streams[1], opts)
 
     asyncio.run(_run())
 
