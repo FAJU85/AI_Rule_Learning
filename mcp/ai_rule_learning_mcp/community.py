@@ -14,6 +14,11 @@ from collections import Counter
 from datetime import datetime
 
 COMMUNITY_DATASET = "vooom/AI_Rule_Learning_Community"
+# Pin the download channel to an explicit branch. Community data is intentionally
+# mutable (it evolves as users contribute), so it cannot be pinned to an immutable
+# commit without freezing the feature; safety is enforced downstream by
+# store._is_safe_rule before any rule is activated or injected. (bandit B615)
+_HF_REVISION = "main"
 HF_TOKEN = os.environ.get("HF_TOKEN", "")
 
 
@@ -59,11 +64,12 @@ def contribute_gaps(gaps_by_type: dict[str, list[dict]], source_hash: str) -> bo
                 repo_id=COMMUNITY_DATASET,
                 filename="contributions.jsonl",
                 repo_type="dataset",
+                revision=_HF_REVISION,
                 token=HF_TOKEN,
                 force_download=True,
             )
             with open(path, encoding="utf-8") as f:
-                existing = [json.loads(l) for l in f if l.strip()]
+                existing = [json.loads(line) for line in f if line.strip()]
         except (EntryNotFoundError, Exception):
             pass
 
@@ -100,6 +106,7 @@ def fetch_community_patterns() -> dict[str, dict]:
             repo_id=COMMUNITY_DATASET,
             filename="contributions.jsonl",
             repo_type="dataset",
+            revision=_HF_REVISION,
             token=HF_TOKEN,
             force_download=True,
         )
@@ -230,6 +237,7 @@ def pull_community_templates() -> list[dict]:
             repo_id=COMMUNITY_DATASET,
             filename="community_templates.jsonl",
             repo_type="dataset",
+            revision=_HF_REVISION,
             force_download=True,
         )
         templates: list[dict] = []

@@ -13,7 +13,6 @@ appends output to ~/.ai-rule-learning/sync.log.
 
 from __future__ import annotations
 
-import os
 import platform
 import shutil
 import subprocess

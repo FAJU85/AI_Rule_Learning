@@ -91,10 +91,14 @@ def _download(filename: str) -> list[dict]:
         try:
             from huggingface_hub import hf_hub_download
 
-            path = hf_hub_download(
+            # nosec B615 — HF_DATASET is the user's own backup dataset; the
+            # channel is intentionally the mutable `main` branch (latest backup),
+            # so pinning to an immutable commit is not desirable here.
+            path = hf_hub_download(  # nosec B615
                 repo_id=HF_DATASET,
                 filename=filename,
                 repo_type="dataset",
+                revision="main",
                 token=HF_TOKEN,
                 force_download=True,
             )
@@ -173,9 +177,19 @@ def auto_activate_pending_rules() -> int:
 
 
 def load_active_rules() -> list[dict]:
-    """Return all active rules from the dataset, sorted by priority desc."""
+    """Return all active rules from the dataset, sorted by priority desc.
+
+    Every rule is re-checked against ``_is_safe_rule`` here — the injection
+    boundary — so a rule that arrived already-active (e.g. synced from the
+    dataset or a community source) cannot be written to user agent configs
+    without passing the safety gate.
+    """
     rules = _download("rules.jsonl")
-    active = [r for r in rules if r.get("is_active", True) or r.get("status") == "active"]
+    active = [
+        r
+        for r in rules
+        if (r.get("is_active", True) or r.get("status") == "active") and _is_safe_rule(r)
+    ]
     return sorted(active, key=lambda r: r.get("priority", 0), reverse=True)
 
 
@@ -270,7 +284,7 @@ def parse_claude_session(path: Path) -> dict | None:
     if not meta or len(messages) < 4:
         return None
 
-    turns = []
+    turns: list[dict] = []
     i = 0
     while i < len(messages):
         if messages[i]["role"] == "user":

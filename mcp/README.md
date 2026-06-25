@@ -21,19 +21,20 @@ work, without you having to change anything.
 
 ## MCP tools
 
-| Tool                  | Description                                                                          |
-| --------------------- | ------------------------------------------------------------------------------------ |
-| `get_guardrail_rules` | Return active rules for the current session                                          |
-| `record_feedback`     | Create a rule immediately from in-session feedback                                   |
-| `sync_sessions`       | Parse conversation history and generate new rules                                    |
-| `remember`            | Store a fact or preference in persistent memory                                      |
-| `recall`              | Search memory for relevant context                                                   |
-| `save_skill`          | Save a reusable workflow                                                             |
-| `list_skills`         | List saved skills with optional keyword filter                                       |
-| `get_skill`           | Retrieve a specific skill by name                                                    |
-| `install_scheduler`   | Install the nightly auto-sync job                                                    |
-| `list_providers`      | Show detected conversation history locations                                         |
-| `analyze`             | Session health, failure modes, injection check, effectiveness, and outcome recording |
+| Tool                         | Description                                                                          |
+| ---------------------------- | ------------------------------------------------------------------------------------ |
+| `get_guardrail_rules`        | Return active rules for the current session                                          |
+| `record_feedback`            | Create a rule immediately from in-session feedback                                   |
+| `sync_sessions`              | Parse conversation history and generate new rules                                    |
+| `remember`                   | Store a fact or preference in persistent memory                                      |
+| `recall`                     | Search memory for relevant context                                                   |
+| `save_skill`                 | Save a reusable workflow                                                             |
+| `list_skills`                | List saved skills with optional keyword filter                                       |
+| `get_skill`                  | Retrieve a specific skill by name                                                    |
+| `install_scheduler`          | Install the nightly auto-sync job                                                    |
+| `list_providers`             | Show detected conversation history locations                                         |
+| `analyze`                    | Session health, failure modes, injection check, effectiveness, and outcome recording |
+| `update_community_knowledge` | Aggregate contributed gap patterns into community templates (maintainer/RAG)         |
 
 ## What it detects
 
@@ -110,6 +111,27 @@ ai-rule-learning memory show   # show persistent memory
 ai-rule-learning skills list   # show saved skills
 ai-rule-learning install-cron  # set up nightly auto-sync
 ```
+
+## What this tool changes on your machine
+
+So there are no surprises, this tool actively writes to your system. Specifically it:
+
+- **Writes to your AI-agent config files.** Learned rules, memory, and skills are
+  injected into every detected agent config (see [Agent config paths](#agent-config-paths)
+  below) so they apply to future sessions. Use `ai-rule-learning clear` to remove
+  everything it wrote.
+- **Stores data locally** under `~/.ai-rule-learning/` (see [Local storage](#local-storage)).
+- **Installs a background job** when you run `install_scheduler` / `install-cron` — a
+  nightly cron, systemd timer, or launchd agent that re-runs sync. It is **opt-in**
+  (never installed automatically) and removable with `ai-rule-learning uninstall-cron`
+  or the `install_scheduler` tool with `action: "uninstall"`.
+- **Uploads only if you opt in.** Cloud backup/sync requires both `HF_TOKEN` and
+  `ARL_DATASET`. Community contribution is **off by default** (`ARL_CONTRIBUTE=false`)
+  and shares only anonymised pattern counts — never raw conversation content
+  (see [Privacy](#privacy)).
+
+Rules are always re-checked against a safety gate before being written to any config,
+so unsafe instructions (e.g. "ignore all previous instructions") are filtered out.
 
 ## Agent config paths
 

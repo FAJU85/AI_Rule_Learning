@@ -32,17 +32,15 @@ def _default_session_paths() -> list[Path]:
 
 def cmd_sync(args: list[str]) -> None:
     from .gap_detector import analyze_conversations
-    from .injector import detected_targets, write_rules_all
+    from .injector import write_rules_all
     from .providers import parse_any
-    from .store import (
-        _local_load,
-        _local_save,
-        append_conversations,
-        auto_activate_pending_rules,
-        is_already_processed,
-        load_active_rules,
-        mark_processed,
-    )
+    from .store import _local_load
+    from .store import _local_save
+    from .store import append_conversations
+    from .store import auto_activate_pending_rules
+    from .store import is_already_processed
+    from .store import load_active_rules
+    from .store import mark_processed
 
     raw_paths = [Path(p) for p in args] if args else _default_session_paths()
     if not raw_paths:
@@ -133,8 +131,11 @@ def cmd_sync(args: list[str]) -> None:
 
 
 def cmd_status(_args: list[str]) -> None:
-    from .injector import _ALL_TARGETS, read_injected_rules
-    from .store import LOCAL_DIR, _local_load, load_active_rules
+    from .injector import _ALL_TARGETS
+    from .injector import read_injected_rules
+    from .store import LOCAL_DIR
+    from .store import _local_load
+    from .store import load_active_rules
 
     rules = load_active_rules()
     injected = read_injected_rules()
@@ -191,8 +192,11 @@ def cmd_clear(_args: list[str]) -> None:
 
 
 def cmd_memory(args: list[str]) -> None:
-    from .memory import add_memory, clear_memory, format_memory_for_display, load_memory
     from .injector import write_memory_all
+    from .memory import add_memory
+    from .memory import clear_memory
+    from .memory import format_memory_for_display
+    from .memory import load_memory
 
     subcmd = args[0] if args else "show"
 
@@ -224,7 +228,11 @@ def cmd_memory(args: list[str]) -> None:
 
 
 def cmd_skills(args: list[str]) -> None:
-    from .skills import delete_skill, format_skill_detail, format_skills_for_display, get_skill, list_skills
+    from .skills import delete_skill
+    from .skills import format_skill_detail
+    from .skills import format_skills_for_display
+    from .skills import get_skill
+    from .skills import list_skills
 
     subcmd = args[0] if args else "list"
 
@@ -260,7 +268,8 @@ def cmd_skills(args: list[str]) -> None:
 
 
 def cmd_install_cron(_args: list[str]) -> None:
-    from .scheduler import install, status
+    from .scheduler import install
+    from .scheduler import status
 
     msg = install()
     print(f"✅ {msg}")
@@ -279,7 +288,8 @@ def cmd_uninstall_cron(_args: list[str]) -> None:
 
 
 def cmd_cron_status(_args: list[str]) -> None:
-    from .scheduler import status, is_installed
+    from .scheduler import is_installed
+    from .scheduler import status
 
     st = status()
     print(st)
