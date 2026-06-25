@@ -14,17 +14,17 @@
 
 ## Evidence summary (what was actually run)
 
-| Check | Result |
-|---|---|
-| Fresh-venv build (`python -m build`) | ✅ sdist + wheel build clean |
-| Fresh-venv install (`pip install dist/*.whl`) | ✅ exit 0, imports, both entry points resolve |
-| Entry points (`ai-rule-learning`, `ai-rule-learning-mcp`) | ✅ CLI `--help` works; `server.main` callable |
-| `pytest` | ✅ 264 passed |
-| `pip-audit` | ✅ no known vulnerabilities in deps |
-| `bandit` | ⚠️ 0 High, 4 Medium, 23 Low |
-| `ruff check` (package) | ⚠️ 21 findings (10 I001, 6 F401, 4 E741, 1 F841) |
-| `mypy` (package) | ⚠️ 2 missing-annotation errors |
-| Secret scan | ✅ none (HF token via env only) |
+| Check                                                     | Result                                           |
+| --------------------------------------------------------- | ------------------------------------------------ |
+| Fresh-venv build (`python -m build`)                      | ✅ sdist + wheel build clean                     |
+| Fresh-venv install (`pip install dist/*.whl`)             | ✅ exit 0, imports, both entry points resolve    |
+| Entry points (`ai-rule-learning`, `ai-rule-learning-mcp`) | ✅ CLI `--help` works; `server.main` callable    |
+| `pytest`                                                  | ✅ 264 passed                                    |
+| `pip-audit`                                               | ✅ no known vulnerabilities in deps              |
+| `bandit`                                                  | ⚠️ 0 High, 4 Medium, 23 Low                      |
+| `ruff check` (package)                                    | ⚠️ 21 findings (10 I001, 6 F401, 4 E741, 1 F841) |
+| `mypy` (package)                                          | ⚠️ 2 missing-annotation errors                   |
+| Secret scan                                               | ✅ none (HF token via env only)                  |
 
 ---
 
@@ -32,41 +32,41 @@
 
 ### Process readiness
 
-| AC | Status | Notes |
-|---|---|---|
-| Packaging standards | ✅ | PEP 621 `pyproject.toml`, setuptools backend, clean `ai_rule_learning_mcp/` layout |
-| Version + changelog | ⚠️ | Version `0.2.0` consistent in `pyproject` + `__init__`; **no package `CHANGELOG.md`** |
-| Deps pinned w/ ranges | ✅ | `mcp>=1.0.0`, `huggingface-hub>=0.23.0` — compatible ranges |
-| Clean `pip install` (fresh venv) | ✅ | verified from built wheel |
-| No import/entry-point errors | ✅ | both scripts work |
-| Server/CLI start without crash | ✅ | CLI `--help` OK |
-| Documentation (README/usage/API) | ⚠️ | README solid, but **tools table lists 11 of 12** — missing `update_community_knowledge` |
-| License present | ✅ | `LICENSE` at root (⚠️ Source-Available, not OSI — see Red Hat) |
-| No hardcoded secrets | ✅ | `HF_TOKEN` from env |
-| `.gitignore` hygiene | ✅ | excludes `.env`, venv, caches, `dist/`/`build/` |
+| AC                               | Status | Notes                                                                                   |
+| -------------------------------- | ------ | --------------------------------------------------------------------------------------- |
+| Packaging standards              | ✅     | PEP 621 `pyproject.toml`, setuptools backend, clean `ai_rule_learning_mcp/` layout      |
+| Version + changelog              | ⚠️     | Version `0.2.0` consistent in `pyproject` + `__init__`; **no package `CHANGELOG.md`**   |
+| Deps pinned w/ ranges            | ✅     | `mcp>=1.0.0`, `huggingface-hub>=0.23.0` — compatible ranges                             |
+| Clean `pip install` (fresh venv) | ✅     | verified from built wheel                                                               |
+| No import/entry-point errors     | ✅     | both scripts work                                                                       |
+| Server/CLI start without crash   | ✅     | CLI `--help` OK                                                                         |
+| Documentation (README/usage/API) | ⚠️     | README solid, but **tools table lists 11 of 12** — missing `update_community_knowledge` |
+| License present                  | ✅     | `LICENSE` at root (⚠️ Source-Available, not OSI — see Red Hat)                          |
+| No hardcoded secrets             | ✅     | `HF_TOKEN` from env                                                                     |
+| `.gitignore` hygiene             | ✅     | excludes `.env`, venv, caches, `dist/`/`build/`                                         |
 
 ### Release checklist
 
-| AC | Status | Notes |
-|---|---|---|
-| PyPI name owned/available | ✅ | already publishing as `ai-rule-learning-mcp` |
-| Build artifacts generate | ✅ | sdist + wheel; CI runs `twine check` |
-| Test PyPI staging | ⚠️ | `publish-mcp.yml` publishes **straight to prod PyPI**; no TestPyPI step |
-| CI/CD release pipeline | ✅ | `publish-mcp.yml` — tag `mcp-v*` → **trusted publishing (OIDC)**; `release.yml` present |
-| Versioning strategy | ✅ | semver; `Development Status :: 3 - Alpha` |
-| Issue tracker ready | ✅ | Bug Tracker URL set |
-| Contribution/community policy | ✅ | `CONTRIBUTING.md` + `CODE_OF_CONDUCT.md` present |
+| AC                            | Status | Notes                                                                                   |
+| ----------------------------- | ------ | --------------------------------------------------------------------------------------- |
+| PyPI name owned/available     | ✅     | already publishing as `ai-rule-learning-mcp`                                            |
+| Build artifacts generate      | ✅     | sdist + wheel; CI runs `twine check`                                                    |
+| Test PyPI staging             | ⚠️     | `publish-mcp.yml` publishes **straight to prod PyPI**; no TestPyPI step                 |
+| CI/CD release pipeline        | ✅     | `publish-mcp.yml` — tag `mcp-v*` → **trusted publishing (OIDC)**; `release.yml` present |
+| Versioning strategy           | ✅     | semver; `Development Status :: 3 - Alpha`                                               |
+| Issue tracker ready           | ✅     | Bug Tracker URL set                                                                     |
+| Contribution/community policy | ✅     | `CONTRIBUTING.md` + `CODE_OF_CONDUCT.md` present                                        |
 
 ### Quality gates
 
-| AC | Status | Notes |
-|---|---|---|
-| Tests pass | ✅ | 264 passed |
-| Coverage measurable | ✅ | `pytest-cov` configured |
-| Linter/formatter | ⚠️ | 21 ruff findings (package excluded from repo CI ruff, so ungated) |
-| Type check | ⚠️ | 2 mypy errors |
-| No known critical bugs | ✅ | A1/A3/A4 fixed in PR #253 |
-| Backward compatibility | ✅ | additive tools; `serverInfo.version` now correct vs 0.1.1 |
+| AC                     | Status | Notes                                                             |
+| ---------------------- | ------ | ----------------------------------------------------------------- |
+| Tests pass             | ✅     | 264 passed                                                        |
+| Coverage measurable    | ✅     | `pytest-cov` configured                                           |
+| Linter/formatter       | ⚠️     | 21 ruff findings (package excluded from repo CI ruff, so ungated) |
+| Type check             | ⚠️     | 2 mypy errors                                                     |
+| No known critical bugs | ✅     | A1/A3/A4 fixed in PR #253                                         |
+| Backward compatibility | ✅     | additive tools; `serverInfo.version` now correct vs 0.1.1         |
 
 ---
 
@@ -74,17 +74,17 @@
 
 ### Risk identification
 
-| AC | Status | Notes |
-|---|---|---|
-| No eval/exec of untrusted input | ✅ | `eval` refs are detection strings, not calls |
-| Subprocess safety | ✅ | all `subprocess.run([...])` list-form, **no `shell=True`**; B607 partial-path is minor |
-| Dependency audit | ✅ | `pip-audit` clean |
-| Supply-chain (community data) | 🔴 | community `hf_hub_download` **not revision-pinned** (bandit B615 ×4); injector writes rules into user configs |
-| Rule-safety gate | 🟠 | `_is_safe_rule` exists but is a **denylist** (`_UNSAFE_PHRASES`) — weaker than allowlist |
-| Error handling | 🟠 | handlers return structured `❌` text, but **no top-level try/except** in `call_tool` |
-| Data privacy | ✅ | `scrub_pii` redacts email/home/IP/phone/token before storage **and** upload; truncated to 4000 chars |
-| Contribution default | ✅ | `ARL_CONTRIBUTE` defaults **false** (opt-in); upload gated on `HF_DATASET`+`HF_TOKEN` |
-| Backend availability / fallback | ✅ | HF calls wrapped in try/except; local-storage fallback when HF unconfigured |
+| AC                              | Status | Notes                                                                                                         |
+| ------------------------------- | ------ | ------------------------------------------------------------------------------------------------------------- |
+| No eval/exec of untrusted input | ✅     | `eval` refs are detection strings, not calls                                                                  |
+| Subprocess safety               | ✅     | all `subprocess.run([...])` list-form, **no `shell=True`**; B607 partial-path is minor                        |
+| Dependency audit                | ✅     | `pip-audit` clean                                                                                             |
+| Supply-chain (community data)   | 🔴     | community `hf_hub_download` **not revision-pinned** (bandit B615 ×4); injector writes rules into user configs |
+| Rule-safety gate                | 🟠     | `_is_safe_rule` exists but is a **denylist** (`_UNSAFE_PHRASES`) — weaker than allowlist                      |
+| Error handling                  | 🟠     | handlers return structured `❌` text, but **no top-level try/except** in `call_tool`                          |
+| Data privacy                    | ✅     | `scrub_pii` redacts email/home/IP/phone/token before storage **and** upload; truncated to 4000 chars          |
+| Contribution default            | ✅     | `ARL_CONTRIBUTE` defaults **false** (opt-in); upload gated on `HF_DATASET`+`HF_TOKEN`                         |
+| Backend availability / fallback | ✅     | HF calls wrapped in try/except; local-storage fallback when HF unconfigured                                   |
 
 ### Gut-check
 
@@ -94,7 +94,7 @@
   (Claude/Cursor/Windsurf/Copilot) and **installs a cron/systemd/launchd job**. Both need explicit, upfront consent framing.
 - **Name accuracy?** ✅ accurate and descriptive.
 - **Competitors?** Memory space is crowded (mem0, Letta/MemGPT, memory MCP servers); the
-  *guardrail-rule-learning + auto-injection* angle is the differentiator.
+  _guardrail-rule-learning + auto-injection_ angle is the differentiator.
 - **Community readiness?** MCP ecosystem is early but growing — acceptable timing for an Alpha.
 
 ---
@@ -123,11 +123,11 @@
 
 ### Risk mitigations
 
-| Risk | Mitigation |
-|---|---|
+| Risk                                        | Mitigation                                                                                     |
+| ------------------------------------------- | ---------------------------------------------------------------------------------------------- |
 | Poisoned community dataset → injected rules | Pin `revision=` on `hf_hub_download`; validate via `_is_safe_rule` before activation/injection |
-| Surprising side effects | README "What it writes / installs / uploads" section; keep `contribute` opt-in |
-| Exception leakage | wrap `call_tool` dispatch in try/except → structured error |
+| Surprising side effects                     | README "What it writes / installs / uploads" section; keep `contribute` opt-in                 |
+| Exception leakage                           | wrap `call_tool` dispatch in try/except → structured error                                     |
 
 ---
 
@@ -152,4 +152,4 @@ reference back to the pinned PyPI release.
 
 ---
 
-*Out of scope (per card): actual PyPI release, new feature development.*
+_Out of scope (per card): actual PyPI release, new feature development._
