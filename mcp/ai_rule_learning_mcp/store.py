@@ -105,6 +105,11 @@ def _download(filename: str) -> list[dict]:
     return _local_load(filename)
 
 
+def hf_enabled() -> bool:
+    """True when both an HF dataset and token are configured (uploads will happen)."""
+    return bool(HF_DATASET and HF_TOKEN)
+
+
 def _upload(filename: str, records: list[dict]) -> None:
     """Save to local storage always; also push to HF if configured."""
     _local_save(filename, records)

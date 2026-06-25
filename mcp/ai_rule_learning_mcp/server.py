@@ -43,11 +43,13 @@ from .skills import (
     save_skill,
 )
 from .providers import parse_any
+from . import __version__
 from .store import (
     _local_load,
     _local_save,
     append_conversations,
     auto_activate_pending_rules,
+    hf_enabled,
     is_already_processed,
     load_active_rules,
     mark_processed,
@@ -63,7 +65,7 @@ if _raw:
 else:
     _SESSION_PATHS = [Path.home() / ".claude" / "projects"]
 
-app = Server("ai-rule-learning")
+app = Server("ai-rule-learning", version=__version__)
 
 
 @app.list_tools()
@@ -574,7 +576,10 @@ async def _sync_sessions(
     # ── HF upload (optional) ───────────────────────────────────────────────
     added = append_conversations(all_conversations)
     if added:
-        log.append(f"⬆️  Uploaded {added} new conversation(s) to HF dataset")
+        if hf_enabled():
+            log.append(f"⬆️  Uploaded {added} new conversation(s) to HF dataset")
+        else:
+            log.append(f"💾 Saved {added} new conversation(s) locally (no HF token — upload skipped)")
 
     if contribute:
         contributed = 0
