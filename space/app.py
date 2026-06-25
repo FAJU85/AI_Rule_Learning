@@ -48,6 +48,7 @@ def _sanitize_path(cwd: str) -> str:
 
 import gradio as gr
 import plotly.graph_objects as go
+import mcp_introspect
 from huggingface_hub import HfApi
 from huggingface_hub import hf_hub_download
 from huggingface_hub.errors import EntryNotFoundError
@@ -11514,6 +11515,25 @@ def build_maturity_report() -> str:
     return "\n".join(lines)
 
 
+def _mcp_refresh(query: str = ""):
+    """Collect live MCP internals and return updates for the MCP Internals tab.
+
+    Order must match the ``outputs=`` list wired in the tab below.
+    """
+    data = mcp_introspect.collect_mcp_internals()
+    return (
+        mcp_introspect.server_markdown(data),
+        mcp_introspect.tool_rows(data, query),
+        data.get("tools", []),
+        mcp_introspect.resource_rows(data, query),
+        mcp_introspect.empty_note("resources", len(data.get("resources", []))),
+        mcp_introspect.prompt_rows(data, query),
+        mcp_introspect.empty_note("prompts", len(data.get("prompts", []))),
+        data,
+        f"_Last updated: {data.get('collected_at', '—')}_",
+    )
+
+
 with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as demo:
     gr.HTML("""
 <script>
@@ -14978,6 +14998,76 @@ updates the block without duplicating it.
                     ],
                     inputs=sim_input,
                 )
+
+        with gr.Tab("🔌 MCP Internals") as mcp_tab:
+            gr.Markdown(
+                "## 🔌 MCP Internals\n"
+                "Full, view-only observability into the `ai-rule-learning` MCP server — "
+                "every tool, resource, prompt, capability and runtime detail, introspected live."
+            )
+            with gr.Row():
+                mcp_search = gr.Textbox(
+                    label="Search / filter",
+                    placeholder="Filter tools, resources, prompts by name or description…",
+                    scale=4,
+                )
+                mcp_refresh_btn = gr.Button("🔄 Refresh now", variant="primary", scale=1)
+                mcp_autorefresh = gr.Checkbox(label="Auto-refresh (10s)", value=True, scale=1)
+            mcp_status_md = gr.Markdown("_Loading…_")
+            mcp_timer = gr.Timer(10.0)
+
+            mcp_server_md = gr.Markdown()
+
+            with gr.Accordion("🛠️ Tools", open=True):
+                mcp_tools_df = gr.Dataframe(
+                    headers=["Name", "Description", "Inputs", "Required", "Status"],
+                    datatype=["str", "str", "str", "str", "str"],
+                    wrap=True,
+                    interactive=False,
+                )
+                with gr.Accordion("🧬 Tool schemas (raw JSON)", open=False):
+                    mcp_tools_json = gr.JSON(label="Per-tool input/output schemas")
+
+            with gr.Accordion("📦 Resources", open=False):
+                mcp_resources_note = gr.Markdown()
+                mcp_resources_df = gr.Dataframe(
+                    headers=["URI", "Name", "MIME type", "Size"],
+                    datatype=["str", "str", "str", "str"],
+                    wrap=True,
+                    interactive=False,
+                )
+
+            with gr.Accordion("📝 Prompts", open=False):
+                mcp_prompts_note = gr.Markdown()
+                mcp_prompts_df = gr.Dataframe(
+                    headers=["Name", "Description", "Arguments"],
+                    datatype=["str", "str", "str"],
+                    wrap=True,
+                    interactive=False,
+                )
+
+            with gr.Accordion("🧪 Full raw JSON (every MCP detail)", open=False):
+                mcp_raw_json = gr.JSON(label="Complete introspection snapshot")
+
+            _mcp_outputs = [
+                mcp_server_md,
+                mcp_tools_df,
+                mcp_tools_json,
+                mcp_resources_df,
+                mcp_resources_note,
+                mcp_prompts_df,
+                mcp_prompts_note,
+                mcp_raw_json,
+                mcp_status_md,
+            ]
+            mcp_refresh_btn.click(_mcp_refresh, inputs=mcp_search, outputs=_mcp_outputs)
+            mcp_search.change(_mcp_refresh, inputs=mcp_search, outputs=_mcp_outputs)
+            mcp_tab.select(_mcp_refresh, inputs=mcp_search, outputs=_mcp_outputs)
+            mcp_timer.tick(_mcp_refresh, inputs=mcp_search, outputs=_mcp_outputs)
+            mcp_autorefresh.change(
+                lambda on: gr.Timer(active=on), inputs=mcp_autorefresh, outputs=mcp_timer
+            )
+            demo.load(_mcp_refresh, inputs=mcp_search, outputs=_mcp_outputs)
 
 
 demo.queue()

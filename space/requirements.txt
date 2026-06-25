@@ -3,3 +3,5 @@ plotly>=5.17.0
 pandas>=2.0.0
 pydantic>=2.0.0
 huggingface_hub>=0.24.0
+ai-rule-learning-mcp>=0.2.0
+mcp>=1.9.0
