@@ -11515,12 +11515,11 @@ def build_maturity_report() -> str:
     return "\n".join(lines)
 
 
-def _mcp_refresh(query: str = ""):
-    """Collect live MCP internals and return updates for the MCP Internals tab.
+def _mcp_render(data: dict, query: str = ""):
+    """Render a cached MCP snapshot into the tab's outputs (no re-collection).
 
-    Order must match the ``outputs=`` list wired in the tab below.
+    Order must match the ``_mcp_render_outputs`` list wired in the tab below.
     """
-    data = mcp_introspect.collect_mcp_internals()
     return (
         mcp_introspect.server_markdown(data),
         mcp_introspect.tool_rows(data, query),
@@ -11532,6 +11531,23 @@ def _mcp_refresh(query: str = ""):
         data,
         f"_Last updated: {data.get('collected_at', '—')}_",
     )
+
+
+def _mcp_collect(query: str = ""):
+    """Full re-collection of MCP internals (refresh button, timer, tab-select, load).
+
+    Returns the fresh snapshot first (stored in ``gr.State``) followed by rendered
+    outputs, so search can later re-filter without re-collecting.
+    """
+    data = mcp_introspect.collect_mcp_internals()
+    return (data, *_mcp_render(data, query))
+
+
+def _mcp_filter(query: str, data: dict):
+    """Re-filter the cached snapshot only — used by the search box (cheap)."""
+    if not data:
+        data = mcp_introspect.collect_mcp_internals()
+    return _mcp_render(data, query)
 
 
 with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as demo:
@@ -15015,6 +15031,7 @@ updates the block without duplicating it.
                 mcp_autorefresh = gr.Checkbox(label="Auto-refresh (10s)", value=True, scale=1)
             mcp_status_md = gr.Markdown("_Loading…_")
             mcp_timer = gr.Timer(10.0)
+            mcp_state = gr.State({})
 
             mcp_server_md = gr.Markdown()
 
@@ -15049,7 +15066,7 @@ updates the block without duplicating it.
             with gr.Accordion("🧪 Full raw JSON (every MCP detail)", open=False):
                 mcp_raw_json = gr.JSON(label="Complete introspection snapshot")
 
-            _mcp_outputs = [
+            _mcp_render_outputs = [
                 mcp_server_md,
                 mcp_tools_df,
                 mcp_tools_json,
@@ -15060,14 +15077,17 @@ updates the block without duplicating it.
                 mcp_raw_json,
                 mcp_status_md,
             ]
-            mcp_refresh_btn.click(_mcp_refresh, inputs=mcp_search, outputs=_mcp_outputs)
-            mcp_search.change(_mcp_refresh, inputs=mcp_search, outputs=_mcp_outputs)
-            mcp_tab.select(_mcp_refresh, inputs=mcp_search, outputs=_mcp_outputs)
-            mcp_timer.tick(_mcp_refresh, inputs=mcp_search, outputs=_mcp_outputs)
+            # Full re-collection writes the snapshot into mcp_state first.
+            _mcp_collect_outputs = [mcp_state, *_mcp_render_outputs]
+            mcp_refresh_btn.click(_mcp_collect, inputs=mcp_search, outputs=_mcp_collect_outputs)
+            mcp_tab.select(_mcp_collect, inputs=mcp_search, outputs=_mcp_collect_outputs)
+            mcp_timer.tick(_mcp_collect, inputs=mcp_search, outputs=_mcp_collect_outputs)
+            demo.load(_mcp_collect, inputs=mcp_search, outputs=_mcp_collect_outputs)
+            # Search only re-filters the cached snapshot — no re-collection per keystroke.
+            mcp_search.change(_mcp_filter, inputs=[mcp_search, mcp_state], outputs=_mcp_render_outputs)
             mcp_autorefresh.change(
                 lambda on: gr.Timer(active=on), inputs=mcp_autorefresh, outputs=mcp_timer
             )
-            demo.load(_mcp_refresh, inputs=mcp_search, outputs=_mcp_outputs)
 
 
 demo.queue()

@@ -34,6 +34,7 @@ def _jsonable(obj: Any) -> Any:
 
 
 def _human_duration(seconds: float) -> str:
+    """Format a duration in seconds as a compact human string (e.g. ``1h 3m 9s``)."""
     seconds = int(seconds)
     d, rem = divmod(seconds, 86400)
     h, rem = divmod(rem, 3600)
@@ -50,6 +51,7 @@ def _human_duration(seconds: float) -> str:
 
 
 def _runtime(loaded: bool) -> dict[str, Any]:
+    """Return runtime/environment facts (uptime, pid, python, transports, SDK version)."""
     info: dict[str, Any] = {
         "introspector_uptime_seconds": round(time.time() - _START, 1),
         "introspector_uptime": _human_duration(time.time() - _START),
@@ -98,10 +100,15 @@ def collect_mcp_internals() -> dict[str, Any]:
     try:
         init = app.create_initialization_options()
         caps = init.capabilities.model_dump(exclude_none=True)
+        # The package version is authoritative. ``server_version`` from an
+        # out-of-band create_initialization_options() falls back to the SDK
+        # version (the server sets it at runtime in main()), so expose that
+        # separately rather than presenting it as the server's version.
         out["server"] = {
             "name": app.name,
-            "version": getattr(init, "server_version", pkg_version),
+            "version": pkg_version,
             "package_version": pkg_version,
+            "init_server_version": getattr(init, "server_version", None),
             "instructions": getattr(init, "instructions", None),
             "capabilities": _jsonable(caps),
             "registered_request_handlers": sorted(t.__name__ for t in app.request_handlers),
@@ -166,6 +173,7 @@ def collect_mcp_internals() -> dict[str, Any]:
 
 
 def _matches(query: str, *fields: Any) -> bool:
+    """True if ``query`` (case-insensitive) is empty or a substring of any field."""
     q = (query or "").lower().strip()
     if not q:
         return True
@@ -173,6 +181,7 @@ def _matches(query: str, *fields: Any) -> bool:
 
 
 def tool_rows(data: dict[str, Any], query: str = "") -> list[list[str]]:
+    """Build dataframe rows (name, description, inputs, required, status) for tools."""
     rows = []
     for t in data.get("tools", []):
         if not _matches(query, t.get("name"), t.get("description")):
@@ -193,6 +202,7 @@ def tool_rows(data: dict[str, Any], query: str = "") -> list[list[str]]:
 
 
 def resource_rows(data: dict[str, Any], query: str = "") -> list[list[str]]:
+    """Build dataframe rows (uri, name, mime type, size) for resources."""
     rows = []
     for r in data.get("resources", []):
         if not _matches(query, r.get("uri"), r.get("name"), r.get("description")):
@@ -209,6 +219,7 @@ def resource_rows(data: dict[str, Any], query: str = "") -> list[list[str]]:
 
 
 def prompt_rows(data: dict[str, Any], query: str = "") -> list[list[str]]:
+    """Build dataframe rows (name, description, arguments) for prompt templates."""
     rows = []
     for p in data.get("prompts", []):
         if not _matches(query, p.get("name"), p.get("description")):
@@ -219,6 +230,7 @@ def prompt_rows(data: dict[str, Any], query: str = "") -> list[list[str]]:
 
 
 def server_markdown(data: dict[str, Any]) -> str:
+    """Render a markdown summary of server identity, capabilities and runtime."""
     s = data.get("server", {})
     rt = data.get("runtime", {})
     if not s:
@@ -248,6 +260,7 @@ def server_markdown(data: dict[str, Any]) -> str:
 
 
 def empty_note(kind: str, count: int) -> str:
+    """Return an italic 'none registered' note when ``count`` is zero, else ''."""
     if count:
         return ""
     return f"_No {kind} registered by this MCP server._"

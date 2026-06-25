@@ -65,7 +65,7 @@ if _raw:
 else:
     _SESSION_PATHS = [Path.home() / ".claude" / "projects"]
 
-app = Server("ai-rule-learning", version=__version__)
+app = Server("ai-rule-learning")
 
 
 @app.list_tools()
@@ -767,7 +767,12 @@ async def _update_community_knowledge(min_sources: int = 3) -> list[TextContent]
 def main() -> None:
     async def _run():
         async with stdio_server() as streams:
-            await app.run(streams[0], streams[1], app.create_initialization_options())
+            # Set our package version on InitializationOptions rather than the
+            # Server() constructor — the latter's `version=` kwarg is not present
+            # in older mcp SDKs (the package floor is mcp>=1.0.0).
+            opts = app.create_initialization_options()
+            opts.server_version = __version__
+            await app.run(streams[0], streams[1], opts)
 
     asyncio.run(_run())
 
