@@ -8,8 +8,10 @@ from __future__ import annotations
 
 import re
 
-from .gap_detector import _INJECTION_PATTERNS, _LAYER_LABELS
-from .store import load_active_rules, record_rule_outcome
+from .gap_detector import _INJECTION_PATTERNS
+from .gap_detector import _LAYER_LABELS
+from .store import load_active_rules
+from .store import record_rule_outcome
 
 # Filler-tolerant matcher for the instruction-override family. Literal substring
 # matching misses common phrasings like "ignore all previous instructions"
@@ -63,17 +65,17 @@ def analyze_session_health(rules: list[dict] | None = None) -> str:
         layer = r.get("failure_layer", 1)
         if layer in layer_counts:
             layer_counts[layer] += r.get("instance_count", 1)
-    deduction = sum(layer_weights[l] * layer_counts[l] for l in layer_counts)
+    deduction = sum(layer_weights[layer] * layer_counts[layer] for layer in layer_counts)
     score = max(0, min(100, 100 - deduction))
     status = "✅ Healthy" if score >= 70 else ("⚠️ Needs Attention" if score >= 40 else "🔴 Critical")
     lines = [f"## Session Health Score: {score}/100 — {status}\n"]
     lines.append("| Layer | Label | Gaps | Deduction |")
     lines.append("|---|---|---|---|")
-    for l in sorted(layer_counts):
-        label = _LAYER_LABELS.get(l, f"L{l}")
-        cnt = layer_counts[l]
-        ded = layer_weights[l] * cnt
-        lines.append(f"| L{l} | {label} | {cnt} | −{ded} pts |")
+    for layer in sorted(layer_counts):
+        label = _LAYER_LABELS.get(layer, f"L{layer}")
+        cnt = layer_counts[layer]
+        ded = layer_weights[layer] * cnt
+        lines.append(f"| L{layer} | {label} | {cnt} | −{ded} pts |")
     lines.append(f"\n**Total deduction:** −{deduction} pts")
     return "\n".join(lines)
 

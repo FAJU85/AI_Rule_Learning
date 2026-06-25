@@ -144,8 +144,7 @@ def parse_openai_export(path: Path) -> list[dict]:
         messages: list[dict] = []
         mapping = item.get("mapping", {})
         if mapping:
-            # Build ordered list from linked list (each node has parent/children)
-            nodes = {k: v for k, v in mapping.items() if v.get("message")}
+            # Walk the linked list (each node has parent/children) in order
             # Find root(s) and walk in order
             visited: set = set()
 
@@ -201,7 +200,7 @@ def parse_generic_jsonl(path: Path) -> dict | None:
     messages: list[dict] = []
     try:
         with open(path, encoding="utf-8") as f:
-            lines = [l.strip() for l in f if l.strip()]
+            lines = [line.strip() for line in f if line.strip()]
 
         # Try line-per-message format
         for line in lines:
@@ -235,7 +234,7 @@ def parse_generic_jsonl(path: Path) -> dict | None:
 
 
 def _pair_messages(messages: list[dict]) -> list[dict]:
-    turns = []
+    turns: list[dict] = []
     i = 0
     while i < len(messages):
         if messages[i]["role"] == "user":

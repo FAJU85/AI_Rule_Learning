@@ -24,37 +24,33 @@ from mcp.server.stdio import stdio_server
 from mcp.types import TextContent
 from mcp.types import Tool
 
-from .community import contribute_gaps
-from .analyzer import run_analyze
-from .gap_detector import analyze_conversations, generate_rules
-from .injector import detected_targets, format_rules_block, write_memory_all, write_rules_all, write_skills_all
-from .memory import (
-    add_memory,
-    format_memory_for_display,
-    forget,
-    load_memory,
-)
-from .skills import (
-    delete_skill,
-    format_skill_detail,
-    format_skills_for_display,
-    get_skill,
-    list_skills,
-    save_skill,
-)
-from .providers import parse_any
 from . import __version__
-from .store import (
-    _local_load,
-    _local_save,
-    append_conversations,
-    auto_activate_pending_rules,
-    hf_enabled,
-    is_already_processed,
-    load_active_rules,
-    mark_processed,
-    record_rule_outcome,
-)
+from .analyzer import run_analyze
+from .community import contribute_gaps
+from .gap_detector import analyze_conversations
+from .gap_detector import generate_rules
+from .injector import detected_targets
+from .injector import format_rules_block
+from .injector import write_memory_all
+from .injector import write_rules_all
+from .injector import write_skills_all
+from .memory import add_memory
+from .memory import format_memory_for_display
+from .memory import load_memory
+from .providers import parse_any
+from .skills import format_skill_detail
+from .skills import format_skills_for_display
+from .skills import get_skill
+from .skills import list_skills
+from .skills import save_skill
+from .store import _local_load
+from .store import _local_save
+from .store import append_conversations
+from .store import auto_activate_pending_rules
+from .store import hf_enabled
+from .store import is_already_processed
+from .store import load_active_rules
+from .store import mark_processed
 
 _CONTRIBUTE = os.environ.get("ARL_CONTRIBUTE", "false").lower() == "true"
 
@@ -370,52 +366,57 @@ async def list_tools() -> list[Tool]:
 
 @app.call_tool()
 async def call_tool(name: str, arguments: dict) -> list[TextContent]:
-    if name == "get_guardrail_rules":
-        return await _get_guardrail_rules()
-    if name == "remember":
-        return await _remember(
-            memory_type=arguments.get("type", "context"),
-            content=arguments.get("content", ""),
-        )
-    if name == "recall":
-        return await _recall()
-    if name == "record_feedback":
-        return await _record_feedback(
-            feedback_type=arguments.get("feedback_type", "correction"),
-            description=arguments.get("description", ""),
-            rule_hint=arguments.get("rule_hint", ""),
-        )
-    if name == "sync_sessions":
-        paths = [Path(p) for p in arguments.get("paths", [])] or None
-        contribute = arguments.get("contribute", _CONTRIBUTE)
-        return await _sync_sessions(paths=paths, contribute=contribute)
-    if name == "install_scheduler":
-        return await _install_scheduler(arguments.get("action", "install"))
-    if name == "list_providers":
-        return await _list_providers()
-    if name == "save_skill":
-        return await _save_skill(
-            skill_name=arguments.get("name", ""),
-            description=arguments.get("description", ""),
-            steps=arguments.get("steps", ""),
-            triggers=arguments.get("triggers", []),
-        )
-    if name == "list_skills":
-        return await _list_skills()
-    if name == "get_skill":
-        return await _get_skill(arguments.get("name", ""))
-    if name == "analyze":
-        return await _analyze(
-            action=arguments.get("action", "all"),
-            prompt=arguments.get("prompt", ""),
-            rule_id=arguments.get("rule_id", ""),
-            fired_again=arguments.get("fired_again"),
-        )
-    if name == "update_community_knowledge":
-        return await _update_community_knowledge(
-            min_sources=int(arguments.get("min_sources", 3))
-        )
-    return [TextContent(type="text", text=f"Unknown tool: {name}")]
+    # Contain handler failures: return a structured error to the agent rather
+    # than letting an unexpected exception propagate (and leak a stack trace).
+    try:
+        if name == "get_guardrail_rules":
+            return await _get_guardrail_rules()
+        if name == "remember":
+            return await _remember(
+                memory_type=arguments.get("type", "context"),
+                content=arguments.get("content", ""),
+            )
+        if name == "recall":
+            return await _recall()
+        if name == "record_feedback":
+            return await _record_feedback(
+                feedback_type=arguments.get("feedback_type", "correction"),
+                description=arguments.get("description", ""),
+                rule_hint=arguments.get("rule_hint", ""),
+            )
+        if name == "sync_sessions":
+            paths = [Path(p) for p in arguments.get("paths", [])] or None
+            contribute = arguments.get("contribute", _CONTRIBUTE)
+            return await _sync_sessions(paths=paths, contribute=contribute)
+        if name == "install_scheduler":
+            return await _install_scheduler(arguments.get("action", "install"))
+        if name == "list_providers":
+            return await _list_providers()
+        if name == "save_skill":
+            return await _save_skill(
+                skill_name=arguments.get("name", ""),
+                description=arguments.get("description", ""),
+                steps=arguments.get("steps", ""),
+                triggers=arguments.get("triggers", []),
+            )
+        if name == "list_skills":
+            return await _list_skills()
+        if name == "get_skill":
+            return await _get_skill(arguments.get("name", ""))
+        if name == "analyze":
+            return await _analyze(
+                action=arguments.get("action", "all"),
+                prompt=arguments.get("prompt", ""),
+                rule_id=arguments.get("rule_id", ""),
+                fired_again=arguments.get("fired_again"),
+            )
+        if name == "update_community_knowledge":
+            return await _update_community_knowledge(
+                min_sources=int(arguments.get("min_sources", 3))
+            )
+        return [TextContent(type="text", text=f"Unknown tool: {name}")]
+    except Exception as exc:  # noqa: BLE001 — boundary handler, report not crash
+        return [TextContent(type="text", text=f"❌ {name} failed: {type(exc).__name__}: {exc}")]
 
 
 async def _get_guardrail_rules() -> list[TextContent]:
@@ -623,7 +624,10 @@ async def _sync_sessions(
 
 
 async def _install_scheduler(action: str = "install") -> list[TextContent]:
-    from .scheduler import install, is_installed, status, uninstall
+    from .scheduler import install
+    from .scheduler import is_installed
+    from .scheduler import status
+    from .scheduler import uninstall
 
     if action == "uninstall":
         removed = uninstall()
@@ -741,7 +745,9 @@ async def _analyze(
 
 
 async def _update_community_knowledge(min_sources: int = 3) -> list[TextContent]:
-    from .community import build_community_templates, push_community_templates, fetch_community_patterns
+    from .community import build_community_templates
+    from .community import fetch_community_patterns
+    from .community import push_community_templates
     log = []
     freq = fetch_community_patterns()
     if not freq:

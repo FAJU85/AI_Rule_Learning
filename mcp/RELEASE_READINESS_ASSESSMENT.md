@@ -152,4 +152,24 @@ reference back to the pinned PyPI release.
 
 ---
 
+## Update (2026-06-25) — blockers closed → **GO**
+
+All three conditions were addressed in this PR:
+
+- **B1:** `ruff check` and `mypy` on `ai_rule_learning_mcp/` both exit 0 (16 auto-fixes + manual `E741`/`F841`;
+  2 missing annotations added).
+- **B2:** README now lists all 12 tools (`update_community_knowledge` added) and a "What this tool changes on your
+  machine" section discloses config-file writes, the opt-in scheduler, and opt-in cloud/community upload.
+  `mcp/CHANGELOG.md` added with the 0.2.0 entry.
+- **B3:** all four `hf_hub_download` calls carry an explicit `revision` (bandit B615 → 0 Medium; the one user-dataset
+  call is `# nosec`-justified); `load_active_rules` now re-applies `_is_safe_rule` at the injection boundary, with a
+  regression test.
+
+Recommended hardening also landed: `call_tool` now contains handler exceptions and returns a structured error.
+
+Verification: **265 tests pass**, ruff/mypy clean, fresh-venv build clean. Remaining work is the human release action
+(push tag `mcp-v0.2.0`) — unchanged and out of scope here.
+
+---
+
 _Out of scope (per card): actual PyPI release, new feature development._
