@@ -1,12 +1,12 @@
 """Standalone CLI — works with ZERO MCP config.
 
 Usage:
-  ai-rule-learning sync              Scan sessions, generate rules, write to all detected AI agents
+  ai-rule-learning sync [--dry-run] Scan sessions, generate rules, write to all detected AI agents
   ai-rule-learning status            Show current rules and detected agent configs
   ai-rule-learning rules             Print active rules
-  ai-rule-learning clear             Remove AI Rule Learning section from all agent configs
+  ai-rule-learning clear [--dry-run] Remove AI Rule Learning section from all agent configs
   ai-rule-learning memory show       Show all remembered facts and preferences
-  ai-rule-learning memory add <type> <content>   Add a memory entry manually
+  ai-rule-learning memory add <type> <content> [--dry-run] Add a memory entry manually
   ai-rule-learning memory clear      Delete all memory entries
   ai-rule-learning skills            List all saved skill procedures
   ai-rule-learning skills show <name>   Show full steps for a skill
@@ -30,7 +30,15 @@ def _default_session_paths() -> list[Path]:
     return [p for p in candidates if p.exists()]
 
 
+def _consume_dry_run(args: list[str]) -> tuple[bool, list[str]]:
+    """Return (dry_run, args_without_flag) for CLI commands that can write files."""
+    dry_run_flags = {"--dry-run", "-n"}
+    return any(arg in dry_run_flags for arg in args), [arg for arg in args if arg not in dry_run_flags]
+
+
 def cmd_sync(args: list[str]) -> None:
+    dry_run, args = _consume_dry_run(args)
+
     from .gap_detector import analyze_conversations
     from .injector import write_rules_all
     from .providers import parse_any
@@ -43,6 +51,8 @@ def cmd_sync(args: list[str]) -> None:
     from .store import mark_processed
 
     raw_paths = [Path(p) for p in args] if args else _default_session_paths()
+    if dry_run:
+        print("🔎 Dry run: no local storage, processed markers, scheduler, or agent config files will be changed.")
     if not raw_paths:
         print("⚠️  No session paths found. Pass a path: ai-rule-learning sync ~/.claude/projects")
         sys.exit(1)
@@ -54,12 +64,8 @@ def cmd_sync(args: list[str]) -> None:
         elif sp.is_dir():
             for sub in sp.iterdir():
                 if sub.is_dir():
-                    session_files.extend(
-                        f for f in sub.glob("*.jsonl") if ".ccr-tip" not in f.name
-                    )
-            session_files.extend(
-                f for f in sp.glob("*.jsonl") if ".ccr-tip" not in f.name
-            )
+                    session_files.extend(f for f in sub.glob("*.jsonl") if ".ccr-tip" not in f.name)
+            session_files.extend(f for f in sp.glob("*.jsonl") if ".ccr-tip" not in f.name)
             session_files.extend(sp.glob("conversations.json"))
 
     print(f"📂 Found {len(session_files)} session file(s)")
@@ -72,16 +78,20 @@ def cmd_sync(args: list[str]) -> None:
         convs = parse_any(path)
         if convs:
             all_conversations.extend(convs)
-            mark_processed(path)
+            if not dry_run:
+                mark_processed(path)
 
     print(f"✅ Parsed {len(all_conversations)} conversation(s)")
 
     if not all_conversations:
         rules = load_active_rules()
         if rules:
-            written = write_rules_all(rules)
-            targets = ", ".join(n for n, _ in written)
-            print(f"📝 {len(rules)} existing rule(s) refreshed → {targets}")
+            if dry_run:
+                print(f"🔎 Dry run: would refresh {len(rules)} existing rule(s).")
+            else:
+                written = write_rules_all(rules)
+                targets = ", ".join(n for n, _ in written)
+                print(f"📝 {len(rules)} existing rule(s) refreshed → {targets}")
         else:
             print("ℹ️  No conversations to process and no existing rules. Try again after more sessions.")
         return
@@ -92,35 +102,44 @@ def cmd_sync(args: list[str]) -> None:
         existing_ids = {r.get("rule_id") for r in existing}
         new_rules = [r for r in detected if r.get("rule_id") not in existing_ids]
         if new_rules:
-            _local_save("rules.jsonl", existing + new_rules)
-            print(f"🧠 Generated {len(new_rules)} new rule(s) from your patterns")
+            if dry_run:
+                print(f"🔎 Dry run: would save {len(new_rules)} new rule(s) from your patterns")
+            else:
+                _local_save("rules.jsonl", existing + new_rules)
+                print(f"🧠 Generated {len(new_rules)} new rule(s) from your patterns")
         else:
             print("ℹ️  Patterns already have rules")
     else:
         print("ℹ️  No recurring friction patterns detected yet")
 
-    try:
-        append_conversations(all_conversations)
-    except Exception:
-        pass
+    if dry_run:
+        print(f"🔎 Dry run: would persist {len(all_conversations)} parsed conversation(s).")
+    else:
+        try:
+            append_conversations(all_conversations)
+        except Exception:
+            pass
 
-    try:
-        activated = auto_activate_pending_rules()
-        if activated:
-            print(f"✅ Auto-activated {activated} rule(s) from HF dataset")
-    except Exception:
-        pass
+        try:
+            activated = auto_activate_pending_rules()
+            if activated:
+                print(f"✅ Auto-activated {activated} rule(s) from remote dataset")
+        except Exception:
+            pass
 
     from .memory import load_memory
 
     rules = load_active_rules()
     if rules:
         memory_entries = load_memory()
-        written = write_rules_all(rules, memory_entries=memory_entries or None)
-        if written:
-            targets = ", ".join(n for n, _ in written)
-            print(f"\n📝 {len(rules)} rule(s) written to: {targets}")
-        print("🎉 These rules will now apply automatically to every future session!\n")
+        if dry_run:
+            print(f"🔎 Dry run: would write {len(rules)} active rule(s) to detected agent configs.")
+        else:
+            written = write_rules_all(rules, memory_entries=memory_entries or None)
+            if written:
+                targets = ", ".join(n for n, _ in written)
+                print(f"\n📝 {len(rules)} rule(s) written to: {targets}")
+            print("🎉 These rules will now apply automatically to every future session!\n")
         print("Active rules:")
         for rule in rules:
             label = rule.get("priority_label", "MEDIUM")
@@ -181,8 +200,13 @@ def cmd_rules(_args: list[str]) -> None:
         print()
 
 
-def cmd_clear(_args: list[str]) -> None:
+def cmd_clear(args: list[str]) -> None:
+    dry_run, _args = _consume_dry_run(args)
     from .injector import remove_rules_all
+
+    if dry_run:
+        print("🔎 Dry run: would remove injected AI Rule Learning sections from detected agent configs.")
+        return
 
     removed = remove_rules_all()
     if removed:
@@ -192,6 +216,8 @@ def cmd_clear(_args: list[str]) -> None:
 
 
 def cmd_memory(args: list[str]) -> None:
+    dry_run, args = _consume_dry_run(args)
+
     from .injector import write_memory_all
     from .memory import add_memory
     from .memory import clear_memory
@@ -211,6 +237,9 @@ def cmd_memory(args: list[str]) -> None:
             return
         mem_type = args[1]
         content = " ".join(args[2:])
+        if dry_run:
+            print(f"🔎 Dry run: would remember [{mem_type}]: {content}")
+            return
         entry = add_memory(mem_type, content)
         entries = load_memory()
         written = write_memory_all(entries)
@@ -219,6 +248,10 @@ def cmd_memory(args: list[str]) -> None:
         print(f"   Written to: {targets}")
 
     elif subcmd == "clear":
+        if dry_run:
+            entries = load_memory()
+            print(f"🔎 Dry run: would clear {len(entries)} memory entries")
+            return
         n = clear_memory()
         print(f"✅ Cleared {n} memory entries")
 
@@ -228,6 +261,8 @@ def cmd_memory(args: list[str]) -> None:
 
 
 def cmd_skills(args: list[str]) -> None:
+    dry_run, args = _consume_dry_run(args)
+
     from .skills import delete_skill
     from .skills import format_skill_detail
     from .skills import format_skills_for_display
@@ -257,6 +292,9 @@ def cmd_skills(args: list[str]) -> None:
             print("Usage: ai-rule-learning skills delete <name>")
             return
         name = " ".join(args[1:])
+        if dry_run:
+            print(f"🔎 Dry run: would delete skill {name!r}")
+            return
         if delete_skill(name):
             print(f"✅ Skill deleted: {name!r}")
         else:
@@ -267,9 +305,14 @@ def cmd_skills(args: list[str]) -> None:
         print("Available: list, show <name>, delete <name>")
 
 
-def cmd_install_cron(_args: list[str]) -> None:
+def cmd_install_cron(args: list[str]) -> None:
+    dry_run, _args = _consume_dry_run(args)
     from .scheduler import install
     from .scheduler import status
+
+    if dry_run:
+        print("🔎 Dry run: would install nightly auto-sync scheduler at 02:00.")
+        return
 
     msg = install()
     print(f"✅ {msg}")
@@ -277,8 +320,13 @@ def cmd_install_cron(_args: list[str]) -> None:
     print("The system will now sync automatically every night at 02:00.")
 
 
-def cmd_uninstall_cron(_args: list[str]) -> None:
+def cmd_uninstall_cron(args: list[str]) -> None:
+    dry_run, _args = _consume_dry_run(args)
     from .scheduler import uninstall
+
+    if dry_run:
+        print("🔎 Dry run: would remove nightly auto-sync scheduler if installed.")
+        return
 
     removed = uninstall()
     if removed:
