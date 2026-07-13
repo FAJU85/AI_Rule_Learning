@@ -1,0 +1,27 @@
+name: Documentation
+description: Report unclear, missing, or incorrect documentation
+title: 'docs: '
+labels: [documentation]
+body:
+  - type: textarea
+    id: location
+    attributes:
+      label: Documentation location
+      description: Link or path to the relevant docs.
+      placeholder: README.md, mcp/README.md, CONTRIBUTING.md, etc.
+    validations:
+      required: true
+  - type: textarea
+    id: issue
+    attributes:
+      label: What is unclear or missing?
+      description: Explain the documentation problem.
+    validations:
+      required: true
+  - type: textarea
+    id: suggested
+    attributes:
+      label: Suggested improvement
+      description: If you know the wording or structure you want, add it here.
+    validations:
+      required: false
