@@ -75,6 +75,15 @@ ai-rule-learning status
 # Print active rules
 ai-rule-learning rules
 
+# Review and manage rule lifecycle
+ai-rule-learning rules pending
+ai-rule-learning rules approve <rule-id>
+ai-rule-learning rules reject <rule-id>
+ai-rule-learning rules edit <rule-id> "Always run focused tests first"
+ai-rule-learning rules merge <primary-rule-id> <duplicate-rule-id>
+ai-rule-learning rules outcome <rule-id> --worked
+ai-rule-learning rules outcome <rule-id> --failed
+
 # Remove all injected sections
 ai-rule-learning clear
 
@@ -215,7 +224,9 @@ If no path is passed, the CLI checks known default local session locations.
 - Use `--dry-run` on write or destructive CLI commands to preview changes before files are modified.
 - MCP write tools also accept `dry_run: true` for safe previews of rule refreshes, feedback
   capture, session sync, memory writes, skill saves, and scheduler install/uninstall actions.
-- Review generated rules before relying on them for critical workflows.
+- Review generated rules before relying on them for critical workflows; use
+  `ai-rule-learning rules pending`, `approve`, `reject`, `edit`, `merge`, and `outcome` to
+  manage lifecycle state.
 - Do not store secrets as memory entries or skill content.
 
 ---

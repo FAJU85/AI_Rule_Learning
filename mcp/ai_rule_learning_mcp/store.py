@@ -62,6 +62,7 @@ def mark_processed(file_path: Path) -> None:
         processed.append({"path": key, "at": datetime.utcnow().isoformat()})
         _local_save("processed.jsonl", processed)
 
+
 # PII patterns
 _EMAIL_RE = re.compile(r"[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}", re.IGNORECASE)
 _HOME_RE = re.compile(r"(?:/home/[^/\s]+|/Users/[^/\s]+|C:\\Users\\[^\\\s]+)", re.IGNORECASE)
@@ -176,6 +177,102 @@ def auto_activate_pending_rules() -> int:
     return activated
 
 
+RULE_STATUSES = {
+    "pending",
+    "approved",
+    "rejected",
+    "active",
+    "inactive",
+    "stale",
+    "needs_review",
+    "merged",
+}
+
+
+def list_rules(status: str | None = None) -> list[dict]:
+    """Return stored rules, optionally filtered by lifecycle status."""
+    rules = _download("rules.jsonl")
+    if status:
+        rules = [r for r in rules if r.get("status", "active") == status]
+    return sorted(rules, key=lambda r: r.get("priority", 0), reverse=True)
+
+
+def get_rule(rule_id: str) -> dict | None:
+    """Return one stored rule by id, or None when not found."""
+    return next((r for r in _download("rules.jsonl") if r.get("rule_id") == rule_id), None)
+
+
+def update_rule_status(rule_id: str, status: str, note: str = "") -> dict | None:
+    """Update a rule lifecycle status and active injection flag."""
+    normalized = status.strip().lower()
+    if normalized not in RULE_STATUSES:
+        raise ValueError(f"unsupported rule status: {status}")
+
+    rules = _download("rules.jsonl")
+    now = datetime.utcnow().isoformat()
+    target = next((r for r in rules if r.get("rule_id") == rule_id), None)
+    if target is None:
+        return None
+
+    target["status"] = normalized
+    target["is_active"] = normalized == "active"
+    target["updated_at"] = now
+    target[f"{normalized}_at"] = now
+    if note:
+        target["review_note"] = note
+    _upload("rules.jsonl", rules)
+    return target
+
+
+def edit_rule_instruction(rule_id: str, instruction: str) -> dict | None:
+    """Update a rule instruction without changing its lifecycle state."""
+    if not instruction.strip():
+        raise ValueError("instruction cannot be empty")
+
+    rules = _download("rules.jsonl")
+    now = datetime.utcnow().isoformat()
+    target = next((r for r in rules if r.get("rule_id") == rule_id), None)
+    if target is None:
+        return None
+
+    target["instruction"] = instruction.strip()
+    action = target.get("action")
+    if isinstance(action, dict):
+        action["instruction"] = instruction.strip()
+    else:
+        target["action"] = {"instruction": instruction.strip()}
+    target["status"] = target.get("status", "needs_review")
+    target["updated_at"] = now
+    _upload("rules.jsonl", rules)
+    return target
+
+
+def merge_rules(primary_rule_id: str, duplicate_rule_id: str) -> dict | None:
+    """Mark a duplicate rule as merged into a primary rule."""
+    if primary_rule_id == duplicate_rule_id:
+        raise ValueError("cannot merge a rule into itself")
+
+    rules = _download("rules.jsonl")
+    now = datetime.utcnow().isoformat()
+    primary = next((r for r in rules if r.get("rule_id") == primary_rule_id), None)
+    duplicate = next((r for r in rules if r.get("rule_id") == duplicate_rule_id), None)
+    if primary is None or duplicate is None:
+        return None
+
+    aliases = primary.setdefault("merged_rule_ids", [])
+    if duplicate_rule_id not in aliases:
+        aliases.append(duplicate_rule_id)
+    primary["updated_at"] = now
+
+    duplicate["status"] = "merged"
+    duplicate["is_active"] = False
+    duplicate["merged_into"] = primary_rule_id
+    duplicate["merged_at"] = now
+    duplicate["updated_at"] = now
+    _upload("rules.jsonl", rules)
+    return primary
+
+
 def load_active_rules() -> list[dict]:
     """Return all active rules from the dataset, sorted by priority desc.
 
@@ -185,11 +282,7 @@ def load_active_rules() -> list[dict]:
     without passing the safety gate.
     """
     rules = _download("rules.jsonl")
-    active = [
-        r
-        for r in rules
-        if (r.get("is_active", True) or r.get("status") == "active") and _is_safe_rule(r)
-    ]
+    active = [r for r in rules if (r.get("is_active", True) or r.get("status") == "active") and _is_safe_rule(r)]
     return sorted(active, key=lambda r: r.get("priority", 0), reverse=True)
 
 
@@ -211,15 +304,11 @@ def record_rule_outcome(rule_id: str, fired_again: bool) -> dict | None:
     if fired_again:
         target["times_triggered"] = target.get("times_triggered", 0) + 1
         # Decay score — cap at 0.0
-        target["effectiveness_score"] = max(
-            0.0, round(target.get("effectiveness_score", 0.5) - 0.1, 2)
-        )
+        target["effectiveness_score"] = max(0.0, round(target.get("effectiveness_score", 0.5) - 0.1, 2))
     else:
         target["suppression_count"] = target.get("suppression_count", 0) + 1
         # Grow score — cap at 1.0
-        target["effectiveness_score"] = min(
-            1.0, round(target.get("effectiveness_score", 0.5) + 0.1, 2)
-        )
+        target["effectiveness_score"] = min(1.0, round(target.get("effectiveness_score", 0.5) + 0.1, 2))
 
     _upload("rules.jsonl", rules)
     return target

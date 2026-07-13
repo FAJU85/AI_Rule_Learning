@@ -4,6 +4,12 @@ Usage:
   ai-rule-learning sync [--dry-run] Scan sessions, generate rules, write to all detected AI agents
   ai-rule-learning status            Show current rules and detected agent configs
   ai-rule-learning rules             Print active rules
+  ai-rule-learning rules pending     Print rules awaiting review
+  ai-rule-learning rules approve <id> Activate a reviewed rule
+  ai-rule-learning rules reject <id>  Reject a rule so it is not injected
+  ai-rule-learning rules edit <id> <instruction>
+  ai-rule-learning rules merge <primary-id> <duplicate-id>
+  ai-rule-learning rules outcome <id> --worked|--failed
   ai-rule-learning clear [--dry-run] Remove AI Rule Learning section from all agent configs
   ai-rule-learning memory show       Show all remembered facts and preferences
   ai-rule-learning memory add <type> <content> [--dry-run] Add a memory entry manually
@@ -182,22 +188,130 @@ def cmd_status(_args: list[str]) -> None:
             print(f"  {line}")
 
 
-def cmd_rules(_args: list[str]) -> None:
-    from .store import load_active_rules
-
-    rules = load_active_rules()
+def _print_rules(rules: list[dict], title: str) -> None:
     if not rules:
-        print("No active rules. Run: ai-rule-learning sync")
+        print(f"No {title.lower()} rules found.")
         return
-    print(f"Active rules ({len(rules)}):\n")
+    print(f"{title} ({len(rules)}):\n")
     for i, rule in enumerate(rules, 1):
         label = rule.get("priority_label", "MEDIUM")
         name = rule.get("name", rule.get("rule_id", f"Rule {i}"))
+        rule_id = rule.get("rule_id", "?")
+        status = rule.get("status", "active")
         instruction = rule.get("action", {}).get("instruction") or rule.get("instruction", "")
         print(f"[{label}] {name}")
+        print(f"  id: {rule_id} | status: {status}")
         if instruction:
             print(f"  → {instruction}")
         print()
+
+
+def cmd_rules(args: list[str]) -> None:
+    dry_run, args = _consume_dry_run(args)
+
+    from .store import edit_rule_instruction
+    from .store import list_rules
+    from .store import load_active_rules
+    from .store import merge_rules
+    from .store import record_rule_outcome
+    from .store import update_rule_status
+
+    subcmd = args[0] if args else "active"
+
+    if subcmd in ("active", "list", "ls"):
+        rules = load_active_rules()
+        if not rules:
+            print("No active rules. Run: ai-rule-learning sync")
+            return
+        _print_rules(rules, "Active rules")
+        return
+
+    if subcmd in ("all", "pending", "approved", "rejected", "inactive", "stale", "needs_review", "merged"):
+        status = None if subcmd == "all" else subcmd
+        _print_rules(list_rules(status=status), "All rules" if status is None else f"{status} rules")
+        return
+
+    if subcmd in ("approve", "activate"):
+        if len(args) < 2:
+            print("Usage: ai-rule-learning rules approve <rule-id> [--dry-run]")
+            return
+        rule_id = args[1]
+        if dry_run:
+            print(f"🔎 Dry run: would approve and activate rule {rule_id!r}")
+            return
+        rule = update_rule_status(rule_id, "active")
+        print(f"✅ Approved and activated rule: {rule_id}" if rule else f"❌ Rule not found: {rule_id}")
+        return
+
+    if subcmd == "reject":
+        if len(args) < 2:
+            print("Usage: ai-rule-learning rules reject <rule-id> [--dry-run]")
+            return
+        rule_id = args[1]
+        note = " ".join(args[2:])
+        if dry_run:
+            print(f"🔎 Dry run: would reject rule {rule_id!r}")
+            return
+        rule = update_rule_status(rule_id, "rejected", note=note)
+        print(f"✅ Rejected rule: {rule_id}" if rule else f"❌ Rule not found: {rule_id}")
+        return
+
+    if subcmd in ("deactivate", "disable"):
+        if len(args) < 2:
+            print("Usage: ai-rule-learning rules deactivate <rule-id> [--dry-run]")
+            return
+        rule_id = args[1]
+        if dry_run:
+            print(f"🔎 Dry run: would deactivate rule {rule_id!r}")
+            return
+        rule = update_rule_status(rule_id, "inactive")
+        print(f"✅ Deactivated rule: {rule_id}" if rule else f"❌ Rule not found: {rule_id}")
+        return
+
+    if subcmd == "edit":
+        if len(args) < 3:
+            print("Usage: ai-rule-learning rules edit <rule-id> <new instruction> [--dry-run]")
+            return
+        rule_id = args[1]
+        instruction = " ".join(args[2:])
+        if dry_run:
+            print(f"🔎 Dry run: would update instruction for rule {rule_id!r}")
+            return
+        rule = edit_rule_instruction(rule_id, instruction)
+        print(f"✅ Updated rule instruction: {rule_id}" if rule else f"❌ Rule not found: {rule_id}")
+        return
+
+    if subcmd == "merge":
+        if len(args) < 3:
+            print("Usage: ai-rule-learning rules merge <primary-rule-id> <duplicate-rule-id> [--dry-run]")
+            return
+        primary_id, duplicate_id = args[1], args[2]
+        if dry_run:
+            print(f"🔎 Dry run: would merge duplicate rule {duplicate_id!r} into {primary_id!r}")
+            return
+        rule = merge_rules(primary_id, duplicate_id)
+        print(
+            f"✅ Merged {duplicate_id} into {primary_id}"
+            if rule
+            else f"❌ Could not find both rules: {primary_id}, {duplicate_id}"
+        )
+        return
+
+    if subcmd == "outcome":
+        if len(args) < 3 or args[2] not in ("--worked", "--failed"):
+            print("Usage: ai-rule-learning rules outcome <rule-id> --worked|--failed")
+            return
+        rule_id = args[1]
+        fired_again = args[2] == "--failed"
+        if dry_run:
+            print(f"🔎 Dry run: would record outcome for rule {rule_id!r}")
+            return
+        rule = record_rule_outcome(rule_id, fired_again=fired_again)
+        print(f"✅ Recorded outcome for rule: {rule_id}" if rule else f"❌ Rule not found: {rule_id}")
+        return
+
+    print(f"Unknown rules subcommand: {subcmd!r}")
+    print("Available: active, all, pending, approve, reject, deactivate, edit, merge, outcome")
 
 
 def cmd_clear(args: list[str]) -> None:

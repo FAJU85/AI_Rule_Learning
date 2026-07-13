@@ -4,8 +4,8 @@ This roadmap is directional and may change based on user feedback and maintainer
 
 ## Near Term
 
-- Add explicit rule review states: pending, approved, rejected, active, stale, and needs_review.
-- Add CLI commands for approving, rejecting, editing, merging, and scoring generated rules.
+- Expand MCP/server support for rule lifecycle review now that CLI lifecycle commands exist.
+- Add richer stale/needs_review automation and duplicate-rule suggestions.
 - Document a privacy-preserving, opt-in metrics plan to understand real adoption without collecting raw user content.
 - Improve the private owner-only Hugging Face Space dashboard/control panel for operations, rule review, and project health.
 - Improve README examples and screenshots.

@@ -135,12 +135,12 @@ MCP data flow:
 
 ### High Priority
 
-| Item                                        | Dependency             | Effort | Notes                                                                                    |
-| ------------------------------------------- | ---------------------- | ------ | ---------------------------------------------------------------------------------------- |
-| Add rule review lifecycle states            | MCP store/CLI/injector | Medium | Pending/approved/rejected/active/stale/needs_review.                                     |
-| Extend dry-run mode beyond CLI              | Owner Space dashboard  | Medium | CLI and MCP server write tools now support dry-run; future owner UI actions need parity. |
-| Improve owner-only Space control panel      | Hugging Face Space UI  | Large  | Dashboard is for the project owner only, not normal user installations.                  |
-| Make external storage optional and explicit | MCP/root settings      | Medium | Avoid silent behavior and hidden dependencies.                                           |
+| Item                                        | Dependency            | Effort | Notes                                                                                    |
+| ------------------------------------------- | --------------------- | ------ | ---------------------------------------------------------------------------------------- |
+| Expand rule review lifecycle support        | MCP server/dashboard  | Medium | Store helpers and CLI commands exist; MCP tools and owner UI need review workflows.      |
+| Extend dry-run mode beyond CLI              | Owner Space dashboard | Medium | CLI and MCP server write tools now support dry-run; future owner UI actions need parity. |
+| Improve owner-only Space control panel      | Hugging Face Space UI | Large  | Dashboard is for the project owner only, not normal user installations.                  |
+| Make external storage optional and explicit | MCP/root settings     | Medium | Avoid silent behavior and hidden dependencies.                                           |
 
 ### Medium Priority
 
@@ -236,7 +236,8 @@ Implemented during this audit:
 - Docker ignore file,
 - environment example file,
 - root package build backend fix,
-- MCP CLI and server dry-run support for write/destructive commands.
+- MCP CLI and server dry-run support for write/destructive commands,
+- MCP rule lifecycle store helpers and CLI review commands.
 
 ---
 
