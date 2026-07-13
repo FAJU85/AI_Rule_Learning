@@ -1,0 +1,26 @@
+name: Question
+description: Ask a usage, setup, or project question
+title: 'question: '
+labels: [question]
+body:
+  - type: textarea
+    id: question
+    attributes:
+      label: Question
+      description: What would you like to know?
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: What have you tried, and what are you trying to accomplish?
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Include OS, Python version, package version, and MCP client if relevant.
+    validations:
+      required: false

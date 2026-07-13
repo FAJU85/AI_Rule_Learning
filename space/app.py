@@ -1,6 +1,7 @@
 """Gradio dashboard for the AI Rule Learning System."""
 
 import csv
+import html
 import io
 import json
 import logging
@@ -2602,6 +2603,406 @@ def reject_rule(rule_id: str) -> str:
         return f"🗑️ Rule **{rule.get('name', rule_id)}** rejected — stored in memory so it won't be recreated."
     except Exception as exc:
         return f"❌ Failed to save: {exc}"
+
+
+def _rule_status(rule: dict) -> str:
+    if rule.get("status"):
+        return str(rule.get("status"))
+    return "active" if rule.get("is_active") else "inactive"
+
+
+def _parse_rule_datetime(value: str | None) -> datetime | None:
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(str(value).replace("Z", "+00:00")).replace(tzinfo=None)
+    except ValueError:
+        return None
+
+
+def _health_candidates(
+    stale_days: int = 90,
+    low_effectiveness_threshold: float = 0.3,
+    min_triggered: int = 3,
+) -> tuple[list[dict], list[dict]]:
+    now = datetime.utcnow()
+    stale: list[dict] = []
+    needs_review: list[dict] = []
+    for rule in load_rules():
+        status = _rule_status(rule)
+        if status in {"rejected", "merged", "retired"}:
+            continue
+        score = float(rule.get("effectiveness_score", 0.5) or 0.0)
+        triggered = int(rule.get("times_triggered", 0) or 0)
+        if triggered >= min_triggered and score <= low_effectiveness_threshold:
+            needs_review.append(rule)
+            continue
+        activity_at = (
+            _parse_rule_datetime(rule.get("last_fired_at"))
+            or _parse_rule_datetime(rule.get("updated_at"))
+            or _parse_rule_datetime(rule.get("created_at"))
+            or _parse_rule_datetime(rule.get("approved_at"))
+        )
+        if activity_at and status == "active" and (now - activity_at).days >= stale_days:
+            stale.append(rule)
+    return stale, needs_review
+
+
+def build_rule_health_review_table() -> str:
+    stale, needs_review = _health_candidates()
+    candidates = [("stale", rule) for rule in stale] + [("needs_review", rule) for rule in needs_review]
+    if not candidates:
+        return '<div class="rl-empty">No stale or low-effectiveness rules need review.</div>'
+    rows_html = ""
+    for target_status, rule in candidates:
+        score = float(rule.get("effectiveness_score", 0.0) or 0.0)
+        hits = int(rule.get("times_triggered", 0) or 0)
+        name = html.escape(str(rule.get("name", rule.get("rule_id", "?"))))
+        rule_id = html.escape(str(rule.get("rule_id", "?")))
+        reason = "low effectiveness" if target_status == "needs_review" else "stale activity"
+        rows_html += (
+            "<tr>"
+            f"<td><span class='rl-badge rl-badge-pending'>{target_status}</span></td>"
+            f"<td style='font-family:monospace;font-size:0.75rem'>{rule_id[:16]}</td>"
+            f"<td>{name[:54]}</td>"
+            f"<td style='text-align:right'>{hits}</td>"
+            f"<td style='text-align:right'>{score:.0%}</td>"
+            f"<td>{reason}</td>"
+            "</tr>"
+        )
+    return (
+        '<div class="rl-table-wrap"><table class="rl-table">'
+        "<thead><tr><th>Target status</th><th>Rule ID</th><th>Name</th><th>Hits</th><th>Score</th><th>Reason</th></tr></thead>"
+        f"<tbody>{rows_html}</tbody></table></div>"
+    )
+
+
+def apply_rule_health_review() -> str:
+    if not HF_TOKEN:
+        return "❌ HF_TOKEN not set — cannot update the owner dataset."
+    rules = load_rules()
+    stale, needs_review = _health_candidates()
+    stale_ids = {r.get("rule_id") for r in stale}
+    review_ids = {r.get("rule_id") for r in needs_review}
+    if not stale_ids and not review_ids:
+        return "✅ No rule-health status updates needed."
+    now = datetime.utcnow().isoformat()
+    changed = 0
+    for rule in rules:
+        rid = rule.get("rule_id")
+        if rid in review_ids:
+            rule["status"] = "needs_review"
+            rule["is_active"] = False
+            rule["review_reason"] = "low effectiveness detected by owner dashboard"
+            rule["reviewed_at"] = now
+            changed += 1
+        elif rid in stale_ids:
+            rule["status"] = "stale"
+            rule["is_active"] = False
+            rule["review_reason"] = "stale activity detected by owner dashboard"
+            rule["reviewed_at"] = now
+            changed += 1
+    try:
+        _upload_jsonl("rules.jsonl", rules)
+        return f"✅ Updated {changed} rule(s): {len(review_ids)} needs_review, {len(stale_ids)} stale."
+    except Exception as exc:
+        return f"❌ Failed to save rule-health updates: {exc}"
+
+
+def _duplicate_tokens(rule: dict) -> set[str]:
+    action = rule.get("action") or {}
+    trigger = rule.get("trigger") or {}
+    parts = [
+        str(rule.get("name", "")),
+        str(rule.get("instruction", "")),
+        str(action.get("instruction", "")) if isinstance(action, dict) else "",
+        " ".join(trigger.get("keywords", [])) if isinstance(trigger, dict) else "",
+    ]
+    text = " ".join(parts).lower()
+    return {token for token in re.findall(r"[a-z0-9_]{3,}", text) if token not in {"the", "and", "for", "with", "rule"}}
+
+
+def _duplicate_suggestions(min_similarity: float = 0.7) -> list[dict]:
+    rules = [r for r in load_rules() if _rule_status(r) not in {"rejected", "merged", "retired"}]
+    tokenized = [(rule, _duplicate_tokens(rule)) for rule in rules]
+    suggestions: list[dict] = []
+    for index, (left, left_tokens) in enumerate(tokenized):
+        if not left_tokens:
+            continue
+        for right, right_tokens in tokenized[index + 1 :]:
+            if not right_tokens:
+                continue
+            union = left_tokens | right_tokens
+            score = len(left_tokens & right_tokens) / len(union) if union else 0.0
+            if score >= min_similarity:
+                suggestions.append(
+                    {
+                        "primary_rule_id": left.get("rule_id"),
+                        "duplicate_rule_id": right.get("rule_id"),
+                        "primary_name": left.get("name", "Unnamed rule"),
+                        "duplicate_name": right.get("name", "Unnamed rule"),
+                        "similarity": round(score, 3),
+                    }
+                )
+    return sorted(suggestions, key=lambda item: item["similarity"], reverse=True)
+
+
+def build_duplicate_rules_table(min_similarity: float = 0.7) -> str:
+    suggestions = _duplicate_suggestions(min_similarity=min_similarity)
+    if not suggestions:
+        return '<div class="rl-empty">No likely duplicate rules found.</div>'
+    rows_html = ""
+    for item in suggestions:
+        left_id = html.escape(str(item.get("primary_rule_id", "?")))
+        right_id = html.escape(str(item.get("duplicate_rule_id", "?")))
+        left_name = html.escape(str(item.get("primary_name", "Unnamed rule")))
+        right_name = html.escape(str(item.get("duplicate_name", "Unnamed rule")))
+        rows_html += (
+            "<tr>"
+            f"<td style='font-family:monospace;font-size:0.75rem'>{left_id[:16]}</td>"
+            f"<td style='font-family:monospace;font-size:0.75rem'>{right_id[:16]}</td>"
+            f"<td>{left_name[:42]}</td>"
+            f"<td>{right_name[:42]}</td>"
+            f"<td style='text-align:right;font-weight:700'>{item['similarity']:.0%}</td>"
+            "</tr>"
+        )
+    return (
+        '<div class="rl-table-wrap"><table class="rl-table">'
+        "<thead><tr><th>Primary ID</th><th>Duplicate ID</th><th>Primary</th><th>Duplicate</th><th>Similarity</th></tr></thead>"
+        f"<tbody>{rows_html}</tbody></table></div>"
+    )
+
+
+def bulk_approve_safe_pending_rules(dry_run: bool = True) -> str:
+    """Approve all pending_review rules that pass the dashboard safety check."""
+    rules = load_rules()
+    pending = [rule for rule in rules if _rule_status(rule) == "pending_review"]
+    safe_rules: list[dict] = []
+    blocked: list[tuple[dict, list[str]]] = []
+    for rule in pending:
+        issues = _check_rule_safety(rule)
+        if issues:
+            blocked.append((rule, issues))
+        else:
+            safe_rules.append(rule)
+
+    if dry_run:
+        return (
+            f"🔎 Preview: {len(safe_rules)} safe pending rule(s) would be approved; "
+            f"{len(blocked)} rule(s) blocked by safety checks."
+        )
+    if not HF_TOKEN:
+        return "❌ HF_TOKEN not set — cannot update the owner dataset."
+    if not safe_rules:
+        return f"✅ No safe pending rules to approve. {len(blocked)} rule(s) remain blocked."
+
+    now = datetime.utcnow().isoformat()
+    for rule in safe_rules:
+        rule["is_active"] = True
+        rule["status"] = "active"
+        rule["approved_at"] = now
+        rule.setdefault("score_history", [])
+    try:
+        _upload_jsonl("rules.jsonl", rules)
+        for rule in safe_rules:
+            _snapshot_rule_version(rule, "bulk_approved")
+        return f"✅ Bulk approved {len(safe_rules)} safe pending rule(s). {len(blocked)} blocked by safety checks."
+    except Exception as exc:
+        return f"❌ Failed to bulk approve pending rules: {exc}"
+
+
+def build_review_audit_table(limit: int = 25) -> str:
+    """Render recent rule-review events from rule version snapshots."""
+    versions = sorted(load_rule_versions(), key=lambda item: item.get("timestamp", ""), reverse=True)[:limit]
+    if not versions:
+        return '<div class="rl-empty">No rule review audit events yet.</div>'
+    rows_html = ""
+    for item in versions:
+        event = html.escape(str(item.get("event", "?")))
+        rule_id = html.escape(str(item.get("rule_id", "?")))
+        name = html.escape(str(item.get("name", "?")))
+        timestamp = html.escape(str(item.get("timestamp", ""))[:16])
+        active = "yes" if item.get("is_active") else "no"
+        score = item.get("effectiveness_score")
+        score_text = "—" if score is None else f"{float(score):.0%}"
+        rows_html += (
+            "<tr>"
+            f"<td style='font-size:0.75rem;color:#6b6892'>{timestamp}</td>"
+            f"<td><span class='rl-badge rl-badge-inactive'>{event}</span></td>"
+            f"<td style='font-family:monospace;font-size:0.75rem'>{rule_id[:16]}</td>"
+            f"<td>{name[:48]}</td>"
+            f"<td style='text-align:center'>{active}</td>"
+            f"<td style='text-align:right'>{score_text}</td>"
+            "</tr>"
+        )
+    return (
+        '<div class="rl-table-wrap"><table class="rl-table">'
+        "<thead><tr><th>Time</th><th>Event</th><th>Rule ID</th><th>Name</th><th>Active</th><th>Score</th></tr></thead>"
+        f"<tbody>{rows_html}</tbody></table></div>"
+    )
+
+
+def _latest_rule_snapshot(rule_id: str) -> dict | None:
+    versions = [item for item in load_rule_versions() if item.get("rule_id") == rule_id]
+    if not versions:
+        return None
+    return sorted(versions, key=lambda item: item.get("timestamp", ""), reverse=True)[0]
+
+
+def preview_rule_rollback(rule_id: str) -> str:
+    """Preview restoring a rule from its latest recorded snapshot."""
+    if not rule_id:
+        return "Select a rule first."
+    rule = next((item for item in load_rules() if item.get("rule_id") == rule_id or item.get("name") == rule_id), None)
+    if not rule:
+        return f"Rule `{rule_id}` not found."
+    snapshot = _latest_rule_snapshot(rule.get("rule_id", rule_id))
+    if not snapshot:
+        return "No rollback snapshot found for this rule."
+    current_instruction = (rule.get("action") or {}).get("instruction", rule.get("instruction", ""))
+    target_instruction = snapshot.get("instruction", "")
+    return f"""### Rollback preview
+
+**Rule:** {rule.get("name", rule_id)}
+
+**Snapshot event:** `{snapshot.get("event", "?")}` at `{snapshot.get("timestamp", "?")}`
+
+**Current instruction:**
+> {current_instruction or "—"}
+
+**Rollback instruction:**
+> {target_instruction or "—"}
+
+No changes have been applied yet."""
+
+
+def rollback_rule_to_latest_snapshot(rule_id: str) -> str:
+    """Restore a rule from its latest version snapshot."""
+    if not rule_id:
+        return "Select a rule first."
+    if not HF_TOKEN:
+        return "❌ HF_TOKEN not set — cannot update the owner dataset."
+    rules = load_rules()
+    rule = next((item for item in rules if item.get("rule_id") == rule_id or item.get("name") == rule_id), None)
+    if not rule:
+        return f"Rule `{rule_id}` not found."
+    snapshot = _latest_rule_snapshot(rule.get("rule_id", rule_id))
+    if not snapshot:
+        return "No rollback snapshot found for this rule."
+
+    instruction = snapshot.get("instruction", "")
+    if instruction:
+        rule["instruction"] = instruction
+        action = rule.get("action") if isinstance(rule.get("action"), dict) else {}
+        action["instruction"] = instruction
+        rule["action"] = action
+    keywords = snapshot.get("keywords", [])
+    if keywords:
+        trigger = rule.get("trigger") if isinstance(rule.get("trigger"), dict) else {}
+        trigger["keywords"] = keywords
+        rule["trigger"] = trigger
+    if snapshot.get("priority") is not None:
+        rule["priority"] = snapshot.get("priority")
+    if snapshot.get("effectiveness_score") is not None:
+        rule["effectiveness_score"] = snapshot.get("effectiveness_score")
+    rule["is_active"] = bool(snapshot.get("is_active"))
+    rule["status"] = "active" if rule["is_active"] else rule.get("status", "inactive")
+    rule["rolled_back_at"] = datetime.utcnow().isoformat()
+    rule["rollback_source_event"] = snapshot.get("event")
+    rule["rollback_source_timestamp"] = snapshot.get("timestamp")
+
+    try:
+        _upload_jsonl("rules.jsonl", rules)
+        _snapshot_rule_version(rule, "rolled_back")
+        return f"✅ Rolled back **{rule.get('name', rule_id)}** to snapshot `{snapshot.get('event', '?')}`."
+    except Exception as exc:
+        return f"❌ Failed to roll back rule: {exc}"
+
+
+def export_rule_snapshot(rule_id: str) -> str:
+    """Export the current rule plus its version snapshots as JSON."""
+    if not rule_id:
+        return "Select a rule first."
+    rule = next((item for item in load_rules() if item.get("rule_id") == rule_id or item.get("name") == rule_id), None)
+    if not rule:
+        return f"Rule `{rule_id}` not found."
+    versions = [item for item in load_rule_versions() if item.get("rule_id") == rule.get("rule_id")]
+    payload = {
+        "exported_at": datetime.utcnow().isoformat(),
+        "rule": rule,
+        "versions": sorted(versions, key=lambda item: item.get("timestamp", ""), reverse=True),
+    }
+    return json.dumps(payload, indent=2, ensure_ascii=False)
+
+
+def preview_emergency_disable_active_rules() -> str:
+    """Preview emergency disabling all active rules."""
+    active = [rule for rule in load_rules() if rule.get("is_active") or _rule_status(rule) == "active"]
+    if not active:
+        return "✅ No active rules would be disabled."
+    names = ", ".join(rule.get("name", rule.get("rule_id", "?")) for rule in active[:5])
+    more = f" +{len(active) - 5} more" if len(active) > 5 else ""
+    return f"🔎 Preview: {len(active)} active rule(s) would be emergency-disabled — {names}{more}."
+
+
+def emergency_disable_active_rules(reason: str) -> str:
+    """Disable every active rule with a required owner-provided reason."""
+    if not reason.strip():
+        return "❌ A reason is required before emergency-disabling active rules."
+    if not HF_TOKEN:
+        return "❌ HF_TOKEN not set — cannot update the owner dataset."
+    rules = load_rules()
+    active = [rule for rule in rules if rule.get("is_active") or _rule_status(rule) == "active"]
+    if not active:
+        return "✅ No active rules to emergency-disable."
+    now = datetime.utcnow().isoformat()
+    for rule in active:
+        rule["is_active"] = False
+        rule["status"] = "emergency_disabled"
+        rule["emergency_disabled_at"] = now
+        rule["emergency_disable_reason"] = reason.strip()
+    try:
+        _upload_jsonl("rules.jsonl", rules)
+        for rule in active:
+            _snapshot_rule_version(rule, "emergency_disabled")
+        return f"🚨 Emergency-disabled {len(active)} active rule(s). Reason: {reason.strip()}"
+    except Exception as exc:
+        return f"❌ Failed to emergency-disable rules: {exc}"
+
+
+def preview_restore_emergency_disabled_rules() -> str:
+    """Preview restoring rules previously disabled by emergency action."""
+    disabled = [rule for rule in load_rules() if _rule_status(rule) == "emergency_disabled"]
+    if not disabled:
+        return "✅ No emergency-disabled rules would be restored."
+    names = ", ".join(rule.get("name", rule.get("rule_id", "?")) for rule in disabled[:5])
+    more = f" +{len(disabled) - 5} more" if len(disabled) > 5 else ""
+    return f"🔎 Preview: {len(disabled)} emergency-disabled rule(s) would be restored to active — {names}{more}."
+
+
+def restore_emergency_disabled_rules(reason: str) -> str:
+    """Restore all emergency-disabled rules with a required reason."""
+    if not reason.strip():
+        return "❌ A reason is required before restoring emergency-disabled rules."
+    if not HF_TOKEN:
+        return "❌ HF_TOKEN not set — cannot update the owner dataset."
+    rules = load_rules()
+    disabled = [rule for rule in rules if _rule_status(rule) == "emergency_disabled"]
+    if not disabled:
+        return "✅ No emergency-disabled rules to restore."
+    now = datetime.utcnow().isoformat()
+    for rule in disabled:
+        rule["is_active"] = True
+        rule["status"] = "active"
+        rule["restored_from_emergency_at"] = now
+        rule["restore_reason"] = reason.strip()
+    try:
+        _upload_jsonl("rules.jsonl", rules)
+        for rule in disabled:
+            _snapshot_rule_version(rule, "restored_from_emergency")
+        return f"✅ Restored {len(disabled)} emergency-disabled rule(s). Reason: {reason.strip()}"
+    except Exception as exc:
+        return f"❌ Failed to restore emergency-disabled rules: {exc}"
 
 
 # ---------------------------------------------------------------------------
@@ -8058,8 +8459,8 @@ def build_activity_html() -> str:
 def _stat_chip(label: str, value: str, color: str = "#8b5cf6") -> str:
     return (
         f'<span style="display:inline-flex;align-items:center;gap:6px;'
-        f'background:{color}26;border-radius:10px;'
-        f'padding:6px 14px;font-size:0.78rem;font-weight:600;white-space:nowrap;'
+        f"background:{color}26;border-radius:10px;"
+        f"padding:6px 14px;font-size:0.78rem;font-weight:600;white-space:nowrap;"
         f'font-family:DM Sans,sans-serif;">'
         f'<span style="color:{color};font-size:1.05rem;font-weight:700">{value}</span>'
         f'<span style="color:#707EAE;font-weight:400">{label}</span></span>'
@@ -8264,10 +8665,7 @@ def compute_session_health_score(rules: list[dict] | None = None) -> dict:
     deduction = sum(layer_weights[l] * layer_counts[l] for l in layer_counts)
     score = max(0, min(100, 100 - deduction))
     top_issues = sorted(layer_counts.items(), key=lambda x: layer_weights[x[0]] * x[1], reverse=True)
-    top3 = [
-        f"Layer {l}: {c} gap(s) (−{layer_weights[l] * c} pts)"
-        for l, c in top_issues if c > 0
-    ][:3]
+    top3 = [f"Layer {l}: {c} gap(s) (−{layer_weights[l] * c} pts)" for l, c in top_issues if c > 0][:3]
     return {"score": score, "layer_counts": layer_counts, "top_issues": top3}
 
 
@@ -8279,13 +8677,19 @@ def build_failure_heatmap() -> Any:
         fig = go.Figure()
         fig.add_annotation(
             text="No rules yet — run analysis to populate the failure heatmap",
-            xref="paper", yref="paper", x=0.5, y=0.5,
-            showarrow=False, font=dict(color="#64748b", size=13), align="center",
+            xref="paper",
+            yref="paper",
+            x=0.5,
+            y=0.5,
+            showarrow=False,
+            font=dict(color="#64748b", size=13),
+            align="center",
         )
         fig.update_layout(height=280, xaxis=dict(visible=False), yaxis=dict(visible=False))
         return _dark_fig(fig)
 
     from collections import defaultdict
+
     layer_labels = {1: "L1 Model", 2: "L2 Context", 3: "L3 Orchestration", 4: "L4 Human/Trust"}
     layer_colors = {1: "#6366f1", 2: "#0ea5e9", 3: "#d97706", 4: "#dc2626"}
     counts: dict[int, dict[str, int]] = defaultdict(lambda: defaultdict(int))
@@ -8298,13 +8702,15 @@ def build_failure_heatmap() -> Any:
     categories = sorted(all_cats)
     fig = go.Figure()
     for layer in sorted(layer_labels):
-        fig.add_trace(go.Bar(
-            name=layer_labels[layer],
-            x=categories,
-            y=[counts[layer].get(cat, 0) for cat in categories],
-            marker_color=layer_colors[layer],
-            hovertemplate="<b>%{x}</b><br>" + layer_labels[layer] + ": %{y} rule(s)<extra></extra>",
-        ))
+        fig.add_trace(
+            go.Bar(
+                name=layer_labels[layer],
+                x=categories,
+                y=[counts[layer].get(cat, 0) for cat in categories],
+                marker_color=layer_colors[layer],
+                hovertemplate="<b>%{x}</b><br>" + layer_labels[layer] + ": %{y} rule(s)<extra></extra>",
+            )
+        )
     fig.update_layout(
         barmode="stack",
         title=dict(text="Failure Mode Distribution by Category & Layer", font=dict(size=14, color="#334155")),
@@ -8339,12 +8745,12 @@ def build_session_health_html() -> str:
         f'<div style="font-size:2.6rem;font-weight:700;color:{colour}">{score:.0f}</div>'
         f'<div style="font-size:0.78rem;color:#6b6892;font-weight:600">/ 100</div>'
         f'<div style="font-size:0.88rem;color:{colour};font-weight:600;margin-top:4px">{icon} {label}</div>'
-        f'</div>'
+        f"</div>"
         f'<div style="flex:1">'
         f'<div style="font-size:0.9rem;font-weight:600;color:#1e293b;margin-bottom:6px">Top contributing issues</div>'
         f'<ul style="margin:0;padding-left:16px">{issues_html}</ul>'
-        f'</div>'
-        f'</div>'
+        f"</div>"
+        f"</div>"
     )
 
 
@@ -11820,14 +12226,16 @@ updates the block without duplicating it.
                     '<div style="flex:1;min-width:0;display:flex;align-items:center;gap:12px">'
                     '<span class="dash-view-badge">📊 Dashboard View</span>'
                     '<span class="cp-mode-badge" style="margin-bottom:0">🎛 Control Panel</span>'
-                    '</div>'
+                    "</div>"
                 )
                 dashboard_refresh = gr.Button("↻ Refresh", variant="secondary", size="sm")
 
             # ── Dual-mode split: Control Panel (left) + Dashboard (right) ────
             with gr.Row(equal_height=False):
                 # ── LEFT: Control Panel ───────────────────────────────────────
-                with gr.Column(scale=1, min_width=230, elem_id="cp-sidebar", elem_classes=["dual-col-ctrl", "cp-sidebar"]):
+                with gr.Column(
+                    scale=1, min_width=230, elem_id="cp-sidebar", elem_classes=["dual-col-ctrl", "cp-sidebar"]
+                ):
                     # Live status mini-stats
                     cp_status_html = gr.HTML()
 
@@ -11882,12 +12290,11 @@ updates the block without duplicating it.
                         container=True,
                     )
 
-
                 # ── RIGHT: Dashboard View ─────────────────────────────────────
                 with gr.Column(scale=3):
                     gr.HTML(
                         '<div class="rl-section-nav"><strong>Sections:</strong>'
-                        ' ⚠️ Action Alerts · 📈 Analytics · 🕐 Recent Activity</div>'
+                        " ⚠️ Action Alerts · 📈 Analytics · 🕐 Recent Activity</div>"
                     )
 
                     # Section 1: Action alerts
@@ -11899,9 +12306,7 @@ updates the block without duplicating it.
 
                     # Section 3: Analytics charts (3:2 ratio)
                     gr.HTML('<div class="section-title">Analytics</div>')
-                    gr.Markdown(
-                        "Rule effectiveness trend over time and AI governance maturity assessment."
-                    )
+                    gr.Markdown("Rule effectiveness trend over time and AI governance maturity assessment.")
                     with gr.Row():
                         with gr.Column(scale=3):
                             dash_eff_chart = gr.Plot()
@@ -11911,15 +12316,11 @@ updates the block without duplicating it.
                     # Section 4: Maturity drill-down
                     with gr.Accordion("Maturity Assessment Detail", open=False):
                         maturity_report_md = gr.Markdown(min_height=28)
-                        maturity_refresh_btn = gr.Button(
-                            "↻ Re-assess", variant="secondary", size="sm"
-                        )
+                        maturity_refresh_btn = gr.Button("↻ Re-assess", variant="secondary", size="sm")
 
                     # Section 5: Activity feed
                     gr.HTML('<div class="section-title">Recent Activity</div>')
-                    gr.Markdown(
-                        "The 5 most recent events across rules, incidents, and benchmarks."
-                    )
+                    gr.Markdown("The 5 most recent events across rules, incidents, and benchmarks.")
                     activity_html = gr.HTML()
 
             # ── Event wiring ──────────────────────────────────────────────────
@@ -12096,6 +12497,143 @@ updates the block without duplicating it.
                 reject_btn.click(reject_rule, inputs=pending_selector, outputs=review_status).then(
                     refresh_pending,
                     outputs=[pending_table, pending_selector],
+                )
+
+                gr.HTML('<div class="section-title">Bulk Review</div>')
+                gr.Markdown("Preview and approve all pending rules that pass dashboard safety checks.")
+                with gr.Row():
+                    bulk_preview_btn = gr.Button("🔎 Preview Bulk Approval", variant="secondary", size="sm")
+                    bulk_approve_btn = gr.Button("✅ Approve All Safe Pending", variant="primary", size="sm")
+                bulk_review_status = gr.Markdown(min_height=28)
+                bulk_preview_btn.click(
+                    lambda: bulk_approve_safe_pending_rules(dry_run=True), outputs=bulk_review_status
+                )
+                bulk_approve_btn.click(
+                    lambda: bulk_approve_safe_pending_rules(dry_run=False), outputs=bulk_review_status
+                ).then(refresh_pending, outputs=[pending_table, pending_selector]).then(
+                    refresh_rules, outputs=[rules_table, rule_selector]
+                )
+
+                gr.HTML('<div class="section-title">Rule Review Audit History</div>')
+                gr.Markdown("Recent approve/reject/bulk review snapshots recorded for owner auditability.")
+                review_audit_table = gr.HTML()
+                review_audit_refresh_btn = gr.Button("↻ Refresh Audit History", variant="secondary", size="sm")
+                review_audit_refresh_btn.click(build_review_audit_table, outputs=review_audit_table)
+                rules_tab.select(build_review_audit_table, outputs=review_audit_table)
+
+                gr.HTML('<div class="section-title">Rollback & Export</div>')
+                gr.Markdown(
+                    "Preview rollback from the latest rule snapshot, apply rollback, or export a rule audit package."
+                )
+                with gr.Row():
+                    rollback_rule_selector = gr.Dropdown(
+                        label="Rule",
+                        choices=[],
+                        scale=4,
+                        info="Rule to preview/export/roll back using its latest version snapshot",
+                    )
+                    rollback_refresh_btn = gr.Button("↻", variant="secondary", size="sm", scale=0)
+                with gr.Row():
+                    rollback_preview_btn = gr.Button("🔎 Preview Rollback", variant="secondary", size="sm")
+                    rollback_apply_btn = gr.Button("↩️ Apply Rollback", variant="primary", size="sm")
+                    export_snapshot_btn = gr.Button("⬇️ Export Rule Snapshot", variant="secondary", size="sm")
+                rollback_preview_md = gr.Markdown(min_height=28)
+                rollback_export_json = gr.Textbox(
+                    label="Exported rule snapshot JSON",
+                    lines=8,
+                    max_lines=20,
+                    interactive=True,
+                )
+
+                def _refresh_rollback_rules():
+                    return gr.update(choices=get_rule_names())
+
+                rollback_refresh_btn.click(_refresh_rollback_rules, outputs=rollback_rule_selector)
+                rules_tab.select(_refresh_rollback_rules, outputs=rollback_rule_selector)
+                rollback_preview_btn.click(
+                    preview_rule_rollback, inputs=rollback_rule_selector, outputs=rollback_preview_md
+                )
+                rollback_apply_btn.click(
+                    rollback_rule_to_latest_snapshot, inputs=rollback_rule_selector, outputs=rollback_preview_md
+                ).then(refresh_rules, outputs=[rules_table, rule_selector]).then(
+                    build_review_audit_table, outputs=review_audit_table
+                )
+                export_snapshot_btn.click(
+                    export_rule_snapshot, inputs=rollback_rule_selector, outputs=rollback_export_json
+                )
+
+                gr.HTML('<div class="section-title">Emergency Disable</div>')
+                gr.Markdown("Last-resort owner control: preview or disable all active rules with a required reason.")
+                emergency_reason = gr.Textbox(
+                    label="Emergency reason",
+                    placeholder="e.g. active rules causing false positives during incident response",
+                    lines=2,
+                )
+                with gr.Row():
+                    emergency_preview_btn = gr.Button("🔎 Preview Emergency Disable", variant="secondary", size="sm")
+                    emergency_disable_btn = gr.Button("🚨 Disable All Active Rules", variant="stop", size="sm")
+                emergency_status = gr.Markdown(min_height=28)
+                emergency_preview_btn.click(preview_emergency_disable_active_rules, outputs=emergency_status)
+                emergency_disable_btn.click(
+                    emergency_disable_active_rules, inputs=emergency_reason, outputs=emergency_status
+                ).then(refresh_rules, outputs=[rules_table, rule_selector]).then(
+                    build_review_audit_table, outputs=review_audit_table
+                )
+
+                gr.HTML('<div class="section-title">Restore From Emergency</div>')
+                gr.Markdown(
+                    "Restore every rule that was disabled by the emergency-disable flow with a required reason."
+                )
+                restore_reason = gr.Textbox(
+                    label="Restore reason",
+                    placeholder="e.g. incident resolved and rule set validated",
+                    lines=2,
+                )
+                with gr.Row():
+                    restore_preview_btn = gr.Button("🔎 Preview Restore", variant="secondary", size="sm")
+                    restore_apply_btn = gr.Button("✅ Restore Emergency-Disabled Rules", variant="primary", size="sm")
+                restore_status = gr.Markdown(min_height=28)
+                restore_preview_btn.click(preview_restore_emergency_disabled_rules, outputs=restore_status)
+                restore_apply_btn.click(
+                    restore_emergency_disabled_rules, inputs=restore_reason, outputs=restore_status
+                ).then(refresh_rules, outputs=[rules_table, rule_selector]).then(
+                    build_review_audit_table, outputs=review_audit_table
+                )
+
+                gr.HTML('<div class="section-title">Rule Health Review</div>')
+                gr.Markdown("Preview stale and low-effectiveness rules before applying owner-only status updates.")
+                health_review_table = gr.HTML()
+                with gr.Row():
+                    health_preview_btn = gr.Button("🔎 Preview Health Review", variant="secondary", size="sm")
+                    health_apply_btn = gr.Button("✅ Apply Health Statuses", variant="primary", size="sm")
+                health_review_status = gr.Markdown(min_height=28)
+                health_preview_btn.click(build_rule_health_review_table, outputs=health_review_table)
+                health_apply_btn.click(apply_rule_health_review, outputs=health_review_status).then(
+                    build_rule_health_review_table, outputs=health_review_table
+                ).then(refresh_rules, outputs=[rules_table, rule_selector])
+                rules_tab.select(build_rule_health_review_table, outputs=health_review_table)
+
+                gr.HTML('<div class="section-title">Duplicate Rule Suggestions</div>')
+                gr.Markdown("Find likely duplicate rules. Suggestions are read-only; merge manually after review.")
+                with gr.Row():
+                    duplicate_similarity = gr.Slider(
+                        label="Minimum similarity",
+                        minimum=0.1,
+                        maximum=1.0,
+                        value=0.7,
+                        step=0.05,
+                        scale=3,
+                    )
+                    duplicate_refresh_btn = gr.Button("🔍 Find Duplicates", variant="secondary", size="sm", scale=1)
+                duplicate_rules_table = gr.HTML()
+                duplicate_refresh_btn.click(
+                    build_duplicate_rules_table, inputs=duplicate_similarity, outputs=duplicate_rules_table
+                )
+                duplicate_similarity.change(
+                    build_duplicate_rules_table, inputs=duplicate_similarity, outputs=duplicate_rules_table
+                )
+                rules_tab.select(
+                    build_duplicate_rules_table, inputs=duplicate_similarity, outputs=duplicate_rules_table
                 )
 
                 gr.HTML('<div class="section-title">A/B Testing</div>')
@@ -13157,7 +13695,9 @@ updates the block without duplicating it.
             analytics_tab.select(build_analytics_stat_bar, outputs=[analytics_stat_bar])
 
             gr.HTML('<div class="section-title">Session Health Score</div>')
-            gr.Markdown("Composite 0–100 score weighted by failure layer severity (Planit taxonomy). Lower layer penalties are heavier.")
+            gr.Markdown(
+                "Composite 0–100 score weighted by failure layer severity (Planit taxonomy). Lower layer penalties are heavier."
+            )
             session_health_html = gr.HTML()
             with gr.Row():
                 refresh_health_btn = gr.Button("↻ Refresh Health", variant="secondary", size="sm")
@@ -13165,7 +13705,9 @@ updates the block without duplicating it.
             analytics_tab.select(build_session_health_html, outputs=[session_health_html])
 
             gr.HTML('<div class="section-title">Failure Mode Heatmap</div>')
-            gr.Markdown("Active rules grouped by failure category and Planit layer. Stacked = multiple layers contributing to the same category.")
+            gr.Markdown(
+                "Active rules grouped by failure category and Planit layer. Stacked = multiple layers contributing to the same category."
+            )
             failure_heatmap = gr.Plot()
             with gr.Row():
                 refresh_heatmap_btn = gr.Button("↻ Refresh Heatmap", variant="secondary", size="sm")
@@ -15085,9 +15627,7 @@ updates the block without duplicating it.
             demo.load(_mcp_collect, inputs=mcp_search, outputs=_mcp_collect_outputs)
             # Search only re-filters the cached snapshot — no re-collection per keystroke.
             mcp_search.change(_mcp_filter, inputs=[mcp_search, mcp_state], outputs=_mcp_render_outputs)
-            mcp_autorefresh.change(
-                lambda on: gr.Timer(active=on), inputs=mcp_autorefresh, outputs=mcp_timer
-            )
+            mcp_autorefresh.change(lambda on: gr.Timer(active=on), inputs=mcp_autorefresh, outputs=mcp_timer)
 
 
 demo.queue()
