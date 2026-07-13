@@ -7,9 +7,9 @@ This roadmap is directional and may change based on user feedback and maintainer
 - Add explicit rule review states: pending, approved, rejected, active, stale, and needs_review.
 - Add CLI commands for approving, rejecting, editing, merging, and scoring generated rules.
 - Document a privacy-preserving, opt-in metrics plan to understand real adoption without collecting raw user content.
-- Design a local management dashboard to replace confusing external analysis/management workflows.
+- Improve the private owner-only Hugging Face Space dashboard/control panel for operations, rule review, and project health.
 - Improve README examples and screenshots.
-- Extend dry-run coverage into any future dashboard actions; CLI and MCP write tools now support safe previews.
+- Extend dry-run coverage into future owner-dashboard actions; CLI and MCP write tools now support safe previews.
 - Expand test coverage for CLI and MCP workflows.
 - Improve generated-rule review and rollback guidance.
 

@@ -106,47 +106,50 @@ Rules should have clear lifecycle states:
 
 ---
 
-## 3. Analysis and Management UI Needs Replacement
+## 3. Owner Dashboard and Control Panel Needs Focus
 
 ### Management UI Problem
 
-The current analysis and management experience is not good enough for real users. Users need a clear
-interface for understanding rules, memory, skills, sync status, scheduler status, and risks.
+The project is deployed as a Hugging Face Space where the interface acts as an owner-only dashboard
+and control panel. That dashboard is not part of the normal user installation path: end users use the
+CLI/MCP tool locally, do not need a dashboard, and cannot obtain a private control panel by hosting
+the package on their own machine.
 
-A poor management UI makes the tool feel unsafe because users cannot easily see what changed or why.
+The owner dashboard still needs to clearly show project state, rule quality, feedback patterns, sync
+health, scheduler status, and operational risks so the maintainer can manage the tool safely.
 
 ### Management UI Proposed Solution
 
-Create a first-party local management dashboard focused on trust and control.
+Improve the existing Hugging Face Space control panel as a private owner/admin interface focused on
+trust, observability, and maintenance.
 
-Suggested sections:
+Suggested owner-only sections:
 
-| Section           | Purpose                                                              |
-| ----------------- | -------------------------------------------------------------------- |
-| Overview          | Show active rules, pending rules, sync status, and scheduler status. |
-| Rules             | Review, approve, reject, edit, merge, or deactivate rules.           |
-| Memory            | View, add, edit, or delete remembered facts and preferences.         |
-| Skills            | View, create, update, delete, and test saved workflows.              |
-| Injection targets | Show exactly which config files will be modified.                    |
-| Activity log      | Show recent writes, syncs, approvals, rejects, and scheduler runs.   |
-| Safety            | Show rollback, clear, dry-run, and export controls.                  |
+| Section           | Purpose                                                               |
+| ----------------- | --------------------------------------------------------------------- |
+| Overview          | Show aggregate rule, sync, scheduler, and system health.              |
+| Rules             | Review, approve, reject, edit, merge, or deactivate shared templates. |
+| Feedback patterns | Summarize opt-in, anonymized feedback signals and rule gaps.          |
+| Releases          | Track package versions, CI status, and deployment readiness.          |
+| Activity log      | Show recent admin actions, syncs, approvals, rejects, and failures.   |
+| Safety            | Show rollback, dry-run, export, and emergency disable controls.       |
 
 ### UX requirements
 
-- Local-first by default.
-- Clear dry-run mode before file writes.
-- One-click rollback for injected sections.
+- Owner-only access; no public user control panel is exposed.
+- Clear separation between owner/admin controls and normal CLI/MCP user behavior.
+- Clear dry-run mode before admin-triggered writes or remote updates.
 - No hidden background behavior.
-- Human-readable explanations for every generated rule.
-- Copyable CLI commands for every UI action.
+- Human-readable explanations for every generated or promoted rule/template.
+- Copyable CLI commands for user-support and maintenance actions.
 
 ### Management UI Acceptance Criteria
 
-- A user can answer “what did this tool change?” in under 30 seconds.
-- A user can approve or reject a generated rule without editing files manually.
-- A user can remove all injected sections from the UI.
-- A user can see scheduler status and disable it.
-- The UI does not depend on an external dataset-management interface.
+- The owner can answer “what changed in the system?” in under 30 seconds.
+- The owner can approve or reject generated shared templates without editing files manually.
+- The owner can inspect sync, scheduler, release, and feedback-pattern health.
+- The dashboard does not imply that end users receive or need their own control panel.
+- Normal users can still use the CLI/MCP tool without dashboard access.
 
 ---
 
@@ -154,6 +157,6 @@ Suggested sections:
 
 1. Add rule review and lifecycle states.
 2. Add dry-run and rollback improvements.
-3. Add a local management dashboard.
+3. Improve the private owner-only Hugging Face Space dashboard.
 4. Add opt-in product metrics after privacy documentation is complete.
 5. Use collected feedback and anonymous aggregate metrics to prioritize future features.

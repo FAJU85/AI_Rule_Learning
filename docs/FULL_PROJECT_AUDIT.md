@@ -109,18 +109,18 @@ MCP data flow:
 
 ### Component Status
 
-| Component            | Status         | Notes                                                                       |
-| -------------------- | -------------- | --------------------------------------------------------------------------- |
-| MCP server           | Working        | MCP tests pass locally.                                                     |
-| MCP CLI              | Working        | Covered by MCP tests and docs.                                              |
-| MCP injector         | Working        | Idempotent target writes are tested.                                        |
-| MCP scheduler        | Working        | Scheduler behavior is unit-tested; OS services need real host verification. |
-| Root CLI             | Partial        | Tests pass, but real chat requires API credentials and external services.   |
-| Root dataset manager | Partial        | Depends on external storage credentials for full behavior.                  |
-| Gradio Space UI      | Partial        | Needs UX redesign and stronger product fit.                                 |
-| Docker compose       | Fixed          | `Dockerfile` and `.env.example` added.                                      |
-| Root packaging       | Fixed          | Invalid backend replaced with `setuptools.build_meta`.                      |
-| CI automation        | Working config | Needs GitHub-hosted run to validate external action behavior.               |
+| Component             | Status         | Notes                                                                       |
+| --------------------- | -------------- | --------------------------------------------------------------------------- |
+| MCP server            | Working        | MCP tests pass locally.                                                     |
+| MCP CLI               | Working        | Covered by MCP tests and docs.                                              |
+| MCP injector          | Working        | Idempotent target writes are tested.                                        |
+| MCP scheduler         | Working        | Scheduler behavior is unit-tested; OS services need real host verification. |
+| Root CLI              | Partial        | Tests pass, but real chat requires API credentials and external services.   |
+| Root dataset manager  | Partial        | Depends on external storage credentials for full behavior.                  |
+| Owner Space dashboard | Partial        | Private Hugging Face Space control panel; not available to normal users.    |
+| Docker compose        | Fixed          | `Dockerfile` and `.env.example` added.                                      |
+| Root packaging        | Fixed          | Invalid backend replaced with `setuptools.build_meta`.                      |
+| CI automation         | Working config | Needs GitHub-hosted run to validate external action behavior.               |
 
 ---
 
@@ -135,12 +135,12 @@ MCP data flow:
 
 ### High Priority
 
-| Item                                        | Dependency             | Effort | Notes                                                                                       |
-| ------------------------------------------- | ---------------------- | ------ | ------------------------------------------------------------------------------------------- |
-| Add rule review lifecycle states            | MCP store/CLI/injector | Medium | Pending/approved/rejected/active/stale/needs_review.                                        |
-| Extend dry-run mode beyond CLI              | Future dashboard       | Medium | CLI and MCP server write tools now support dry-run; future UI needs parity when introduced. |
-| Improve local management dashboard          | UI framework decision  | Large  | Should replace confusing external management workflows.                                     |
-| Make external storage optional and explicit | MCP/root settings      | Medium | Avoid silent behavior and hidden dependencies.                                              |
+| Item                                        | Dependency             | Effort | Notes                                                                                    |
+| ------------------------------------------- | ---------------------- | ------ | ---------------------------------------------------------------------------------------- |
+| Add rule review lifecycle states            | MCP store/CLI/injector | Medium | Pending/approved/rejected/active/stale/needs_review.                                     |
+| Extend dry-run mode beyond CLI              | Owner Space dashboard  | Medium | CLI and MCP server write tools now support dry-run; future owner UI actions need parity. |
+| Improve owner-only Space control panel      | Hugging Face Space UI  | Large  | Dashboard is for the project owner only, not normal user installations.                  |
+| Make external storage optional and explicit | MCP/root settings      | Medium | Avoid silent behavior and hidden dependencies.                                           |
 
 ### Medium Priority
 
