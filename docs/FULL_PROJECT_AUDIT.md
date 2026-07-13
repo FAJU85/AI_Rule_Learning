@@ -137,7 +137,7 @@ MCP data flow:
 
 | Item                                        | Dependency            | Effort | Notes                                                                                    |
 | ------------------------------------------- | --------------------- | ------ | ---------------------------------------------------------------------------------------- |
-| Expand rule review lifecycle support        | MCP server/dashboard  | Medium | Store helpers and CLI commands exist; MCP tools and owner UI need review workflows.      |
+| Expand rule review lifecycle support        | Owner Space dashboard | Medium | Store, CLI, and MCP lifecycle operations exist; owner UI needs review workflows.         |
 | Extend dry-run mode beyond CLI              | Owner Space dashboard | Medium | CLI and MCP server write tools now support dry-run; future owner UI actions need parity. |
 | Improve owner-only Space control panel      | Hugging Face Space UI | Large  | Dashboard is for the project owner only, not normal user installations.                  |
 | Make external storage optional and explicit | MCP/root settings     | Medium | Avoid silent behavior and hidden dependencies.                                           |
@@ -237,7 +237,7 @@ Implemented during this audit:
 - environment example file,
 - root package build backend fix,
 - MCP CLI and server dry-run support for write/destructive commands,
-- MCP rule lifecycle store helpers and CLI review commands.
+- MCP rule lifecycle store helpers, CLI review commands, and MCP lifecycle tools.
 
 ---
 

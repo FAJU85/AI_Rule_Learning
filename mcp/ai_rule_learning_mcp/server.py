@@ -47,10 +47,16 @@ from .store import _local_load
 from .store import _local_save
 from .store import append_conversations
 from .store import auto_activate_pending_rules
+from .store import edit_rule_instruction
+from .store import get_rule
 from .store import hf_enabled
 from .store import is_already_processed
+from .store import list_rules as store_list_rules
 from .store import load_active_rules
 from .store import mark_processed
+from .store import merge_rules as store_merge_rules
+from .store import record_rule_outcome
+from .store import update_rule_status
 
 _CONTRIBUTE = os.environ.get("ARL_CONTRIBUTE", "false").lower() == "true"
 
@@ -323,6 +329,116 @@ async def list_tools() -> list[Tool]:
             },
         ),
         Tool(
+            name="list_rules",
+            description=(
+                "List stored guardrail rules by lifecycle status. Use status='all' for every rule, "
+                "or filter by pending, active, rejected, inactive, stale, needs_review, or merged."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "status": {
+                        "type": "string",
+                        "enum": [
+                            "all",
+                            "pending",
+                            "approved",
+                            "rejected",
+                            "active",
+                            "inactive",
+                            "stale",
+                            "needs_review",
+                            "merged",
+                        ],
+                        "description": "Rule lifecycle status to list. Defaults to active.",
+                    }
+                },
+                "required": [],
+            },
+        ),
+        Tool(
+            name="approve_rule",
+            description="Approve and activate a stored rule so it can be injected into agent configs.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "rule_id": {"type": "string", "description": "Rule id to approve."},
+                    "dry_run": {
+                        "type": "boolean",
+                        "description": "Preview approval without changing the rule store.",
+                    },
+                },
+                "required": ["rule_id"],
+            },
+        ),
+        Tool(
+            name="reject_rule",
+            description="Reject a stored rule so it is not injected into agent configs.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "rule_id": {"type": "string", "description": "Rule id to reject."},
+                    "note": {"type": "string", "description": "Optional review note explaining the rejection."},
+                    "dry_run": {
+                        "type": "boolean",
+                        "description": "Preview rejection without changing the rule store.",
+                    },
+                },
+                "required": ["rule_id"],
+            },
+        ),
+        Tool(
+            name="edit_rule",
+            description="Update a stored rule instruction without manually editing JSONL files.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "rule_id": {"type": "string", "description": "Rule id to edit."},
+                    "instruction": {"type": "string", "description": "Replacement instruction for the rule."},
+                    "dry_run": {
+                        "type": "boolean",
+                        "description": "Preview the edit without changing the rule store.",
+                    },
+                },
+                "required": ["rule_id", "instruction"],
+            },
+        ),
+        Tool(
+            name="merge_rules",
+            description="Mark a duplicate rule as merged into a primary rule.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "primary_rule_id": {"type": "string", "description": "Rule id to keep."},
+                    "duplicate_rule_id": {"type": "string", "description": "Duplicate rule id to merge/deactivate."},
+                    "dry_run": {
+                        "type": "boolean",
+                        "description": "Preview the merge without changing the rule store.",
+                    },
+                },
+                "required": ["primary_rule_id", "duplicate_rule_id"],
+            },
+        ),
+        Tool(
+            name="record_rule_outcome",
+            description="Record whether a rule worked or failed so effectiveness can improve over time.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "rule_id": {"type": "string", "description": "Rule id to score."},
+                    "worked": {
+                        "type": "boolean",
+                        "description": "True if the rule prevented the issue; false if the issue recurred.",
+                    },
+                    "dry_run": {
+                        "type": "boolean",
+                        "description": "Preview the outcome update without changing the rule store.",
+                    },
+                },
+                "required": ["rule_id", "worked"],
+            },
+        ),
+        Tool(
             name="analyze",
             description=(
                 "All-in-one analysis tool. Call with action='all' for a complete report, "
@@ -442,6 +558,37 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
             return await _list_skills()
         if name == "get_skill":
             return await _get_skill(arguments.get("name", ""))
+        if name == "list_rules":
+            return await _list_rules(status=arguments.get("status", "active"))
+        if name == "approve_rule":
+            return await _approve_rule(
+                rule_id=arguments.get("rule_id", ""),
+                dry_run=bool(arguments.get("dry_run", False)),
+            )
+        if name == "reject_rule":
+            return await _reject_rule(
+                rule_id=arguments.get("rule_id", ""),
+                note=arguments.get("note", ""),
+                dry_run=bool(arguments.get("dry_run", False)),
+            )
+        if name == "edit_rule":
+            return await _edit_rule(
+                rule_id=arguments.get("rule_id", ""),
+                instruction=arguments.get("instruction", ""),
+                dry_run=bool(arguments.get("dry_run", False)),
+            )
+        if name == "merge_rules":
+            return await _merge_rules(
+                primary_rule_id=arguments.get("primary_rule_id", ""),
+                duplicate_rule_id=arguments.get("duplicate_rule_id", ""),
+                dry_run=bool(arguments.get("dry_run", False)),
+            )
+        if name == "record_rule_outcome":
+            return await _record_rule_outcome(
+                rule_id=arguments.get("rule_id", ""),
+                worked=bool(arguments.get("worked", False)),
+                dry_run=bool(arguments.get("dry_run", False)),
+            )
         if name == "analyze":
             return await _analyze(
                 action=arguments.get("action", "all"),
@@ -822,6 +969,102 @@ async def _get_skill(name: str) -> list[TextContent]:
             )
         ]
     return [TextContent(type="text", text=format_skill_detail(skill))]
+
+
+def _format_rule_summary(rules: list[dict], title: str) -> str:
+    if not rules:
+        return f"No {title.lower()} rules found."
+    lines = [f"{title} ({len(rules)}):", ""]
+    for rule in rules:
+        name = rule.get("name", rule.get("rule_id", "rule"))
+        rule_id = rule.get("rule_id", "?")
+        status = rule.get("status", "active")
+        label = rule.get("priority_label", "MEDIUM")
+        instruction = rule.get("action", {}).get("instruction") or rule.get("instruction", "")
+        lines.append(f"- [{label}] {name}")
+        lines.append(f"  id: {rule_id} | status: {status}")
+        if instruction:
+            lines.append(f"  → {instruction}")
+    return "\n".join(lines)
+
+
+async def _list_rules(status: str = "active") -> list[TextContent]:
+    normalized = (status or "active").strip().lower()
+    rules = store_list_rules(status=None if normalized == "all" else normalized)
+    title = "All rules" if normalized == "all" else f"{normalized} rules"
+    return [TextContent(type="text", text=_format_rule_summary(rules, title))]
+
+
+async def _approve_rule(rule_id: str, dry_run: bool = False) -> list[TextContent]:
+    if not rule_id.strip():
+        return [TextContent(type="text", text="❌ Rule id cannot be empty.")]
+    if dry_run:
+        return [TextContent(type="text", text=f"🔎 Dry run: would approve and activate rule {rule_id!r}.")]
+    rule = update_rule_status(rule_id, "active")
+    if rule is None:
+        return [TextContent(type="text", text=f"❌ Rule not found: {rule_id}")]
+    return [TextContent(type="text", text=f"✅ Approved and activated rule: {rule_id}")]
+
+
+async def _reject_rule(rule_id: str, note: str = "", dry_run: bool = False) -> list[TextContent]:
+    if not rule_id.strip():
+        return [TextContent(type="text", text="❌ Rule id cannot be empty.")]
+    if dry_run:
+        return [TextContent(type="text", text=f"🔎 Dry run: would reject rule {rule_id!r}.")]
+    rule = update_rule_status(rule_id, "rejected", note=note)
+    if rule is None:
+        return [TextContent(type="text", text=f"❌ Rule not found: {rule_id}")]
+    return [TextContent(type="text", text=f"✅ Rejected rule: {rule_id}")]
+
+
+async def _edit_rule(rule_id: str, instruction: str, dry_run: bool = False) -> list[TextContent]:
+    if not rule_id.strip():
+        return [TextContent(type="text", text="❌ Rule id cannot be empty.")]
+    if not instruction.strip():
+        return [TextContent(type="text", text="❌ Instruction cannot be empty.")]
+    if dry_run:
+        return [TextContent(type="text", text=f"🔎 Dry run: would update instruction for rule {rule_id!r}.")]
+    rule = edit_rule_instruction(rule_id, instruction)
+    if rule is None:
+        return [TextContent(type="text", text=f"❌ Rule not found: {rule_id}")]
+    return [TextContent(type="text", text=f"✅ Updated rule instruction: {rule_id}")]
+
+
+async def _merge_rules(
+    primary_rule_id: str,
+    duplicate_rule_id: str,
+    dry_run: bool = False,
+) -> list[TextContent]:
+    if not primary_rule_id.strip() or not duplicate_rule_id.strip():
+        return [TextContent(type="text", text="❌ Both primary_rule_id and duplicate_rule_id are required.")]
+    if dry_run:
+        return [
+            TextContent(
+                type="text",
+                text=f"🔎 Dry run: would merge duplicate rule {duplicate_rule_id!r} into {primary_rule_id!r}.",
+            )
+        ]
+    rule = store_merge_rules(primary_rule_id, duplicate_rule_id)
+    if rule is None:
+        return [TextContent(type="text", text=f"❌ Could not find both rules: {primary_rule_id}, {duplicate_rule_id}")]
+    return [TextContent(type="text", text=f"✅ Merged {duplicate_rule_id} into {primary_rule_id}")]
+
+
+async def _record_rule_outcome(
+    rule_id: str,
+    worked: bool,
+    dry_run: bool = False,
+) -> list[TextContent]:
+    if not rule_id.strip():
+        return [TextContent(type="text", text="❌ Rule id cannot be empty.")]
+    if dry_run:
+        outcome = "worked" if worked else "failed"
+        return [TextContent(type="text", text=f"🔎 Dry run: would record rule {rule_id!r} outcome as {outcome}.")]
+    rule = record_rule_outcome(rule_id, fired_again=not worked)
+    if rule is None:
+        return [TextContent(type="text", text=f"❌ Rule not found: {rule_id}")]
+    score = rule.get("effectiveness_score", "unknown")
+    return [TextContent(type="text", text=f"✅ Recorded outcome for rule: {rule_id} (effectiveness: {score})")]
 
 
 async def _analyze(

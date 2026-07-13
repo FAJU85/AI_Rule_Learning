@@ -4,7 +4,7 @@ This roadmap is directional and may change based on user feedback and maintainer
 
 ## Near Term
 
-- Expand MCP/server support for rule lifecycle review now that CLI lifecycle commands exist.
+- Add owner-dashboard controls for rule lifecycle review now that CLI and MCP lifecycle operations exist.
 - Add richer stale/needs_review automation and duplicate-rule suggestions.
 - Document a privacy-preserving, opt-in metrics plan to understand real adoption without collecting raw user content.
 - Improve the private owner-only Hugging Face Space dashboard/control panel for operations, rule review, and project health.

@@ -128,6 +128,12 @@ These commands are implemented by the `ai-rule-learning` console script.
 | `get_skill`           | Retrieves a saved workflow by name or keyword.                                        |
 | `install_scheduler`   | Installs, uninstalls, or checks the nightly sync scheduler.                           |
 | `list_providers`      | Shows detected session sources and agent config targets.                              |
+| `list_rules`          | Lists stored rules by lifecycle status.                                               |
+| `approve_rule`        | Approves and activates a reviewed rule.                                               |
+| `reject_rule`         | Rejects a rule so it is not injected.                                                 |
+| `edit_rule`           | Updates a rule instruction.                                                           |
+| `merge_rules`         | Marks a duplicate rule as merged into a primary rule.                                 |
+| `record_rule_outcome` | Tracks whether a rule worked or failed.                                               |
 | `analyze`             | Reports health, failure modes, injection checks, and rule-effectiveness data.         |
 
 ---

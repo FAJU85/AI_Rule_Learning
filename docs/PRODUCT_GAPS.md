@@ -155,7 +155,7 @@ Suggested owner-only sections:
 
 ## Recommended Priority
 
-1. Expand lifecycle review into MCP/server tooling and owner dashboard workflows.
+1. Expand lifecycle review into owner dashboard workflows now that CLI/MCP operations exist.
 2. Add dry-run and rollback improvements.
 3. Improve the private owner-only Hugging Face Space dashboard.
 4. Add opt-in product metrics after privacy documentation is complete.
