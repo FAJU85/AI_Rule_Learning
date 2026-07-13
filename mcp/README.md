@@ -1,95 +1,28 @@
-# AI Rule Learning — MCP
+# AI Rule Learning MCP
 
-Your AI remembers what works and what doesn't — and gets better every session.
+AI Rule Learning MCP is a local MCP server and CLI for turning repeated AI-session feedback into
+persistent guardrails, memory, and reusable skills that can be injected into supported AI-agent
+configuration files.
 
-AI Rule Learning watches your AI conversations, learns from the moments where
-things didn't go as expected, and automatically applies that knowledge to
-future sessions. The result is an AI that progressively adapts to the way you
-work, without you having to change anything.
+This README describes what is implemented in this repository today. Earlier decision-rule mining
+examples have been removed because those public classes are not part of the current package API.
 
 ---
 
-## Five pillars
+## What is real today?
 
-| Pillar        | What it does                                                                             |
-| ------------- | ---------------------------------------------------------------------------------------- |
-| **Rules**     | Detects friction patterns and generates guardrail rules automatically                    |
-| **Memory**    | Persists facts, preferences, and context across all sessions                             |
-| **Skills**    | Saves and retrieves reusable multi-step workflows                                        |
-| **Injection** | Writes rules, memory, and skills into Claude Code, Cursor, Windsurf, and Copilot configs |
-| **Auto-sync** | Installs a nightly cron/systemd job to keep everything current                           |
+| Capability               | Status          | Implemented as                                                  |
+| ------------------------ | --------------- | --------------------------------------------------------------- |
+| MCP server               | Real            | `ai-rule-learning-mcp` entry point                              |
+| CLI                      | Real            | `ai-rule-learning` entry point                                  |
+| Guardrail rules          | Real            | Local JSONL storage plus injected markdown blocks               |
+| Memory                   | Real            | Local JSONL storage plus injected markdown blocks               |
+| Skills                   | Real            | Local markdown skill files plus injected skill index            |
+| Agent config injection   | Real            | Claude Code, Cursor, Windsurf, and GitHub Copilot targets       |
+| Auto-sync scheduler      | Real            | LaunchAgent, systemd user timer, or cron fallback               |
+| Decision-rule mining API | Not current API | The current package exposes MCP tools and CLI commands instead. |
 
-## MCP tools
-
-| Tool                         | Description                                                                          |
-| ---------------------------- | ------------------------------------------------------------------------------------ |
-| `get_guardrail_rules`        | Return active rules for the current session                                          |
-| `record_feedback`            | Create a rule immediately from in-session feedback                                   |
-| `sync_sessions`              | Parse conversation history and generate new rules                                    |
-| `remember`                   | Store a fact or preference in persistent memory                                      |
-| `recall`                     | Search memory for relevant context                                                   |
-| `save_skill`                 | Save a reusable workflow                                                             |
-| `list_skills`                | List saved skills with optional keyword filter                                       |
-| `get_skill`                  | Retrieve a specific skill by name                                                    |
-| `install_scheduler`          | Install the nightly auto-sync job                                                    |
-| `list_providers`             | Show detected conversation history locations                                         |
-| `analyze`                    | Session health, failure modes, injection check, effectiveness, and outcome recording |
-| `update_community_knowledge` | Aggregate contributed gap patterns into community templates (maintainer/RAG)         |
-
-## What it detects
-
-### Conversation patterns
-
-- Explicit corrections ("that's wrong", "actually,")
-- Repeated context ("I already told you", "as I said")
-- Incomplete responses ("you forgot", "you missed", "what about")
-- Repeated questions (word-overlap across turns)
-- Sycophancy — position reversals after user pushback
-- Hallucination risk signals ("I think", "I believe", unverified claims)
-- Overconfidence ("definitely", "certainly", "guaranteed")
-- Prompt injection attempts ("ignore previous instructions", "jailbreak")
-- Format failures — unexpected schema changes across turns
-- Reasoning gaps — conclusions without supporting evidence
-
-### Code quality
-
-- Code without error handling
-- Bare `except:` clauses
-- `eval()` usage
-- Hardcoded API keys and secrets
-
-### Failure taxonomy
-
-Every detected gap is tagged with a Planit failure layer (L1 Model Behaviour → L4 Human & Trust)
-and a Composo failure category (e.g. `behavioral_alignment`, `safety_security`) for structured
-analysis.
-
-## The `analyze` tool
-
-The `analyze` tool is a single combined endpoint with six actions:
-
-| Action            | What it returns                                                               |
-| ----------------- | ----------------------------------------------------------------------------- |
-| `all`             | Full report: session health + failure modes + effectiveness + injection check |
-| `session_health`  | 0–100 health score with per-layer gap counts and deductions                   |
-| `failure_modes`   | Active rules grouped by Planit layer and Composo category                     |
-| `effectiveness`   | Green / amber / red breakdown of rule effectiveness scores                    |
-| `check_injection` | Scan a prompt string for injection and jailbreak patterns                     |
-| `record_outcome`  | Update a rule's effectiveness score after observing it fire or be suppressed  |
-
-Example (Claude Code tool call):
-
-```json
-{ "name": "analyze", "arguments": { "action": "all", "prompt": "<user message>" } }
-```
-
-## Works with
-
-- Claude Code, Claude Desktop
-- ChatGPT / OpenAI exports
-- Cursor and Windsurf
-- GitHub Copilot
-- Any AI tool that exports conversation history
+---
 
 ## Installation
 
@@ -97,79 +30,197 @@ Example (Claude Code tool call):
 pip install ai-rule-learning-mcp
 ```
 
-## Quick start
+Run the MCP server:
 
 ```bash
-# Run the MCP server (add to your agent config)
 ai-rule-learning-mcp
-
-# Or use the CLI directly
-ai-rule-learning sync          # scan sessions and generate rules
-ai-rule-learning rules         # show active rules
-ai-rule-learning status        # show storage status
-ai-rule-learning memory show   # show persistent memory
-ai-rule-learning skills list   # show saved skills
-ai-rule-learning install-cron  # set up nightly auto-sync
 ```
 
-## What this tool changes on your machine
+Run the CLI directly:
 
-So there are no surprises, this tool actively writes to your system. Specifically it:
-
-- **Writes to your AI-agent config files.** Learned rules, memory, and skills are
-  injected into every detected agent config (see [Agent config paths](#agent-config-paths)
-  below) so they apply to future sessions. Use `ai-rule-learning clear` to remove
-  everything it wrote.
-- **Stores data locally** under `~/.ai-rule-learning/` (see [Local storage](#local-storage)).
-- **Installs a background job** when you run `install_scheduler` / `install-cron` — a
-  nightly cron, systemd timer, or launchd agent that re-runs sync. It is **opt-in**
-  (never installed automatically) and removable with `ai-rule-learning uninstall-cron`
-  or the `install_scheduler` tool with `action: "uninstall"`.
-- **Uploads only if you opt in.** Cloud backup/sync requires both `HF_TOKEN` and
-  `ARL_DATASET`. Community contribution is **off by default** (`ARL_CONTRIBUTE=false`)
-  and shares only anonymised pattern counts — never raw conversation content
-  (see [Privacy](#privacy)).
-
-Rules are always re-checked against a safety gate before being written to any config,
-so unsafe instructions (e.g. "ignore all previous instructions") are filtered out.
-
-## Agent config paths
-
-| Agent          | Config file                          |
-| -------------- | ------------------------------------ |
-| Claude Code    | `~/.claude/CLAUDE.md`                |
-| Cursor         | `.cursor/rules` in the project root  |
-| Windsurf       | `.windsurfrules` in the project root |
-| GitHub Copilot | `.github/copilot-instructions.md`    |
-
-## Local storage
-
-Everything lives under `~/.ai-rule-learning/`:
-
-```text
-~/.ai-rule-learning/
-  rules.jsonl          # learned guardrail rules
-  memory.jsonl         # persistent memory facts
-  processed.jsonl      # record of processed sessions
-  skills/              # saved workflows (one .md file each)
+```bash
+ai-rule-learning status
 ```
-
-## Privacy
-
-Conversation content is scrubbed locally (email, home paths, IPs, tokens)
-before any storage. Community contributions (opt-in) share only anonymous
-pattern counts — never your actual conversations or content.
-
-See [PRIVACY.md](https://github.com/faju85/ai_rule_learning/blob/main/PRIVACY.md)
-for full details.
-
-## Licence
-
-Free for personal use. Commercial and government use requires written
-permission. See [LICENSE](https://github.com/faju85/ai_rule_learning/blob/main/LICENSE)
-and [TERMS.md](https://github.com/faju85/ai_rule_learning/blob/main/TERMS.md).
 
 ---
 
-> **For organisations and teams:** a business version is available by
-> pre-order. Contact <info@tococolors.com> to request access.
+## MCP setup
+
+Add the server to an MCP-compatible client configuration:
+
+```json
+{
+  "mcpServers": {
+    "ai-rule-learning": {
+      "command": "ai-rule-learning-mcp"
+    }
+  }
+}
+```
+
+---
+
+## CLI commands
+
+```bash
+# Scan sessions and generate rules
+ai-rule-learning sync
+
+# Show current rules and detected agent configs
+ai-rule-learning status
+
+# Print active rules
+ai-rule-learning rules
+
+# Remove all injected sections
+ai-rule-learning clear
+
+# Memory
+ai-rule-learning memory show
+ai-rule-learning memory add preference "Always use type hints in Python"
+ai-rule-learning memory clear
+
+# Skills
+ai-rule-learning skills
+ai-rule-learning skills show "Deploy Workflow"
+ai-rule-learning skills delete "Old Workflow"
+
+# Auto-sync scheduler
+ai-rule-learning install-cron
+ai-rule-learning cron-status
+ai-rule-learning uninstall-cron
+```
+
+These commands are implemented by the `ai-rule-learning` console script.
+
+---
+
+## MCP tools
+
+| Tool                  | What it does                                                                          |
+| --------------------- | ------------------------------------------------------------------------------------- |
+| `get_guardrail_rules` | Returns active guardrail rules as a formatted text block.                             |
+| `record_feedback`     | Generates a rule from session feedback such as corrections or repeated context.       |
+| `sync_sessions`       | Parses supported local session files, detects patterns, and refreshes injected rules. |
+| `remember`            | Stores a preference, project detail, hard constraint, user fact, or context item.     |
+| `recall`              | Reads stored memory entries.                                                          |
+| `save_skill`          | Saves a reusable workflow.                                                            |
+| `list_skills`         | Lists saved workflows.                                                                |
+| `get_skill`           | Retrieves a saved workflow by name or keyword.                                        |
+| `install_scheduler`   | Installs, uninstalls, or checks the nightly sync scheduler.                           |
+| `list_providers`      | Shows detected session sources and agent config targets.                              |
+| `analyze`             | Reports health, failure modes, injection checks, and rule-effectiveness data.         |
+
+---
+
+## What gets written where
+
+Rules, memory, and skills are injected as fenced markdown blocks using HTML comment markers into
+every detected supported AI-agent config.
+
+| Agent          | Config file                                |
+| -------------- | ------------------------------------------ |
+| Claude Code    | `~/.claude/CLAUDE.md`                      |
+| Cursor         | `~/.cursor/rules/ai-guardrails.md`         |
+| Windsurf       | `~/.windsurf/rules/ai-guardrails.md`       |
+| GitHub Copilot | `~/.config/github-copilot/instructions.md` |
+
+All sections are idempotent: re-running sync updates existing blocks instead of duplicating them.
+
+Remove injected sections with:
+
+```bash
+ai-rule-learning clear
+```
+
+---
+
+## Local storage
+
+All local data is stored under `~/.ai-rule-learning/`:
+
+```text
+~/.ai-rule-learning/
+  rules.jsonl          Active guardrail rules
+  memory.jsonl         Remembered facts and preferences
+  conversations.jsonl  Parsed session history
+  processed.jsonl      Deduplication index
+  skills/              Saved skill procedures, one markdown file per skill
+  sync.log             Auto-sync output
+```
+
+---
+
+## Auto-sync scheduler
+
+The scheduler is opt-in. It is only installed when you run:
+
+```bash
+ai-rule-learning install-cron
+```
+
+Depending on your OS, the package uses one of these mechanisms:
+
+| OS    | Mechanism                                         |
+| ----- | ------------------------------------------------- |
+| macOS | LaunchAgent                                       |
+| Linux | systemd user timer when available, otherwise cron |
+| Other | cron fallback when available                      |
+
+Check scheduler status:
+
+```bash
+ai-rule-learning cron-status
+```
+
+Remove scheduler automation:
+
+```bash
+ai-rule-learning uninstall-cron
+```
+
+---
+
+## Supported session inputs
+
+The sync command can parse supported local conversation/session files, including Claude Code JSONL
+sessions and generic JSONL-style session exports. You can pass a path explicitly:
+
+```bash
+ai-rule-learning sync ~/.claude/projects
+```
+
+If no path is passed, the CLI checks known default local session locations.
+
+---
+
+## Safety notes
+
+- The tool writes local files when you run write operations such as `sync`, `remember`, `save_skill`,
+  `clear`, or scheduler commands.
+- The tool updates supported agent config files using explicit HTML comment markers.
+- Scheduler installation is opt-in and reversible.
+- Review generated rules before relying on them for critical workflows.
+- Do not store secrets as memory entries or skill content.
+
+---
+
+## Development
+
+Install development dependencies from the repository root, then run checks:
+
+```bash
+python -m pip install -r requirements-dev.txt
+ruff format --check .
+npm run format:check
+ruff check .
+mypy src
+pytest
+python -m pytest -c /dev/null mcp/tests -q
+```
+
+---
+
+## License
+
+See `LICENSE` and `TERMS.md` in this repository.
