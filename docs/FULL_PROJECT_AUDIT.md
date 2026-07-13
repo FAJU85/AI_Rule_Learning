@@ -135,12 +135,12 @@ MCP data flow:
 
 ### High Priority
 
-| Item                                        | Dependency             | Effort | Notes                                                         |
-| ------------------------------------------- | ---------------------- | ------ | ------------------------------------------------------------- |
-| Add rule review lifecycle states            | MCP store/CLI/injector | Medium | Pending/approved/rejected/active/stale/needs_review.          |
-| Extend dry-run mode beyond CLI              | MCP server/dashboard   | Medium | CLI dry-run added; MCP tools and future UI still need parity. |
-| Improve local management dashboard          | UI framework decision  | Large  | Should replace confusing external management workflows.       |
-| Make external storage optional and explicit | MCP/root settings      | Medium | Avoid silent behavior and hidden dependencies.                |
+| Item                                        | Dependency             | Effort | Notes                                                                                       |
+| ------------------------------------------- | ---------------------- | ------ | ------------------------------------------------------------------------------------------- |
+| Add rule review lifecycle states            | MCP store/CLI/injector | Medium | Pending/approved/rejected/active/stale/needs_review.                                        |
+| Extend dry-run mode beyond CLI              | Future dashboard       | Medium | CLI and MCP server write tools now support dry-run; future UI needs parity when introduced. |
+| Improve local management dashboard          | UI framework decision  | Large  | Should replace confusing external management workflows.                                     |
+| Make external storage optional and explicit | MCP/root settings      | Medium | Avoid silent behavior and hidden dependencies.                                              |
 
 ### Medium Priority
 
@@ -236,7 +236,7 @@ Implemented during this audit:
 - Docker ignore file,
 - environment example file,
 - root package build backend fix,
-- MCP CLI dry-run support for write/destructive commands.
+- MCP CLI and server dry-run support for write/destructive commands.
 
 ---
 
@@ -263,5 +263,5 @@ Results:
 - Ruff linting passed.
 - Root tests passed.
 - MCP tests passed.
-- MCP CLI dry-run tests passed.
+- MCP CLI and server dry-run tests passed.
 - mypy was blocked by the local Python 3.14 / NumPy stub mismatch described above.

@@ -9,7 +9,7 @@ This roadmap is directional and may change based on user feedback and maintainer
 - Document a privacy-preserving, opt-in metrics plan to understand real adoption without collecting raw user content.
 - Design a local management dashboard to replace confusing external analysis/management workflows.
 - Improve README examples and screenshots.
-- Extend dry-run coverage into MCP tools and any future dashboard actions.
+- Extend dry-run coverage into any future dashboard actions; CLI and MCP write tools now support safe previews.
 - Expand test coverage for CLI and MCP workflows.
 - Improve generated-rule review and rollback guidance.
 

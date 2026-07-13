@@ -74,7 +74,16 @@ async def list_tools() -> list[Tool]:
                 "Works with any AI agent — Claude, Codex, Cursor, Windsurf, Copilot. "
                 "Call at the start of important sessions to load your personalised rules."
             ),
-            inputSchema={"type": "object", "properties": {}, "required": []},
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "dry_run": {
+                        "type": "boolean",
+                        "description": "Preview formatted rules without writing them to agent config files.",
+                    }
+                },
+                "required": [],
+            },
         ),
         Tool(
             name="record_feedback",
@@ -114,6 +123,10 @@ async def list_tools() -> list[Tool]:
                             "Optional: a specific instruction for the rule. "
                             "If omitted, a rule is generated from the feedback_type template."
                         ),
+                    },
+                    "dry_run": {
+                        "type": "boolean",
+                        "description": "Preview the generated rule without saving it or writing agent configs.",
                     },
                 },
                 "required": ["feedback_type", "description"],
@@ -158,6 +171,10 @@ async def list_tools() -> list[Tool]:
                             "Defaults to ~/.claude/projects if omitted."
                         ),
                     },
+                    "dry_run": {
+                        "type": "boolean",
+                        "description": "Preview what would be parsed and generated without marking files processed or writing data/configs.",
+                    },
                 },
                 "required": [],
             },
@@ -195,6 +212,10 @@ async def list_tools() -> list[Tool]:
                         "type": "string",
                         "description": "The fact to remember, stated clearly and concisely.",
                     },
+                    "dry_run": {
+                        "type": "boolean",
+                        "description": "Preview the memory entry without saving it or writing agent configs.",
+                    },
                 },
                 "required": ["type", "content"],
             },
@@ -223,7 +244,11 @@ async def list_tools() -> list[Tool]:
                         "type": "string",
                         "enum": ["install", "uninstall", "status"],
                         "description": "install: set up nightly sync. uninstall: remove it. status: check current state.",
-                    }
+                    },
+                    "dry_run": {
+                        "type": "boolean",
+                        "description": "Preview install/uninstall actions without changing scheduler configuration.",
+                    },
                 },
                 "required": [],
             },
@@ -238,7 +263,7 @@ async def list_tools() -> list[Tool]:
             description=(
                 "Save a reusable workflow procedure so it can be recalled in any future session "
                 "across all AI agents. Call when the user completes a multi-step task that they "
-                "are likely to repeat — e.g. 'create a FastAPI endpoint', 'deploy to Hugging Face'. "
+                "are likely to repeat — e.g. 'create a FastAPI endpoint' or 'prepare a release checklist'. "
                 "The skill is stored locally and its name is injected into every agent config "
                 "so agents know it exists without loading the full steps every time."
             ),
@@ -261,6 +286,10 @@ async def list_tools() -> list[Tool]:
                         "type": "array",
                         "items": {"type": "string"},
                         "description": "Keywords or phrases that should trigger loading this skill.",
+                    },
+                    "dry_run": {
+                        "type": "boolean",
+                        "description": "Preview the skill save without writing the skill file or agent configs.",
                     },
                 },
                 "required": ["name", "description", "steps"],
@@ -370,11 +399,12 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
     # than letting an unexpected exception propagate (and leak a stack trace).
     try:
         if name == "get_guardrail_rules":
-            return await _get_guardrail_rules()
+            return await _get_guardrail_rules(dry_run=bool(arguments.get("dry_run", False)))
         if name == "remember":
             return await _remember(
                 memory_type=arguments.get("type", "context"),
                 content=arguments.get("content", ""),
+                dry_run=bool(arguments.get("dry_run", False)),
             )
         if name == "recall":
             return await _recall()
@@ -383,13 +413,21 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 feedback_type=arguments.get("feedback_type", "correction"),
                 description=arguments.get("description", ""),
                 rule_hint=arguments.get("rule_hint", ""),
+                dry_run=bool(arguments.get("dry_run", False)),
             )
         if name == "sync_sessions":
             paths = [Path(p) for p in arguments.get("paths", [])] or None
             contribute = arguments.get("contribute", _CONTRIBUTE)
-            return await _sync_sessions(paths=paths, contribute=contribute)
+            return await _sync_sessions(
+                paths=paths,
+                contribute=contribute,
+                dry_run=bool(arguments.get("dry_run", False)),
+            )
         if name == "install_scheduler":
-            return await _install_scheduler(arguments.get("action", "install"))
+            return await _install_scheduler(
+                arguments.get("action", "install"),
+                dry_run=bool(arguments.get("dry_run", False)),
+            )
         if name == "list_providers":
             return await _list_providers()
         if name == "save_skill":
@@ -398,6 +436,7 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 description=arguments.get("description", ""),
                 steps=arguments.get("steps", ""),
                 triggers=arguments.get("triggers", []),
+                dry_run=bool(arguments.get("dry_run", False)),
             )
         if name == "list_skills":
             return await _list_skills()
@@ -411,15 +450,13 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 fired_again=arguments.get("fired_again"),
             )
         if name == "update_community_knowledge":
-            return await _update_community_knowledge(
-                min_sources=int(arguments.get("min_sources", 3))
-            )
+            return await _update_community_knowledge(min_sources=int(arguments.get("min_sources", 3)))
         return [TextContent(type="text", text=f"Unknown tool: {name}")]
     except Exception as exc:  # noqa: BLE001 — boundary handler, report not crash
         return [TextContent(type="text", text=f"❌ {name} failed: {type(exc).__name__}: {exc}")]
 
 
-async def _get_guardrail_rules() -> list[TextContent]:
+async def _get_guardrail_rules(dry_run: bool = False) -> list[TextContent]:
     rules = load_active_rules()
     if not rules:
         return [
@@ -432,13 +469,29 @@ async def _get_guardrail_rules() -> list[TextContent]:
                 ),
             )
         ]
+    if dry_run:
+        return [
+            TextContent(
+                type="text",
+                text="🔎 Dry run: would refresh guardrail rules in detected agent configs.\n\n"
+                + format_rules_block(rules),
+            )
+        ]
     write_rules_all(rules)
     return [TextContent(type="text", text=format_rules_block(rules))]
 
 
-async def _remember(memory_type: str, content: str) -> list[TextContent]:
+async def _remember(memory_type: str, content: str, dry_run: bool = False) -> list[TextContent]:
     if not content.strip():
         return [TextContent(type="text", text="❌ Content cannot be empty.")]
+
+    if dry_run:
+        return [
+            TextContent(
+                type="text",
+                text=f"🔎 Dry run: would remember [{memory_type}]: {content.strip()}",
+            )
+        ]
 
     entry = add_memory(memory_type, content)
     entries = load_memory()
@@ -466,6 +519,7 @@ async def _record_feedback(
     feedback_type: str,
     description: str,
     rule_hint: str = "",
+    dry_run: bool = False,
 ) -> list[TextContent]:
     _GAP_MAP = {
         "correction": "explicit_correction",
@@ -485,6 +539,18 @@ async def _record_feedback(
         rules[0]["action"] = {"instruction": rule_hint}
         rules[0]["instruction"] = rule_hint
 
+    rule_name = rules[0].get("name", "new rule")
+    if dry_run:
+        return [
+            TextContent(
+                type="text",
+                text=(
+                    f"🔎 Dry run: would create rule **{rule_name}** from "
+                    f"{feedback_type} feedback. No rule store or agent config files changed."
+                ),
+            )
+        ]
+
     existing = _local_load("rules.jsonl")
     existing_ids = {r.get("rule_id") for r in existing}
     new_rules = [r for r in rules if r.get("rule_id") not in existing_ids]
@@ -495,7 +561,6 @@ async def _record_feedback(
     written = write_rules_all(all_rules)
     targets_str = ", ".join(name for name, _ in written) if written else "no agent configs detected"
 
-    rule_name = rules[0].get("name", "new rule")
     action = "Created" if new_rules else "Already known"
 
     return [
@@ -513,8 +578,11 @@ async def _record_feedback(
 async def _sync_sessions(
     paths: list[Path] | None = None,
     contribute: bool = False,
+    dry_run: bool = False,
 ) -> list[TextContent]:
     log: list[str] = []
+    if dry_run:
+        log.append("🔎 Dry run: no session files will be marked processed and no data/config files will be written.")
 
     scan_paths = paths or _SESSION_PATHS
     session_files: list[Path] = []
@@ -548,16 +616,20 @@ async def _sync_sessions(
         convs = parse_any(path)
         if convs:
             all_conversations.extend(convs)
-            mark_processed(path)
+            if not dry_run:
+                mark_processed(path)
 
     log.append(f"✅ Parsed {len(all_conversations)} valid conversation(s)")
 
     if not all_conversations:
         rules = load_active_rules()
         if rules:
-            written = write_rules_all(rules)
-            targets = ", ".join(n for n, _ in written)
-            log.append(f"📝 {len(rules)} existing rule(s) refreshed → {targets}")
+            if dry_run:
+                log.append(f"🔎 Dry run: would refresh {len(rules)} existing rule(s)")
+            else:
+                written = write_rules_all(rules)
+                targets = ", ".join(n for n, _ in written)
+                log.append(f"📝 {len(rules)} existing rule(s) refreshed → {targets}")
         else:
             log.append("ℹ️  No new conversations and no existing rules yet.")
         return [TextContent(type="text", text="\n".join(log))]
@@ -569,20 +641,27 @@ async def _sync_sessions(
         existing_ids = {r.get("rule_id") for r in existing}
         new_rules = [r for r in detected_rules if r.get("rule_id") not in existing_ids]
         if new_rules:
-            _local_save("rules.jsonl", existing + new_rules)
-            log.append(f"🧠 Generated {len(new_rules)} new rule(s) from detected patterns")
+            if dry_run:
+                log.append(f"🔎 Dry run: would generate {len(new_rules)} new rule(s) from detected patterns")
+            else:
+                _local_save("rules.jsonl", existing + new_rules)
+                log.append(f"🧠 Generated {len(new_rules)} new rule(s) from detected patterns")
         else:
             log.append("ℹ️  All detected patterns already have rules")
 
     # ── HF upload (optional) ───────────────────────────────────────────────
-    added = append_conversations(all_conversations)
+    added = 0 if dry_run else append_conversations(all_conversations)
+    if dry_run and all_conversations:
+        log.append(f"🔎 Dry run: would save {len(all_conversations)} conversation(s) locally")
     if added:
         if hf_enabled():
             log.append(f"⬆️  Uploaded {added} new conversation(s) to HF dataset")
         else:
             log.append(f"💾 Saved {added} new conversation(s) locally (no HF token — upload skipped)")
 
-    if contribute:
+    if contribute and dry_run:
+        log.append("🔎 Dry run: would evaluate anonymised community contribution eligibility")
+    if contribute and not dry_run:
         contributed = 0
         for conv in all_conversations:
             gaps_by_type: dict[str, list] = {}
@@ -597,14 +676,15 @@ async def _sync_sessions(
         if contributed:
             log.append(f"🤝 Contributed anonymised patterns from {contributed} session(s)")
 
-    activated = auto_activate_pending_rules()
+    activated = 0 if dry_run else auto_activate_pending_rules()
     if activated:
         log.append(f"✅ Auto-activated {activated} safe pending rule(s) from HF dataset")
 
     # ── RAG: pull and load community templates ─────────────────────────────
     from .community import pull_community_templates
     from .gap_detector import load_community_templates
-    community_tpls = pull_community_templates()
+
+    community_tpls = [] if dry_run else pull_community_templates()
     if community_tpls:
         load_community_templates(community_tpls)
         log.append(f"🔍 Loaded {len(community_tpls)} community-derived template(s) for RAG augmentation")
@@ -612,24 +692,29 @@ async def _sync_sessions(
     # ── Write to all detected agent configs ────────────────────────────────
     rules = load_active_rules()
     if rules:
-        written = write_rules_all(rules)
-        if written:
-            targets = ", ".join(n for n, _ in written)
-            log.append(f"📝 {len(rules)} rule(s) written to: {targets}")
-        log.append("🎉 Rules will apply automatically to every future session!")
+        if dry_run:
+            log.append(f"🔎 Dry run: would write {len(rules)} active rule(s) to detected agent configs")
+        else:
+            written = write_rules_all(rules)
+            if written:
+                targets = ", ".join(n for n, _ in written)
+                log.append(f"📝 {len(rules)} rule(s) written to: {targets}")
+            log.append("🎉 Rules will apply automatically to every future session!")
     else:
         log.append("ℹ️  No active rules yet — need more session data")
 
     return [TextContent(type="text", text="\n".join(log))]
 
 
-async def _install_scheduler(action: str = "install") -> list[TextContent]:
+async def _install_scheduler(action: str = "install", dry_run: bool = False) -> list[TextContent]:
     from .scheduler import install
     from .scheduler import is_installed
     from .scheduler import status
     from .scheduler import uninstall
 
     if action == "uninstall":
+        if dry_run:
+            return [TextContent(type="text", text="🔎 Dry run: would remove the nightly auto-sync job.")]
         removed = uninstall()
         msg = "✅ Nightly auto-sync removed." if removed else "ℹ️  No auto-sync job found."
         return [TextContent(type="text", text=msg)]
@@ -638,6 +723,9 @@ async def _install_scheduler(action: str = "install") -> list[TextContent]:
         return [TextContent(type="text", text=status())]
 
     # install
+    if dry_run:
+        return [TextContent(type="text", text="🔎 Dry run: would install the nightly auto-sync job at 02:00.")]
+
     if is_installed():
         return [TextContent(type="text", text=f"ℹ️  Already installed.\n{status()}")]
 
@@ -670,14 +758,10 @@ async def _list_providers() -> list[TextContent]:
         if not sp.exists():
             lines.append(f"  ❌ {sp} — not found")
             continue
-        count = sum(1 for _ in sp.rglob("*.jsonl")) + sum(
-            1 for _ in sp.rglob("conversations.json")
-        )
+        count = sum(1 for _ in sp.rglob("*.jsonl")) + sum(1 for _ in sp.rglob("conversations.json"))
         lines.append(f"  ✅ {sp} — {count} file(s)")
     lines.append("")
-    lines.append(
-        "**Supported formats:** Claude Code (.jsonl), ChatGPT export (conversations.json), Generic JSONL"
-    )
+    lines.append("**Supported formats:** Claude Code (.jsonl), ChatGPT export (conversations.json), Generic JSONL")
     return [TextContent(type="text", text="\n".join(lines))]
 
 
@@ -686,11 +770,20 @@ async def _save_skill(
     description: str,
     steps: str,
     triggers: list[str] | None = None,
+    dry_run: bool = False,
 ) -> list[TextContent]:
     if not skill_name.strip():
         return [TextContent(type="text", text="❌ Skill name cannot be empty.")]
     if not steps.strip():
         return [TextContent(type="text", text="❌ Steps cannot be empty.")]
+
+    if dry_run:
+        return [
+            TextContent(
+                type="text",
+                text=f"🔎 Dry run: would save skill **{skill_name.strip()}** and refresh agent configs.",
+            )
+        ]
 
     skill = save_skill(skill_name, description, steps, triggers or [])
     skills = list_skills()
@@ -705,7 +798,7 @@ async def _save_skill(
                 f"Slug: {skill['slug']}\n"
                 f"Written to: {targets_str}\n"
                 f"Total skills: {len(skills)}\n\n"
-                f"Call `get_skill(\"{skill['name']}\")` to load the full steps."
+                f'Call `get_skill("{skill["name"]}")` to load the full steps.'
             ),
         )
     ]
@@ -725,10 +818,7 @@ async def _get_skill(name: str) -> list[TextContent]:
         return [
             TextContent(
                 type="text",
-                text=(
-                    f"❌ Skill not found: {name!r}\n"
-                    "Use list_skills to see available skills."
-                ),
+                text=(f"❌ Skill not found: {name!r}\nUse list_skills to see available skills."),
             )
         ]
     return [TextContent(type="text", text=format_skill_detail(skill))]
@@ -748,6 +838,7 @@ async def _update_community_knowledge(min_sources: int = 3) -> list[TextContent]
     from .community import build_community_templates
     from .community import fetch_community_patterns
     from .community import push_community_templates
+
     log = []
     freq = fetch_community_patterns()
     if not freq:
