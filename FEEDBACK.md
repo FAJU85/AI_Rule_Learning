@@ -91,6 +91,17 @@ message to the maintainer.
 
 ---
 
+## Product Feedback Questions
+
+- How should the project measure adoption without violating user privacy?
+- Would you enable opt-in anonymous usage metrics if the exact payload was documented?
+- What would make the generated-rule learning loop feel trustworthy?
+- Should new rules be pending until approved by the user?
+- What do you need in a local management dashboard?
+- Which analysis or management screens are confusing today?
+
+---
+
 ## Extra Questions for AI-Agent Users
 
 - Which AI coding tools do you use most often?

@@ -6,6 +6,11 @@ documentation:
 
 bug:
   - head-branch:
+      - '^fix/[A-Za-z0-9._/-]+$'
+
+enhancement:
+  - head-branch:
+      - '^feat/[A-Za-z0-9._/-]+$'
       - 'fix/**'
 
 enhancement:

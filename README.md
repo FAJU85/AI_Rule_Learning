@@ -66,19 +66,39 @@ Add the server to an MCP-compatible client configuration:
 # Scan sessions and generate rules
 ai-rule-learning sync
 
+# Preview sync without writing local storage or agent config files
+ai-rule-learning sync --dry-run
+
 # Show current rules and detected agent configs
 ai-rule-learning status
 
 # Print active rules
 ai-rule-learning rules
 
+# Review and manage rule lifecycle
+ai-rule-learning rules pending
+ai-rule-learning rules approve <rule-id>
+ai-rule-learning rules reject <rule-id>
+ai-rule-learning rules edit <rule-id> "Always run focused tests first"
+ai-rule-learning rules merge <primary-rule-id> <duplicate-rule-id>
+ai-rule-learning rules outcome <rule-id> --worked
+ai-rule-learning rules outcome <rule-id> --failed
+ai-rule-learning rules health
+ai-rule-learning rules health --apply
+ai-rule-learning rules duplicates
+
 # Remove all injected sections
 ai-rule-learning clear
+
+# Preview destructive/write operations before changing files
+ai-rule-learning clear --dry-run
 
 # Memory
 ai-rule-learning memory show
 ai-rule-learning memory add preference "Always use type hints in Python"
+ai-rule-learning memory add preference "Always use type hints in Python" --dry-run
 ai-rule-learning memory clear
+ai-rule-learning memory clear --dry-run
 
 # Skills
 ai-rule-learning skills
@@ -89,14 +109,48 @@ ai-rule-learning skills delete "Old Workflow"
 ai-rule-learning install-cron
 ai-rule-learning cron-status
 ai-rule-learning uninstall-cron
+ai-rule-learning install-cron --dry-run
+ai-rule-learning uninstall-cron --dry-run
+
+# Privacy-preserving opt-in metrics
+ai-rule-learning metrics status
+ai-rule-learning metrics preview
+ai-rule-learning metrics enable
+ai-rule-learning metrics disable
 ```
 
 These commands are implemented by the `ai-rule-learning` console script.
+
+Usage metrics are **disabled by default**. If you opt in, the CLI records only anonymous aggregate labels such as
+command/tool names, success/failure counts, package version, Python version bucket, and OS family. It never records
+prompts, rule text, memory content, file paths, usernames, repo names, hostnames, or agent config content. Run
+`ai-rule-learning metrics preview` before enabling sharing to inspect the exact aggregate payload.
 
 ---
 
 ## MCP tools
 
+| Tool                      | What it does                                                                          |
+| ------------------------- | ------------------------------------------------------------------------------------- |
+| `get_guardrail_rules`     | Returns active guardrail rules as a formatted text block.                             |
+| `record_feedback`         | Generates a rule from session feedback such as corrections or repeated context.       |
+| `sync_sessions`           | Parses supported local session files, detects patterns, and refreshes injected rules. |
+| `remember`                | Stores a preference, project detail, hard constraint, user fact, or context item.     |
+| `recall`                  | Reads stored memory entries.                                                          |
+| `save_skill`              | Saves a reusable workflow.                                                            |
+| `list_skills`             | Lists saved workflows.                                                                |
+| `get_skill`               | Retrieves a saved workflow by name or keyword.                                        |
+| `install_scheduler`       | Installs, uninstalls, or checks the nightly sync scheduler.                           |
+| `list_providers`          | Shows detected session sources and agent config targets.                              |
+| `list_rules`              | Lists stored rules by lifecycle status.                                               |
+| `approve_rule`            | Approves and activates a reviewed rule.                                               |
+| `reject_rule`             | Rejects a rule so it is not injected.                                                 |
+| `edit_rule`               | Updates a rule instruction.                                                           |
+| `merge_rules`             | Marks a duplicate rule as merged into a primary rule.                                 |
+| `record_rule_outcome`     | Tracks whether a rule worked or failed.                                               |
+| `review_rule_health`      | Finds stale or low-effectiveness rules and can mark them for review.                  |
+| `suggest_duplicate_rules` | Suggests likely duplicate rules for explicit review and merge.                        |
+| `analyze`                 | Reports health, failure modes, injection checks, and rule-effectiveness data.         |
 | Tool                  | What it does                                                                          |
 | --------------------- | ------------------------------------------------------------------------------------- |
 | `get_guardrail_rules` | Returns active guardrail rules as a formatted text block.                             |
@@ -177,6 +231,8 @@ Remove scheduler automation:
 
 ```bash
 ai-rule-learning uninstall-cron
+ai-rule-learning install-cron --dry-run
+ai-rule-learning uninstall-cron --dry-run
 ```
 
 ---
@@ -195,6 +251,19 @@ If no path is passed, the CLI checks known default local session locations.
 ---
 
 ## Safety notes
+
+- The tool writes local files when you run write operations such as `sync`, `remember`, `save_skill`,
+  `clear`, or scheduler commands.
+- The tool updates supported agent config files using explicit HTML comment markers.
+- Scheduler installation is opt-in and reversible.
+- Use `--dry-run` on write or destructive CLI commands to preview changes before files are modified.
+- MCP write tools also accept `dry_run: true` for safe previews of rule refreshes, feedback
+  capture, session sync, memory writes, skill saves, and scheduler install/uninstall actions.
+- Review generated rules before relying on them for critical workflows; use
+  `ai-rule-learning rules pending`, `approve`, `reject`, `edit`, `merge`, and `outcome` to
+  manage lifecycle state.
+- Do not store secrets as memory entries or skill content.
+
 
 - The tool writes local files when you run write operations such as `sync`, `remember`, `save_skill`,
   `clear`, or scheduler commands.
