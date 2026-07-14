@@ -4,6 +4,8 @@ import importlib
 import importlib.util
 from pathlib import Path
 from types import SimpleNamespace
+import importlib.util
+from pathlib import Path
 
 
 def _load_space_app():

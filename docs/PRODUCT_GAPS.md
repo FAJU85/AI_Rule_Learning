@@ -51,6 +51,8 @@ Suggested metrics:
 ### Adoption Acceptance Criteria
 
 - Metrics are disabled by default unless the maintainer explicitly chooses otherwise.
+- Users can inspect exactly what would be sent before enabling metrics.
+- Users can disable metrics with one command or environment variable.
 - Users can inspect exactly what would be sent before enabling metrics with `ai-rule-learning metrics preview`.
 - Users can disable metrics with `ai-rule-learning metrics disable` or the `ARL_METRICS=false` environment variable.
 - No raw conversation text or memory content is collected.
@@ -72,6 +74,7 @@ Build an explicit feedback loop around generated rules:
 1. Show newly generated rules in a pending state.
 2. Ask users to approve, reject, edit, or merge rules.
 3. Track whether approved rules actually prevent repeated mistakes.
+4. Detect stale or low-value rules.
 4. Detect stale or low-value rules automatically with `rules health`.
 5. Suggest improvements when similar feedback appears repeatedly.
 
@@ -169,6 +172,10 @@ Suggested owner-only sections:
 
 ## Recommended Priority
 
+1. Expand lifecycle review into owner dashboard workflows now that CLI/MCP operations exist.
+2. Add dry-run and rollback improvements.
+3. Improve the private owner-only Hugging Face Space dashboard.
+4. Add opt-in product metrics after privacy documentation is complete.
 1. Expand owner dashboard lifecycle workflows with richer operational audit views and screenshots.
 2. Add dry-run and rollback improvements.
 3. Improve the private owner-only Hugging Face Space dashboard.
