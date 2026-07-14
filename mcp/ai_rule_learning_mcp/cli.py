@@ -212,6 +212,155 @@ def _print_rules(rules: list[dict], title: str) -> None:
         print()
 
 
+def cmd_rules(args: list[str]) -> None:
+    dry_run, args = _consume_dry_run(args)
+
+    from .store import edit_rule_instruction
+    from .store import list_rules
+    from .store import load_active_rules
+    from .store import merge_rules
+    from .store import record_rule_outcome
+    from .store import review_rule_health
+    from .store import suggest_duplicate_rules
+    from .store import update_rule_status
+
+    subcmd = args[0] if args else "active"
+
+    if subcmd in ("active", "list", "ls"):
+        rules = load_active_rules()
+        if not rules:
+            print("No active rules. Run: ai-rule-learning sync")
+            return
+        _print_rules(rules, "Active rules")
+        return
+
+    if subcmd in ("all", "pending", "approved", "rejected", "inactive", "stale", "needs_review", "merged"):
+        status = None if subcmd == "all" else subcmd
+        _print_rules(list_rules(status=status), "All rules" if status is None else f"{status} rules")
+        return
+
+    if subcmd in ("approve", "activate"):
+        if len(args) < 2:
+            print("Usage: ai-rule-learning rules approve <rule-id> [--dry-run]")
+            return
+        rule_id = args[1]
+        if dry_run:
+            print(f"🔎 Dry run: would approve and activate rule {rule_id!r}")
+            return
+        rule = update_rule_status(rule_id, "active")
+        print(f"✅ Approved and activated rule: {rule_id}" if rule else f"❌ Rule not found: {rule_id}")
+        return
+
+    if subcmd == "reject":
+        if len(args) < 2:
+            print("Usage: ai-rule-learning rules reject <rule-id> [--dry-run]")
+            return
+        rule_id = args[1]
+        note = " ".join(args[2:])
+        if dry_run:
+            print(f"🔎 Dry run: would reject rule {rule_id!r}")
+            return
+        rule = update_rule_status(rule_id, "rejected", note=note)
+        print(f"✅ Rejected rule: {rule_id}" if rule else f"❌ Rule not found: {rule_id}")
+        return
+
+    if subcmd in ("deactivate", "disable"):
+        if len(args) < 2:
+            print("Usage: ai-rule-learning rules deactivate <rule-id> [--dry-run]")
+            return
+        rule_id = args[1]
+        if dry_run:
+            print(f"🔎 Dry run: would deactivate rule {rule_id!r}")
+            return
+        rule = update_rule_status(rule_id, "inactive")
+        print(f"✅ Deactivated rule: {rule_id}" if rule else f"❌ Rule not found: {rule_id}")
+        return
+
+    if subcmd == "edit":
+        if len(args) < 3:
+            print("Usage: ai-rule-learning rules edit <rule-id> <new instruction> [--dry-run]")
+            return
+        rule_id = args[1]
+        instruction = " ".join(args[2:])
+        if dry_run:
+            print(f"🔎 Dry run: would update instruction for rule {rule_id!r}")
+            return
+        rule = edit_rule_instruction(rule_id, instruction)
+        print(f"✅ Updated rule instruction: {rule_id}" if rule else f"❌ Rule not found: {rule_id}")
+        return
+
+    if subcmd == "merge":
+        if len(args) < 3:
+            print("Usage: ai-rule-learning rules merge <primary-rule-id> <duplicate-rule-id> [--dry-run]")
+            return
+        primary_id, duplicate_id = args[1], args[2]
+        if dry_run:
+            print(f"🔎 Dry run: would merge duplicate rule {duplicate_id!r} into {primary_id!r}")
+            return
+        rule = merge_rules(primary_id, duplicate_id)
+        print(
+            f"✅ Merged {duplicate_id} into {primary_id}"
+            if rule
+            else f"❌ Could not find both rules: {primary_id}, {duplicate_id}"
+        )
+        return
+
+    if subcmd == "outcome":
+        if len(args) < 3 or args[2] not in ("--worked", "--failed"):
+            print("Usage: ai-rule-learning rules outcome <rule-id> --worked|--failed")
+            return
+        rule_id = args[1]
+        fired_again = args[2] == "--failed"
+        if dry_run:
+            print(f"🔎 Dry run: would record outcome for rule {rule_id!r}")
+            return
+        rule = record_rule_outcome(rule_id, fired_again=fired_again)
+        print(f"✅ Recorded outcome for rule: {rule_id}" if rule else f"❌ Rule not found: {rule_id}")
+        return
+
+    if subcmd in ("duplicates", "dupes"):
+        min_similarity = 0.7
+        if "--min-similarity" in args:
+            try:
+                min_similarity = float(args[args.index("--min-similarity") + 1])
+            except (IndexError, ValueError):
+                print("Usage: ai-rule-learning rules duplicates [--min-similarity <score>]")
+                return
+        suggestions = suggest_duplicate_rules(min_similarity=min_similarity)
+        if not suggestions:
+            print("No likely duplicate rules found.")
+            return
+        print(f"Likely duplicate rules ({len(suggestions)}):")
+        for item in suggestions:
+            print(f"  - {item['primary_rule_id']} ↔ {item['duplicate_rule_id']} (similarity: {item['similarity']:.0%})")
+            print(f"    {item['primary_name']} / {item['duplicate_name']}")
+        print(
+            "\nReview candidates, then run `ai-rule-learning rules merge <primary-id> <duplicate-id>` if appropriate."
+        )
+        return
+
+    if subcmd == "health":
+        apply_changes = "--apply" in args
+        report = review_rule_health(apply=apply_changes and not dry_run)
+        stale = report["stale"]
+        needs_review = report["needs_review"]
+        mode = "applied" if report["applied"] else "preview"
+        print(f"Rule health review ({mode}):")
+        print(f"  stale: {len(stale)}")
+        print(f"  needs_review: {len(needs_review)}")
+        for title, ruleset in (("stale", stale), ("needs_review", needs_review)):
+            if ruleset:
+                print(f"\n{title} candidates:")
+                for rule in ruleset:
+                    print(f"  - {rule.get('rule_id')}: {rule.get('name', 'Unnamed rule')}")
+        if not apply_changes:
+            print("\nPreview only. Re-run with `--apply` to update rule statuses.")
+        elif dry_run:
+            print("\n🔎 Dry run: would update matching rule statuses.")
+        return
+
+    print(f"Unknown rules subcommand: {subcmd!r}")
+    print("Available: active, all, pending, approve, reject, deactivate, edit, merge, outcome, health, duplicates")
 def _rules_active(_args: list[str], _dry_run: bool) -> None:
     from .store import load_active_rules
 
