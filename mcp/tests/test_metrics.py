@@ -89,3 +89,24 @@ def test_metrics_cli_enable_disable(metrics_store, capsys):
     cmd_metrics(["disable"])
     assert metrics_enabled() is False
     assert "disabled" in capsys.readouterr().out
+
+
+def test_metrics_status_reports_source_counts_path_and_endpoint(metrics_store, monkeypatch):
+    from ai_rule_learning_mcp.metrics import metrics_status, record_metric_event, set_metrics_enabled
+
+    monkeypatch.setenv("ARL_METRICS_ENDPOINT", "https://metrics.example.test/ingest")
+    set_metrics_enabled(True)
+    record_metric_event("cli_command", metadata={"command": "status"})
+
+    status = metrics_status()
+
+    assert status["enabled"] is True
+    assert status["source"] == "local_settings"
+    assert status["event_count"] == 1
+    assert status["events_path"].endswith("metrics.jsonl")
+    assert status["endpoint_configured"] is True
+
+    monkeypatch.setenv("ARL_METRICS", "false")
+    status = metrics_status()
+    assert status["enabled"] is False
+    assert status["source"] == "environment"

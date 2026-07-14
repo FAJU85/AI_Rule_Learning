@@ -202,13 +202,25 @@ def get_rule(rule_id: str) -> dict | None:
     return next((r for r in _download("rules.jsonl") if r.get("rule_id") == rule_id), None)
 
 
+def _load_rules_preserving_local() -> list[dict]:
+    """Load rules while preserving local-only entries missing from a remote snapshot."""
+    rules = _download("rules.jsonl")
+    seen_ids = {r.get("rule_id") for r in rules if r.get("rule_id")}
+    for local_rule in _local_load("rules.jsonl"):
+        local_id = local_rule.get("rule_id")
+        if local_id and local_id not in seen_ids:
+            rules.append(local_rule)
+            seen_ids.add(local_id)
+    return rules
+
+
 def update_rule_status(rule_id: str, status: str, note: str = "") -> dict | None:
     """Update a rule lifecycle status and active injection flag."""
     normalized = status.strip().lower()
     if normalized not in RULE_STATUSES:
         raise ValueError(f"unsupported rule status: {status}")
 
-    rules = _download("rules.jsonl")
+    rules = _load_rules_preserving_local()
     now = datetime.utcnow().isoformat()
     target = next((r for r in rules if r.get("rule_id") == rule_id), None)
     if target is None:

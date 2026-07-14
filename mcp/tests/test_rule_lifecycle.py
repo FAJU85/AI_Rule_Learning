@@ -199,3 +199,47 @@ def test_cli_rules_duplicates_lists_candidates(capsys: pytest.CaptureFixture[str
     assert "Likely duplicate rules" in out
     assert "dup-1" in out
     assert "dup-2" in out
+
+
+def test_update_rule_status_preserves_local_only_rules(isolated_store, monkeypatch):
+    from ai_rule_learning_mcp import store
+
+    local_only = {
+        "rule_id": "local-only",
+        "name": "Local only",
+        "status": "pending",
+        "is_active": False,
+    }
+    remote_rule = {
+        "rule_id": "remote-rule",
+        "name": "Remote rule",
+        "status": "pending",
+        "is_active": False,
+    }
+    store._local_save("rules.jsonl", [local_only])
+    monkeypatch.setattr(store, "_download", lambda filename: [remote_rule.copy()] if filename == "rules.jsonl" else [])
+
+    updated = store.update_rule_status("remote-rule", "active")
+
+    assert updated is not None
+    saved = store._local_load("rules.jsonl")
+    assert {rule["rule_id"] for rule in saved} == {"remote-rule", "local-only"}
+    assert next(rule for rule in saved if rule["rule_id"] == "remote-rule")["status"] == "active"
+
+
+def test_cli_rules_edit_reports_empty_instruction(isolated_store, capsys):
+    from ai_rule_learning_mcp.cli import cmd_rules
+
+    cmd_rules(["edit", "rule-1", "   "])
+
+    out = capsys.readouterr().out
+    assert "❌ instruction cannot be empty" in out
+
+
+def test_cli_rules_merge_reports_same_rule_ids(isolated_store, capsys):
+    from ai_rule_learning_mcp.cli import cmd_rules
+
+    cmd_rules(["merge", "rule-1", "rule-1"])
+
+    out = capsys.readouterr().out
+    assert "❌ cannot merge a rule into itself" in out
