@@ -163,6 +163,12 @@ prompts, rule text, memory content, file paths, usernames, repo names, hostnames
 | `get_skill`           | Retrieves a saved workflow by name or keyword.                                        |
 | `install_scheduler`   | Installs, uninstalls, or checks the nightly sync scheduler.                           |
 | `list_providers`      | Shows detected session sources and agent config targets.                              |
+| `list_rules`          | Lists stored rules by lifecycle status.                                               |
+| `approve_rule`        | Approves and activates a reviewed rule.                                               |
+| `reject_rule`         | Rejects a rule so it is not injected.                                                 |
+| `edit_rule`           | Updates a rule instruction.                                                           |
+| `merge_rules`         | Marks a duplicate rule as merged into a primary rule.                                 |
+| `record_rule_outcome` | Tracks whether a rule worked or failed.                                               |
 | `analyze`             | Reports health, failure modes, injection checks, and rule-effectiveness data.         |
 
 ---
@@ -206,6 +212,42 @@ All local data is stored under `~/.ai-rule-learning/`:
 ---
 
 ## Auto-sync scheduler
+
+The scheduler is opt-in. It is only installed when you run:
+
+```bash
+ai-rule-learning install-cron
+```
+
+Depending on your OS, the package uses one of these mechanisms:
+
+| OS    | Mechanism                                         |
+| ----- | ------------------------------------------------- |
+| macOS | LaunchAgent                                       |
+| Linux | systemd user timer when available, otherwise cron |
+| Other | cron fallback when available                      |
+
+Check scheduler status:
+
+```bash
+
+The scheduler is opt-in. It is only installed when you run:
+
+```bash
+ai-rule-learning install-cron
+```
+
+Depending on your OS, the package uses one of these mechanisms:
+
+| OS    | Mechanism                                         |
+| ----- | ------------------------------------------------- |
+| macOS | LaunchAgent                                       |
+| Linux | systemd user timer when available, otherwise cron |
+| Other | cron fallback when available                      |
+
+Check scheduler status:
+
+```bash
 
 The scheduler is opt-in. It is only installed when you run:
 
@@ -268,6 +310,7 @@ If no path is passed, the CLI checks known default local session locations.
 
 ## Safety notes
 
+
 - The tool writes local files when you run write operations such as `sync`, `remember`, `save_skill`,
   `clear`, or scheduler commands.
 - The tool updates supported agent config files using explicit HTML comment markers.
@@ -279,6 +322,23 @@ If no path is passed, the CLI checks known default local session locations.
   `ai-rule-learning rules pending`, `approve`, `reject`, `edit`, `merge`, and `outcome` to
   manage lifecycle state.
 - Do not store secrets as memory entries or skill content.
+
+---
+
+
+- The tool writes local files when you run write operations such as `sync`, `remember`, `save_skill`,
+  `clear`, or scheduler commands.
+- The tool updates supported agent config files using explicit HTML comment markers.
+- Scheduler installation is opt-in and reversible.
+- Use `--dry-run` on write or destructive CLI commands to preview changes before files are modified.
+- MCP write tools also accept `dry_run: true` for safe previews of rule refreshes, feedback
+  capture, session sync, memory writes, skill saves, and scheduler install/uninstall actions.
+- Review generated rules before relying on them for critical workflows; use
+  `ai-rule-learning rules pending`, `approve`, `reject`, `edit`, `merge`, and `outcome` to
+  manage lifecycle state.
+- Do not store secrets as memory entries or skill content.
+
+---
 
 
 - The tool writes local files when you run write operations such as `sync`, `remember`, `save_skill`,

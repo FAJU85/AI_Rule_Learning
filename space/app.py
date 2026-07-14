@@ -2730,6 +2730,7 @@ def reject_rule(rule_id: str) -> str:
 def _rule_status(rule: dict) -> str:
     if rule.get("status"):
         return str(rule.get("status"))
+    return "active" if rule.get("is_active") else "inactive"
     if "is_active" in rule:
         return "active" if rule.get("is_active") else "inactive"
     return "active"
@@ -2749,6 +2750,27 @@ def _health_candidates(
     low_effectiveness_threshold: float = 0.3,
     min_triggered: int = 3,
 ) -> tuple[list[dict], list[dict]]:
+    now = datetime.utcnow()
+    stale: list[dict] = []
+    needs_review: list[dict] = []
+    for rule in load_rules():
+        status = _rule_status(rule)
+        if status in {"rejected", "merged", "retired"}:
+            continue
+        score = float(rule.get("effectiveness_score", 0.5) or 0.0)
+        triggered = int(rule.get("times_triggered", 0) or 0)
+        if triggered >= min_triggered and score <= low_effectiveness_threshold:
+            needs_review.append(rule)
+            continue
+        activity_at = (
+            _parse_rule_datetime(rule.get("last_fired_at"))
+            or _parse_rule_datetime(rule.get("updated_at"))
+            or _parse_rule_datetime(rule.get("created_at"))
+            or _parse_rule_datetime(rule.get("approved_at"))
+        )
+        if activity_at and status == "active" and (now - activity_at).days >= stale_days:
+            stale.append(rule)
+    return stale, needs_review
     return find_rule_health_candidates(
         load_rules(),
         stale_days=stale_days,
@@ -2818,6 +2840,42 @@ def apply_rule_health_review() -> str:
         return f"❌ Failed to save rule-health updates: {exc}"
 
 
+def _duplicate_tokens(rule: dict) -> set[str]:
+    action = rule.get("action") or {}
+    trigger = rule.get("trigger") or {}
+    parts = [
+        str(rule.get("name", "")),
+        str(rule.get("instruction", "")),
+        str(action.get("instruction", "")) if isinstance(action, dict) else "",
+        " ".join(trigger.get("keywords", [])) if isinstance(trigger, dict) else "",
+    ]
+    text = " ".join(parts).lower()
+    return {token for token in re.findall(r"[a-z0-9_]{3,}", text) if token not in {"the", "and", "for", "with", "rule"}}
+
+
+def _duplicate_suggestions(min_similarity: float = 0.7) -> list[dict]:
+    rules = [r for r in load_rules() if _rule_status(r) not in {"rejected", "merged", "retired"}]
+    tokenized = [(rule, _duplicate_tokens(rule)) for rule in rules]
+    suggestions: list[dict] = []
+    for index, (left, left_tokens) in enumerate(tokenized):
+        if not left_tokens:
+            continue
+        for right, right_tokens in tokenized[index + 1 :]:
+            if not right_tokens:
+                continue
+            union = left_tokens | right_tokens
+            score = len(left_tokens & right_tokens) / len(union) if union else 0.0
+            if score >= min_similarity:
+                suggestions.append(
+                    {
+                        "primary_rule_id": left.get("rule_id"),
+                        "duplicate_rule_id": right.get("rule_id"),
+                        "primary_name": left.get("name", "Unnamed rule"),
+                        "duplicate_name": right.get("name", "Unnamed rule"),
+                        "similarity": round(score, 3),
+                    }
+                )
+    return sorted(suggestions, key=lambda item: item["similarity"], reverse=True)
 def _duplicate_suggestions(min_similarity: float = 0.7) -> list[dict]:
     return suggest_duplicate_rules_from_records(load_rules(), min_similarity=min_similarity, include_inactive=True)
 
@@ -2848,6 +2906,42 @@ def build_duplicate_rules_table(min_similarity: float = 0.7) -> str:
     )
 
 
+def bulk_approve_safe_pending_rules(dry_run: bool = True) -> str:
+    """Approve all pending_review rules that pass the dashboard safety check."""
+    rules = load_rules()
+    pending = [rule for rule in rules if _rule_status(rule) == "pending_review"]
+    safe_rules: list[dict] = []
+    blocked: list[tuple[dict, list[str]]] = []
+    for rule in pending:
+        issues = _check_rule_safety(rule)
+        if issues:
+            blocked.append((rule, issues))
+        else:
+            safe_rules.append(rule)
+
+    if dry_run:
+        return (
+            f"🔎 Preview: {len(safe_rules)} safe pending rule(s) would be approved; "
+            f"{len(blocked)} rule(s) blocked by safety checks."
+        )
+    if not HF_TOKEN:
+        return "❌ HF_TOKEN not set — cannot update the owner dataset."
+    if not safe_rules:
+        return f"✅ No safe pending rules to approve. {len(blocked)} rule(s) remain blocked."
+
+    now = datetime.utcnow().isoformat()
+    for rule in safe_rules:
+        rule["is_active"] = True
+        rule["status"] = "active"
+        rule["approved_at"] = now
+        rule.setdefault("score_history", [])
+    try:
+        _upload_jsonl("rules.jsonl", rules)
+        for rule in safe_rules:
+            _snapshot_rule_version(rule, "bulk_approved")
+        return f"✅ Bulk approved {len(safe_rules)} safe pending rule(s). {len(blocked)} blocked by safety checks."
+    except Exception as exc:
+        return f"❌ Failed to bulk approve pending rules: {exc}"
 def _snapshot_rules_after_write(rules: list[dict], event: str) -> str:
     failed: list[str] = []
     for rule in rules:
@@ -2955,6 +3049,7 @@ def preview_rule_rollback(rule_id: str) -> str:
     """Preview restoring a rule from its latest recorded snapshot."""
     if not rule_id:
         return "Select a rule first."
+    rule = next((item for item in load_rules() if item.get("rule_id") == rule_id or item.get("name") == rule_id), None)
     rule = _find_rule_by_id(load_rules(), rule_id)
     if not rule:
         return f"Rule `{rule_id}` not found."
@@ -2984,6 +3079,41 @@ def rollback_rule_to_latest_snapshot(rule_id: str) -> str:
         return "Select a rule first."
     if not HF_TOKEN:
         return "❌ HF_TOKEN not set — cannot update the owner dataset."
+    rules = load_rules()
+    rule = next((item for item in rules if item.get("rule_id") == rule_id or item.get("name") == rule_id), None)
+    if not rule:
+        return f"Rule `{rule_id}` not found."
+    snapshot = _latest_rule_snapshot(rule.get("rule_id", rule_id))
+    if not snapshot:
+        return "No rollback snapshot found for this rule."
+
+    instruction = snapshot.get("instruction", "")
+    if instruction:
+        rule["instruction"] = instruction
+        action = rule.get("action") if isinstance(rule.get("action"), dict) else {}
+        action["instruction"] = instruction
+        rule["action"] = action
+    keywords = snapshot.get("keywords", [])
+    if keywords:
+        trigger = rule.get("trigger") if isinstance(rule.get("trigger"), dict) else {}
+        trigger["keywords"] = keywords
+        rule["trigger"] = trigger
+    if snapshot.get("priority") is not None:
+        rule["priority"] = snapshot.get("priority")
+    if snapshot.get("effectiveness_score") is not None:
+        rule["effectiveness_score"] = snapshot.get("effectiveness_score")
+    rule["is_active"] = bool(snapshot.get("is_active"))
+    rule["status"] = "active" if rule["is_active"] else rule.get("status", "inactive")
+    rule["rolled_back_at"] = datetime.utcnow().isoformat()
+    rule["rollback_source_event"] = snapshot.get("event")
+    rule["rollback_source_timestamp"] = snapshot.get("timestamp")
+
+    try:
+        _upload_jsonl("rules.jsonl", rules)
+        _snapshot_rule_version(rule, "rolled_back")
+        return f"✅ Rolled back **{rule.get('name', rule_id)}** to snapshot `{snapshot.get('event', '?')}`."
+    except Exception as exc:
+        return f"❌ Failed to roll back rule: {exc}"
     with _RULE_WRITE_LOCK:
         rules = load_rules()
         rule = _find_rule_by_id(rules, rule_id)
@@ -3026,6 +3156,7 @@ def export_rule_snapshot(rule_id: str) -> str:
     """Export the current rule plus its version snapshots as JSON."""
     if not rule_id:
         return "Select a rule first."
+    rule = next((item for item in load_rules() if item.get("rule_id") == rule_id or item.get("name") == rule_id), None)
     rule = _find_rule_by_id(load_rules(), rule_id)
     if not rule:
         return f"Rule `{rule_id}` not found."
@@ -3054,6 +3185,23 @@ def emergency_disable_active_rules(reason: str) -> str:
         return "❌ A reason is required before emergency-disabling active rules."
     if not HF_TOKEN:
         return "❌ HF_TOKEN not set — cannot update the owner dataset."
+    rules = load_rules()
+    active = [rule for rule in rules if rule.get("is_active") or _rule_status(rule) == "active"]
+    if not active:
+        return "✅ No active rules to emergency-disable."
+    now = datetime.utcnow().isoformat()
+    for rule in active:
+        rule["is_active"] = False
+        rule["status"] = "emergency_disabled"
+        rule["emergency_disabled_at"] = now
+        rule["emergency_disable_reason"] = reason.strip()
+    try:
+        _upload_jsonl("rules.jsonl", rules)
+        for rule in active:
+            _snapshot_rule_version(rule, "emergency_disabled")
+        return f"🚨 Emergency-disabled {len(active)} active rule(s). Reason: {reason.strip()}"
+    except Exception as exc:
+        return f"❌ Failed to emergency-disable rules: {exc}"
     with _RULE_WRITE_LOCK:
         rules = load_rules()
         active = [rule for rule in rules if _rule_status(rule) == "active"]
@@ -3089,6 +3237,23 @@ def restore_emergency_disabled_rules(reason: str) -> str:
         return "❌ A reason is required before restoring emergency-disabled rules."
     if not HF_TOKEN:
         return "❌ HF_TOKEN not set — cannot update the owner dataset."
+    rules = load_rules()
+    disabled = [rule for rule in rules if _rule_status(rule) == "emergency_disabled"]
+    if not disabled:
+        return "✅ No emergency-disabled rules to restore."
+    now = datetime.utcnow().isoformat()
+    for rule in disabled:
+        rule["is_active"] = True
+        rule["status"] = "active"
+        rule["restored_from_emergency_at"] = now
+        rule["restore_reason"] = reason.strip()
+    try:
+        _upload_jsonl("rules.jsonl", rules)
+        for rule in disabled:
+            _snapshot_rule_version(rule, "restored_from_emergency")
+        return f"✅ Restored {len(disabled)} emergency-disabled rule(s). Reason: {reason.strip()}"
+    except Exception as exc:
+        return f"❌ Failed to restore emergency-disabled rules: {exc}"
     with _RULE_WRITE_LOCK:
         rules = load_rules()
         disabled = [rule for rule in rules if _rule_status(rule) == "emergency_disabled"]
@@ -12720,6 +12885,7 @@ updates the block without duplicating it.
                 )
 
                 def _refresh_rollback_rules():
+                    return gr.update(choices=get_rule_names())
                     return gr.update(choices=get_rule_choices())
 
                 rollback_refresh_btn.click(_refresh_rollback_rules, outputs=rollback_rule_selector)
