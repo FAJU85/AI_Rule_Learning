@@ -120,6 +120,13 @@ def _fallback_rule_health_candidates(
     return stale, needs_review
 
 
+# Keep Space startup independent from the installed PyPI package. Hugging Face
+# may run a pinned `ai-rule-learning-mcp` release that lags behind this dashboard,
+# so importing newer helper symbols from that package at module import time can
+# crash `/app/app.py` before Gradio starts. Use local equivalents here instead.
+_store_helper_import_error: Exception | None = None
+find_rule_health_candidates = _fallback_rule_health_candidates
+suggest_duplicate_rules_from_records = _fallback_duplicate_rules_from_records
 _store_spec = importlib.util.find_spec("ai_rule_learning_mcp.store")
 _store_module = importlib.import_module("ai_rule_learning_mcp.store") if _store_spec else None
 find_rule_health_candidates = (
@@ -12291,6 +12298,20 @@ def build_landing_hero() -> str:
 """
 
 
+_APP_JS = r"""
+() => {
+  (function () {
+    'use strict';
+
+    /* Tab groups: [groupLabel, firstTabIndex, lastTabIndex] */
+    var GROUPS = [
+      { label: 'Overview',         first: 0, last: 1, tabs: [0, 1] },
+      { label: 'Rule Management',  first: 2, last: 3, tabs: [2, 3] },
+      { label: 'Observability',    first: 4, last: 5, tabs: [4, 5] },
+      { label: 'Governance',       first: 6, last: 7, tabs: [6, 7] }
+    ];
+
+
 
 _APP_JS = r"""
 () => {
@@ -12400,6 +12421,31 @@ _APP_JS = r"""
       sidebar.parentNode.insertBefore(toggle, sidebar);
     }
 
+
+    /* ── Mobile Control Panel toggle ── */
+    function initMobileCpToggle() {
+      var sidebar = document.getElementById('cp-sidebar');
+      if (!sidebar || sidebar.dataset.toggleBuilt) return;
+      if (window.innerWidth > 768) return;
+      sidebar.dataset.toggleBuilt = '1';
+
+      /* Start collapsed on mobile */
+      sidebar.classList.add('cp-mobile-collapsed');
+
+      /* Insert toggle button before the sidebar */
+      var toggle = document.createElement('button');
+      toggle.className = 'cp-mobile-toggle';
+      toggle.innerHTML = '🎛&nbsp; Control Panel <span class="cp-mobile-toggle-arrow">▾</span>';
+      toggle.setAttribute('aria-expanded', 'false');
+      toggle.setAttribute('aria-controls', 'cp-sidebar');
+      toggle.addEventListener('click', function () {
+        var collapsed = sidebar.classList.toggle('cp-mobile-collapsed');
+        toggle.classList.toggle('open', !collapsed);
+        toggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+      });
+      sidebar.parentNode.insertBefore(toggle, sidebar);
+    }
+
     function init() {
       buildGroupIndicator();
       injectTabGroups();
@@ -12439,9 +12485,19 @@ _APP_JS = r"""
 }
 """
 
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', function () { setTimeout(init, 200); });
+    } else {
+      setTimeout(init, 200);
+    }
+  })();
+}
+"""
+
 with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS, js=_APP_JS) as demo:
 
 
+with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS, js=_APP_JS) as demo:
     gr.HTML('<div id="group-indicator" aria-label="Navigation groups"></div>')
     gr.HTML(build_landing_hero())
 
