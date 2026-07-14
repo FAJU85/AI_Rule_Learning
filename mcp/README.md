@@ -36,6 +36,16 @@ Run the MCP server:
 ai-rule-learning-mcp
 ```
 
+```bash
+pip install ai-rule-learning-mcp
+```
+
+Run the MCP server:
+
+```bash
+ai-rule-learning-mcp
+```
+
 Run the CLI directly:
 
 ```bash
@@ -127,11 +137,13 @@ prompts, rule text, memory content, file paths, usernames, repo names, hostnames
 `ai-rule-learning metrics preview` before enabling sharing to inspect the exact aggregate payload.
 
 
-## Installation
+Run the CLI directly:
 
 ```bash
-pip install ai-rule-learning-mcp
+ai-rule-learning status
 ```
+
+---
 
 Run the MCP server:
 
@@ -162,6 +174,9 @@ Add the server to an MCP-compatible client configuration:
 ```
 
 ---
+
+## CLI commands
+
 
 ## CLI commands
 
@@ -392,6 +407,42 @@ All local data is stored under `~/.ai-rule-learning/`:
   processed.jsonl      Deduplication index
   skills/              Saved skill procedures, one markdown file per skill
   sync.log             Auto-sync output
+```
+
+---
+
+## Auto-sync scheduler
+
+The scheduler is opt-in. It is only installed when you run:
+
+```bash
+ai-rule-learning install-cron
+```
+
+Depending on your OS, the package uses one of these mechanisms:
+
+| OS    | Mechanism                                         |
+| ----- | ------------------------------------------------- |
+| macOS | LaunchAgent                                       |
+| Linux | systemd user timer when available, otherwise cron |
+| Other | cron fallback when available                      |
+
+Check scheduler status:
+
+```bash
+ai-rule-learning cron-status
+```
+
+Remove scheduler automation:
+
+```bash
+ai-rule-learning uninstall-cron
+ai-rule-learning install-cron --dry-run
+ai-rule-learning uninstall-cron --dry-run
+```
+
+---
+
 ```
 
 ---
