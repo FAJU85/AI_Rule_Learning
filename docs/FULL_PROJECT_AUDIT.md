@@ -238,6 +238,9 @@ Implemented during this audit:
 - root package build backend fix,
 - MCP CLI and server dry-run support for write/destructive commands,
 - MCP rule lifecycle store helpers, CLI review commands, and MCP lifecycle tools.
+- MCP rule lifecycle store helpers, CLI review commands, MCP lifecycle tools,
+  rule health review automation, duplicate-rule suggestions, owner-dashboard controls, bulk review,
+  audit history, rollback, export, emergency disable, and emergency restore.
 
 ---
 

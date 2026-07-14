@@ -103,3 +103,74 @@ def test_call_tool_routes_rule_lifecycle() -> None:
 
     assert "Approved" in result[0].text
     assert get_rule("rule-1")["status"] == "active"
+
+
+def test_review_rule_health_tool_dry_run_does_not_write() -> None:
+    rule = _rule("weak-rule", "active")
+    rule["effectiveness_score"] = 0.2
+    rule["times_triggered"] = 4
+    _local_save("rules.jsonl", [rule])
+
+    result = asyncio.run(server._review_rule_health(apply=True, dry_run=True))
+
+    assert "Dry run" in result[0].text
+    assert "weak-rule" in result[0].text
+    assert get_rule("weak-rule")["status"] == "active"
+
+
+def test_review_rule_health_tool_apply_marks_rule_for_review() -> None:
+    rule = _rule("weak-rule", "active")
+    rule["effectiveness_score"] = 0.2
+    rule["times_triggered"] = 4
+    _local_save("rules.jsonl", [rule])
+
+    result = asyncio.run(server._review_rule_health(apply=True))
+
+    assert "applied" in result[0].text
+    assert get_rule("weak-rule")["status"] == "needs_review"
+
+
+def test_call_tool_routes_rule_health_review() -> None:
+    rule = _rule("weak-rule", "active")
+    rule["effectiveness_score"] = 0.2
+    rule["times_triggered"] = 4
+    _local_save("rules.jsonl", [rule])
+
+    result = asyncio.run(server.call_tool("review_rule_health", {"apply": True}))
+
+    assert "needs_review" in result[0].text
+    assert get_rule("weak-rule")["status"] == "needs_review"
+
+
+def test_suggest_duplicate_rules_tool_lists_candidates() -> None:
+    first = _rule("dup-1", "active")
+    second = _rule("dup-2", "active")
+    first["name"] = "Always run focused tests"
+    second["name"] = "Always run focused tests"
+    first["instruction"] = "Run focused tests before changing production code."
+    second["instruction"] = "Run focused tests before changing production code."
+    first["action"] = {"instruction": first["instruction"]}
+    second["action"] = {"instruction": second["instruction"]}
+    _local_save("rules.jsonl", [first, second])
+
+    result = asyncio.run(server._suggest_duplicate_rules())
+
+    assert "Likely duplicate rules" in result[0].text
+    assert "dup-1" in result[0].text
+    assert "dup-2" in result[0].text
+
+
+def test_call_tool_routes_duplicate_suggestions() -> None:
+    first = _rule("dup-1", "active")
+    second = _rule("dup-2", "active")
+    first["name"] = "Always run focused tests"
+    second["name"] = "Always run focused tests"
+    first["instruction"] = "Run focused tests before changing production code."
+    second["instruction"] = "Run focused tests before changing production code."
+    first["action"] = {"instruction": first["instruction"]}
+    second["action"] = {"instruction": second["instruction"]}
+    _local_save("rules.jsonl", [first, second])
+
+    result = asyncio.run(server.call_tool("suggest_duplicate_rules", {}))
+
+    assert "Likely duplicate rules" in result[0].text

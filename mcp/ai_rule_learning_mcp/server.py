@@ -56,6 +56,8 @@ from .store import load_active_rules
 from .store import mark_processed
 from .store import merge_rules as store_merge_rules
 from .store import record_rule_outcome
+from .store import review_rule_health
+from .store import suggest_duplicate_rules
 from .store import update_rule_status
 
 _CONTRIBUTE = os.environ.get("ARL_CONTRIBUTE", "false").lower() == "true"
@@ -439,6 +441,60 @@ async def list_tools() -> list[Tool]:
             },
         ),
         Tool(
+            name="suggest_duplicate_rules",
+            description=(
+                "Suggest likely duplicate guardrail rules using read-only local similarity so the owner "
+                "can review and merge redundant rules explicitly."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "min_similarity": {
+                        "type": "number",
+                        "description": "Minimum similarity score between 0 and 1. Default: 0.7.",
+                    },
+                    "include_inactive": {
+                        "type": "boolean",
+                        "description": "Include inactive/stale/needs_review rules in suggestions. Default: false.",
+                    },
+                },
+                "required": [],
+            },
+        ),
+        Tool(
+            name="review_rule_health",
+            description=(
+                "Preview or apply rule health review automation. Finds stale active rules "
+                "and low-effectiveness rules that should be reviewed before future injection."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "apply": {
+                        "type": "boolean",
+                        "description": "When true, update matching rule statuses. Defaults to preview only.",
+                    },
+                    "dry_run": {
+                        "type": "boolean",
+                        "description": "Preview changes even when apply=true; no rule store writes occur.",
+                    },
+                    "stale_days": {
+                        "type": "integer",
+                        "description": "Mark active rules stale after this many days without activity. Default: 90.",
+                    },
+                    "low_effectiveness_threshold": {
+                        "type": "number",
+                        "description": "Mark rules needs_review at or below this effectiveness score. Default: 0.3.",
+                    },
+                    "min_triggered": {
+                        "type": "integer",
+                        "description": "Minimum trigger count before low effectiveness can mark a rule. Default: 3.",
+                    },
+                },
+                "required": [],
+            },
+        ),
+        Tool(
             name="analyze",
             description=(
                 "All-in-one analysis tool. Call with action='all' for a complete report, "
@@ -588,6 +644,20 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 rule_id=arguments.get("rule_id", ""),
                 worked=bool(arguments.get("worked", False)),
                 dry_run=bool(arguments.get("dry_run", False)),
+            )
+
+        if name == "suggest_duplicate_rules":
+            return await _suggest_duplicate_rules(
+                min_similarity=float(arguments.get("min_similarity", 0.7)),
+                include_inactive=bool(arguments.get("include_inactive", False)),
+            )
+        if name == "review_rule_health":
+            return await _review_rule_health(
+                apply=bool(arguments.get("apply", False)),
+                dry_run=bool(arguments.get("dry_run", False)),
+                stale_days=int(arguments.get("stale_days", 90)),
+                low_effectiveness_threshold=float(arguments.get("low_effectiveness_threshold", 0.3)),
+                min_triggered=int(arguments.get("min_triggered", 3)),
             )
         if name == "analyze":
             return await _analyze(
@@ -1065,6 +1135,59 @@ async def _record_rule_outcome(
         return [TextContent(type="text", text=f"❌ Rule not found: {rule_id}")]
     score = rule.get("effectiveness_score", "unknown")
     return [TextContent(type="text", text=f"✅ Recorded outcome for rule: {rule_id} (effectiveness: {score})")]
+
+
+async def _suggest_duplicate_rules(
+    min_similarity: float = 0.7,
+    include_inactive: bool = False,
+) -> list[TextContent]:
+    suggestions = suggest_duplicate_rules(min_similarity=min_similarity, include_inactive=include_inactive)
+    if not suggestions:
+        return [TextContent(type="text", text="No likely duplicate rules found.")]
+    lines = [f"Likely duplicate rules ({len(suggestions)}):", ""]
+    for item in suggestions:
+        lines.append(
+            f"- {item['primary_rule_id']} ↔ {item['duplicate_rule_id']} (similarity: {item['similarity']:.0%})"
+        )
+        lines.append(f"  {item['primary_name']} / {item['duplicate_name']}")
+    lines.append("")
+    lines.append("Review candidates, then call merge_rules if a pair should be merged.")
+    return [TextContent(type="text", text="\n".join(lines))]
+
+
+async def _review_rule_health(
+    apply: bool = False,
+    dry_run: bool = False,
+    stale_days: int = 90,
+    low_effectiveness_threshold: float = 0.3,
+    min_triggered: int = 3,
+) -> list[TextContent]:
+    report = review_rule_health(
+        stale_days=stale_days,
+        low_effectiveness_threshold=low_effectiveness_threshold,
+        min_triggered=min_triggered,
+        apply=apply and not dry_run,
+    )
+    mode = "applied" if report["applied"] else "preview"
+    lines = [
+        f"Rule health review ({mode}):",
+        f"stale: {len(report['stale'])}",
+        f"needs_review: {len(report['needs_review'])}",
+    ]
+    for title in ("stale", "needs_review"):
+        rules = report[title]
+        if rules:
+            lines.append("")
+            lines.append(f"{title} candidates:")
+            for rule in rules:
+                lines.append(f"- {rule.get('rule_id')}: {rule.get('name', 'Unnamed rule')}")
+    if dry_run:
+        lines.append("")
+        lines.append("🔎 Dry run: would update matching rule statuses if apply=true.")
+    elif not apply:
+        lines.append("")
+        lines.append("Preview only. Re-run with apply=true to update rule statuses.")
+    return [TextContent(type="text", text="\n".join(lines))]
 
 
 async def _analyze(
