@@ -13,6 +13,7 @@ import sys
 import time
 import uuid
 from datetime import datetime
+from threading import Lock
 from pathlib import Path
 from threading import Lock
 from typing import Any
@@ -127,6 +128,11 @@ find_rule_health_candidates = (
 suggest_duplicate_rules_from_records = (
     getattr(_store_module, "suggest_duplicate_rules_from_records", None) if _store_module else None
 ) or _fallback_duplicate_rules_from_records
+import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "mcp"))
+from ai_rule_learning_mcp.store import find_rule_health_candidates
+from ai_rule_learning_mcp.store import suggest_duplicate_rules_from_records
 
 logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(name)s: %(message)s")
 _log = logging.getLogger("arl")

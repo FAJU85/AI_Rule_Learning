@@ -151,6 +151,19 @@ prompts, rule text, memory content, file paths, usernames, repo names, hostnames
 | `review_rule_health`      | Finds stale or low-effectiveness rules and can mark them for review.                  |
 | `suggest_duplicate_rules` | Suggests likely duplicate rules for explicit review and merge.                        |
 | `analyze`                 | Reports health, failure modes, injection checks, and rule-effectiveness data.         |
+| Tool                  | What it does                                                                          |
+| --------------------- | ------------------------------------------------------------------------------------- |
+| `get_guardrail_rules` | Returns active guardrail rules as a formatted text block.                             |
+| `record_feedback`     | Generates a rule from session feedback such as corrections or repeated context.       |
+| `sync_sessions`       | Parses supported local session files, detects patterns, and refreshes injected rules. |
+| `remember`            | Stores a preference, project detail, hard constraint, user fact, or context item.     |
+| `recall`              | Reads stored memory entries.                                                          |
+| `save_skill`          | Saves a reusable workflow.                                                            |
+| `list_skills`         | Lists saved workflows.                                                                |
+| `get_skill`           | Retrieves a saved workflow by name or keyword.                                        |
+| `install_scheduler`   | Installs, uninstalls, or checks the nightly sync scheduler.                           |
+| `list_providers`      | Shows detected session sources and agent config targets.                              |
+| `analyze`             | Reports health, failure modes, injection checks, and rule-effectiveness data.         |
 
 ---
 
@@ -217,6 +230,22 @@ ai-rule-learning cron-status
 Remove scheduler automation:
 
 ```bash
+
+| OS    | Mechanism                                         |
+| ----- | ------------------------------------------------- |
+| macOS | LaunchAgent                                       |
+| Linux | systemd user timer when available, otherwise cron |
+| Other | cron fallback when available                      |
+
+Check scheduler status:
+
+```bash
+ai-rule-learning cron-status
+```
+
+Remove scheduler automation:
+
+```bash
 ai-rule-learning uninstall-cron
 ai-rule-learning install-cron --dry-run
 ai-rule-learning uninstall-cron --dry-run
@@ -249,6 +278,33 @@ If no path is passed, the CLI checks known default local session locations.
 - Review generated rules before relying on them for critical workflows; use
   `ai-rule-learning rules pending`, `approve`, `reject`, `edit`, `merge`, and `outcome` to
   manage lifecycle state.
+- Do not store secrets as memory entries or skill content.
+
+
+- The tool writes local files when you run write operations such as `sync`, `remember`, `save_skill`,
+  `clear`, or scheduler commands.
+- The tool updates supported agent config files using explicit HTML comment markers.
+- Scheduler installation is opt-in and reversible.
+- Use `--dry-run` on write or destructive CLI commands to preview changes before files are modified.
+- MCP write tools also accept `dry_run: true` for safe previews of rule refreshes, feedback
+  capture, session sync, memory writes, skill saves, and scheduler install/uninstall actions.
+- Review generated rules before relying on them for critical workflows; use
+  `ai-rule-learning rules pending`, `approve`, `reject`, `edit`, `merge`, and `outcome` to
+  manage lifecycle state.
+- Do not store secrets as memory entries or skill content.
+
+
+- The tool writes local files when you run write operations such as `sync`, `remember`, `save_skill`,
+  `clear`, or scheduler commands.
+- The tool updates supported agent config files using explicit HTML comment markers.
+- Scheduler installation is opt-in and reversible.
+- Use `--dry-run` on write or destructive CLI commands to preview changes before files are modified.
+- MCP write tools also accept `dry_run: true` for safe previews of rule refreshes, feedback
+  capture, session sync, memory writes, skill saves, and scheduler install/uninstall actions.
+- Review generated rules before relying on them for critical workflows; use
+  `ai-rule-learning rules pending`, `approve`, `reject`, `edit`, `merge`, and `outcome` to
+  manage lifecycle state.
+- Review generated rules before relying on them for critical workflows.
 - Do not store secrets as memory entries or skill content.
 
 ---
