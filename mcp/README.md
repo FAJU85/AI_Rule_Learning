@@ -100,6 +100,42 @@ ai-rule-learning memory add preference "Always use type hints in Python" --dry-r
 ai-rule-learning memory clear
 ai-rule-learning memory clear --dry-run
 
+## MCP setup
+
+Add the server to an MCP-compatible client configuration:
+
+```json
+{
+  "mcpServers": {
+    "ai-rule-learning": {
+      "command": "ai-rule-learning-mcp"
+    }
+  }
+}
+```
+
+---
+
+## CLI commands
+
+```bash
+# Scan sessions and generate rules
+ai-rule-learning sync
+
+# Show current rules and detected agent configs
+ai-rule-learning status
+
+# Print active rules
+ai-rule-learning rules
+
+# Remove all injected sections
+ai-rule-learning clear
+
+# Memory
+ai-rule-learning memory show
+ai-rule-learning memory add preference "Always use type hints in Python"
+ai-rule-learning memory clear
+
 # Skills
 ai-rule-learning skills
 ai-rule-learning skills show "Deploy Workflow"
@@ -174,6 +210,50 @@ Remove injected sections with:
 ai-rule-learning clear
 ```
 
+```
+
+These commands are implemented by the `ai-rule-learning` console script.
+
+---
+
+## MCP tools
+
+| Tool                  | What it does                                                                          |
+| --------------------- | ------------------------------------------------------------------------------------- |
+| `get_guardrail_rules` | Returns active guardrail rules as a formatted text block.                             |
+| `record_feedback`     | Generates a rule from session feedback such as corrections or repeated context.       |
+| `sync_sessions`       | Parses supported local session files, detects patterns, and refreshes injected rules. |
+| `remember`            | Stores a preference, project detail, hard constraint, user fact, or context item.     |
+| `recall`              | Reads stored memory entries.                                                          |
+| `save_skill`          | Saves a reusable workflow.                                                            |
+| `list_skills`         | Lists saved workflows.                                                                |
+| `get_skill`           | Retrieves a saved workflow by name or keyword.                                        |
+| `install_scheduler`   | Installs, uninstalls, or checks the nightly sync scheduler.                           |
+| `list_providers`      | Shows detected session sources and agent config targets.                              |
+| `analyze`             | Reports health, failure modes, injection checks, and rule-effectiveness data.         |
+
+---
+
+## What gets written where
+
+Rules, memory, and skills are injected as fenced markdown blocks using HTML comment markers into
+every detected supported AI-agent config.
+
+| Agent          | Config file                                |
+| -------------- | ------------------------------------------ |
+| Claude Code    | `~/.claude/CLAUDE.md`                      |
+| Cursor         | `~/.cursor/rules/ai-guardrails.md`         |
+| Windsurf       | `~/.windsurf/rules/ai-guardrails.md`       |
+| GitHub Copilot | `~/.config/github-copilot/instructions.md` |
+
+All sections are idempotent: re-running sync updates existing blocks instead of duplicating them.
+
+Remove injected sections with:
+
+```bash
+ai-rule-learning clear
+```
+
 ---
 
 ## Local storage
@@ -188,6 +268,32 @@ All local data is stored under `~/.ai-rule-learning/`:
   processed.jsonl      Deduplication index
   skills/              Saved skill procedures, one markdown file per skill
   sync.log             Auto-sync output
+```
+
+---
+
+## Auto-sync scheduler
+
+The scheduler is opt-in. It is only installed when you run:
+
+```bash
+ai-rule-learning install-cron
+```
+
+Depending on your OS, the package uses one of these mechanisms:
+
+| OS    | Mechanism                                         |
+| ----- | ------------------------------------------------- |
+| macOS | LaunchAgent                                       |
+| Linux | systemd user timer when available, otherwise cron |
+| Other | cron fallback when available                      |
+
+Check scheduler status:
+
+```bash
+ai-rule-learning cron-status
+```
+
 ```
 
 ---
@@ -249,6 +355,7 @@ If no path is passed, the CLI checks known default local session locations.
 - Review generated rules before relying on them for critical workflows; use
   `ai-rule-learning rules pending`, `approve`, `reject`, `edit`, `merge`, and `outcome` to
   manage lifecycle state.
+- Review generated rules before relying on them for critical workflows.
 - Do not store secrets as memory entries or skill content.
 
 ---

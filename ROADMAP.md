@@ -10,6 +10,8 @@ This roadmap is directional and may change based on user feedback and maintainer
 - Improve the private owner-only Hugging Face Space dashboard/control panel for operations, rule review, and project health.
 - Improve README examples and screenshots.
 - Extend dry-run coverage into future owner-dashboard actions; CLI and MCP write tools now support safe previews.
+- Improve README examples and screenshots.
+- Add dry-run documentation and safety guidance for file-writing commands.
 - Expand test coverage for CLI and MCP workflows.
 - Improve generated-rule review and rollback guidance.
 

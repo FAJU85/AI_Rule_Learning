@@ -6,19 +6,20 @@ on:
   pull_request_target:
     types: [opened]
 
+permissions:
+  issues: write
+  pull-requests: write
+
 jobs:
   welcome:
     name: Welcome first-time contributors
     runs-on: ubuntu-latest
-    permissions:
-      issues: write
-      pull-requests: write
     steps:
       - name: Post welcome message
-        uses: actions/first-interaction@1c4688942c71f71d4f5502a26ea67c331730fa4d
+        uses: actions/first-interaction@v3
         with:
-          repo_token: ${{ secrets.GITHUB_TOKEN }}
-          issue_message: |
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          issue-message: |
             Thanks for opening your first issue! Please make sure the template is complete, include reproduction steps when relevant, and remove any secrets from logs.
-          pr_message: |
+          pr-message: |
             Thanks for opening your first pull request! Please review CONTRIBUTING.md, complete the PR checklist, and make sure CI is passing before requesting review.
