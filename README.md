@@ -269,10 +269,23 @@ If no path is passed, the CLI checks known default local session locations.
   `clear`, or scheduler commands.
 - The tool updates supported agent config files using explicit HTML comment markers.
 - Scheduler installation is opt-in and reversible.
+- Use `--dry-run` on write or destructive CLI commands to preview changes before files are modified.
+- MCP write tools also accept `dry_run: true` for safe previews of rule refreshes, feedback
+  capture, session sync, memory writes, skill saves, and scheduler install/uninstall actions.
+- Review generated rules before relying on them for critical workflows; use
+  `ai-rule-learning rules pending`, `approve`, `reject`, `edit`, `merge`, and `outcome` to
+  manage lifecycle state.
 - Review generated rules before relying on them for critical workflows.
 - Do not store secrets as memory entries or skill content.
 
 ---
+
+## Blue-green deployments
+
+Production Space releases can be staged in an idle blue/green Hugging Face Space, smoke-tested, and then cut over
+through a router webhook with a manual approval gate. See
+[Blue-Green Deployment Strategy](docs/BLUE_GREEN_DEPLOYMENT.md) for environment variables, rollback commands, and
+migration rules.
 
 ## Development
 
