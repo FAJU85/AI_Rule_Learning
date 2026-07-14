@@ -6,11 +6,11 @@ documentation:
 
 bug:
   - head-branch:
-      - 'fix/**'
+      - '^fix/.*'
 
 enhancement:
   - head-branch:
-      - 'feat/**'
+      - '^feat/.*'
 
 tests:
   - changed-files:

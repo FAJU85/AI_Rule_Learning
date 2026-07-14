@@ -18,8 +18,8 @@ jobs:
       - name: Post welcome message
         uses: actions/first-interaction@v3
         with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-          issue-message: |
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          issue_message: |
             Thanks for opening your first issue! Please make sure the template is complete, include reproduction steps when relevant, and remove any secrets from logs.
-          pr-message: |
+          pr_message: |
             Thanks for opening your first pull request! Please review CONTRIBUTING.md, complete the PR checklist, and make sure CI is passing before requesting review.
