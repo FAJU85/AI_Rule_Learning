@@ -36,11 +36,83 @@ Run the MCP server:
 ai-rule-learning-mcp
 ```
 
+```bash
+ai-rule-learning-mcp
+```
 
-## Installation
+
+Run the CLI directly:
 
 ```bash
-pip install ai-rule-learning-mcp
+ai-rule-learning status
+```
+
+---
+
+## MCP setup
+
+Add the server to an MCP-compatible client configuration:
+
+```json
+{
+  "mcpServers": {
+    "ai-rule-learning": {
+      "command": "ai-rule-learning-mcp"
+    }
+  }
+}
+```
+
+---
+
+## CLI commands
+
+```bash
+# Scan sessions and generate rules
+ai-rule-learning sync
+
+# Preview sync without writing local storage or agent config files
+ai-rule-learning sync --dry-run
+
+# Show current rules and detected agent configs
+ai-rule-learning status
+
+# Print active rules
+ai-rule-learning rules
+
+# Review and manage rule lifecycle
+ai-rule-learning rules pending
+ai-rule-learning rules approve <rule-id>
+ai-rule-learning rules reject <rule-id>
+ai-rule-learning rules edit <rule-id> "Always run focused tests first"
+ai-rule-learning rules merge <primary-rule-id> <duplicate-rule-id>
+ai-rule-learning rules outcome <rule-id> --worked
+ai-rule-learning rules outcome <rule-id> --failed
+
+# Remove all injected sections
+ai-rule-learning clear
+
+# Preview destructive/write operations before changing files
+ai-rule-learning clear --dry-run
+
+# Memory
+ai-rule-learning memory show
+ai-rule-learning memory add preference "Always use type hints in Python"
+ai-rule-learning memory add preference "Always use type hints in Python" --dry-run
+ai-rule-learning memory clear
+ai-rule-learning memory clear --dry-run
+
+# Skills
+ai-rule-learning skills
+ai-rule-learning skills show "Deploy Workflow"
+ai-rule-learning skills delete "Old Workflow"
+
+# Auto-sync scheduler
+ai-rule-learning install-cron
+ai-rule-learning cron-status
+ai-rule-learning uninstall-cron
+ai-rule-learning install-cron --dry-run
+ai-rule-learning uninstall-cron --dry-run
 ```
 
 Run the MCP server:
@@ -454,6 +526,12 @@ These commands are implemented by the `ai-rule-learning` console script.
 | `get_skill`           | Retrieves a saved workflow by name or keyword.                                        |
 | `install_scheduler`   | Installs, uninstalls, or checks the nightly sync scheduler.                           |
 | `list_providers`      | Shows detected session sources and agent config targets.                              |
+| `list_rules`          | Lists stored rules by lifecycle status.                                               |
+| `approve_rule`        | Approves and activates a reviewed rule.                                               |
+| `reject_rule`         | Rejects a rule so it is not injected.                                                 |
+| `edit_rule`           | Updates a rule instruction.                                                           |
+| `merge_rules`         | Marks a duplicate rule as merged into a primary rule.                                 |
+| `record_rule_outcome` | Tracks whether a rule worked or failed.                                               |
 | `analyze`             | Reports health, failure modes, injection checks, and rule-effectiveness data.         |
 
 ---
@@ -513,6 +591,20 @@ Depending on your OS, the package uses one of these mechanisms:
 | Other | cron fallback when available                      |
 
 Check scheduler status:
+
+```bash
+ai-rule-learning cron-status
+```
+
+Remove scheduler automation:
+
+```bash
+ai-rule-learning uninstall-cron
+ai-rule-learning install-cron --dry-run
+ai-rule-learning uninstall-cron --dry-run
+```
+
+---
 
 ```
 
