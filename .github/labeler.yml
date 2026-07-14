@@ -6,11 +6,11 @@ documentation:
 
 bug:
   - head-branch:
-      - '^fix/.*'
+      - '^fix/[A-Za-z0-9._/-]+$'
 
 enhancement:
   - head-branch:
-      - '^feat/.*'
+      - '^feat/[A-Za-z0-9._/-]+$'
 
 tests:
   - changed-files:
