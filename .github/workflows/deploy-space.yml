@@ -5,8 +5,35 @@ on:
     branches: [main]
     paths:
       - 'space/**'
+      - 'scripts/blue_green.py'
       - '.github/workflows/deploy-space.yml'
   workflow_dispatch:
+    inputs:
+      live_color:
+        description: Current production color before this run
+        required: true
+        default: blue
+        type: choice
+        options:
+          - blue
+          - green
+      operation:
+        description: Deployment operation to run
+        required: true
+        default: deploy-and-smoke
+        type: choice
+        options:
+          - deploy-and-smoke
+          - deploy-and-cutover
+          - rollback
+      rollback_color:
+        description: Previous known-good color for rollback operations
+        required: false
+        default: blue
+        type: choice
+        options:
+          - blue
+          - green
 
 permissions:
   id-token: write
@@ -14,10 +41,17 @@ permissions:
 
 jobs:
   deploy:
-    name: Deploy to vooom/AI_Rule_Learning
+    name: Deploy idle Space and smoke test
     runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'push' || inputs.operation != 'rollback' }}
     env:
-      HF_OIDC_RESOURCE: spaces/vooom/AI_Rule_Learning
+      BG_BLUE_SPACE_ID: ${{ vars.BG_BLUE_SPACE_ID || 'vooom/AI_Rule_Learning' }}
+      BG_GREEN_SPACE_ID: ${{ vars.BG_GREEN_SPACE_ID || 'vooom/AI_Rule_Learning_Green' }}
+      BG_LIVE_COLOR: ${{ inputs.live_color || 'blue' }}
+      BG_HEALTH_PATH: ${{ vars.BG_HEALTH_PATH || '/' }}
+    outputs:
+      idle_color: ${{ steps.plan.outputs.idle_color }}
+      idle_space_id: ${{ steps.plan.outputs.idle_space_id }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -31,23 +65,35 @@ jobs:
       - name: Install huggingface_hub
         run: pip install "huggingface_hub>=0.24.0"
 
-      - name: Deploy space/ to Hugging Face Space
+      - name: Plan idle target
+        id: plan
+        run: |
+          echo "idle_color=$(python scripts/blue_green.py plan --output-field idle_color)" >> "$GITHUB_OUTPUT"
+          echo "idle_space_id=$(python scripts/blue_green.py plan --output-field idle_space_id)" >> "$GITHUB_OUTPUT"
+          python scripts/blue_green.py plan
+
+      - name: Deploy space/ to idle Hugging Face Space
+        env:
+          TARGET_SPACE_ID: ${{ steps.plan.outputs.idle_space_id }}
+          HF_OIDC_RESOURCE: spaces/${{ steps.plan.outputs.idle_space_id }}
         run: |
           python - <<'EOF'
+          import os
           import time
           from huggingface_hub import HfApi
           from huggingface_hub.errors import HfHubHTTPError
 
           api = HfApi()
+          target_space_id = os.environ["TARGET_SPACE_ID"]
           for attempt in range(1, 6):
               try:
                   api.upload_folder(
                       folder_path="space",
-                      repo_id="vooom/AI_Rule_Learning",
+                      repo_id=target_space_id,
                       repo_type="space",
-                      commit_message="Deploy from GitHub Actions (${{ github.sha }})",
+                      commit_message="Deploy idle blue-green Space from GitHub Actions (${{ github.sha }})",
                   )
-                  print("Space deployed successfully.")
+                  print(f"Space deployed successfully to {target_space_id}.")
                   break
               except HfHubHTTPError as e:
                   if e.response is not None and e.response.status_code == 429 and attempt < 5:
@@ -57,3 +103,45 @@ jobs:
                   else:
                       raise
           EOF
+
+      - name: Smoke-test idle Space
+        run: python scripts/blue_green.py smoke --color "${{ steps.plan.outputs.idle_color }}"
+
+  cutover:
+    name: Approved traffic cutover or rollback
+    runs-on: ubuntu-latest
+    needs: deploy
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.operation == 'deploy-and-cutover' }}
+    environment: production
+    env:
+      BG_BLUE_SPACE_ID: ${{ vars.BG_BLUE_SPACE_ID || 'vooom/AI_Rule_Learning' }}
+      BG_GREEN_SPACE_ID: ${{ vars.BG_GREEN_SPACE_ID || 'vooom/AI_Rule_Learning_Green' }}
+      BG_LIVE_COLOR: ${{ inputs.live_color }}
+      BG_ROUTER_CUTOVER_URL: ${{ secrets.BG_ROUTER_CUTOVER_URL }}
+      BG_ROUTER_TOKEN: ${{ secrets.BG_ROUTER_TOKEN }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Switch production traffic to idle color
+        run: python scripts/blue_green.py cutover --target-color "${{ needs.deploy.outputs.idle_color }}" --commit-sha "${{ github.sha }}"
+
+  rollback:
+    name: Approved production rollback
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.operation == 'rollback' }}
+    environment: production
+    env:
+      BG_BLUE_SPACE_ID: ${{ vars.BG_BLUE_SPACE_ID || 'vooom/AI_Rule_Learning' }}
+      BG_GREEN_SPACE_ID: ${{ vars.BG_GREEN_SPACE_ID || 'vooom/AI_Rule_Learning_Green' }}
+      BG_LIVE_COLOR: ${{ inputs.live_color }}
+      BG_ROUTER_CUTOVER_URL: ${{ secrets.BG_ROUTER_CUTOVER_URL }}
+      BG_ROUTER_TOKEN: ${{ secrets.BG_ROUTER_TOKEN }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Switch production traffic to previous color
+        run: python scripts/blue_green.py rollback --previous-color "${{ inputs.rollback_color }}" --commit-sha "${{ github.sha }}"
