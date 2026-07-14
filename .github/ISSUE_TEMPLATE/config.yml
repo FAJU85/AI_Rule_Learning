@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security report
+    url: mailto:info@tococolors.com
+    about: Please report security vulnerabilities privately instead of opening a public issue.
+  - name: Feedback guide
+    url: https://github.com/FAJU85/ai-rule-learning-mcp/blob/main/FEEDBACK.md
+    about: Use the feedback guide for structured project reviews.

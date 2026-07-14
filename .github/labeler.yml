@@ -1,0 +1,41 @@
+documentation:
+  - changed-files:
+      - any-glob-to-any-file:
+          - '**/*.md'
+          - 'docs/**'
+
+bug:
+  - head-branch:
+      - '^fix/[A-Za-z0-9._/-]+$'
+
+enhancement:
+  - head-branch:
+      - '^feat/[A-Za-z0-9._/-]+$'
+
+tests:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'tests/**'
+          - 'mcp/tests/**'
+          - '**/*test*.py'
+
+ci:
+  - changed-files:
+      - any-glob-to-any-file:
+          - '.github/**'
+          - 'package.json'
+          - 'package-lock.json'
+
+dependencies:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'requirements*.txt'
+          - 'mcp/pyproject.toml'
+          - 'pyproject.toml'
+          - 'package-lock.json'
+
+core:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'src/**'
+          - 'mcp/ai_rule_learning_mcp/**'
