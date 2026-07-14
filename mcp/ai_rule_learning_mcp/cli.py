@@ -318,6 +318,8 @@ def cmd_rules(args: list[str]) -> None:
         print(f"✅ Recorded outcome for rule: {rule_id}" if rule else f"❌ Rule not found: {rule_id}")
         return
 
+    print(f"Unknown rules subcommand: {subcmd!r}")
+    print("Available: active, all, pending, approve, reject, deactivate, edit, merge, outcome")
     if subcmd in ("duplicates", "dupes"):
         min_similarity = 0.7
         if "--min-similarity" in args:
