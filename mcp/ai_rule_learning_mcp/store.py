@@ -310,13 +310,10 @@ def _rule_tokens(rule: dict) -> set[str]:
     }
 
 
-def suggest_duplicate_rules(min_similarity: float = 0.7, include_inactive: bool = False) -> list[dict]:
-    """Suggest likely duplicate rules using local text similarity.
-
-    The function is read-only. It returns pairs with a Jaccard similarity score
-    so callers can review and merge them explicitly instead of auto-merging.
-    """
-    rules = _download("rules.jsonl")
+def suggest_duplicate_rules_from_records(
+    rules: list[dict], min_similarity: float = 0.7, include_inactive: bool = False
+) -> list[dict]:
+    """Suggest duplicate rules from an explicit rules list without reading storage."""
     candidates = [
         rule
         for rule in rules
@@ -350,6 +347,17 @@ def suggest_duplicate_rules(min_similarity: float = 0.7, include_inactive: bool 
     return sorted(suggestions, key=lambda item: item["similarity"], reverse=True)
 
 
+def suggest_duplicate_rules(min_similarity: float = 0.7, include_inactive: bool = False) -> list[dict]:
+    """Suggest likely duplicate rules using local text similarity.
+
+    The function is read-only. It returns pairs with a Jaccard similarity score
+    so callers can review and merge them explicitly instead of auto-merging.
+    """
+    return suggest_duplicate_rules_from_records(
+        _download("rules.jsonl"), min_similarity=min_similarity, include_inactive=include_inactive
+    )
+
+
 def _parse_iso_datetime(value: str | None) -> datetime | None:
     if not value:
         return None
@@ -357,6 +365,43 @@ def _parse_iso_datetime(value: str | None) -> datetime | None:
         return datetime.fromisoformat(value.replace("Z", "+00:00")).replace(tzinfo=None)
     except ValueError:
         return None
+
+
+def find_rule_health_candidates(
+    rules: list[dict],
+    stale_days: int = 90,
+    low_effectiveness_threshold: float = 0.3,
+    min_triggered: int = 3,
+) -> tuple[list[dict], list[dict]]:
+    """Return stale and low-effectiveness rule candidates from explicit records."""
+    now = datetime.utcnow()
+    stale: list[dict] = []
+    needs_review: list[dict] = []
+
+    for rule in rules:
+        status = rule.get("status", "active")
+        if status in {"rejected", "merged", "retired"}:
+            continue
+
+        score = float(rule.get("effectiveness_score", 0.5) or 0.0)
+        triggered = int(rule.get("times_triggered", 0) or 0)
+        if triggered >= min_triggered and score <= low_effectiveness_threshold:
+            needs_review.append(rule)
+            continue
+
+        activity_at = (
+            _parse_iso_datetime(rule.get("last_fired_at"))
+            or _parse_iso_datetime(rule.get("updated_at"))
+            or _parse_iso_datetime(rule.get("created_at"))
+            or _parse_iso_datetime(rule.get("approved_at"))
+        )
+        if activity_at is None:
+            continue
+        age_days = (now - activity_at).days
+        if status == "active" and age_days >= stale_days:
+            stale.append(rule)
+
+    return stale, needs_review
 
 
 def review_rule_health(
@@ -373,46 +418,37 @@ def review_rule_health(
     """
     rules = _download("rules.jsonl")
     now = datetime.utcnow()
-    stale: list[dict] = []
-    needs_review: list[dict] = []
+    stale, needs_review = find_rule_health_candidates(
+        rules,
+        stale_days=stale_days,
+        low_effectiveness_threshold=low_effectiveness_threshold,
+        min_triggered=min_triggered,
+    )
 
-    for rule in rules:
-        status = rule.get("status", "active")
-        if status in {"rejected", "merged", "retired"}:
-            continue
-
-        score = float(rule.get("effectiveness_score", 0.5) or 0.0)
-        triggered = int(rule.get("times_triggered", 0) or 0)
-        if triggered >= min_triggered and score <= low_effectiveness_threshold:
-            needs_review.append(rule)
-            if apply:
-                rule["status"] = "needs_review"
-                rule["is_active"] = False
-                rule["review_reason"] = (
-                    f"effectiveness_score={score:.2f} <= {low_effectiveness_threshold:.2f} after {triggered} trigger(s)"
-                )
-                rule["reviewed_at"] = now.isoformat()
-            continue
-
-        activity_at = (
-            _parse_iso_datetime(rule.get("last_fired_at"))
-            or _parse_iso_datetime(rule.get("updated_at"))
-            or _parse_iso_datetime(rule.get("created_at"))
-            or _parse_iso_datetime(rule.get("approved_at"))
-        )
-        if activity_at is None:
-            continue
-        age_days = (now - activity_at).days
-        if status == "active" and age_days >= stale_days:
-            stale.append(rule)
-            if apply:
-                rule["status"] = "stale"
-                rule["is_active"] = False
-                rule["review_reason"] = f"no activity for {age_days} day(s)"
-                rule["reviewed_at"] = now.isoformat()
-
-    if apply and (stale or needs_review):
-        _upload("rules.jsonl", rules)
+    if apply:
+        for rule in needs_review:
+            score = float(rule.get("effectiveness_score", 0.5) or 0.0)
+            triggered = int(rule.get("times_triggered", 0) or 0)
+            rule["status"] = "needs_review"
+            rule["is_active"] = False
+            rule["review_reason"] = (
+                f"effectiveness_score={score:.2f} <= {low_effectiveness_threshold:.2f} after {triggered} trigger(s)"
+            )
+            rule["reviewed_at"] = now.isoformat()
+        for rule in stale:
+            activity_at = (
+                _parse_iso_datetime(rule.get("last_fired_at"))
+                or _parse_iso_datetime(rule.get("updated_at"))
+                or _parse_iso_datetime(rule.get("created_at"))
+                or _parse_iso_datetime(rule.get("approved_at"))
+            )
+            age_days = (now - activity_at).days if activity_at else stale_days
+            rule["status"] = "stale"
+            rule["is_active"] = False
+            rule["review_reason"] = f"no activity for {age_days} day(s)"
+            rule["reviewed_at"] = now.isoformat()
+        if stale or needs_review:
+            _upload("rules.jsonl", rules)
 
     return {
         "stale": stale,

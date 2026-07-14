@@ -14,6 +14,12 @@ from threading import Lock
 from pathlib import Path
 from typing import Any
 
+import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "mcp"))
+from ai_rule_learning_mcp.store import find_rule_health_candidates
+from ai_rule_learning_mcp.store import suggest_duplicate_rules_from_records
+
 logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(name)s: %(message)s")
 _log = logging.getLogger("arl")
 
@@ -2629,27 +2635,12 @@ def _health_candidates(
     low_effectiveness_threshold: float = 0.3,
     min_triggered: int = 3,
 ) -> tuple[list[dict], list[dict]]:
-    now = datetime.utcnow()
-    stale: list[dict] = []
-    needs_review: list[dict] = []
-    for rule in load_rules():
-        status = _rule_status(rule)
-        if status in {"rejected", "merged", "retired"}:
-            continue
-        score = float(rule.get("effectiveness_score", 0.5) or 0.0)
-        triggered = int(rule.get("times_triggered", 0) or 0)
-        if triggered >= min_triggered and score <= low_effectiveness_threshold:
-            needs_review.append(rule)
-            continue
-        activity_at = (
-            _parse_rule_datetime(rule.get("last_fired_at"))
-            or _parse_rule_datetime(rule.get("updated_at"))
-            or _parse_rule_datetime(rule.get("created_at"))
-            or _parse_rule_datetime(rule.get("approved_at"))
-        )
-        if activity_at and status == "active" and (now - activity_at).days >= stale_days:
-            stale.append(rule)
-    return stale, needs_review
+    return find_rule_health_candidates(
+        load_rules(),
+        stale_days=stale_days,
+        low_effectiveness_threshold=low_effectiveness_threshold,
+        min_triggered=min_triggered,
+    )
 
 
 def build_rule_health_review_table() -> str:
@@ -2713,42 +2704,8 @@ def apply_rule_health_review() -> str:
         return f"❌ Failed to save rule-health updates: {exc}"
 
 
-def _duplicate_tokens(rule: dict) -> set[str]:
-    action = rule.get("action") or {}
-    trigger = rule.get("trigger") or {}
-    parts = [
-        str(rule.get("name", "")),
-        str(rule.get("instruction", "")),
-        str(action.get("instruction", "")) if isinstance(action, dict) else "",
-        " ".join(trigger.get("keywords", [])) if isinstance(trigger, dict) else "",
-    ]
-    text = " ".join(parts).lower()
-    return {token for token in re.findall(r"[a-z0-9_]{3,}", text) if token not in {"the", "and", "for", "with", "rule"}}
-
-
 def _duplicate_suggestions(min_similarity: float = 0.7) -> list[dict]:
-    rules = [r for r in load_rules() if _rule_status(r) not in {"rejected", "merged", "retired"}]
-    tokenized = [(rule, _duplicate_tokens(rule)) for rule in rules]
-    suggestions: list[dict] = []
-    for index, (left, left_tokens) in enumerate(tokenized):
-        if not left_tokens:
-            continue
-        for right, right_tokens in tokenized[index + 1 :]:
-            if not right_tokens:
-                continue
-            union = left_tokens | right_tokens
-            score = len(left_tokens & right_tokens) / len(union) if union else 0.0
-            if score >= min_similarity:
-                suggestions.append(
-                    {
-                        "primary_rule_id": left.get("rule_id"),
-                        "duplicate_rule_id": right.get("rule_id"),
-                        "primary_name": left.get("name", "Unnamed rule"),
-                        "duplicate_name": right.get("name", "Unnamed rule"),
-                        "similarity": round(score, 3),
-                    }
-                )
-    return sorted(suggestions, key=lambda item: item["similarity"], reverse=True)
+    return suggest_duplicate_rules_from_records(load_rules(), min_similarity=min_similarity, include_inactive=True)
 
 
 def build_duplicate_rules_table(min_similarity: float = 0.7) -> str:
