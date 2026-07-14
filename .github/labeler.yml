@@ -11,6 +11,11 @@ bug:
 enhancement:
   - head-branch:
       - '^feat/[A-Za-z0-9._/-]+$'
+      - 'fix/**'
+
+enhancement:
+  - head-branch:
+      - 'feat/**'
 
 tests:
   - changed-files:
