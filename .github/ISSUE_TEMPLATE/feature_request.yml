@@ -1,0 +1,43 @@
+name: Feature request
+description: Suggest an improvement or new capability
+title: 'feat: '
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What problem would this solve?
+      placeholder: I want to...
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: What should happen?
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: What other approaches did you consider?
+    validations:
+      required: false
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - CLI
+        - MCP server
+        - Rules
+        - Memory
+        - Skills
+        - Scheduler
+        - Documentation
+        - CI / contributor workflow
+        - Other
+    validations:
+      required: true

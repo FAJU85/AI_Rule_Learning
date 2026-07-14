@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, 'claude/**']
+    branches: [main]
   pull_request:
     branches: [main]
 
@@ -10,21 +10,68 @@ permissions:
   contents: read
 
 jobs:
-  lint:
-    name: Lint & Format
+  python:
+    name: Python quality and tests
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: true
+      matrix:
+        python-version: ['3.11']
     steps:
-      - uses: actions/checkout@v6
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+          python -m pip install -r requirements-dev.txt
+          python -m pip install -e mcp
+
+      - name: Check Python formatting
+        run: ruff format --check .
+
+      - name: Run Python lint
+        run: ruff check .
+
+      - name: Run type checks
+        run: mypy src
+
+      - name: Run repository tests
+        run: pytest
+
+      - name: Run MCP tests
+        run: python -m pytest -c /dev/null mcp/tests -q
+
+      - name: Validate Python build importability
+        run: python -m compileall src mcp/ai_rule_learning_mcp
+
+  markdown:
+    name: Markdown and metadata
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
         with:
           persist-credentials: false
 
       - name: Set up Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: 'npm'
+          cache: npm
 
-      - name: Install dependencies
+      - name: Install Node dependencies
         run: npm ci
 
       - name: Lint Markdown
@@ -34,22 +81,24 @@ jobs:
         run: npm run format:check
 
   commitlint:
-    name: Commit Message Lint
+    name: Commit message lint
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     if: github.event_name == 'pull_request'
     steps:
-      - uses: actions/checkout@v6
+      - name: Checkout
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
           persist-credentials: false
 
       - name: Set up Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: 'npm'
+          cache: npm
 
-      - name: Install dependencies
+      - name: Install Node dependencies
         run: npm ci
 
       - name: Lint commit messages
