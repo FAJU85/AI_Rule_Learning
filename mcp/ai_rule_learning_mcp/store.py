@@ -202,6 +202,18 @@ def get_rule(rule_id: str) -> dict | None:
     return next((r for r in _download("rules.jsonl") if r.get("rule_id") == rule_id), None)
 
 
+def _load_rules_preserving_local() -> list[dict]:
+    """Load rules while preserving local-only entries missing from a remote snapshot."""
+    rules = _download("rules.jsonl")
+    seen_ids = {r.get("rule_id") for r in rules if r.get("rule_id")}
+    for local_rule in _local_load("rules.jsonl"):
+        local_id = local_rule.get("rule_id")
+        if local_id and local_id not in seen_ids:
+            rules.append(local_rule)
+            seen_ids.add(local_id)
+    return rules
+
+
 def update_rule_status(rule_id: str, status: str, note: str = "") -> dict | None:
     """Update a rule lifecycle status and active injection flag."""
     normalized = status.strip().lower()
@@ -209,6 +221,7 @@ def update_rule_status(rule_id: str, status: str, note: str = "") -> dict | None
         raise ValueError(f"unsupported rule status: {status}")
 
     rules = _download("rules.jsonl")
+    rules = _load_rules_preserving_local()
     now = datetime.utcnow().isoformat()
     target = next((r for r in rules if r.get("rule_id") == rule_id), None)
     if target is None:
@@ -305,6 +318,10 @@ def suggest_duplicate_rules(min_similarity: float = 0.7, include_inactive: bool 
     so callers can review and merge them explicitly instead of auto-merging.
     """
     rules = _download("rules.jsonl")
+def suggest_duplicate_rules_from_records(
+    rules: list[dict], min_similarity: float = 0.7, include_inactive: bool = False
+) -> list[dict]:
+    """Suggest duplicate rules from an explicit rules list without reading storage."""
     candidates = [
         rule
         for rule in rules
@@ -338,6 +355,17 @@ def suggest_duplicate_rules(min_similarity: float = 0.7, include_inactive: bool 
     return sorted(suggestions, key=lambda item: item["similarity"], reverse=True)
 
 
+def suggest_duplicate_rules(min_similarity: float = 0.7, include_inactive: bool = False) -> list[dict]:
+    """Suggest likely duplicate rules using local text similarity.
+
+    The function is read-only. It returns pairs with a Jaccard similarity score
+    so callers can review and merge them explicitly instead of auto-merging.
+    """
+    return suggest_duplicate_rules_from_records(
+        _download("rules.jsonl"), min_similarity=min_similarity, include_inactive=include_inactive
+    )
+
+
 def _parse_iso_datetime(value: str | None) -> datetime | None:
     if not value:
         return None
@@ -360,6 +388,13 @@ def review_rule_health(
     `stale` when their latest activity timestamp is older than `stale_days`.
     """
     rules = _download("rules.jsonl")
+def find_rule_health_candidates(
+    rules: list[dict],
+    stale_days: int = 90,
+    low_effectiveness_threshold: float = 0.3,
+    min_triggered: int = 3,
+) -> tuple[list[dict], list[dict]]:
+    """Return stale and low-effectiveness rule candidates from explicit records."""
     now = datetime.utcnow()
     stale: list[dict] = []
     needs_review: list[dict] = []
@@ -401,6 +436,55 @@ def review_rule_health(
 
     if apply and (stale or needs_review):
         _upload("rules.jsonl", rules)
+
+    return stale, needs_review
+
+
+def review_rule_health(
+    stale_days: int = 90,
+    low_effectiveness_threshold: float = 0.3,
+    min_triggered: int = 3,
+    apply: bool = False,
+) -> dict:
+    """Find stale or low-performing rules, optionally marking them for review.
+
+    Rules are marked `needs_review` when they have enough trigger history and
+    an effectiveness score at or below the threshold. Active rules are marked
+    `stale` when their latest activity timestamp is older than `stale_days`.
+    """
+    rules = _download("rules.jsonl")
+    now = datetime.utcnow()
+    stale, needs_review = find_rule_health_candidates(
+        rules,
+        stale_days=stale_days,
+        low_effectiveness_threshold=low_effectiveness_threshold,
+        min_triggered=min_triggered,
+    )
+
+    if apply:
+        for rule in needs_review:
+            score = float(rule.get("effectiveness_score", 0.5) or 0.0)
+            triggered = int(rule.get("times_triggered", 0) or 0)
+            rule["status"] = "needs_review"
+            rule["is_active"] = False
+            rule["review_reason"] = (
+                f"effectiveness_score={score:.2f} <= {low_effectiveness_threshold:.2f} after {triggered} trigger(s)"
+            )
+            rule["reviewed_at"] = now.isoformat()
+        for rule in stale:
+            activity_at = (
+                _parse_iso_datetime(rule.get("last_fired_at"))
+                or _parse_iso_datetime(rule.get("updated_at"))
+                or _parse_iso_datetime(rule.get("created_at"))
+                or _parse_iso_datetime(rule.get("approved_at"))
+            )
+            age_days = (now - activity_at).days if activity_at else stale_days
+            rule["status"] = "stale"
+            rule["is_active"] = False
+            rule["review_reason"] = f"no activity for {age_days} day(s)"
+            rule["reviewed_at"] = now.isoformat()
+        if stale or needs_review:
+            _upload("rules.jsonl", rules)
 
     return {
         "stale": stale,

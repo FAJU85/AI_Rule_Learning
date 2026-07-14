@@ -12,6 +12,14 @@ jobs:
   coderabbit:
     name: CodeRabbit review
     runs-on: ubuntu-latest
+    # CodeRabbit posts pull-request review comments, so this job needs PR write access.
+    permissions:
+      contents: read
+      pull-requests: write
+    if: ${{ !github.event.pull_request.draft }}
+    steps:
+      - name: Run CodeRabbit AI review
+        uses: coderabbitai/ai-pr-reviewer@1.16.2
     if: ${{ !github.event.pull_request.draft }}
     steps:
       - name: Run CodeRabbit AI review

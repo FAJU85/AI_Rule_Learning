@@ -199,3 +199,91 @@ def test_cli_rules_duplicates_lists_candidates(capsys: pytest.CaptureFixture[str
     assert "Likely duplicate rules" in out
     assert "dup-1" in out
     assert "dup-2" in out
+
+
+def test_update_rule_status_preserves_local_only_rules(isolated_store, monkeypatch):
+    from ai_rule_learning_mcp import store
+
+    local_only = {
+        "rule_id": "local-only",
+        "name": "Local only",
+        "status": "pending",
+        "is_active": False,
+    }
+    remote_rule = {
+        "rule_id": "remote-rule",
+        "name": "Remote rule",
+        "status": "pending",
+        "is_active": False,
+    }
+    store._local_save("rules.jsonl", [local_only])
+    monkeypatch.setattr(store, "_download", lambda filename: [remote_rule.copy()] if filename == "rules.jsonl" else [])
+
+    updated = store.update_rule_status("remote-rule", "active")
+
+    assert updated is not None
+    saved = store._local_load("rules.jsonl")
+    assert {rule["rule_id"] for rule in saved} == {"remote-rule", "local-only"}
+    assert next(rule for rule in saved if rule["rule_id"] == "remote-rule")["status"] == "active"
+
+
+def test_cli_rules_edit_reports_empty_instruction(isolated_store, capsys):
+    from ai_rule_learning_mcp.cli import cmd_rules
+
+    cmd_rules(["edit", "rule-1", "   "])
+
+    out = capsys.readouterr().out
+    assert "❌ instruction cannot be empty" in out
+
+
+def test_cli_rules_merge_reports_same_rule_ids(isolated_store, capsys):
+    from ai_rule_learning_mcp.cli import cmd_rules
+
+    cmd_rules(["merge", "rule-1", "rule-1"])
+
+    out = capsys.readouterr().out
+    assert "❌ cannot merge a rule into itself" in out
+
+
+def test_duplicate_suggestions_from_records_matches_storage_helper():
+    from ai_rule_learning_mcp.store import suggest_duplicate_rules_from_records
+
+    rules = [
+        {
+            "rule_id": "one",
+            "name": "Run focused tests",
+            "instruction": "Always run focused tests before broad checks",
+            "is_active": True,
+            "status": "active",
+        },
+        {
+            "rule_id": "two",
+            "name": "Run focused tests first",
+            "instruction": "Always run focused tests before broad checks",
+            "is_active": True,
+            "status": "active",
+        },
+    ]
+
+    suggestions = suggest_duplicate_rules_from_records(rules, min_similarity=0.5)
+
+    assert suggestions[0]["primary_rule_id"] == "one"
+    assert suggestions[0]["duplicate_rule_id"] == "two"
+
+
+def test_find_rule_health_candidates_from_records():
+    from ai_rule_learning_mcp.store import find_rule_health_candidates
+
+    stale, needs_review = find_rule_health_candidates(
+        [
+            {
+                "rule_id": "low-score",
+                "status": "active",
+                "times_triggered": 5,
+                "effectiveness_score": 0.1,
+            }
+        ]
+    )
+
+    assert stale == []
+    assert needs_review[0]["rule_id"] == "low-score"

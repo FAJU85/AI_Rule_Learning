@@ -10,6 +10,8 @@ This roadmap is directional and may change based on user feedback and maintainer
 - Improve the private owner-only Hugging Face Space dashboard/control panel for operations, rule review, and project health.
 - Improve README examples and screenshots.
 - Extend dry-run coverage into future owner-dashboard actions; CLI and MCP write tools now support safe previews.
+- Improve README examples and screenshots.
+- Add dry-run documentation and safety guidance for file-writing commands.
 - Expand test coverage for CLI and MCP workflows.
 - Improve generated-rule review and rollback guidance.
 
@@ -26,3 +28,9 @@ This roadmap is directional and may change based on user feedback and maintainer
 - Explore richer policy validation and safety checks.
 - Improve multi-agent workflow support.
 - Publish stable release guidance for package consumers.
+
+## Infrastructure reliability
+
+- Blue-green production releases: maintain blue and green Hugging Face Spaces, deploy to the idle color, run smoke
+  tests, use manual approval for cutover, and keep one-command rollback documented in
+  `docs/BLUE_GREEN_DEPLOYMENT.md`.

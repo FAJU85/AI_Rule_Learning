@@ -2,16 +2,137 @@
 
 import csv
 import html
+import importlib
+import importlib.util
 import io
 import json
 import logging
 import os
 import re
+import sys
 import time
 import uuid
 from datetime import datetime
+from threading import Lock
 from pathlib import Path
+from threading import Lock
 from typing import Any
+
+SPACE_DIR = Path(__file__).resolve().parent
+REPO_ROOT = SPACE_DIR.parent
+for _path in (SPACE_DIR, REPO_ROOT / "mcp"):
+    if _path.exists():
+        _path_text = str(_path)
+        if _path_text not in sys.path:
+            sys.path.insert(0, _path_text)
+
+
+def _fallback_rule_text(rule: dict) -> str:
+    action = rule.get("action")
+    action_instruction = action.get("instruction", "") if isinstance(action, dict) else ""
+    return " ".join(
+        str(part)
+        for part in (
+            rule.get("name", ""),
+            rule.get("instruction", ""),
+            action_instruction,
+            " ".join(rule.get("triggers", [])) if isinstance(rule.get("triggers"), list) else rule.get("triggers", ""),
+        )
+        if part
+    ).lower()
+
+
+def _fallback_rule_tokens(rule: dict) -> set[str]:
+    return {
+        token
+        for token in re.findall(r"[a-z0-9_]{3,}", _fallback_rule_text(rule))
+        if token not in {"the", "and", "for", "with", "rule"}
+    }
+
+
+def _fallback_duplicate_rules_from_records(
+    rules: list[dict], min_similarity: float = 0.7, include_inactive: bool = False
+) -> list[dict]:
+    candidates = [
+        rule
+        for rule in rules
+        if rule.get("status", "active") not in {"rejected", "merged"}
+        and (include_inactive or rule.get("is_active", rule.get("status", "active") == "active"))
+    ]
+    tokenized = [(rule, _fallback_rule_tokens(rule)) for rule in candidates]
+    suggestions: list[dict] = []
+    for index, (left, left_tokens) in enumerate(tokenized):
+        if not left_tokens:
+            continue
+        for right, right_tokens in tokenized[index + 1 :]:
+            union = left_tokens | right_tokens
+            if not right_tokens or not union:
+                continue
+            score = len(left_tokens & right_tokens) / len(union)
+            if score >= min_similarity:
+                suggestions.append(
+                    {
+                        "primary_rule_id": left.get("rule_id"),
+                        "duplicate_rule_id": right.get("rule_id"),
+                        "similarity": round(score, 3),
+                        "primary_name": left.get("name", "Unnamed rule"),
+                        "duplicate_name": right.get("name", "Unnamed rule"),
+                    }
+                )
+    return sorted(suggestions, key=lambda item: item["similarity"], reverse=True)
+
+
+def _fallback_parse_rule_datetime(value: str | None) -> datetime | None:
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(str(value).replace("Z", "+00:00")).replace(tzinfo=None)
+    except ValueError:
+        return None
+
+
+def _fallback_rule_health_candidates(
+    rules: list[dict],
+    stale_days: int = 90,
+    low_effectiveness_threshold: float = 0.3,
+    min_triggered: int = 3,
+) -> tuple[list[dict], list[dict]]:
+    now = datetime.utcnow()
+    stale: list[dict] = []
+    needs_review: list[dict] = []
+    for rule in rules:
+        status = rule.get("status", "active")
+        if status in {"rejected", "merged", "retired"}:
+            continue
+        score = float(rule.get("effectiveness_score", 0.5) or 0.0)
+        triggered = int(rule.get("times_triggered", 0) or 0)
+        if triggered >= min_triggered and score <= low_effectiveness_threshold:
+            needs_review.append(rule)
+            continue
+        activity_at = (
+            _fallback_parse_rule_datetime(rule.get("last_fired_at"))
+            or _fallback_parse_rule_datetime(rule.get("updated_at"))
+            or _fallback_parse_rule_datetime(rule.get("created_at"))
+            or _fallback_parse_rule_datetime(rule.get("approved_at"))
+        )
+        if activity_at is not None and status == "active" and (now - activity_at).days >= stale_days:
+            stale.append(rule)
+    return stale, needs_review
+
+
+_store_spec = importlib.util.find_spec("ai_rule_learning_mcp.store")
+_store_module = importlib.import_module("ai_rule_learning_mcp.store") if _store_spec else None
+find_rule_health_candidates = (
+    getattr(_store_module, "find_rule_health_candidates", None) if _store_module else None
+) or _fallback_rule_health_candidates
+suggest_duplicate_rules_from_records = (
+    getattr(_store_module, "suggest_duplicate_rules_from_records", None) if _store_module else None
+) or _fallback_duplicate_rules_from_records
+import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "mcp"))
+from ai_rule_learning_mcp.store import find_rule_health_candidates
+from ai_rule_learning_mcp.store import suggest_duplicate_rules_from_records
 
 logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(name)s: %(message)s")
 _log = logging.getLogger("arl")
@@ -65,6 +186,7 @@ HF_TOKEN = os.environ.get("HF_TOKEN")
 
 _CACHE_TTL = 60.0  # seconds — shared across all callers within one refresh cycle
 _download_cache: dict[str, tuple[float, list[dict]]] = {}
+_RULE_WRITE_LOCK = Lock()
 
 
 def _download_jsonl(filename: str) -> list[dict]:
@@ -2609,6 +2731,9 @@ def _rule_status(rule: dict) -> str:
     if rule.get("status"):
         return str(rule.get("status"))
     return "active" if rule.get("is_active") else "inactive"
+    if "is_active" in rule:
+        return "active" if rule.get("is_active") else "inactive"
+    return "active"
 
 
 def _parse_rule_datetime(value: str | None) -> datetime | None:
@@ -2646,6 +2771,12 @@ def _health_candidates(
         if activity_at and status == "active" and (now - activity_at).days >= stale_days:
             stale.append(rule)
     return stale, needs_review
+    return find_rule_health_candidates(
+        load_rules(),
+        stale_days=stale_days,
+        low_effectiveness_threshold=low_effectiveness_threshold,
+        min_triggered=min_triggered,
+    )
 
 
 def build_rule_health_review_table() -> str:
@@ -2745,6 +2876,8 @@ def _duplicate_suggestions(min_similarity: float = 0.7) -> list[dict]:
                     }
                 )
     return sorted(suggestions, key=lambda item: item["similarity"], reverse=True)
+def _duplicate_suggestions(min_similarity: float = 0.7) -> list[dict]:
+    return suggest_duplicate_rules_from_records(load_rules(), min_similarity=min_similarity, include_inactive=True)
 
 
 def build_duplicate_rules_table(min_similarity: float = 0.7) -> str:
@@ -2809,6 +2942,69 @@ def bulk_approve_safe_pending_rules(dry_run: bool = True) -> str:
         return f"✅ Bulk approved {len(safe_rules)} safe pending rule(s). {len(blocked)} blocked by safety checks."
     except Exception as exc:
         return f"❌ Failed to bulk approve pending rules: {exc}"
+def _snapshot_rules_after_write(rules: list[dict], event: str) -> str:
+    failed: list[str] = []
+    for rule in rules:
+        try:
+            _snapshot_rule_version(rule, event)
+        except Exception as exc:
+            failed.append(f"{rule.get('rule_id', '?')}: {exc}")
+    if not failed:
+        return ""
+    return f" ⚠️ Primary write succeeded, but {len(failed)} audit snapshot(s) failed."
+
+
+def _find_rule_by_id(rules: list[dict], rule_id: str) -> dict | None:
+    return next((item for item in rules if item.get("rule_id") == rule_id), None)
+
+
+def get_rule_choices() -> list[tuple[str, str]]:
+    choices: list[tuple[str, str]] = []
+    for rule in load_rules():
+        rule_id = rule.get("rule_id")
+        if not rule_id:
+            continue
+        label = str(rule.get("name", rule_id))
+        choices.append((label, str(rule_id)))
+    return choices
+
+
+def bulk_approve_safe_pending_rules(dry_run: bool = True) -> str:
+    """Approve all pending_review rules that pass the dashboard safety check."""
+    with _RULE_WRITE_LOCK:
+        rules = load_rules()
+        pending = [rule for rule in rules if _rule_status(rule) == "pending_review"]
+        safe_rules: list[dict] = []
+        blocked: list[tuple[dict, list[str]]] = []
+        for rule in pending:
+            issues = _check_rule_safety(rule)
+            if issues:
+                blocked.append((rule, issues))
+            else:
+                safe_rules.append(rule)
+
+        if dry_run:
+            return (
+                f"🔎 Preview: {len(safe_rules)} safe pending rule(s) would be approved; "
+                f"{len(blocked)} rule(s) blocked by safety checks."
+            )
+        if not HF_TOKEN:
+            return "❌ HF_TOKEN not set — cannot update the owner dataset."
+        if not safe_rules:
+            return f"✅ No safe pending rules to approve. {len(blocked)} rule(s) remain blocked."
+
+        now = datetime.utcnow().isoformat()
+        for rule in safe_rules:
+            rule["is_active"] = True
+            rule["status"] = "active"
+            rule["approved_at"] = now
+            rule.setdefault("score_history", [])
+        try:
+            _upload_jsonl("rules.jsonl", rules)
+        except Exception as exc:
+            return f"❌ Failed to bulk approve pending rules: {exc}"
+        warning = _snapshot_rules_after_write(safe_rules, "bulk_approved")
+        return f"✅ Bulk approved {len(safe_rules)} safe pending rule(s). {len(blocked)} blocked by safety checks.{warning}"
 
 
 def build_review_audit_table(limit: int = 25) -> str:
@@ -2854,6 +3050,7 @@ def preview_rule_rollback(rule_id: str) -> str:
     if not rule_id:
         return "Select a rule first."
     rule = next((item for item in load_rules() if item.get("rule_id") == rule_id or item.get("name") == rule_id), None)
+    rule = _find_rule_by_id(load_rules(), rule_id)
     if not rule:
         return f"Rule `{rule_id}` not found."
     snapshot = _latest_rule_snapshot(rule.get("rule_id", rule_id))
@@ -2917,6 +3114,42 @@ def rollback_rule_to_latest_snapshot(rule_id: str) -> str:
         return f"✅ Rolled back **{rule.get('name', rule_id)}** to snapshot `{snapshot.get('event', '?')}`."
     except Exception as exc:
         return f"❌ Failed to roll back rule: {exc}"
+    with _RULE_WRITE_LOCK:
+        rules = load_rules()
+        rule = _find_rule_by_id(rules, rule_id)
+        if not rule:
+            return f"Rule `{rule_id}` not found."
+        snapshot = _latest_rule_snapshot(rule.get("rule_id", rule_id))
+        if not snapshot:
+            return "No rollback snapshot found for this rule."
+
+        instruction = snapshot.get("instruction", "")
+        if instruction:
+            rule["instruction"] = instruction
+            action = rule.get("action") if isinstance(rule.get("action"), dict) else {}
+            action["instruction"] = instruction
+            rule["action"] = action
+        keywords = snapshot.get("keywords", [])
+        if keywords:
+            trigger = rule.get("trigger") if isinstance(rule.get("trigger"), dict) else {}
+            trigger["keywords"] = keywords
+            rule["trigger"] = trigger
+        if snapshot.get("priority") is not None:
+            rule["priority"] = snapshot.get("priority")
+        if snapshot.get("effectiveness_score") is not None:
+            rule["effectiveness_score"] = snapshot.get("effectiveness_score")
+        rule["is_active"] = bool(snapshot.get("is_active"))
+        rule["status"] = "active" if rule["is_active"] else rule.get("status", "inactive")
+        rule["rolled_back_at"] = datetime.utcnow().isoformat()
+        rule["rollback_source_event"] = snapshot.get("event")
+        rule["rollback_source_timestamp"] = snapshot.get("timestamp")
+
+        try:
+            _upload_jsonl("rules.jsonl", rules)
+        except Exception as exc:
+            return f"❌ Failed to roll back rule: {exc}"
+        warning = _snapshot_rules_after_write([rule], "rolled_back")
+        return f"✅ Rolled back **{rule.get('name', rule_id)}** to snapshot `{snapshot.get('event', '?')}`.{warning}"
 
 
 def export_rule_snapshot(rule_id: str) -> str:
@@ -2924,6 +3157,7 @@ def export_rule_snapshot(rule_id: str) -> str:
     if not rule_id:
         return "Select a rule first."
     rule = next((item for item in load_rules() if item.get("rule_id") == rule_id or item.get("name") == rule_id), None)
+    rule = _find_rule_by_id(load_rules(), rule_id)
     if not rule:
         return f"Rule `{rule_id}` not found."
     versions = [item for item in load_rule_versions() if item.get("rule_id") == rule.get("rule_id")]
@@ -2968,6 +3202,23 @@ def emergency_disable_active_rules(reason: str) -> str:
         return f"🚨 Emergency-disabled {len(active)} active rule(s). Reason: {reason.strip()}"
     except Exception as exc:
         return f"❌ Failed to emergency-disable rules: {exc}"
+    with _RULE_WRITE_LOCK:
+        rules = load_rules()
+        active = [rule for rule in rules if _rule_status(rule) == "active"]
+        if not active:
+            return "✅ No active rules to emergency-disable."
+        now = datetime.utcnow().isoformat()
+        for rule in active:
+            rule["is_active"] = False
+            rule["status"] = "emergency_disabled"
+            rule["emergency_disabled_at"] = now
+            rule["emergency_disable_reason"] = reason.strip()
+        try:
+            _upload_jsonl("rules.jsonl", rules)
+        except Exception as exc:
+            return f"❌ Failed to emergency-disable rules: {exc}"
+        warning = _snapshot_rules_after_write(active, "emergency_disabled")
+        return f"🚨 Emergency-disabled {len(active)} active rule(s). Reason: {reason.strip()}{warning}"
 
 
 def preview_restore_emergency_disabled_rules() -> str:
@@ -3003,6 +3254,23 @@ def restore_emergency_disabled_rules(reason: str) -> str:
         return f"✅ Restored {len(disabled)} emergency-disabled rule(s). Reason: {reason.strip()}"
     except Exception as exc:
         return f"❌ Failed to restore emergency-disabled rules: {exc}"
+    with _RULE_WRITE_LOCK:
+        rules = load_rules()
+        disabled = [rule for rule in rules if _rule_status(rule) == "emergency_disabled"]
+        if not disabled:
+            return "✅ No emergency-disabled rules to restore."
+        now = datetime.utcnow().isoformat()
+        for rule in disabled:
+            rule["is_active"] = True
+            rule["status"] = "active"
+            rule["restored_from_emergency_at"] = now
+            rule["restore_reason"] = reason.strip()
+        try:
+            _upload_jsonl("rules.jsonl", rules)
+        except Exception as exc:
+            return f"❌ Failed to restore emergency-disabled rules: {exc}"
+        warning = _snapshot_rules_after_write(disabled, "restored_from_emergency")
+        return f"✅ Restored {len(disabled)} emergency-disabled rule(s). Reason: {reason.strip()}{warning}"
 
 
 # ---------------------------------------------------------------------------
@@ -7487,6 +7755,40 @@ body, .gradio-container {
 .gradio-container > .main { padding: 0 !important; }
 .contain { max-width: 100% !important; padding: 0 16px !important; }
 
+/* Landing hero */
+.arl-hero {
+  display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(280px, 0.8fr); gap: 18px;
+  margin: 18px auto 14px; max-width: 1380px; padding: 26px; border: 1px solid rgba(124,58,237,0.16);
+  border-radius: 24px; background: linear-gradient(135deg, rgba(124,58,237,0.12), rgba(37,99,235,0.08)), var(--hz-surface);
+  box-shadow: var(--hz-shadow); overflow: hidden; position: relative;
+}
+.arl-hero::after {
+  content: ""; position: absolute; inset: auto -80px -120px auto; width: 280px; height: 280px;
+  background: radial-gradient(circle, rgba(124,58,237,0.22), transparent 65%); pointer-events: none;
+}
+.arl-hero-copy { position: relative; z-index: 1; display: flex; flex-direction: column; gap: 12px; }
+.arl-eyebrow { color: var(--hz-brand); font-size: 0.78rem; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; }
+.arl-hero h1 { margin: 0; max-width: 760px; color: var(--hz-navy); font-size: clamp(2rem, 4vw, 4.4rem); line-height: 0.95; letter-spacing: -0.06em; }
+.arl-hero p { margin: 0; max-width: 760px; color: var(--hz-text-secondary); font-size: 1.02rem; }
+.arl-hero-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 6px; }
+.arl-hero-actions button {
+  border: 0; border-radius: 999px; padding: 10px 16px; cursor: pointer; font-weight: 800; color: #fff;
+  background: linear-gradient(135deg, var(--hz-brand), var(--hz-accent)); box-shadow: var(--hz-glow-violet);
+}
+.arl-hero-actions button.secondary { color: var(--hz-brand); background: rgba(255,255,255,0.82); border: 1px solid var(--hz-border); box-shadow: none; }
+.arl-hero-panel {
+  position: relative; z-index: 1; display: grid; gap: 10px; align-content: center; padding: 16px; border-radius: 18px;
+  background: rgba(255,255,255,0.72); border: 1px solid rgba(255,255,255,0.72); backdrop-filter: blur(12px);
+}
+.arl-status-pill, .arl-hero-metric { border-radius: 14px; padding: 10px 12px; background: var(--hz-surface); border: 1px solid var(--hz-border); }
+.arl-status-pill { font-size: 0.82rem; font-weight: 800; }
+.arl-status-pill.green { color: var(--hz-green); border-color: rgba(5,150,105,0.26); background: rgba(5,150,105,0.08); }
+.arl-status-pill.amber { color: var(--hz-orange); border-color: rgba(217,119,6,0.26); background: rgba(217,119,6,0.08); }
+.arl-status-pill.red { color: var(--hz-red); border-color: rgba(220,38,38,0.26); background: rgba(220,38,38,0.08); }
+.arl-hero-metric { display: flex; flex-direction: column; gap: 2px; }
+.arl-hero-metric strong { color: var(--hz-navy); font-size: 0.92rem; }
+.arl-hero-metric span { color: var(--hz-text-secondary); font-size: 0.78rem; }
+
 /* Charts */
 .js-plotly-plot, .plotly, .plot-container { width: 100% !important; overflow: hidden; }
 .js-plotly-plot .main-svg { width: 100% !important; }
@@ -11956,155 +12258,192 @@ def _mcp_filter(query: str, data: dict):
     return _mcp_render(data, query)
 
 
-with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS) as demo:
-    gr.HTML("""
-<script>
-(function () {
-  'use strict';
+def _space_runtime_badge() -> tuple[str, str]:
+    if HF_TOKEN:
+        return "Live dataset connected", "green"
+    return "Preview mode — add HF_TOKEN for writes", "amber"
 
-  /* Tab groups: [groupLabel, firstTabIndex, lastTabIndex] */
-  var GROUPS = [
-    { label: 'Overview',         first: 0, last: 1, tabs: [0, 1] },
-    { label: 'Rule Management',  first: 2, last: 3, tabs: [2, 3] },
-    { label: 'Observability',    first: 4, last: 5, tabs: [4, 5] },
-    { label: 'Governance',       first: 6, last: 7, tabs: [6, 7] }
-  ];
 
-  function getGroupForTab(idx) {
-    for (var i = 0; i < GROUPS.length; i++) {
-      if (idx >= GROUPS[i].first && idx <= GROUPS[i].last) return i;
+def build_landing_hero() -> str:
+    """Render a fast, static hero so the Space feels ready before data loads."""
+    runtime_label, runtime_tone = _space_runtime_badge()
+    mcp_ready = importlib.util.find_spec("ai_rule_learning_mcp") is not None
+    mcp_label = "MCP package ready" if mcp_ready else "MCP package unavailable"
+    mcp_tone = "green" if mcp_ready else "red"
+    return f"""
+<section class="arl-hero">
+  <div class="arl-hero-copy">
+    <span class="arl-eyebrow">Zero-friction AI rule learning</span>
+    <h1>Turn messy AI sessions into safer, reusable guardrails.</h1>
+    <p>Import sessions, review generated rules, monitor effectiveness, and connect the MCP server without leaving the Space.</p>
+    <div class="arl-hero-actions">
+      <button onclick="hzGoto(2)" type="button">Review Rules</button>
+      <button onclick="hzGoto(3)" type="button" class="secondary">Import Sessions</button>
+    </div>
+  </div>
+  <div class="arl-hero-panel" aria-label="runtime status">
+    <div class="arl-status-pill {runtime_tone}">{html.escape(runtime_label)}</div>
+    <div class="arl-status-pill {mcp_tone}">{html.escape(mcp_label)}</div>
+    <div class="arl-hero-metric"><strong>3-step loop</strong><span>Import → Analyse → Approve</span></div>
+    <div class="arl-hero-metric"><strong>Owner controls</strong><span>Rollback, dry-run, health review</span></div>
+  </div>
+</section>
+"""
+
+
+
+_APP_JS = r"""
+() => {
+  (function () {
+    'use strict';
+
+    /* Tab groups: [groupLabel, firstTabIndex, lastTabIndex] */
+    var GROUPS = [
+      { label: 'Overview',         first: 0, last: 1, tabs: [0, 1] },
+      { label: 'Rule Management',  first: 2, last: 3, tabs: [2, 3] },
+      { label: 'Observability',    first: 4, last: 5, tabs: [4, 5] },
+      { label: 'Governance',       first: 6, last: 7, tabs: [6, 7] }
+    ];
+
+    function getGroupForTab(idx) {
+      for (var i = 0; i < GROUPS.length; i++) {
+        if (idx >= GROUPS[i].first && idx <= GROUPS[i].last) return i;
+      }
+      return 0;
     }
-    return 0;
-  }
 
-  /* hzGoto(idx) — click tab by zero-based index */
-  window.hzGoto = function (idx) {
-    var allBtns = Array.from(document.querySelectorAll(
-      '.tab-wrapper .tab-container:not(.visually-hidden) button, .overflow-dropdown button'
-    )).filter(function (b) { return !b.classList.contains('tab-group-label') && !b.classList.contains('tab-group-sep'); });
-    if (allBtns[idx]) { allBtns[idx].click(); return false; }
-    return false;
-  };
+    /* hzGoto(idx) — click tab by zero-based index */
+    window.hzGoto = function (idx) {
+      var allBtns = Array.from(document.querySelectorAll(
+        '.tab-wrapper .tab-container:not(.visually-hidden) button, .overflow-dropdown button'
+      )).filter(function (b) { return !b.classList.contains('tab-group-label') && !b.classList.contains('tab-group-sep'); });
+      if (allBtns[idx]) { allBtns[idx].click(); return false; }
+      return false;
+    };
 
-  function updateGroupIndicator(activeIdx) {
-    var bar = document.getElementById('group-indicator');
-    if (!bar) return;
-    var activeGrp = getGroupForTab(activeIdx);
-    var items = bar.querySelectorAll('.gi-item');
-    items.forEach(function (el, i) {
-      el.classList.toggle('active', i === activeGrp);
-    });
-  }
-
-  function injectTabGroups() {
-    var container = document.querySelector(
-      '.tab-wrapper .tab-container:not(.visually-hidden), .overflow-dropdown'
-    );
-    if (!container || container.dataset.grouped) return;
-    container.dataset.grouped = '1';
-
-    /* collect real tab buttons */
-    var btns = Array.from(container.querySelectorAll('button'));
-    if (btns.length < 2) return;
-
-    /* insert group labels before the first button of each group */
-    GROUPS.slice().reverse().forEach(function (g) {
-      var refBtn = btns[g.first];
-      if (!refBtn) return;
-      var lbl = document.createElement('span');
-      lbl.className = 'tab-group-label';
-      lbl.textContent = g.label;
-      container.insertBefore(lbl, refBtn);
-    });
-
-    /* track active tab on click */
-    btns.forEach(function (btn, idx) {
-      btn.addEventListener('click', function () {
-        updateGroupIndicator(idx);
+    function updateGroupIndicator(activeIdx) {
+      var bar = document.getElementById('group-indicator');
+      if (!bar) return;
+      var activeGrp = getGroupForTab(activeIdx);
+      var items = bar.querySelectorAll('.gi-item');
+      items.forEach(function (el, i) {
+        el.classList.toggle('active', i === activeGrp);
       });
-    });
+    }
 
-    /* set initial state */
-    var selectedIdx = btns.findIndex(function (b) { return b.classList.contains('selected'); });
-    updateGroupIndicator(selectedIdx >= 0 ? selectedIdx : 0);
-  }
+    function injectTabGroups() {
+      var container = document.querySelector(
+        '.tab-wrapper .tab-container:not(.visually-hidden), .overflow-dropdown'
+      );
+      if (!container || container.dataset.grouped) return;
+      container.dataset.grouped = '1';
 
-  function buildGroupIndicator() {
-    var bar = document.getElementById('group-indicator');
-    if (!bar || bar.dataset.built) return;
-    bar.dataset.built = '1';
-    var html = '';
-    GROUPS.forEach(function (g, i) {
-      if (i > 0) html += '<span class="gi-sep">·</span>';
-      html += '<span class="gi-item" data-grp="' + i + '" onclick="hzGoto(' + g.first + ')">' + g.label + '</span>';
-    });
-    bar.innerHTML = html;
-  }
+      /* collect real tab buttons */
+      var btns = Array.from(container.querySelectorAll('button'));
+      if (btns.length < 2) return;
 
-  /* ── Mobile Control Panel toggle ── */
-  function initMobileCpToggle() {
-    var sidebar = document.getElementById('cp-sidebar');
-    if (!sidebar || sidebar.dataset.toggleBuilt) return;
-    if (window.innerWidth > 768) return;
-    sidebar.dataset.toggleBuilt = '1';
+      /* insert group labels before the first button of each group */
+      GROUPS.slice().reverse().forEach(function (g) {
+        var refBtn = btns[g.first];
+        if (!refBtn) return;
+        var lbl = document.createElement('span');
+        lbl.className = 'tab-group-label';
+        lbl.textContent = g.label;
+        container.insertBefore(lbl, refBtn);
+      });
 
-    /* Start collapsed on mobile */
-    sidebar.classList.add('cp-mobile-collapsed');
+      /* track active tab on click */
+      btns.forEach(function (btn, idx) {
+        btn.addEventListener('click', function () {
+          updateGroupIndicator(idx);
+        });
+      });
 
-    /* Insert toggle button before the sidebar */
-    var toggle = document.createElement('button');
-    toggle.className = 'cp-mobile-toggle';
-    toggle.innerHTML = '🎛&nbsp; Control Panel <span class="cp-mobile-toggle-arrow">▾</span>';
-    toggle.setAttribute('aria-expanded', 'false');
-    toggle.setAttribute('aria-controls', 'cp-sidebar');
-    toggle.addEventListener('click', function () {
-      var collapsed = sidebar.classList.toggle('cp-mobile-collapsed');
-      toggle.classList.toggle('open', !collapsed);
-      toggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
-    });
-    sidebar.parentNode.insertBefore(toggle, sidebar);
-  }
+      /* set initial state */
+      var selectedIdx = btns.findIndex(function (b) { return b.classList.contains('selected'); });
+      updateGroupIndicator(selectedIdx >= 0 ? selectedIdx : 0);
+    }
 
-  function init() {
-    buildGroupIndicator();
-    injectTabGroups();
-    initMobileCpToggle();
-    /* re-run after Gradio may re-render tabs */
-    var observer = new MutationObserver(function () {
+    function buildGroupIndicator() {
+      var bar = document.getElementById('group-indicator');
+      if (!bar || bar.dataset.built) return;
+      bar.dataset.built = '1';
+      var html = '';
+      GROUPS.forEach(function (g, i) {
+        if (i > 0) html += '<span class="gi-sep">·</span>';
+        html += '<span class="gi-item" data-grp="' + i + '" onclick="hzGoto(' + g.first + ')">' + g.label + '</span>';
+      });
+      bar.innerHTML = html;
+    }
+
+    /* ── Mobile Control Panel toggle ── */
+    function initMobileCpToggle() {
+      var sidebar = document.getElementById('cp-sidebar');
+      if (!sidebar || sidebar.dataset.toggleBuilt) return;
+      if (window.innerWidth > 768) return;
+      sidebar.dataset.toggleBuilt = '1';
+
+      /* Start collapsed on mobile */
+      sidebar.classList.add('cp-mobile-collapsed');
+
+      /* Insert toggle button before the sidebar */
+      var toggle = document.createElement('button');
+      toggle.className = 'cp-mobile-toggle';
+      toggle.innerHTML = '🎛&nbsp; Control Panel <span class="cp-mobile-toggle-arrow">▾</span>';
+      toggle.setAttribute('aria-expanded', 'false');
+      toggle.setAttribute('aria-controls', 'cp-sidebar');
+      toggle.addEventListener('click', function () {
+        var collapsed = sidebar.classList.toggle('cp-mobile-collapsed');
+        toggle.classList.toggle('open', !collapsed);
+        toggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+      });
+      sidebar.parentNode.insertBefore(toggle, sidebar);
+    }
+
+    function init() {
+      buildGroupIndicator();
       injectTabGroups();
       initMobileCpToggle();
-    });
-    var wrap = document.querySelector('.tab-wrapper');
-    if (wrap) observer.observe(wrap, { childList: true, subtree: true });
-    /* Reset toggle state on resize crossing 768px boundary */
-    var lastMobile = window.innerWidth <= 768;
-    window.addEventListener('resize', function () {
-      var nowMobile = window.innerWidth <= 768;
-      if (nowMobile !== lastMobile) {
-        lastMobile = nowMobile;
-        var sidebar = document.getElementById('cp-sidebar');
-        var toggle = document.querySelector('.cp-mobile-toggle');
-        if (!nowMobile && sidebar) {
-          sidebar.classList.remove('cp-mobile-collapsed');
-          if (toggle) toggle.remove();
-          delete sidebar.dataset.toggleBuilt;
-        } else {
-          initMobileCpToggle();
+      /* re-run after Gradio may re-render tabs */
+      var observer = new MutationObserver(function () {
+        injectTabGroups();
+        initMobileCpToggle();
+      });
+      var wrap = document.querySelector('.tab-wrapper');
+      if (wrap) observer.observe(wrap, { childList: true, subtree: true });
+      /* Reset toggle state on resize crossing 768px boundary */
+      var lastMobile = window.innerWidth <= 768;
+      window.addEventListener('resize', function () {
+        var nowMobile = window.innerWidth <= 768;
+        if (nowMobile !== lastMobile) {
+          lastMobile = nowMobile;
+          var sidebar = document.getElementById('cp-sidebar');
+          var toggle = document.querySelector('.cp-mobile-toggle');
+          if (!nowMobile && sidebar) {
+            sidebar.classList.remove('cp-mobile-collapsed');
+            if (toggle) toggle.remove();
+            delete sidebar.dataset.toggleBuilt;
+          } else {
+            initMobileCpToggle();
+          }
         }
-      }
-    });
-  }
+      });
+    }
 
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', function () { setTimeout(init, 200); });
-  } else {
-    setTimeout(init, 200);
-  }
-})();
-</script>
-""")
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', function () { setTimeout(init, 200); });
+    } else {
+      setTimeout(init, 200);
+    }
+  })();
+}
+"""
+
+with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS, js=_APP_JS) as demo:
+
 
     gr.HTML('<div id="group-indicator" aria-label="Navigation groups"></div>')
+    gr.HTML(build_landing_hero())
 
     with gr.Tabs(elem_id="main-tabs"):
         # ── Get Started ──────────────────────────────────────────────────────
@@ -12547,6 +12886,7 @@ updates the block without duplicating it.
 
                 def _refresh_rollback_rules():
                     return gr.update(choices=get_rule_names())
+                    return gr.update(choices=get_rule_choices())
 
                 rollback_refresh_btn.click(_refresh_rollback_rules, outputs=rollback_rule_selector)
                 rules_tab.select(_refresh_rollback_rules, outputs=rollback_rule_selector)
