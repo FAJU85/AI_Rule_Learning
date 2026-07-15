@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 from datetime import datetime
 from typing import Any
@@ -90,6 +91,73 @@ def _jaccard(a: str, b: str) -> float:
     if not wa and not wb:
         return 0.0
     return len(wa & wb) / len(wa | wb)
+
+
+_SEMANTIC_TERM_RE = re.compile(r"`([^`]{3,80})`|\"([^\"]{3,80})\"|'([^']{3,80})'|\b([A-Z][A-Za-z0-9]+(?:\s+[A-Z][A-Za-z0-9]+){1,4})\b")
+_AVOID_PREFER_RE = re.compile(
+    r"(?:not|never|avoid|stop using|don't use|do not use)\s+(?P<avoid>[a-zA-Z0-9_ /.-]{3,80}?)\s+"
+    r"(?:use|prefer|instead use|switch to|replace with)\s+(?P<prefer>[a-zA-Z0-9_ /.-]{3,80})(?:[.!?]|$)",
+    re.IGNORECASE,
+)
+_MIN_RULE_EVIDENCE = max(1, int(os.environ.get("ARL_MIN_RULE_EVIDENCE", "1") or "1"))
+
+
+def _instance_text(instance: dict) -> str:
+    return " ".join(
+        str(instance.get(key, ""))
+        for key in ("snippet", "evidence", "signal", "description")
+        if instance.get(key)
+    )
+
+
+def _extract_semantic_terms(instances: list[dict], limit: int = 6) -> list[str]:
+    terms: list[str] = []
+    seen: set[str] = set()
+    for instance in instances:
+        text = _instance_text(instance)
+        for match in _SEMANTIC_TERM_RE.finditer(text):
+            term = next((group for group in match.groups() if group), "").strip(" .,;:!?()[]{}")
+            normalized = term.lower()
+            if len(term) < 3 or normalized in seen:
+                continue
+            seen.add(normalized)
+            terms.append(term)
+            if len(terms) >= limit:
+                return terms
+    return terms
+
+
+def _extract_avoid_prefer(instances: list[dict]) -> tuple[str, str] | None:
+    for instance in instances:
+        match = _AVOID_PREFER_RE.search(_instance_text(instance))
+        if match:
+            avoid = match.group("avoid").strip(" .,;:!?()[]{}")
+            prefer = match.group("prefer").strip(" .,;:!?()[]{}")
+            if avoid and prefer:
+                return avoid, prefer
+    return None
+
+
+def _confidence_for_instances(count: int) -> float:
+    if count <= 1:
+        return 0.55
+    if count == 2:
+        return 0.7
+    if count == 3:
+        return 0.82
+    return min(0.95, 0.82 + ((count - 3) * 0.03))
+
+
+def _enrich_instruction(base_instruction: str, instances: list[dict]) -> str:
+    instruction = base_instruction
+    avoid_prefer = _extract_avoid_prefer(instances)
+    if avoid_prefer:
+        avoid, prefer = avoid_prefer
+        instruction += f" Specifically avoid `{avoid}` and prefer `{prefer}` when this pattern appears."
+    terms = _extract_semantic_terms(instances)
+    if terms:
+        instruction += " Evidence terms observed: " + ", ".join(f"`{term}`" for term in terms) + "."
+    return instruction
 
 # ── Rule templates keyed by gap type ──────────────────────────────────────
 
@@ -465,13 +533,18 @@ def detect_gaps(turns: list[dict]) -> dict[str, list[dict]]:
     return gaps
 
 
-def generate_rules(gaps: dict[str, list[dict]]) -> list[dict]:
-    """Convert gap findings into rule dicts, one per gap type."""
+def generate_rules(gaps: dict[str, list[dict]], min_evidence: int | None = None) -> list[dict]:
+    """Convert gap findings into rule dicts, one per gap type.
+
+    ``min_evidence`` defaults to ``ARL_MIN_RULE_EVIDENCE`` (default: 1),
+    so a single session with clear friction can generate a first-use rule.
+    """
     rules = []
     now = datetime.utcnow().isoformat()
+    threshold = _MIN_RULE_EVIDENCE if min_evidence is None else max(1, min_evidence)
 
     for gap_type, instances in gaps.items():
-        if not instances:
+        if len(instances) < threshold:
             continue
         tpl = _TEMPLATES.get(gap_type)
         if not tpl:
@@ -483,12 +556,16 @@ def generate_rules(gaps: dict[str, list[dict]]) -> list[dict]:
         ).hexdigest()[:12]
         layer = tpl.get("failure_layer", 1)
         category = tpl.get("failure_category", "output_quality")
+        evidence_count = len(instances)
+        confidence = _confidence_for_instances(evidence_count)
+        instruction = _enrich_instruction(tpl["instruction"], instances)
+        last_observed = now
         rules.append(
             {
                 "rule_id": rule_id,
                 "name": tpl["name"],
-                "instruction": tpl["instruction"],
-                "action": {"instruction": tpl["instruction"]},
+                "instruction": instruction,
+                "action": {"instruction": instruction},
                 "trigger": {"keywords": tpl["triggers"]},
                 "priority": tpl["priority"],
                 "priority_label": {5: "CRITICAL", 4: "HIGH", 3: "MEDIUM",
@@ -498,7 +575,10 @@ def generate_rules(gaps: dict[str, list[dict]]) -> list[dict]:
                 "failure_category": category,
                 "failure_category_label": _CATEGORY_LABELS.get(category, category),
                 "gap_type": gap_type,
-                "instance_count": len(instances),
+                "instance_count": evidence_count,
+                "evidence_count": evidence_count,
+                "confidence": confidence,
+                "last_observed": last_observed,
                 "is_active": True,
                 "status": "active",
                 "source": "local_detector",

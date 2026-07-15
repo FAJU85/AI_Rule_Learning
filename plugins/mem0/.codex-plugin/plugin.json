@@ -1,0 +1,20 @@
+{
+  "name": "mem0",
+  "version": "0.1.0",
+  "description": "Mem0 plugin placeholder for local Codex marketplace installation.",
+  "author": {
+    "name": "AI Rule Learning maintainers"
+  },
+  "license": "MIT",
+  "keywords": ["memory", "mem0", "codex"],
+  "interface": {
+    "displayName": "Mem0",
+    "shortDescription": "Local Mem0 plugin entry for Codex.",
+    "longDescription": "Placeholder manifest for installing the local Mem0 plugin entry through the repository marketplace.",
+    "developerName": "AI Rule Learning maintainers",
+    "category": "Productivity",
+    "capabilities": ["Read", "Write"],
+    "defaultPrompt": ["Use Mem0 memory for this project."],
+    "brandColor": "#6D5EFc"
+  }
+}

@@ -22,6 +22,11 @@ _HF_REVISION = "main"
 HF_TOKEN = os.environ.get("HF_TOKEN", "")
 
 
+def offline_enabled() -> bool:
+    """Return True when community/Hugging Face network calls are disabled."""
+    return os.environ.get("ARL_OFFLINE", "").strip().lower() in {"1", "true", "yes", "on"}
+
+
 def _gap_pattern(gap: dict) -> dict:
     return {
         "type": gap.get("type", "unknown"),
@@ -37,7 +42,7 @@ def contribute_gaps(gaps_by_type: dict[str, list[dict]], source_hash: str) -> bo
     Only gap type/severity/turn metadata is sent — no conversation text.
     source_hash is SHA-256 of session_id and is used for deduplication only.
     """
-    if not HF_TOKEN:
+    if offline_enabled() or not HF_TOKEN:
         return False
 
     patterns = {gtype: [_gap_pattern(g) for g in gaps] for gtype, gaps in gaps_by_type.items() if gaps}
@@ -96,7 +101,7 @@ def fetch_community_patterns() -> dict[str, dict]:
     Returns {gap_type: {"count": N, "unique_sources": N, "top_signals": [...]}}
     Returns {} on any error or when HF_TOKEN is not set.
     """
-    if not HF_TOKEN:
+    if offline_enabled() or not HF_TOKEN:
         return {}
 
     try:
@@ -204,7 +209,7 @@ def push_community_templates(templates: list[dict]) -> bool:
 
     Requires HF_TOKEN and write access. Returns True on success, False otherwise.
     """
-    if not HF_TOKEN:
+    if offline_enabled() or not HF_TOKEN:
         return False
 
     try:
@@ -230,6 +235,9 @@ def pull_community_templates() -> list[dict]:
     No token required (public dataset). Returns list of template dicts,
     empty list on any error.
     """
+    if offline_enabled():
+        return []
+
     try:
         from huggingface_hub import hf_hub_download
 

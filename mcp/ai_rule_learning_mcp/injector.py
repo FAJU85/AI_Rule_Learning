@@ -63,6 +63,15 @@ def _build_section(rules: list[dict]) -> str:
             rule.get("action", {}).get("instruction") or rule.get("instruction", "")
         ).strip()
         line = f"- **[{label}] {name}**"
+        evidence_count = rule.get("evidence_count", rule.get("instance_count"))
+        confidence = rule.get("confidence")
+        indicators = []
+        if evidence_count is not None:
+            indicators.append(f"evidence={evidence_count}")
+        if confidence is not None:
+            indicators.append(f"confidence={float(confidence):.0%}")
+        if indicators:
+            line += " (" + ", ".join(indicators) + ")"
         if instruction:
             line += f": {instruction}"
         lines.append(line)
@@ -312,5 +321,17 @@ def format_rules_block(rules: list[dict]) -> str:
         lines.append(f"**Rule {i}: {name}** [{label}]")
         if instruction:
             lines.append(f"→ {instruction}")
+        evidence_count = rule.get("evidence_count", rule.get("instance_count"))
+        confidence = rule.get("confidence")
+        last_observed = rule.get("last_observed")
+        indicators = []
+        if evidence_count is not None:
+            indicators.append(f"evidence={evidence_count}")
+        if confidence is not None:
+            indicators.append(f"confidence={float(confidence):.0%}")
+        if last_observed:
+            indicators.append(f"last_observed={last_observed}")
+        if indicators:
+            lines.append("↳ " + "; ".join(indicators))
         lines.append("")
     return "\n".join(lines)

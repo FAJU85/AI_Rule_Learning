@@ -192,3 +192,43 @@ class TestAnalyzeConversations:
         # Same gap type should produce same rule regardless of how many convs
         names = [r["name"] for r in rules]
         assert len(names) == len(set(names))
+
+
+def test_single_session_with_four_friction_patterns_generates_rules():
+    convs = [
+        {
+            "conversation_id": "single",
+            "turns": [
+                _turn("actually, that's wrong — do not use direct service access use Repository Pattern"),
+                _turn("I already told you to use the Repository Pattern"),
+                _turn("you forgot the repository abstraction"),
+                _turn("what about the rejected direct service access approach"),
+            ],
+        }
+    ]
+
+    rules = analyze_conversations(convs)
+
+    assert rules
+    assert any(rule["evidence_count"] >= 1 for rule in rules)
+    assert all("confidence" in rule for rule in rules)
+    assert all("last_observed" in rule for rule in rules)
+
+
+def test_rule_instruction_keeps_domain_specific_avoid_and_prefer_terms():
+    gaps = {
+        "explicit_correction": [
+            {
+                "turn": 2,
+                "signal": "actually,",
+                "snippet": "Actually, do not use direct service access use Repository Pattern.",
+            }
+        ]
+    }
+
+    rule = generate_rules(gaps)[0]
+
+    assert "direct service access" in rule["instruction"]
+    assert "Repository Pattern" in rule["instruction"]
+    assert rule["evidence_count"] == 1
+    assert 0.0 <= rule["confidence"] <= 1.0
