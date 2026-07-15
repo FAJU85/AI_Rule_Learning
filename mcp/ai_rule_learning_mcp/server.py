@@ -8,7 +8,7 @@ Environment variables (all optional):
   HF_TOKEN        HuggingFace write token — enables cloud backup/sync
   ARL_DATASET     Your HF dataset, e.g. "yourname/AI_Rule_Learning"
   ARL_SESSIONS    Comma-separated paths to session dirs/files.
-                  Defaults to ~/.claude/projects (Claude Code).
+                  Defaults to existing Claude dirs: ~/.claude/projects, ~/.claude.
   ARL_CONTRIBUTE  "true" to contribute anonymised gap patterns (default: false)
 """
 
@@ -47,10 +47,18 @@ from .store import _local_load
 from .store import _local_save
 from .store import append_conversations
 from .store import auto_activate_pending_rules
+from .store import edit_rule_instruction
+from .store import get_rule
 from .store import hf_enabled
 from .store import is_already_processed
+from .store import list_rules as store_list_rules
 from .store import load_active_rules
 from .store import mark_processed
+from .store import merge_rules as store_merge_rules
+from .store import record_rule_outcome
+from .store import review_rule_health
+from .store import suggest_duplicate_rules
+from .store import update_rule_status
 
 _CONTRIBUTE = os.environ.get("ARL_CONTRIBUTE", "false").lower() == "true"
 
@@ -59,7 +67,7 @@ _raw = os.environ.get("ARL_SESSIONS", "")
 if _raw:
     _SESSION_PATHS = [Path(p.strip()) for p in _raw.split(",") if p.strip()]
 else:
-    _SESSION_PATHS = [Path.home() / ".claude" / "projects"]
+    _SESSION_PATHS = [Path.home() / ".claude" / "projects", Path.home() / ".claude"]
 
 app = Server("ai-rule-learning")
 
@@ -74,7 +82,16 @@ async def list_tools() -> list[Tool]:
                 "Works with any AI agent — Claude, Codex, Cursor, Windsurf, Copilot. "
                 "Call at the start of important sessions to load your personalised rules."
             ),
-            inputSchema={"type": "object", "properties": {}, "required": []},
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "dry_run": {
+                        "type": "boolean",
+                        "description": "Preview formatted rules without writing them to agent config files.",
+                    }
+                },
+                "required": [],
+            },
         ),
         Tool(
             name="record_feedback",
@@ -84,7 +101,8 @@ async def list_tools() -> list[Tool]:
                 "they already gave, or you fail to complete all parts of a request. "
                 "A rule is generated immediately and written to all detected AI agent "
                 "config files so it applies to every future session automatically. "
-                "No sync required — this works in real time."
+                "No sync required — this works in real time. Required input: "
+                "description — describe what happened and the required correction."
             ),
             inputSchema={
                 "type": "object",
@@ -106,7 +124,10 @@ async def list_tools() -> list[Tool]:
                     },
                     "description": {
                         "type": "string",
-                        "description": "What happened — what the user said or what pattern was observed.",
+                        "description": (
+                            "Required. Description of what happened and the required correction. "
+                            "Example: 'User corrected my answer; always acknowledge the correction and fix it immediately.'"
+                        ),
                     },
                     "rule_hint": {
                         "type": "string",
@@ -114,6 +135,10 @@ async def list_tools() -> list[Tool]:
                             "Optional: a specific instruction for the rule. "
                             "If omitted, a rule is generated from the feedback_type template."
                         ),
+                    },
+                    "dry_run": {
+                        "type": "boolean",
+                        "description": "Preview the generated rule without saving it or writing agent configs.",
                     },
                 },
                 "required": ["feedback_type", "description"],
@@ -155,8 +180,14 @@ async def list_tools() -> list[Tool]:
                             "Optional list of session file paths or directories to scan. "
                             "Supports Claude Code project dirs, ChatGPT conversations.json, "
                             "or any directory of JSONL files. "
-                            "Defaults to ~/.claude/projects if omitted."
+                            "If omitted, scans existing default directories only: "
+                            "~/.claude/projects and ~/.claude. "
+                            "If none exist, pass paths or set ARL_SESSIONS."
                         ),
+                    },
+                    "dry_run": {
+                        "type": "boolean",
+                        "description": "Preview what would be parsed and generated without marking files processed or writing data/configs.",
                     },
                 },
                 "required": [],
@@ -169,7 +200,8 @@ async def list_tools() -> list[Tool]:
                 "in every future AI session across all agents (Claude Code, Cursor, Windsurf, "
                 "Copilot, Codex). Call whenever the user states a preference, mentions their "
                 "stack or projects, or gives context that should always apply. "
-                "This is how the system compounds knowledge over time."
+                "This is how the system compounds knowledge over time. Valid types: "
+                "preference, project, never, user_info, context."
             ),
             inputSchema={
                 "type": "object",
@@ -194,6 +226,10 @@ async def list_tools() -> list[Tool]:
                     "content": {
                         "type": "string",
                         "description": "The fact to remember, stated clearly and concisely.",
+                    },
+                    "dry_run": {
+                        "type": "boolean",
+                        "description": "Preview the memory entry without saving it or writing agent configs.",
                     },
                 },
                 "required": ["type", "content"],
@@ -223,7 +259,11 @@ async def list_tools() -> list[Tool]:
                         "type": "string",
                         "enum": ["install", "uninstall", "status"],
                         "description": "install: set up nightly sync. uninstall: remove it. status: check current state.",
-                    }
+                    },
+                    "dry_run": {
+                        "type": "boolean",
+                        "description": "Preview install/uninstall actions without changing scheduler configuration.",
+                    },
                 },
                 "required": [],
             },
@@ -238,9 +278,10 @@ async def list_tools() -> list[Tool]:
             description=(
                 "Save a reusable workflow procedure so it can be recalled in any future session "
                 "across all AI agents. Call when the user completes a multi-step task that they "
-                "are likely to repeat — e.g. 'create a FastAPI endpoint', 'deploy to Hugging Face'. "
+                "are likely to repeat — e.g. 'create a FastAPI endpoint' or 'prepare a release checklist'. "
                 "The skill is stored locally and its name is injected into every agent config "
-                "so agents know it exists without loading the full steps every time."
+                "so agents know it exists without loading the full steps every time. "
+                "The steps field may be a newline-separated string or an array of step strings."
             ),
             inputSchema={
                 "type": "object",
@@ -254,13 +295,24 @@ async def list_tools() -> list[Tool]:
                         "description": "One sentence explaining what this skill does.",
                     },
                     "steps": {
-                        "type": "string",
-                        "description": "The full procedure in markdown — numbered steps, code blocks, etc.",
+                        "oneOf": [
+                            {"type": "string"},
+                            {"type": "array", "items": {"type": "string"}},
+                        ],
+                        "description": (
+                            "The full procedure in markdown. Use a newline-separated string, "
+                            "for example: 'Step 1: Check input\nStep 2: Process data\nStep 3: Return result'. "
+                            "Arrays of strings are also accepted and joined with newlines."
+                        ),
                     },
                     "triggers": {
                         "type": "array",
                         "items": {"type": "string"},
                         "description": "Keywords or phrases that should trigger loading this skill.",
+                    },
+                    "dry_run": {
+                        "type": "boolean",
+                        "description": "Preview the skill save without writing the skill file or agent configs.",
                     },
                 },
                 "required": ["name", "description", "steps"],
@@ -291,6 +343,170 @@ async def list_tools() -> list[Tool]:
                     }
                 },
                 "required": ["name"],
+            },
+        ),
+        Tool(
+            name="list_rules",
+            description=(
+                "List stored guardrail rules by lifecycle status. Use status='all' for every rule, "
+                "or filter by pending, active, rejected, inactive, stale, needs_review, or merged."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "status": {
+                        "type": "string",
+                        "enum": [
+                            "all",
+                            "pending",
+                            "approved",
+                            "rejected",
+                            "active",
+                            "inactive",
+                            "stale",
+                            "needs_review",
+                            "merged",
+                        ],
+                        "description": "Rule lifecycle status to list. Defaults to active.",
+                    }
+                },
+                "required": [],
+            },
+        ),
+        Tool(
+            name="approve_rule",
+            description="Approve and activate a stored rule so it can be injected into agent configs.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "rule_id": {"type": "string", "description": "Rule id to approve."},
+                    "dry_run": {
+                        "type": "boolean",
+                        "description": "Preview approval without changing the rule store.",
+                    },
+                },
+                "required": ["rule_id"],
+            },
+        ),
+        Tool(
+            name="reject_rule",
+            description="Reject a stored rule so it is not injected into agent configs.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "rule_id": {"type": "string", "description": "Rule id to reject."},
+                    "note": {"type": "string", "description": "Optional review note explaining the rejection."},
+                    "dry_run": {
+                        "type": "boolean",
+                        "description": "Preview rejection without changing the rule store.",
+                    },
+                },
+                "required": ["rule_id"],
+            },
+        ),
+        Tool(
+            name="edit_rule",
+            description="Update a stored rule instruction without manually editing JSONL files.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "rule_id": {"type": "string", "description": "Rule id to edit."},
+                    "instruction": {"type": "string", "description": "Replacement instruction for the rule."},
+                    "dry_run": {
+                        "type": "boolean",
+                        "description": "Preview the edit without changing the rule store.",
+                    },
+                },
+                "required": ["rule_id", "instruction"],
+            },
+        ),
+        Tool(
+            name="merge_rules",
+            description="Mark a duplicate rule as merged into a primary rule.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "primary_rule_id": {"type": "string", "description": "Rule id to keep."},
+                    "duplicate_rule_id": {"type": "string", "description": "Duplicate rule id to merge/deactivate."},
+                    "dry_run": {
+                        "type": "boolean",
+                        "description": "Preview the merge without changing the rule store.",
+                    },
+                },
+                "required": ["primary_rule_id", "duplicate_rule_id"],
+            },
+        ),
+        Tool(
+            name="record_rule_outcome",
+            description="Record whether a rule worked or failed so effectiveness can improve over time.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "rule_id": {"type": "string", "description": "Rule id to score."},
+                    "worked": {
+                        "type": "boolean",
+                        "description": "True if the rule prevented the issue; false if the issue recurred.",
+                    },
+                    "dry_run": {
+                        "type": "boolean",
+                        "description": "Preview the outcome update without changing the rule store.",
+                    },
+                },
+                "required": ["rule_id", "worked"],
+            },
+        ),
+        Tool(
+            name="suggest_duplicate_rules",
+            description=(
+                "Suggest likely duplicate guardrail rules using read-only local similarity so the owner "
+                "can review and merge redundant rules explicitly."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "min_similarity": {
+                        "type": "number",
+                        "description": "Minimum similarity score between 0 and 1. Default: 0.7.",
+                    },
+                    "include_inactive": {
+                        "type": "boolean",
+                        "description": "Include inactive/stale/needs_review rules in suggestions. Default: false.",
+                    },
+                },
+                "required": [],
+            },
+        ),
+        Tool(
+            name="review_rule_health",
+            description=(
+                "Preview or apply rule health review automation. Finds stale active rules "
+                "and low-effectiveness rules that should be reviewed before future injection."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "apply": {
+                        "type": "boolean",
+                        "description": "When true, update matching rule statuses. Defaults to preview only.",
+                    },
+                    "dry_run": {
+                        "type": "boolean",
+                        "description": "Preview changes even when apply=true; no rule store writes occur.",
+                    },
+                    "stale_days": {
+                        "type": "integer",
+                        "description": "Mark active rules stale after this many days without activity. Default: 90.",
+                    },
+                    "low_effectiveness_threshold": {
+                        "type": "number",
+                        "description": "Mark rules needs_review at or below this effectiveness score. Default: 0.3.",
+                    },
+                    "min_triggered": {
+                        "type": "integer",
+                        "description": "Minimum trigger count before low effectiveness can mark a rule. Default: 3.",
+                    },
+                },
+                "required": [],
             },
         ),
         Tool(
@@ -370,11 +586,12 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
     # than letting an unexpected exception propagate (and leak a stack trace).
     try:
         if name == "get_guardrail_rules":
-            return await _get_guardrail_rules()
+            return await _get_guardrail_rules(dry_run=bool(arguments.get("dry_run", False)))
         if name == "remember":
             return await _remember(
                 memory_type=arguments.get("type", "context"),
                 content=arguments.get("content", ""),
+                dry_run=bool(arguments.get("dry_run", False)),
             )
         if name == "recall":
             return await _recall()
@@ -383,13 +600,21 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 feedback_type=arguments.get("feedback_type", "correction"),
                 description=arguments.get("description", ""),
                 rule_hint=arguments.get("rule_hint", ""),
+                dry_run=bool(arguments.get("dry_run", False)),
             )
         if name == "sync_sessions":
             paths = [Path(p) for p in arguments.get("paths", [])] or None
             contribute = arguments.get("contribute", _CONTRIBUTE)
-            return await _sync_sessions(paths=paths, contribute=contribute)
+            return await _sync_sessions(
+                paths=paths,
+                contribute=contribute,
+                dry_run=bool(arguments.get("dry_run", False)),
+            )
         if name == "install_scheduler":
-            return await _install_scheduler(arguments.get("action", "install"))
+            return await _install_scheduler(
+                arguments.get("action", "install"),
+                dry_run=bool(arguments.get("dry_run", False)),
+            )
         if name == "list_providers":
             return await _list_providers()
         if name == "save_skill":
@@ -398,11 +623,57 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 description=arguments.get("description", ""),
                 steps=arguments.get("steps", ""),
                 triggers=arguments.get("triggers", []),
+                dry_run=bool(arguments.get("dry_run", False)),
             )
         if name == "list_skills":
             return await _list_skills()
         if name == "get_skill":
             return await _get_skill(arguments.get("name", ""))
+        if name == "list_rules":
+            return await _list_rules(status=arguments.get("status", "active"))
+        if name == "approve_rule":
+            return await _approve_rule(
+                rule_id=arguments.get("rule_id", ""),
+                dry_run=bool(arguments.get("dry_run", False)),
+            )
+        if name == "reject_rule":
+            return await _reject_rule(
+                rule_id=arguments.get("rule_id", ""),
+                note=arguments.get("note", ""),
+                dry_run=bool(arguments.get("dry_run", False)),
+            )
+        if name == "edit_rule":
+            return await _edit_rule(
+                rule_id=arguments.get("rule_id", ""),
+                instruction=arguments.get("instruction", ""),
+                dry_run=bool(arguments.get("dry_run", False)),
+            )
+        if name == "merge_rules":
+            return await _merge_rules(
+                primary_rule_id=arguments.get("primary_rule_id", ""),
+                duplicate_rule_id=arguments.get("duplicate_rule_id", ""),
+                dry_run=bool(arguments.get("dry_run", False)),
+            )
+        if name == "record_rule_outcome":
+            return await _record_rule_outcome(
+                rule_id=arguments.get("rule_id", ""),
+                worked=bool(arguments.get("worked", False)),
+                dry_run=bool(arguments.get("dry_run", False)),
+            )
+
+        if name == "suggest_duplicate_rules":
+            return await _suggest_duplicate_rules(
+                min_similarity=float(arguments.get("min_similarity", 0.7)),
+                include_inactive=bool(arguments.get("include_inactive", False)),
+            )
+        if name == "review_rule_health":
+            return await _review_rule_health(
+                apply=bool(arguments.get("apply", False)),
+                dry_run=bool(arguments.get("dry_run", False)),
+                stale_days=int(arguments.get("stale_days", 90)),
+                low_effectiveness_threshold=float(arguments.get("low_effectiveness_threshold", 0.3)),
+                min_triggered=int(arguments.get("min_triggered", 3)),
+            )
         if name == "analyze":
             return await _analyze(
                 action=arguments.get("action", "all"),
@@ -411,15 +682,13 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 fired_again=arguments.get("fired_again"),
             )
         if name == "update_community_knowledge":
-            return await _update_community_knowledge(
-                min_sources=int(arguments.get("min_sources", 3))
-            )
+            return await _update_community_knowledge(min_sources=int(arguments.get("min_sources", 3)))
         return [TextContent(type="text", text=f"Unknown tool: {name}")]
     except Exception as exc:  # noqa: BLE001 — boundary handler, report not crash
         return [TextContent(type="text", text=f"❌ {name} failed: {type(exc).__name__}: {exc}")]
 
 
-async def _get_guardrail_rules() -> list[TextContent]:
+async def _get_guardrail_rules(dry_run: bool = False) -> list[TextContent]:
     rules = load_active_rules()
     if not rules:
         return [
@@ -432,13 +701,29 @@ async def _get_guardrail_rules() -> list[TextContent]:
                 ),
             )
         ]
+    if dry_run:
+        return [
+            TextContent(
+                type="text",
+                text="🔎 Dry run: would refresh guardrail rules in detected agent configs.\n\n"
+                + format_rules_block(rules),
+            )
+        ]
     write_rules_all(rules)
     return [TextContent(type="text", text=format_rules_block(rules))]
 
 
-async def _remember(memory_type: str, content: str) -> list[TextContent]:
+async def _remember(memory_type: str, content: str, dry_run: bool = False) -> list[TextContent]:
     if not content.strip():
         return [TextContent(type="text", text="❌ Content cannot be empty.")]
+
+    if dry_run:
+        return [
+            TextContent(
+                type="text",
+                text=f"🔎 Dry run: would remember [{memory_type}]: {content.strip()}",
+            )
+        ]
 
     entry = add_memory(memory_type, content)
     entries = load_memory()
@@ -466,6 +751,7 @@ async def _record_feedback(
     feedback_type: str,
     description: str,
     rule_hint: str = "",
+    dry_run: bool = False,
 ) -> list[TextContent]:
     _GAP_MAP = {
         "correction": "explicit_correction",
@@ -485,6 +771,18 @@ async def _record_feedback(
         rules[0]["action"] = {"instruction": rule_hint}
         rules[0]["instruction"] = rule_hint
 
+    rule_name = rules[0].get("name", "new rule")
+    if dry_run:
+        return [
+            TextContent(
+                type="text",
+                text=(
+                    f"🔎 Dry run: would create rule **{rule_name}** from "
+                    f"{feedback_type} feedback. No rule store or agent config files changed."
+                ),
+            )
+        ]
+
     existing = _local_load("rules.jsonl")
     existing_ids = {r.get("rule_id") for r in existing}
     new_rules = [r for r in rules if r.get("rule_id") not in existing_ids]
@@ -495,7 +793,6 @@ async def _record_feedback(
     written = write_rules_all(all_rules)
     targets_str = ", ".join(name for name, _ in written) if written else "no agent configs detected"
 
-    rule_name = rules[0].get("name", "new rule")
     action = "Created" if new_rules else "Already known"
 
     return [
@@ -513,11 +810,23 @@ async def _record_feedback(
 async def _sync_sessions(
     paths: list[Path] | None = None,
     contribute: bool = False,
+    dry_run: bool = False,
 ) -> list[TextContent]:
     log: list[str] = []
+    if dry_run:
+        log.append("🔎 Dry run: no session files will be marked processed and no data/config files will be written.")
 
-    scan_paths = paths or _SESSION_PATHS
+    requested_paths = [Path(p) for p in paths] if paths else []
+    default_paths = [Path(p) for p in _SESSION_PATHS]
+    scan_paths = requested_paths or [path for path in default_paths if path.exists()]
     session_files: list[Path] = []
+
+    if not scan_paths:
+        defaults = ", ".join(str(path) for path in default_paths)
+        log.append("⚠️  No session directories found.")
+        log.append("Set ARL_SESSIONS or pass paths/session_paths to sync_sessions.")
+        log.append(f"Checked defaults: {defaults}")
+        return [TextContent(type="text", text="\n".join(log))]
 
     for sp in scan_paths:
         sp = Path(sp)
@@ -548,16 +857,20 @@ async def _sync_sessions(
         convs = parse_any(path)
         if convs:
             all_conversations.extend(convs)
-            mark_processed(path)
+            if not dry_run:
+                mark_processed(path)
 
     log.append(f"✅ Parsed {len(all_conversations)} valid conversation(s)")
 
     if not all_conversations:
         rules = load_active_rules()
         if rules:
-            written = write_rules_all(rules)
-            targets = ", ".join(n for n, _ in written)
-            log.append(f"📝 {len(rules)} existing rule(s) refreshed → {targets}")
+            if dry_run:
+                log.append(f"🔎 Dry run: would refresh {len(rules)} existing rule(s)")
+            else:
+                written = write_rules_all(rules)
+                targets = ", ".join(n for n, _ in written)
+                log.append(f"📝 {len(rules)} existing rule(s) refreshed → {targets}")
         else:
             log.append("ℹ️  No new conversations and no existing rules yet.")
         return [TextContent(type="text", text="\n".join(log))]
@@ -569,20 +882,27 @@ async def _sync_sessions(
         existing_ids = {r.get("rule_id") for r in existing}
         new_rules = [r for r in detected_rules if r.get("rule_id") not in existing_ids]
         if new_rules:
-            _local_save("rules.jsonl", existing + new_rules)
-            log.append(f"🧠 Generated {len(new_rules)} new rule(s) from detected patterns")
+            if dry_run:
+                log.append(f"🔎 Dry run: would generate {len(new_rules)} new rule(s) from detected patterns")
+            else:
+                _local_save("rules.jsonl", existing + new_rules)
+                log.append(f"🧠 Generated {len(new_rules)} new rule(s) from detected patterns")
         else:
             log.append("ℹ️  All detected patterns already have rules")
 
     # ── HF upload (optional) ───────────────────────────────────────────────
-    added = append_conversations(all_conversations)
+    added = 0 if dry_run else append_conversations(all_conversations)
+    if dry_run and all_conversations:
+        log.append(f"🔎 Dry run: would save {len(all_conversations)} conversation(s) locally")
     if added:
         if hf_enabled():
             log.append(f"⬆️  Uploaded {added} new conversation(s) to HF dataset")
         else:
             log.append(f"💾 Saved {added} new conversation(s) locally (no HF token — upload skipped)")
 
-    if contribute:
+    if contribute and dry_run:
+        log.append("🔎 Dry run: would evaluate anonymised community contribution eligibility")
+    if contribute and not dry_run:
         contributed = 0
         for conv in all_conversations:
             gaps_by_type: dict[str, list] = {}
@@ -597,14 +917,15 @@ async def _sync_sessions(
         if contributed:
             log.append(f"🤝 Contributed anonymised patterns from {contributed} session(s)")
 
-    activated = auto_activate_pending_rules()
+    activated = 0 if dry_run else auto_activate_pending_rules()
     if activated:
         log.append(f"✅ Auto-activated {activated} safe pending rule(s) from HF dataset")
 
     # ── RAG: pull and load community templates ─────────────────────────────
     from .community import pull_community_templates
     from .gap_detector import load_community_templates
-    community_tpls = pull_community_templates()
+
+    community_tpls = [] if dry_run else pull_community_templates()
     if community_tpls:
         load_community_templates(community_tpls)
         log.append(f"🔍 Loaded {len(community_tpls)} community-derived template(s) for RAG augmentation")
@@ -612,24 +933,29 @@ async def _sync_sessions(
     # ── Write to all detected agent configs ────────────────────────────────
     rules = load_active_rules()
     if rules:
-        written = write_rules_all(rules)
-        if written:
-            targets = ", ".join(n for n, _ in written)
-            log.append(f"📝 {len(rules)} rule(s) written to: {targets}")
-        log.append("🎉 Rules will apply automatically to every future session!")
+        if dry_run:
+            log.append(f"🔎 Dry run: would write {len(rules)} active rule(s) to detected agent configs")
+        else:
+            written = write_rules_all(rules)
+            if written:
+                targets = ", ".join(n for n, _ in written)
+                log.append(f"📝 {len(rules)} rule(s) written to: {targets}")
+            log.append("🎉 Rules will apply automatically to every future session!")
     else:
         log.append("ℹ️  No active rules yet — need more session data")
 
     return [TextContent(type="text", text="\n".join(log))]
 
 
-async def _install_scheduler(action: str = "install") -> list[TextContent]:
+async def _install_scheduler(action: str = "install", dry_run: bool = False) -> list[TextContent]:
     from .scheduler import install
     from .scheduler import is_installed
     from .scheduler import status
     from .scheduler import uninstall
 
     if action == "uninstall":
+        if dry_run:
+            return [TextContent(type="text", text="🔎 Dry run: would remove the nightly auto-sync job.")]
         removed = uninstall()
         msg = "✅ Nightly auto-sync removed." if removed else "ℹ️  No auto-sync job found."
         return [TextContent(type="text", text=msg)]
@@ -638,6 +964,9 @@ async def _install_scheduler(action: str = "install") -> list[TextContent]:
         return [TextContent(type="text", text=status())]
 
     # install
+    if dry_run:
+        return [TextContent(type="text", text="🔎 Dry run: would install the nightly auto-sync job at 02:00.")]
+
     if is_installed():
         return [TextContent(type="text", text=f"ℹ️  Already installed.\n{status()}")]
 
@@ -670,27 +999,37 @@ async def _list_providers() -> list[TextContent]:
         if not sp.exists():
             lines.append(f"  ❌ {sp} — not found")
             continue
-        count = sum(1 for _ in sp.rglob("*.jsonl")) + sum(
-            1 for _ in sp.rglob("conversations.json")
-        )
+        count = sum(1 for _ in sp.rglob("*.jsonl")) + sum(1 for _ in sp.rglob("conversations.json"))
         lines.append(f"  ✅ {sp} — {count} file(s)")
     lines.append("")
-    lines.append(
-        "**Supported formats:** Claude Code (.jsonl), ChatGPT export (conversations.json), Generic JSONL"
-    )
+    lines.append("**Supported formats:** Claude Code (.jsonl), ChatGPT export (conversations.json), Generic JSONL")
     return [TextContent(type="text", text="\n".join(lines))]
 
 
 async def _save_skill(
     skill_name: str,
     description: str,
-    steps: str,
+    steps: str | list[str],
     triggers: list[str] | None = None,
+    dry_run: bool = False,
 ) -> list[TextContent]:
+    if isinstance(steps, list):
+        steps = "\n".join(str(step) for step in steps)
+    else:
+        steps = str(steps)
+
     if not skill_name.strip():
         return [TextContent(type="text", text="❌ Skill name cannot be empty.")]
     if not steps.strip():
         return [TextContent(type="text", text="❌ Steps cannot be empty.")]
+
+    if dry_run:
+        return [
+            TextContent(
+                type="text",
+                text=f"🔎 Dry run: would save skill **{skill_name.strip()}** and refresh agent configs.",
+            )
+        ]
 
     skill = save_skill(skill_name, description, steps, triggers or [])
     skills = list_skills()
@@ -705,7 +1044,7 @@ async def _save_skill(
                 f"Slug: {skill['slug']}\n"
                 f"Written to: {targets_str}\n"
                 f"Total skills: {len(skills)}\n\n"
-                f"Call `get_skill(\"{skill['name']}\")` to load the full steps."
+                f'Call `get_skill("{skill["name"]}")` to load the full steps.'
             ),
         )
     ]
@@ -725,13 +1064,159 @@ async def _get_skill(name: str) -> list[TextContent]:
         return [
             TextContent(
                 type="text",
-                text=(
-                    f"❌ Skill not found: {name!r}\n"
-                    "Use list_skills to see available skills."
-                ),
+                text=(f"❌ Skill not found: {name!r}\nUse list_skills to see available skills."),
             )
         ]
     return [TextContent(type="text", text=format_skill_detail(skill))]
+
+
+def _format_rule_summary(rules: list[dict], title: str) -> str:
+    if not rules:
+        return f"No {title.lower()} rules found."
+    lines = [f"{title} ({len(rules)}):", ""]
+    for rule in rules:
+        name = rule.get("name", rule.get("rule_id", "rule"))
+        rule_id = rule.get("rule_id", "?")
+        status = rule.get("status", "active")
+        label = rule.get("priority_label", "MEDIUM")
+        instruction = rule.get("action", {}).get("instruction") or rule.get("instruction", "")
+        lines.append(f"- [{label}] {name}")
+        lines.append(f"  id: {rule_id} | status: {status}")
+        if instruction:
+            lines.append(f"  → {instruction}")
+    return "\n".join(lines)
+
+
+async def _list_rules(status: str = "active") -> list[TextContent]:
+    normalized = (status or "active").strip().lower()
+    rules = store_list_rules(status=None if normalized == "all" else normalized)
+    title = "All rules" if normalized == "all" else f"{normalized} rules"
+    return [TextContent(type="text", text=_format_rule_summary(rules, title))]
+
+
+async def _approve_rule(rule_id: str, dry_run: bool = False) -> list[TextContent]:
+    if not rule_id.strip():
+        return [TextContent(type="text", text="❌ Rule id cannot be empty.")]
+    if dry_run:
+        return [TextContent(type="text", text=f"🔎 Dry run: would approve and activate rule {rule_id!r}.")]
+    rule = update_rule_status(rule_id, "active")
+    if rule is None:
+        return [TextContent(type="text", text=f"❌ Rule not found: {rule_id}")]
+    return [TextContent(type="text", text=f"✅ Approved and activated rule: {rule_id}")]
+
+
+async def _reject_rule(rule_id: str, note: str = "", dry_run: bool = False) -> list[TextContent]:
+    if not rule_id.strip():
+        return [TextContent(type="text", text="❌ Rule id cannot be empty.")]
+    if dry_run:
+        return [TextContent(type="text", text=f"🔎 Dry run: would reject rule {rule_id!r}.")]
+    rule = update_rule_status(rule_id, "rejected", note=note)
+    if rule is None:
+        return [TextContent(type="text", text=f"❌ Rule not found: {rule_id}")]
+    return [TextContent(type="text", text=f"✅ Rejected rule: {rule_id}")]
+
+
+async def _edit_rule(rule_id: str, instruction: str, dry_run: bool = False) -> list[TextContent]:
+    if not rule_id.strip():
+        return [TextContent(type="text", text="❌ Rule id cannot be empty.")]
+    if not instruction.strip():
+        return [TextContent(type="text", text="❌ Instruction cannot be empty.")]
+    if dry_run:
+        return [TextContent(type="text", text=f"🔎 Dry run: would update instruction for rule {rule_id!r}.")]
+    rule = edit_rule_instruction(rule_id, instruction)
+    if rule is None:
+        return [TextContent(type="text", text=f"❌ Rule not found: {rule_id}")]
+    return [TextContent(type="text", text=f"✅ Updated rule instruction: {rule_id}")]
+
+
+async def _merge_rules(
+    primary_rule_id: str,
+    duplicate_rule_id: str,
+    dry_run: bool = False,
+) -> list[TextContent]:
+    if not primary_rule_id.strip() or not duplicate_rule_id.strip():
+        return [TextContent(type="text", text="❌ Both primary_rule_id and duplicate_rule_id are required.")]
+    if dry_run:
+        return [
+            TextContent(
+                type="text",
+                text=f"🔎 Dry run: would merge duplicate rule {duplicate_rule_id!r} into {primary_rule_id!r}.",
+            )
+        ]
+    rule = store_merge_rules(primary_rule_id, duplicate_rule_id)
+    if rule is None:
+        return [TextContent(type="text", text=f"❌ Could not find both rules: {primary_rule_id}, {duplicate_rule_id}")]
+    return [TextContent(type="text", text=f"✅ Merged {duplicate_rule_id} into {primary_rule_id}")]
+
+
+async def _record_rule_outcome(
+    rule_id: str,
+    worked: bool,
+    dry_run: bool = False,
+) -> list[TextContent]:
+    if not rule_id.strip():
+        return [TextContent(type="text", text="❌ Rule id cannot be empty.")]
+    if dry_run:
+        outcome = "worked" if worked else "failed"
+        return [TextContent(type="text", text=f"🔎 Dry run: would record rule {rule_id!r} outcome as {outcome}.")]
+    rule = record_rule_outcome(rule_id, fired_again=not worked)
+    if rule is None:
+        return [TextContent(type="text", text=f"❌ Rule not found: {rule_id}")]
+    score = rule.get("effectiveness_score", "unknown")
+    return [TextContent(type="text", text=f"✅ Recorded outcome for rule: {rule_id} (effectiveness: {score})")]
+
+
+async def _suggest_duplicate_rules(
+    min_similarity: float = 0.7,
+    include_inactive: bool = False,
+) -> list[TextContent]:
+    suggestions = suggest_duplicate_rules(min_similarity=min_similarity, include_inactive=include_inactive)
+    if not suggestions:
+        return [TextContent(type="text", text="No likely duplicate rules found.")]
+    lines = [f"Likely duplicate rules ({len(suggestions)}):", ""]
+    for item in suggestions:
+        lines.append(
+            f"- {item['primary_rule_id']} ↔ {item['duplicate_rule_id']} (similarity: {item['similarity']:.0%})"
+        )
+        lines.append(f"  {item['primary_name']} / {item['duplicate_name']}")
+    lines.append("")
+    lines.append("Review candidates, then call merge_rules if a pair should be merged.")
+    return [TextContent(type="text", text="\n".join(lines))]
+
+
+async def _review_rule_health(
+    apply: bool = False,
+    dry_run: bool = False,
+    stale_days: int = 90,
+    low_effectiveness_threshold: float = 0.3,
+    min_triggered: int = 3,
+) -> list[TextContent]:
+    report = review_rule_health(
+        stale_days=stale_days,
+        low_effectiveness_threshold=low_effectiveness_threshold,
+        min_triggered=min_triggered,
+        apply=apply and not dry_run,
+    )
+    mode = "applied" if report["applied"] else "preview"
+    lines = [
+        f"Rule health review ({mode}):",
+        f"stale: {len(report['stale'])}",
+        f"needs_review: {len(report['needs_review'])}",
+    ]
+    for title in ("stale", "needs_review"):
+        rules = report[title]
+        if rules:
+            lines.append("")
+            lines.append(f"{title} candidates:")
+            for rule in rules:
+                lines.append(f"- {rule.get('rule_id')}: {rule.get('name', 'Unnamed rule')}")
+    if dry_run:
+        lines.append("")
+        lines.append("🔎 Dry run: would update matching rule statuses if apply=true.")
+    elif not apply:
+        lines.append("")
+        lines.append("Preview only. Re-run with apply=true to update rule statuses.")
+    return [TextContent(type="text", text="\n".join(lines))]
 
 
 async def _analyze(
@@ -748,6 +1233,7 @@ async def _update_community_knowledge(min_sources: int = 3) -> list[TextContent]
     from .community import build_community_templates
     from .community import fetch_community_patterns
     from .community import push_community_templates
+
     log = []
     freq = fetch_community_patterns()
     if not freq:

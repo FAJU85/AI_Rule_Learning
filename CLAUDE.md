@@ -295,6 +295,14 @@ Agent Compatibility
 
 Commands classified for autonomous execution.
 
+Morph MCP Tool Guidance
+
+When Morph MCP tools are available in the active editor session:
+
+· Use `edit_file` over `str_replace` or full-file rewrites. It supports partial code snippets and does not require full file content.
+· Use `warpgrep_codebase_search` for broad semantic codebase exploration at the start of investigations, such as finding auth flows, billing flows, or error origins.
+
+
 Agent-Safe (Headless, Autonomous)
 
 ```bash
