@@ -4,6 +4,12 @@ import importlib
 import importlib.util
 from pathlib import Path
 from types import SimpleNamespace
+
+import pytest
+
+
+def _load_space_app():
+    pytest.importorskip("gradio", reason="Space import smoke test requires Gradio from space/requirements.txt")
 import importlib.util
 from pathlib import Path
 
@@ -72,3 +78,10 @@ def test_space_app_does_not_import_installed_store_helpers(monkeypatch):
     assert module.find_rule_health_candidates is module._fallback_rule_health_candidates
     assert module.suggest_duplicate_rules_from_records is module._fallback_duplicate_rules_from_records
     assert module._store_helper_import_error is None
+
+
+def test_space_app_source_has_no_startup_store_helper_imports():
+    source = Path(__file__).with_name("app.py").read_text(encoding="utf-8")
+
+    assert "from ai_rule_learning_mcp.store import find_rule_health_candidates" not in source
+    assert "from ai_rule_learning_mcp.store import suggest_duplicate_rules_from_records" not in source

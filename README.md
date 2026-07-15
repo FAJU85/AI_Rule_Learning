@@ -227,6 +227,7 @@ Depending on your OS, the package uses one of these mechanisms:
 | Linux | systemd user timer when available, otherwise cron |
 | Other | cron fallback when available                      |
 
+
 Check scheduler status:
 
 ```bash

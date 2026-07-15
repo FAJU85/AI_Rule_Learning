@@ -36,13 +36,19 @@ Run the MCP server:
 ai-rule-learning-mcp
 ```
 
+```bash
+ai-rule-learning-mcp
+```
+
 Run the CLI directly:
 
-## Installation
+Run the CLI directly:
 
 ```bash
-pip install ai-rule-learning-mcp
+ai-rule-learning status
 ```
+
+---
 
 Run the MCP server:
 
@@ -419,6 +425,64 @@ Add the server to an MCP-compatible client configuration:
 ```
 
 ---
+
+## CLI commands
+
+```bash
+# Scan sessions and generate rules
+ai-rule-learning sync
+
+# Preview sync without writing local storage or agent config files
+ai-rule-learning sync --dry-run
+
+# Show current rules and detected agent configs
+ai-rule-learning status
+
+# Print active rules
+ai-rule-learning rules
+
+# Review and manage rule lifecycle
+ai-rule-learning rules pending
+ai-rule-learning rules approve <rule-id>
+ai-rule-learning rules reject <rule-id>
+ai-rule-learning rules edit <rule-id> "Always run focused tests first"
+ai-rule-learning rules merge <primary-rule-id> <duplicate-rule-id>
+ai-rule-learning rules outcome <rule-id> --worked
+ai-rule-learning rules outcome <rule-id> --failed
+ai-rule-learning rules health
+ai-rule-learning rules health --apply
+ai-rule-learning rules duplicates
+
+# Remove all injected sections
+ai-rule-learning clear
+
+# Preview destructive/write operations before changing files
+ai-rule-learning clear --dry-run
+
+# Memory
+ai-rule-learning memory show
+ai-rule-learning memory add preference "Always use type hints in Python"
+ai-rule-learning memory add preference "Always use type hints in Python" --dry-run
+ai-rule-learning memory clear
+ai-rule-learning memory clear --dry-run
+
+# Skills
+ai-rule-learning skills
+ai-rule-learning skills show "Deploy Workflow"
+ai-rule-learning skills delete "Old Workflow"
+
+# Auto-sync scheduler
+ai-rule-learning install-cron
+ai-rule-learning cron-status
+ai-rule-learning uninstall-cron
+ai-rule-learning install-cron --dry-run
+ai-rule-learning uninstall-cron --dry-run
+
+# Privacy-preserving opt-in metrics
+ai-rule-learning metrics status
+ai-rule-learning metrics preview
+ai-rule-learning metrics enable
+ai-rule-learning metrics disable
 
 ## CLI commands
 
@@ -517,6 +581,11 @@ ai-rule-learning clear
 ```
 
 These commands are implemented by the `ai-rule-learning` console script.
+
+Usage metrics are **disabled by default**. If you opt in, the CLI records only anonymous aggregate labels such as
+command/tool names, success/failure counts, package version, Python version bucket, and OS family. It never records
+prompts, rule text, memory content, file paths, usernames, repo names, hostnames, or agent config content. Run
+`ai-rule-learning metrics preview` before enabling sharing to inspect the exact aggregate payload.
 
 ---
 
@@ -599,6 +668,32 @@ All local data is stored under `~/.ai-rule-learning/`:
   processed.jsonl      Deduplication index
   skills/              Saved skill procedures, one markdown file per skill
   sync.log             Auto-sync output
+```
+
+---
+
+## Auto-sync scheduler
+
+The scheduler is opt-in. It is only installed when you run:
+
+```bash
+ai-rule-learning install-cron
+```
+
+Depending on your OS, the package uses one of these mechanisms:
+
+| OS    | Mechanism                                         |
+| ----- | ------------------------------------------------- |
+| macOS | LaunchAgent                                       |
+| Linux | systemd user timer when available, otherwise cron |
+| Other | cron fallback when available                      |
+
+Check scheduler status:
+
+```bash
+ai-rule-learning cron-status
+```
+
 ```
 
 ---

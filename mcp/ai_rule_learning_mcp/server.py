@@ -8,7 +8,7 @@ Environment variables (all optional):
   HF_TOKEN        HuggingFace write token — enables cloud backup/sync
   ARL_DATASET     Your HF dataset, e.g. "yourname/AI_Rule_Learning"
   ARL_SESSIONS    Comma-separated paths to session dirs/files.
-                  Defaults to ~/.claude/projects (Claude Code).
+                  Defaults to existing Claude dirs: ~/.claude/projects, ~/.claude.
   ARL_CONTRIBUTE  "true" to contribute anonymised gap patterns (default: false)
 """
 
@@ -67,7 +67,7 @@ _raw = os.environ.get("ARL_SESSIONS", "")
 if _raw:
     _SESSION_PATHS = [Path(p.strip()) for p in _raw.split(",") if p.strip()]
 else:
-    _SESSION_PATHS = [Path.home() / ".claude" / "projects"]
+    _SESSION_PATHS = [Path.home() / ".claude" / "projects", Path.home() / ".claude"]
 
 app = Server("ai-rule-learning")
 
@@ -101,7 +101,8 @@ async def list_tools() -> list[Tool]:
                 "they already gave, or you fail to complete all parts of a request. "
                 "A rule is generated immediately and written to all detected AI agent "
                 "config files so it applies to every future session automatically. "
-                "No sync required — this works in real time."
+                "No sync required — this works in real time. Required input: "
+                "description — describe what happened and the required correction."
             ),
             inputSchema={
                 "type": "object",
@@ -123,7 +124,10 @@ async def list_tools() -> list[Tool]:
                     },
                     "description": {
                         "type": "string",
-                        "description": "What happened — what the user said or what pattern was observed.",
+                        "description": (
+                            "Required. Description of what happened and the required correction. "
+                            "Example: 'User corrected my answer; always acknowledge the correction and fix it immediately.'"
+                        ),
                     },
                     "rule_hint": {
                         "type": "string",
@@ -176,7 +180,9 @@ async def list_tools() -> list[Tool]:
                             "Optional list of session file paths or directories to scan. "
                             "Supports Claude Code project dirs, ChatGPT conversations.json, "
                             "or any directory of JSONL files. "
-                            "Defaults to ~/.claude/projects if omitted."
+                            "If omitted, scans existing default directories only: "
+                            "~/.claude/projects and ~/.claude. "
+                            "If none exist, pass paths or set ARL_SESSIONS."
                         ),
                     },
                     "dry_run": {
@@ -194,7 +200,8 @@ async def list_tools() -> list[Tool]:
                 "in every future AI session across all agents (Claude Code, Cursor, Windsurf, "
                 "Copilot, Codex). Call whenever the user states a preference, mentions their "
                 "stack or projects, or gives context that should always apply. "
-                "This is how the system compounds knowledge over time."
+                "This is how the system compounds knowledge over time. Valid types: "
+                "preference, project, never, user_info, context."
             ),
             inputSchema={
                 "type": "object",
@@ -273,7 +280,8 @@ async def list_tools() -> list[Tool]:
                 "across all AI agents. Call when the user completes a multi-step task that they "
                 "are likely to repeat — e.g. 'create a FastAPI endpoint' or 'prepare a release checklist'. "
                 "The skill is stored locally and its name is injected into every agent config "
-                "so agents know it exists without loading the full steps every time."
+                "so agents know it exists without loading the full steps every time. "
+                "The steps field may be a newline-separated string or an array of step strings."
             ),
             inputSchema={
                 "type": "object",
@@ -287,8 +295,15 @@ async def list_tools() -> list[Tool]:
                         "description": "One sentence explaining what this skill does.",
                     },
                     "steps": {
-                        "type": "string",
-                        "description": "The full procedure in markdown — numbered steps, code blocks, etc.",
+                        "oneOf": [
+                            {"type": "string"},
+                            {"type": "array", "items": {"type": "string"}},
+                        ],
+                        "description": (
+                            "The full procedure in markdown. Use a newline-separated string, "
+                            "for example: 'Step 1: Check input\nStep 2: Process data\nStep 3: Return result'. "
+                            "Arrays of strings are also accepted and joined with newlines."
+                        ),
                     },
                     "triggers": {
                         "type": "array",
@@ -801,8 +816,17 @@ async def _sync_sessions(
     if dry_run:
         log.append("🔎 Dry run: no session files will be marked processed and no data/config files will be written.")
 
-    scan_paths = paths or _SESSION_PATHS
+    requested_paths = [Path(p) for p in paths] if paths else []
+    default_paths = [Path(p) for p in _SESSION_PATHS]
+    scan_paths = requested_paths or [path for path in default_paths if path.exists()]
     session_files: list[Path] = []
+
+    if not scan_paths:
+        defaults = ", ".join(str(path) for path in default_paths)
+        log.append("⚠️  No session directories found.")
+        log.append("Set ARL_SESSIONS or pass paths/session_paths to sync_sessions.")
+        log.append(f"Checked defaults: {defaults}")
+        return [TextContent(type="text", text="\n".join(log))]
 
     for sp in scan_paths:
         sp = Path(sp)
@@ -985,10 +1009,15 @@ async def _list_providers() -> list[TextContent]:
 async def _save_skill(
     skill_name: str,
     description: str,
-    steps: str,
+    steps: str | list[str],
     triggers: list[str] | None = None,
     dry_run: bool = False,
 ) -> list[TextContent]:
+    if isinstance(steps, list):
+        steps = "\n".join(str(step) for step in steps)
+    else:
+        steps = str(steps)
+
     if not skill_name.strip():
         return [TextContent(type="text", text="❌ Skill name cannot be empty.")]
     if not steps.strip():

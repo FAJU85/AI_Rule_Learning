@@ -12326,6 +12326,21 @@ _APP_JS = r"""
       { label: 'Governance',       first: 6, last: 7, tabs: [6, 7] }
     ];
 
+
+
+_APP_JS = r"""
+() => {
+  (function () {
+    'use strict';
+
+    /* Tab groups: [groupLabel, firstTabIndex, lastTabIndex] */
+    var GROUPS = [
+      { label: 'Overview',         first: 0, last: 1, tabs: [0, 1] },
+      { label: 'Rule Management',  first: 2, last: 3, tabs: [2, 3] },
+      { label: 'Observability',    first: 4, last: 5, tabs: [4, 5] },
+      { label: 'Governance',       first: 6, last: 7, tabs: [6, 7] }
+    ];
+
     function getGroupForTab(idx) {
       for (var i = 0; i < GROUPS.length; i++) {
         if (idx >= GROUPS[i].first && idx <= GROUPS[i].last) return i;
@@ -12484,6 +12499,8 @@ _APP_JS = r"""
   })();
 }
 """
+
+with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS, js=_APP_JS) as demo:
 
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', function () { setTimeout(init, 200); });
