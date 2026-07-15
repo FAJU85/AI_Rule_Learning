@@ -10,6 +10,11 @@ import pytest
 
 def _load_space_app():
     pytest.importorskip("gradio", reason="Space import smoke test requires Gradio from space/requirements.txt")
+import importlib.util
+from pathlib import Path
+
+
+def _load_space_app():
     app_path = Path(__file__).with_name("app.py")
     spec = importlib.util.spec_from_file_location("space_app_smoke", app_path)
     module = importlib.util.module_from_spec(spec)
