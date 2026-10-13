@@ -102,6 +102,7 @@ import os
 from pydantic_settings import BaseSettings
 from typing import Optional
 
+
 class Settings(BaseSettings):
     # Hugging Face
     HF_TOKEN: Optional[str] = None
@@ -139,6 +140,7 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
 
+
 settings = Settings()
 ```
 
@@ -152,6 +154,7 @@ from typing import List, Optional, Dict, Any
 from datetime import datetime
 from enum import Enum
 
+
 class MistakeType(str, Enum):
     DISMISSIVE_TONE = "dismissive_tone"
     HALLUCINATION = "hallucination"
@@ -164,6 +167,7 @@ class MistakeType(str, Enum):
     INSECURE_CODE = "insecure_code"
     UNCLEAR_RESPONSE = "unclear_response"
 
+
 class Turn(BaseModel):
     turn_number: int
     user_input: str
@@ -175,6 +179,7 @@ class Turn(BaseModel):
     root_cause: Optional[str] = None
     rules_applied: List[str] = []
     timestamp: datetime = Field(default_factory=datetime.now)
+
 
 class Conversation(BaseModel):
     conversation_id: str
@@ -212,6 +217,7 @@ from typing import List, Optional, Dict, Any
 from datetime import datetime
 from enum import Enum
 
+
 class RulePriority(int, Enum):
     CRITICAL = 5
     HIGH = 4
@@ -219,15 +225,18 @@ class RulePriority(int, Enum):
     LOW = 2
     INFO = 1
 
+
 class RuleType(str, Enum):
     SEMGREP = "semgrep"
     GUARDRAIL = "guardrail"
     PRE_COMMIT = "pre_commit"
 
+
 class RuleAction(BaseModel):
     type: str  # "add_prefix", "block_phrase", "modify_tone", "escalate", "enforce_conciseness"
     instruction: str
     template: Optional[str] = None
+
 
 class RuleTrigger(BaseModel):
     sentiment_threshold: Optional[float] = None
@@ -235,6 +244,7 @@ class RuleTrigger(BaseModel):
     topics: List[str] = []
     embedding: Optional[List[float]] = None
     pattern: Optional[str] = None  # For Semgrep
+
 
 class Rule(BaseModel):
     rule_id: str
@@ -276,6 +286,7 @@ from datetime import datetime
 import logging
 
 logger = logging.getLogger(__name__)
+
 
 class DatasetManager:
     """Manages Hugging Face datasets for conversations and rules."""
@@ -375,23 +386,25 @@ class DatasetManager:
             # Format rules for storage
             rules_data = []
             for rule in rules:
-                rules_data.append({
-                    "rule_id": rule.rule_id,
-                    "version": rule.version,
-                    "name": rule.name,
-                    "description": rule.description,
-                    "rule_type": rule.rule_type.value,
-                    "priority": rule.priority.value,
-                    "trigger": json.dumps(rule.trigger.dict()),
-                    "action": json.dumps(rule.action.dict()),
-                    "languages": rule.languages,
-                    "is_active": rule.is_active,
-                    "effectiveness_score": rule.effectiveness_score,
-                    "created_at": rule.created_at.isoformat(),
-                    "updated_at": rule.updated_at.isoformat(),
-                    "source_conversation": rule.source_conversation,
-                    "metadata": json.dumps(rule.metadata),
-                })
+                rules_data.append(
+                    {
+                        "rule_id": rule.rule_id,
+                        "version": rule.version,
+                        "name": rule.name,
+                        "description": rule.description,
+                        "rule_type": rule.rule_type.value,
+                        "priority": rule.priority.value,
+                        "trigger": json.dumps(rule.trigger.dict()),
+                        "action": json.dumps(rule.action.dict()),
+                        "languages": rule.languages,
+                        "is_active": rule.is_active,
+                        "effectiveness_score": rule.effectiveness_score,
+                        "created_at": rule.created_at.isoformat(),
+                        "updated_at": rule.updated_at.isoformat(),
+                        "source_conversation": rule.source_conversation,
+                        "metadata": json.dumps(rule.metadata),
+                    }
+                )
 
             # Store as dataset
             new_ds = Dataset.from_list(rules_data)
@@ -445,6 +458,7 @@ from ..utils.embeddings import EmbeddingService
 
 logger = logging.getLogger(__name__)
 
+
 class ConversationInterceptor:
     """
     Real-time interceptor for live conversations.
@@ -485,10 +499,7 @@ class ConversationInterceptor:
             for rule_data in rules_data:
                 trigger = rule_data.get("trigger", {})
                 if "embedding" in trigger and trigger["embedding"]:
-                    similarity = self.embeddings.similarity(
-                        context_embedding,
-                        trigger["embedding"]
-                    )
+                    similarity = self.embeddings.similarity(context_embedding, trigger["embedding"])
                     scored_rules.append((rule_data, similarity))
                 else:
                     # Keyword matching fallback
@@ -581,7 +592,7 @@ class ConversationInterceptor:
             severity=severity,
             root_cause=root_cause,
             rules_applied=[r.rule_id for r in rules_applied],
-            timestamp=datetime.now()
+            timestamp=datetime.now(),
         )
 
         # Add to conversation
@@ -594,8 +605,7 @@ class ConversationInterceptor:
 
         return turn
 
-    def _detect_mistakes(self, user_input: str, response: str,
-                         sentiment_before: float, sentiment_after: float):
+    def _detect_mistakes(self, user_input: str, response: str, sentiment_before: float, sentiment_after: float):
         """Detect mistake types in the response."""
         # Sentiment drop indicates potential mistake
         if sentiment_after < sentiment_before - settings.GAP_THRESHOLD:
@@ -608,7 +618,7 @@ class ConversationInterceptor:
                     return MistakeType.MISSING_ERROR_HANDLING, 4, "Error handling missing"
 
         # Insecure code patterns
-        insecure_patterns = ["f\"SELECT", ".execute(", "password ="]
+        insecure_patterns = ['f"SELECT', ".execute(", "password ="]
         if any(pattern in response.lower() for pattern in insecure_patterns):
             return MistakeType.INSECURE_CODE, 5, "Potential security issue detected"
 
@@ -626,33 +636,49 @@ class ConversationInterceptor:
         # Gap 1: Sentiment drop
         if turn.sentiment_after is not None and turn.sentiment_before is not None:
             if turn.sentiment_after < turn.sentiment_before - settings.GAP_THRESHOLD:
-                gaps.append({
-                    "type": "sentiment_drop",
-                    "severity": 4,
-                    "evidence": turn.dict(),
-                    "description": f"Sentiment dropped from {turn.sentiment_before:.2f} to {turn.sentiment_after:.2f}"
-                })
+                gaps.append(
+                    {
+                        "type": "sentiment_drop",
+                        "severity": 4,
+                        "evidence": turn.dict(),
+                        "description": f"Sentiment dropped from {turn.sentiment_before:.2f} to {turn.sentiment_after:.2f}",
+                    }
+                )
 
         # Gap 2: User correction detected
-        correction_phrases = ["no", "wrong", "incorrect", "fix", "not what",
-                            "that's not", "you missed", "you forgot", "actually",
-                            "should be", "instead of"]
+        correction_phrases = [
+            "no",
+            "wrong",
+            "incorrect",
+            "fix",
+            "not what",
+            "that's not",
+            "you missed",
+            "you forgot",
+            "actually",
+            "should be",
+            "instead of",
+        ]
         if any(phrase in turn.user_input.lower() for phrase in correction_phrases):
-            gaps.append({
-                "type": "explicit_correction",
-                "severity": 5,
-                "evidence": turn.dict(),
-                "description": f"User corrected the AI: '{turn.user_input[:100]}...'"
-            })
+            gaps.append(
+                {
+                    "type": "explicit_correction",
+                    "severity": 5,
+                    "evidence": turn.dict(),
+                    "description": f"User corrected the AI: '{turn.user_input[:100]}...'",
+                }
+            )
 
         # Gap 3: Code anti-pattern
         if turn.mistake_type in [MistakeType.INSECURE_CODE, MistakeType.MISSING_ERROR_HANDLING]:
-            gaps.append({
-                "type": "code_anti_pattern",
-                "severity": 5,
-                "evidence": turn.dict(),
-                "description": turn.root_cause or "Code anti-pattern detected"
-            })
+            gaps.append(
+                {
+                    "type": "code_anti_pattern",
+                    "severity": 5,
+                    "evidence": turn.dict(),
+                    "description": turn.root_cause or "Code anti-pattern detected",
+                }
+            )
 
         return gaps
 
@@ -734,18 +760,15 @@ class ConversationInterceptor:
                 description=f"Prevent corrections based on {len(group)} similar occurrences",
                 rule_type=RuleType.GUARDRAIL,
                 priority=RulePriority(severity),
-                trigger=RuleTrigger(
-                    keywords=keywords[:5],
-                    sentiment_threshold=-0.2
-                ),
+                trigger=RuleTrigger(keywords=keywords[:5], sentiment_threshold=-0.2),
                 action=RuleAction(
                     type="modify_tone",
                     instruction="Before responding, verify understanding. If uncertain, ask clarifying question.",
-                    template=None
+                    template=None,
                 ),
                 languages=["all"],
                 source_conversation=group[0].get("evidence", {}).get("conversation_id"),
-                metadata={"gap_count": len(group), "examples": examples}
+                metadata={"gap_count": len(group), "examples": examples},
             )
 
         elif gap_type == "sentiment_drop":
@@ -755,19 +778,15 @@ class ConversationInterceptor:
                 description=f"Prevent sentiment drops based on {len(group)} occurrences",
                 rule_type=RuleType.GUARDRAIL,
                 priority=RulePriority(severity),
-                trigger=RuleTrigger(
-                    sentiment_threshold=-0.3,
-                    topics=[],
-                    keywords=[]
-                ),
+                trigger=RuleTrigger(sentiment_threshold=-0.3, topics=[], keywords=[]),
                 action=RuleAction(
                     type="add_prefix",
                     instruction="Always start with empathy statement",
-                    template="I understand your concern. Let me help you with that."
+                    template="I understand your concern. Let me help you with that.",
                 ),
                 languages=["all"],
                 source_conversation=group[0].get("evidence", {}).get("conversation_id"),
-                metadata={"gap_count": len(group)}
+                metadata={"gap_count": len(group)},
             )
 
         elif gap_type == "code_anti_pattern":
@@ -780,16 +799,16 @@ class ConversationInterceptor:
                 trigger=RuleTrigger(
                     pattern="todo: find pattern",
                     keywords=["database", "query", "execute", "api"],
-                    topics=["code_generation", "error_handling"]
+                    topics=["code_generation", "error_handling"],
                 ),
                 action=RuleAction(
                     type="modify_response",
                     instruction="Always include proper error handling and security best practices",
-                    template=None
+                    template=None,
                 ),
                 languages=["python"],
                 source_conversation=group[0].get("evidence", {}).get("conversation_id"),
-                metadata={"gap_count": len(group)}
+                metadata={"gap_count": len(group)},
             )
 
         return None
@@ -805,6 +824,7 @@ from typing import Optional
 import logging
 
 logger = logging.getLogger(__name__)
+
 
 class SentimentAnalyzer:
     """Sentiment analysis using Hugging Face models."""
@@ -823,7 +843,7 @@ class SentimentAnalyzer:
             self.model = pipeline(
                 "sentiment-analysis",
                 model="distilbert-base-uncased-finetuned-sst-2-english",
-                device=-1  # CPU
+                device=-1,  # CPU
             )
             logger.info("Sentiment analyzer initialized")
         except Exception as e:
@@ -837,11 +857,11 @@ class SentimentAnalyzer:
 
         try:
             result = self.model(text[:512])[0]  # Truncate to 512 tokens
-            label = result['label']
-            score = result['score']
+            label = result["label"]
+            score = result["score"]
 
             # Convert to -1 to 1 range
-            if label == 'NEGATIVE':
+            if label == "NEGATIVE":
                 return -score
             else:
                 return score
@@ -862,6 +882,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 class EmbeddingService:
     """Embedding service for semantic similarity."""
 
@@ -876,7 +897,7 @@ class EmbeddingService:
     def _initialize(self):
         """Initialize the embedding model."""
         try:
-            self.model = SentenceTransformer('all-MiniLM-L6-v2')
+            self.model = SentenceTransformer("all-MiniLM-L6-v2")
             logger.info("Embedding model initialized")
         except Exception as e:
             logger.error(f"Failed to initialize embedding model: {e}")
@@ -920,6 +941,7 @@ from .base_adapter import BaseAIAdapter
 
 logger = logging.getLogger(__name__)
 
+
 class OpenAIAdapter(BaseAIAdapter):
     """OpenAI API adapter."""
 
@@ -927,8 +949,7 @@ class OpenAIAdapter(BaseAIAdapter):
         self.client = OpenAI(api_key=api_key)
         self.model = model
 
-    def generate_response(self, user_input: str, history: List[Dict],
-                         system_prompt: str, **kwargs) -> str:
+    def generate_response(self, user_input: str, history: List[Dict], system_prompt: str, **kwargs) -> str:
         """Generate response using OpenAI."""
         try:
             messages = [{"role": "system", "content": system_prompt}]
@@ -966,6 +987,7 @@ import argparse
 import sys
 import logging
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from src.core.dataset_manager import DatasetManager
@@ -973,11 +995,9 @@ from src.core.interceptor import ConversationInterceptor
 from src.models.conversation import Conversation
 from config.settings import settings
 
-logging.basicConfig(
-    level=settings.LOG_LEVEL,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+logging.basicConfig(level=settings.LOG_LEVEL, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
+
 
 def main():
     parser = argparse.ArgumentParser(description="AI Rule Learning System")
@@ -1009,21 +1029,21 @@ def main():
 
     # Initialize
     dataset = DatasetManager(
-        dataset_name=settings.HF_DATASET_NAME,
-        rules_dataset=settings.HF_RULES_DATASET,
-        token=settings.HF_TOKEN
+        dataset_name=settings.HF_DATASET_NAME, rules_dataset=settings.HF_RULES_DATASET, token=settings.HF_TOKEN
     )
     interceptor = ConversationInterceptor(dataset)
 
     if args.command == "upload":
         # Upload historical data
         import json
-        with open(args.file, 'r') as f:
-            if args.file.endswith('.json'):
+
+        with open(args.file, "r") as f:
+            if args.file.endswith(".json"):
                 data = json.load(f)
             else:
                 import pandas as pd
-                data = pd.read_csv(args.file).to_dict('records')
+
+                data = pd.read_csv(args.file).to_dict("records")
 
         for conv_data in data:
             dataset.append_conversation(conv_data)
@@ -1039,9 +1059,9 @@ def main():
 
         while True:
             user_input = input("\nYou: ").strip()
-            if user_input.lower() == 'exit':
+            if user_input.lower() == "exit":
                 break
-            if user_input.lower() == 'rules':
+            if user_input.lower() == "rules":
                 rules = dataset.get_rules(active_only=True)
                 print(f"\nActive Rules: {len(rules)}")
                 for r in rules[:5]:
@@ -1056,12 +1076,9 @@ def main():
 
             # Get AI response
             from src.adapters.openai_adapter import OpenAIAdapter
+
             ai = OpenAIAdapter(api_key=settings.OPENAI_API_KEY, model=settings.OPENAI_MODEL)
-            response = ai.generate_response(
-                user_input,
-                history,
-                system_prompt
-            )
+            response = ai.generate_response(user_input, history, system_prompt)
 
             # Process turn
             turn = interceptor.process_turn(user_input, response, relevant_rules)
@@ -1089,6 +1106,7 @@ def main():
     elif args.command == "analyze":
         # Analyze recent conversations
         from src.services.analysis_service import AnalysisService
+
         service = AnalysisService(dataset)
         rules = service.analyze_recent(days=args.days)
         if rules:
@@ -1105,6 +1123,7 @@ def main():
 
     elif args.command == "validate":
         from src.services.validation_service import ValidationService
+
         service = ValidationService(dataset)
         if args.rule_id:
             result = service.validate_rule(args.rule_id)
@@ -1115,6 +1134,7 @@ def main():
 
     else:
         parser.print_help()
+
 
 if __name__ == "__main__":
     main()

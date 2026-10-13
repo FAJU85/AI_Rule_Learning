@@ -75,8 +75,8 @@ Build an explicit feedback loop around generated rules:
 2. Ask users to approve, reject, edit, or merge rules.
 3. Track whether approved rules actually prevent repeated mistakes.
 4. Detect stale or low-value rules.
-4. Detect stale or low-value rules automatically with `rules health`.
-5. Suggest improvements when similar feedback appears repeatedly.
+5. Detect stale or low-value rules automatically with `rules health`.
+6. Suggest improvements when similar feedback appears repeatedly.
 
 ### CLI example
 
@@ -176,8 +176,8 @@ Suggested owner-only sections:
 2. Add dry-run and rollback improvements.
 3. Improve the private owner-only Hugging Face Space dashboard.
 4. Add opt-in product metrics after privacy documentation is complete.
-1. Expand owner dashboard lifecycle workflows with richer operational audit views and screenshots.
-2. Add dry-run and rollback improvements.
-3. Improve the private owner-only Hugging Face Space dashboard.
-4. Build owner-dashboard charts for the opt-in aggregate metrics payload.
-5. Use collected feedback and anonymous aggregate metrics to prioritize future features.
+5. Expand owner dashboard lifecycle workflows with richer operational audit views and screenshots.
+6. Add dry-run and rollback improvements.
+7. Improve the private owner-only Hugging Face Space dashboard.
+8. Build owner-dashboard charts for the opt-in aggregate metrics payload.
+9. Use collected feedback and anonymous aggregate metrics to prioritize future features.

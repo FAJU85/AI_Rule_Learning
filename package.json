@@ -4,6 +4,9 @@
   "description": "Universal development environment setup reference and tooling guide",
   "private": true,
   "scripts": {
+    "build": "npm run validate",
+    "dev": "python3 space/app.py",
+    "start": "python3 space/app.py",
     "lint": "markdownlint-cli2 '**/*.md' '#node_modules' '#.claude' '#README-DEVELOPMENT-1.md' '#MVP.md' '#CLAUDE.md' '#AGENTS.md' '#.agents'",
     "lint:fix": "markdownlint-cli2 --fix '**/*.md' '#node_modules' '#.claude' '#README-DEVELOPMENT-1.md' '#MVP.md' '#CLAUDE.md' '#AGENTS.md' '#.agents'",
     "format": "prettier --write '**/*.md' '**/*.json' '**/*.yml'",

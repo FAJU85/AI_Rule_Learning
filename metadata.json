@@ -1,0 +1,4 @@
+{
+  "name": "AI Rule Learning",
+  "description": "Continuous rule learning, memory, and guardrails for AI coding agents with Hugging Face Space dashboard and MCP server."
+}

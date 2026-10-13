@@ -11,6 +11,7 @@ dependencies = []
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["."]
 addopts = "--cov=src --cov-report=term-missing --cov-report=xml"
 markers = [
     "unit: fast, isolated unit tests",
@@ -21,7 +22,7 @@ markers = [
 [tool.ruff]
 line-length = 120
 target-version = "py311"
-exclude = ["space/", "mcp/"]
+exclude = ["space/", "mcp/", "node_modules/"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP"]

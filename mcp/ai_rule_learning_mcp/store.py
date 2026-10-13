@@ -408,13 +408,6 @@ def find_rule_health_candidates(
         triggered = int(rule.get("times_triggered", 0) or 0)
         if triggered >= min_triggered and score <= low_effectiveness_threshold:
             needs_review.append(rule)
-            if apply:
-                rule["status"] = "needs_review"
-                rule["is_active"] = False
-                rule["review_reason"] = (
-                    f"effectiveness_score={score:.2f} <= {low_effectiveness_threshold:.2f} after {triggered} trigger(s)"
-                )
-                rule["reviewed_at"] = now.isoformat()
             continue
 
         activity_at = (
@@ -428,14 +421,6 @@ def find_rule_health_candidates(
         age_days = (now - activity_at).days
         if status == "active" and age_days >= stale_days:
             stale.append(rule)
-            if apply:
-                rule["status"] = "stale"
-                rule["is_active"] = False
-                rule["review_reason"] = f"no activity for {age_days} day(s)"
-                rule["reviewed_at"] = now.isoformat()
-
-    if apply and (stale or needs_review):
-        _upload("rules.jsonl", rules)
 
     return stale, needs_review
 

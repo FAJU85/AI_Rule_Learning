@@ -127,19 +127,6 @@ def _fallback_rule_health_candidates(
 _store_helper_import_error: Exception | None = None
 find_rule_health_candidates = _fallback_rule_health_candidates
 suggest_duplicate_rules_from_records = _fallback_duplicate_rules_from_records
-_store_spec = importlib.util.find_spec("ai_rule_learning_mcp.store")
-_store_module = importlib.import_module("ai_rule_learning_mcp.store") if _store_spec else None
-find_rule_health_candidates = (
-    getattr(_store_module, "find_rule_health_candidates", None) if _store_module else None
-) or _fallback_rule_health_candidates
-suggest_duplicate_rules_from_records = (
-    getattr(_store_module, "suggest_duplicate_rules_from_records", None) if _store_module else None
-) or _fallback_duplicate_rules_from_records
-import sys
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "mcp"))
-from ai_rule_learning_mcp.store import find_rule_health_candidates
-from ai_rule_learning_mcp.store import suggest_duplicate_rules_from_records
 
 logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(name)s: %(message)s")
 _log = logging.getLogger("arl")
@@ -195,46 +182,91 @@ _CACHE_TTL = 60.0  # seconds — shared across all callers within one refresh cy
 _download_cache: dict[str, tuple[float, list[dict]]] = {}
 _RULE_WRITE_LOCK = Lock()
 
+_LOCAL_DIR = Path.home() / ".ai-rule-learning"
+_DATA_DIR = Path(__file__).resolve().parent.parent / "data"
+
+
+def _local_load(filename: str) -> list[dict]:
+    """Load JSONL records from local directories (~/.ai-rule-learning or data/)."""
+    local_path = _LOCAL_DIR / filename
+    if not local_path.exists():
+        fallback_path = _DATA_DIR / filename
+        if fallback_path.exists():
+            local_path = fallback_path
+    if not local_path.exists():
+        return []
+    try:
+        with open(local_path, encoding="utf-8") as f:
+            return [json.loads(line) for line in f if line.strip()]
+    except Exception as e:
+        _log.debug("_local_load %s: %s", filename, e)
+        return []
+
+
+def _local_save(filename: str, records: list[dict]) -> None:
+    """Save JSONL records atomically to local ~/.ai-rule-learning storage."""
+    try:
+        _LOCAL_DIR.mkdir(parents=True, exist_ok=True)
+        local_path = _LOCAL_DIR / filename
+        temp_path = local_path.with_suffix(".tmp")
+        with open(temp_path, "w", encoding="utf-8") as f:
+            for r in records:
+                f.write(json.dumps(r, ensure_ascii=False) + "\n")
+        temp_path.replace(local_path)
+    except Exception as e:
+        _log.debug("_local_save %s: %s", filename, e)
+
 
 def _download_jsonl(filename: str) -> list[dict]:
     now = time.time()
     entry = _download_cache.get(filename)
     if entry and now - entry[0] < _CACHE_TTL:
         return entry[1]
-    try:
-        path = hf_hub_download(
-            repo_id=DATASET_ID,
-            filename=filename,
-            repo_type="dataset",
-            token=HF_TOKEN,
-            force_download=True,
-        )
-        records = []
-        with open(path, encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if line:
-                    records.append(json.loads(line))
-        _download_cache[filename] = (now, records)
-        return records
-    except (EntryNotFoundError, RepositoryNotFoundError):
-        return []
-    except Exception as e:
-        _log.warning("_download_jsonl %s: %s", filename, e)
-        return []
+
+    records: list[dict] = []
+    # If HF dataset is configured and token is available, attempt remote fetch
+    if HF_TOKEN:
+        try:
+            path = hf_hub_download(
+                repo_id=DATASET_ID,
+                filename=filename,
+                repo_type="dataset",
+                token=HF_TOKEN,
+                force_download=False,
+            )
+            with open(path, encoding="utf-8") as f:
+                records = [json.loads(line) for line in f if line.strip()]
+            _download_cache[filename] = (now, records)
+            return records
+        except (EntryNotFoundError, RepositoryNotFoundError):
+            _log.debug("Remote file %s not found in %s", filename, DATASET_ID)
+        except Exception as e:
+            # Handle Force download failed, 401 Unauthorized, or connection issues gracefully
+            _log.debug("Remote download unavailable for %s: %s", filename, e)
+
+    # Fall back to local storage
+    records = _local_load(filename)
+    _download_cache[filename] = (now, records)
+    return records
 
 
 def _upload_jsonl(filename: str, records: list[dict]) -> None:
-    api = HfApi(token=HF_TOKEN)
-    content = "\n".join(json.dumps(r, ensure_ascii=False) for r in records) + "\n"
-    api.upload_file(
-        path_or_fileobj=content.encode("utf-8"),
-        path_in_repo=filename,
-        repo_id=DATASET_ID,
-        repo_type="dataset",
-        commit_message=f"Update {filename} via Space UI",
-    )
-    _download_cache.pop(filename, None)  # invalidate so next read fetches fresh
+    _local_save(filename, records)
+    _download_cache[filename] = (time.time(), records)
+    if not HF_TOKEN:
+        return
+    try:
+        api = HfApi(token=HF_TOKEN)
+        content = "\n".join(json.dumps(r, ensure_ascii=False) for r in records) + "\n"
+        api.upload_file(
+            path_or_fileobj=content.encode("utf-8"),
+            path_in_repo=filename,
+            repo_id=DATASET_ID,
+            repo_type="dataset",
+            commit_message=f"Update {filename} via Space UI",
+        )
+    except Exception as e:
+        _log.warning("failed to upload %s to HF: %s", filename, e)
 
 
 def load_conversations() -> list[dict]:
@@ -6790,7 +6822,7 @@ def build_data_trust_chart() -> Any:
 
 EVIDENCE_FILE = "evidence.jsonl"
 
-EVIDENCE_TYPES = ["log", "screenshot", "report", "test_result", "security_scan", "audit_export", "other"]
+EVIDENCE_TYPES = ["log", "screenshot", "report", "audit_report", "test_result", "security_scan", "audit_export", "other"]
 
 
 def store_evidence(
@@ -12311,36 +12343,6 @@ _APP_JS = r"""
       { label: 'Governance',       first: 6, last: 7, tabs: [6, 7] }
     ];
 
-
-
-_APP_JS = r"""
-() => {
-  (function () {
-    'use strict';
-
-    /* Tab groups: [groupLabel, firstTabIndex, lastTabIndex] */
-    var GROUPS = [
-      { label: 'Overview',         first: 0, last: 1, tabs: [0, 1] },
-      { label: 'Rule Management',  first: 2, last: 3, tabs: [2, 3] },
-      { label: 'Observability',    first: 4, last: 5, tabs: [4, 5] },
-      { label: 'Governance',       first: 6, last: 7, tabs: [6, 7] }
-    ];
-
-
-
-_APP_JS = r"""
-() => {
-  (function () {
-    'use strict';
-
-    /* Tab groups: [groupLabel, firstTabIndex, lastTabIndex] */
-    var GROUPS = [
-      { label: 'Overview',         first: 0, last: 1, tabs: [0, 1] },
-      { label: 'Rule Management',  first: 2, last: 3, tabs: [2, 3] },
-      { label: 'Observability',    first: 4, last: 5, tabs: [4, 5] },
-      { label: 'Governance',       first: 6, last: 7, tabs: [6, 7] }
-    ];
-
     function getGroupForTab(idx) {
       for (var i = 0; i < GROUPS.length; i++) {
         if (idx >= GROUPS[i].first && idx <= GROUPS[i].last) return i;
@@ -12499,20 +12501,6 @@ _APP_JS = r"""
   })();
 }
 """
-
-with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS, js=_APP_JS) as demo:
-
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', function () { setTimeout(init, 200); });
-    } else {
-      setTimeout(init, 200);
-    }
-  })();
-}
-"""
-
-with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS, js=_APP_JS) as demo:
-
 
 with gr.Blocks(title="AI Rule Learning", theme=gr.themes.Base(), css=_CSS, js=_APP_JS) as demo:
     gr.HTML('<div id="group-indicator" aria-label="Navigation groups"></div>')
@@ -16046,4 +16034,9 @@ updates the block without duplicating it.
 demo.queue()
 
 if __name__ == "__main__":
-    demo.launch(share=False, show_api=False)
+    port_env = os.environ.get("PORT")
+    if port_env and port_env != "8080":
+        port = int(port_env)
+    else:
+        port = int(os.environ.get("GRADIO_SERVER_PORT", 3000))
+    demo.launch(server_name="0.0.0.0", server_port=port, share=False)
