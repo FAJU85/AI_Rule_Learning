@@ -7750,26 +7750,27 @@ Gap detected → Group similar gaps → ≥2 occurrences?
 _CSS = """
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 
-/* ── Flux Design System — Light Mode ─────────────────────────────────── */
+/* ── Modern Enterprise AI Control Plane Design System ────────────────── */
 :root {
-  --hz-brand:          #7c3aed;
-  --hz-brand-light:    #8b5cf6;
-  --hz-accent:         #2563eb;
-  --hz-accent-light:   #3b82f6;
-  --hz-bg:             #f5f3ff;
+  --hz-brand:          #2563eb;
+  --hz-brand-light:    #3b82f6;
+  --hz-accent:         #4f46e5;
+  --hz-accent-light:   #6366f1;
+  --hz-bg:             #f8fafc;
   --hz-surface:        #ffffff;
-  --hz-surface-2:      #f0eeff;
-  --hz-navy:           #1e1b4b;
-  --hz-text-primary:   #1e1b4b;
-  --hz-text-secondary: #6d6a8a;
-  --hz-text-muted:     #9b98b8;
-  --hz-border:         #e5e2f8;
-  --hz-shadow:         0 4px 24px rgba(124,58,237,0.08), 0 1px 4px rgba(0,0,0,0.06);
-  --hz-shadow-hover:   0 8px 32px rgba(124,58,237,0.15), 0 2px 8px rgba(0,0,0,0.08);
-  --hz-glow-violet:    0 0 28px rgba(124,58,237,0.18);
-  --hz-glow-blue:      0 0 24px rgba(37,99,235,0.12);
-  --hz-radius:         14px;
-  --hz-radius-sm:      10px;
+  --hz-surface-2:      #f1f5f9;
+  --hz-navy:           #0f172a;
+  --hz-text-primary:   #0f172a;
+  --hz-text-secondary: #475569;
+  --hz-text-muted:     #94a3b8;
+  --hz-border:         #e2e8f0;
+  --hz-border-subtle:  #cbd5e1;
+  --hz-shadow:         0 1px 3px 0 rgba(15,23,42,0.06), 0 1px 2px -1px rgba(15,23,42,0.06);
+  --hz-shadow-hover:   0 8px 24px -4px rgba(15,23,42,0.08), 0 4px 8px -2px rgba(15,23,42,0.04);
+  --hz-glow-violet:    0 0 20px rgba(79,70,229,0.12);
+  --hz-glow-blue:      0 0 20px rgba(37,99,235,0.12);
+  --hz-radius:         12px;
+  --hz-radius-sm:      8px;
   --hz-green:          #059669;
   --hz-red:            #dc2626;
   --hz-orange:         #d97706;
@@ -7780,12 +7781,10 @@ _CSS = """
 *, *::before, *::after { box-sizing: border-box; }
 body, .gradio-container {
   background-color: var(--hz-bg) !important;
-  background-image: radial-gradient(circle, rgba(124,58,237,0.07) 1px, transparent 1px);
-  background-size: 24px 24px;
   color: var(--hz-text-primary);
-  font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   font-size: 14px;
-  line-height: 1.6;
+  line-height: 1.5;
   letter-spacing: -0.01em;
 }
 .app { background-color: var(--hz-bg) !important; }
@@ -7796,37 +7795,185 @@ body, .gradio-container {
 
 /* Landing hero */
 .arl-hero {
-  display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(280px, 0.8fr); gap: 18px;
-  margin: 18px auto 14px; max-width: 1380px; padding: 26px; border: 1px solid rgba(124,58,237,0.16);
-  border-radius: 24px; background: linear-gradient(135deg, rgba(124,58,237,0.12), rgba(37,99,235,0.08)), var(--hz-surface);
-  box-shadow: var(--hz-shadow); overflow: hidden; position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(300px, 0.9fr);
+  gap: 24px;
+  margin: 16px auto 20px;
+  max-width: 1400px;
+  padding: 30px 32px;
+  border: 1px solid var(--hz-border);
+  border-radius: 16px;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  box-shadow: 0 4px 20px -2px rgba(15,23,42,0.05);
+  overflow: hidden;
+  position: relative;
 }
 .arl-hero::after {
-  content: ""; position: absolute; inset: auto -80px -120px auto; width: 280px; height: 280px;
-  background: radial-gradient(circle, rgba(124,58,237,0.22), transparent 65%); pointer-events: none;
+  content: "";
+  position: absolute;
+  inset: -100px -100px auto auto;
+  width: 380px;
+  height: 380px;
+  background: radial-gradient(circle, rgba(37,99,235,0.06), transparent 70%);
+  pointer-events: none;
 }
-.arl-hero-copy { position: relative; z-index: 1; display: flex; flex-direction: column; gap: 12px; }
-.arl-eyebrow { color: var(--hz-brand); font-size: 0.78rem; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; }
-.arl-hero h1 { margin: 0; max-width: 760px; color: var(--hz-navy); font-size: clamp(2rem, 4vw, 4.4rem); line-height: 0.95; letter-spacing: -0.06em; }
-.arl-hero p { margin: 0; max-width: 760px; color: var(--hz-text-secondary); font-size: 1.02rem; }
-.arl-hero-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 6px; }
+.arl-hero-copy {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.arl-eyebrow-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.arl-beacon {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.arl-beacon.green { background: var(--hz-green); box-shadow: 0 0 0 3px rgba(16,185,129,0.2); }
+.arl-beacon.amber { background: var(--hz-orange); box-shadow: 0 0 0 3px rgba(245,158,11,0.2); }
+.arl-beacon.red   { background: var(--hz-red); box-shadow: 0 0 0 3px rgba(239,68,68,0.2); }
+.arl-eyebrow {
+  color: var(--hz-brand);
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.arl-hero h1 {
+  margin: 0;
+  max-width: 780px;
+  color: var(--hz-navy);
+  font-size: clamp(1.8rem, 3.2vw, 3rem);
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: -0.04em;
+}
+.arl-hero p {
+  margin: 0;
+  max-width: 720px;
+  color: var(--hz-text-secondary);
+  font-size: 0.96rem;
+  line-height: 1.6;
+}
+.arl-hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 6px;
+}
 .arl-hero-actions button {
-  border: 0; border-radius: 999px; padding: 10px 16px; cursor: pointer; font-weight: 800; color: #fff;
-  background: linear-gradient(135deg, var(--hz-brand), var(--hz-accent)); box-shadow: var(--hz-glow-violet);
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 9px 18px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.86rem;
+  color: #fff;
+  background: var(--hz-navy);
+  transition: all 0.15s ease;
+  box-shadow: 0 1px 2px rgba(15,23,42,0.1);
 }
-.arl-hero-actions button.secondary { color: var(--hz-brand); background: rgba(255,255,255,0.82); border: 1px solid var(--hz-border); box-shadow: none; }
+.arl-hero-actions button:hover {
+  background: #1e293b;
+  transform: translateY(-1px);
+}
+.arl-hero-actions button.secondary {
+  color: var(--hz-text-primary);
+  background: #ffffff;
+  border-color: var(--hz-border);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+}
+.arl-hero-actions button.secondary:hover {
+  background: var(--hz-surface-2);
+  border-color: var(--hz-border-subtle);
+}
+.arl-hero-actions button.tertiary {
+  color: var(--hz-text-secondary);
+  background: transparent;
+  border: 1px solid transparent;
+  box-shadow: none;
+}
+.arl-hero-actions button.tertiary:hover {
+  color: var(--hz-brand);
+  background: rgba(37,99,235,0.06);
+}
 .arl-hero-panel {
-  position: relative; z-index: 1; display: grid; gap: 10px; align-content: center; padding: 16px; border-radius: 18px;
-  background: rgba(255,255,255,0.72); border: 1px solid rgba(255,255,255,0.72); backdrop-filter: blur(12px);
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 12px;
+  align-content: center;
+  padding: 20px;
+  border-radius: 12px;
+  background: #ffffff;
+  border: 1px solid var(--hz-border);
+  box-shadow: 0 2px 8px -2px rgba(15,23,42,0.05);
 }
-.arl-status-pill, .arl-hero-metric { border-radius: 14px; padding: 10px 12px; background: var(--hz-surface); border: 1px solid var(--hz-border); }
-.arl-status-pill { font-size: 0.82rem; font-weight: 800; }
-.arl-status-pill.green { color: var(--hz-green); border-color: rgba(5,150,105,0.26); background: rgba(5,150,105,0.08); }
-.arl-status-pill.amber { color: var(--hz-orange); border-color: rgba(217,119,6,0.26); background: rgba(217,119,6,0.08); }
-.arl-status-pill.red { color: var(--hz-red); border-color: rgba(220,38,38,0.26); background: rgba(220,38,38,0.08); }
-.arl-hero-metric { display: flex; flex-direction: column; gap: 2px; }
-.arl-hero-metric strong { color: var(--hz-navy); font-size: 0.92rem; }
-.arl-hero-metric span { color: var(--hz-text-secondary); font-size: 0.78rem; }
+.arl-status-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: var(--hz-surface-2);
+  border: 1px solid var(--hz-border);
+  border-radius: 8px;
+}
+.arl-status-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.arl-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.arl-status-dot.green { background: var(--hz-green); }
+.arl-status-dot.amber { background: var(--hz-orange); }
+.arl-status-dot.red   { background: var(--hz-red); }
+.arl-status-label {
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: var(--hz-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.arl-status-val {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--hz-navy);
+}
+.arl-hero-metrics-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.arl-hero-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  background: #ffffff;
+  border: 1px solid var(--hz-border);
+  border-radius: 8px;
+}
+.arl-hero-metric strong {
+  color: var(--hz-navy);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+.arl-hero-metric span {
+  color: var(--hz-text-secondary);
+  font-size: 0.74rem;
+}
 
 /* Charts */
 .js-plotly-plot, .plotly, .plot-container { width: 100% !important; overflow: hidden; }
@@ -12312,19 +12459,44 @@ def build_landing_hero() -> str:
     return f"""
 <section class="arl-hero">
   <div class="arl-hero-copy">
-    <span class="arl-eyebrow">Zero-friction AI rule learning</span>
-    <h1>Turn messy AI sessions into safer, reusable guardrails.</h1>
-    <p>Import sessions, review generated rules, monitor effectiveness, and connect the MCP server without leaving the Space.</p>
+    <div class="arl-eyebrow-row">
+      <span class="arl-beacon {runtime_tone}"></span>
+      <span class="arl-eyebrow">Enterprise Guardrail Engine · Agent Control Plane</span>
+    </div>
+    <h1>Turn chaotic AI sessions into verifiable guardrails.</h1>
+    <p>Automatically extract patterns, manage rule lifecycles, monitor effectiveness, and inject rules across Claude, Cursor, Windsurf, and Copilot.</p>
     <div class="arl-hero-actions">
       <button onclick="hzGoto(2)" type="button">Review Rules</button>
       <button onclick="hzGoto(3)" type="button" class="secondary">Import Sessions</button>
+      <button onclick="hzGoto(1)" type="button" class="tertiary">Live Dashboard</button>
+      <button onclick="hzGoto(8)" type="button" class="tertiary">MCP Internals</button>
     </div>
   </div>
   <div class="arl-hero-panel" aria-label="runtime status">
-    <div class="arl-status-pill {runtime_tone}">{html.escape(runtime_label)}</div>
-    <div class="arl-status-pill {mcp_tone}">{html.escape(mcp_label)}</div>
-    <div class="arl-hero-metric"><strong>3-step loop</strong><span>Import → Analyse → Approve</span></div>
-    <div class="arl-hero-metric"><strong>Owner controls</strong><span>Rollback, dry-run, health review</span></div>
+    <div class="arl-status-card">
+      <div class="arl-status-indicator">
+        <span class="arl-status-dot {runtime_tone}"></span>
+        <span class="arl-status-label">Dataset Backend</span>
+      </div>
+      <span class="arl-status-val">{html.escape(runtime_label)}</span>
+    </div>
+    <div class="arl-status-card">
+      <div class="arl-status-indicator">
+        <span class="arl-status-dot {mcp_tone}"></span>
+        <span class="arl-status-label">MCP package</span>
+      </div>
+      <span class="arl-status-val">{html.escape(mcp_label)}</span>
+    </div>
+    <div class="arl-hero-metrics-grid">
+      <div class="arl-hero-metric">
+        <strong>Continuous Learning</strong>
+        <span>Session → Pattern → Rule</span>
+      </div>
+      <div class="arl-hero-metric">
+        <strong>Safety & Governance</strong>
+        <span>Dry-run, Health Audit, ISO/SOC2</span>
+      </div>
+    </div>
   </div>
 </section>
 """
@@ -12340,7 +12512,8 @@ _APP_JS = r"""
       { label: 'Overview',         first: 0, last: 1, tabs: [0, 1] },
       { label: 'Rule Management',  first: 2, last: 3, tabs: [2, 3] },
       { label: 'Observability',    first: 4, last: 5, tabs: [4, 5] },
-      { label: 'Governance',       first: 6, last: 7, tabs: [6, 7] }
+      { label: 'Governance & QA',  first: 6, last: 7, tabs: [6, 7] },
+      { label: 'MCP Server',       first: 8, last: 8, tabs: [8] }
     ];
 
     function getGroupForTab(idx) {
@@ -16034,9 +16207,12 @@ updates the block without duplicating it.
 demo.queue()
 
 if __name__ == "__main__":
-    port_env = os.environ.get("PORT")
-    if port_env and port_env != "8080":
-        port = int(port_env)
+    if os.environ.get("SPACE_ID") or os.environ.get("SYSTEM") == "spaces":
+        port = int(os.environ.get("PORT", 7860))
     else:
-        port = int(os.environ.get("GRADIO_SERVER_PORT", 3000))
+        port_env = os.environ.get("PORT")
+        if port_env and port_env != "8080":
+            port = int(port_env)
+        else:
+            port = int(os.environ.get("GRADIO_SERVER_PORT", 3000))
     demo.launch(server_name="0.0.0.0", server_port=port, share=False)
