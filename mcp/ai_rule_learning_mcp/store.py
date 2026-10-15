@@ -65,16 +65,34 @@ def mark_processed(file_path: Path) -> None:
 
 # PII patterns
 _EMAIL_RE = re.compile(r"[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}", re.IGNORECASE)
-_HOME_RE = re.compile(r"(?:/home/[^/\s]+|/Users/[^/\s]+|C:\\Users\\[^\\\s]+)", re.IGNORECASE)
-_IP_RE = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
+_HOME_RE = re.compile(r"(?:/home/[^/\s]+|/Users/[^/\s]+|[a-zA-Z]:\\(?:Users|Documents)[^\s]*)", re.IGNORECASE)
+_PATH_RE = re.compile(r"(?:/(?:etc|var|tmp|app|opt|usr|root)/[^\s,;\"']+)", re.IGNORECASE)
+_IPV4_RE = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
+_IPV6_RE = re.compile(r"\b(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}\b|\b(?:[0-9a-fA-F]{1,4}:){1,7}:[0-9a-fA-F]{0,4}\b")
 _PHONE_RE = re.compile(r"\b(?:\+?\d[\d\s\-().]{7,}\d)\b")
-_TOKEN_RE = re.compile(r"\b(hf_|sk-|ghp_|gho_|ghs_|github_pat_)[A-Za-z0-9_\-]{10,}\b")
+_TOKEN_RE = re.compile(
+    r"\b(?:hf_|sk-|ghp_|gho_|ghs_|github_pat_|xoxb-|xoxp-)[A-Za-z0-9_\-]{6,}\b|\bAKIA[0-9A-Z]{16}\b",
+    re.IGNORECASE,
+)
 
 
 def scrub_pii(text: str) -> str:
+    """Scrub PII from text before persistence or transmission (Defect Q10).
+
+    Covers 5+ PII categories:
+    - Email addresses
+    - Home and absolute filesystem paths
+    - IPv4 and IPv6 addresses
+    - Phone numbers
+    - API keys and cloud credentials
+    """
+    if not text:
+        return ""
     text = _EMAIL_RE.sub("[EMAIL]", text)
     text = _HOME_RE.sub("[HOME]", text)
-    text = _IP_RE.sub("[IP]", text)
+    text = _PATH_RE.sub("[PATH]", text)
+    text = _IPV4_RE.sub("[IP]", text)
+    text = _IPV6_RE.sub("[IP]", text)
     text = _PHONE_RE.sub("[PHONE]", text)
     text = _TOKEN_RE.sub("[TOKEN]", text)
     return text

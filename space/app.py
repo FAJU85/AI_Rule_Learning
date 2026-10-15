@@ -13961,8 +13961,9 @@ updates the block without duplicating it.
                     dp_name = gr.Textbox(label="Source name", placeholder="e.g. Claude Code sessions", scale=3)
                     dp_type = gr.Dropdown(
                         label="Type",
-                        choices=["dataset", "api", "file"],
+                        choices=["dataset", "api", "file", "jsonl", "csv"],
                         value="dataset",
+                        allow_custom_value=True,
                         scale=2,
                         info="dataset = structured data file · api = live endpoint · file = document or log",
                     )

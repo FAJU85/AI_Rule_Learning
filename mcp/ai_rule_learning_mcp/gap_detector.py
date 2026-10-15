@@ -56,14 +56,8 @@ _HALLUCINATION_RISK = [
     "experts agree", "it has been proven", "research confirms",
 ]
 
-# Prompt injection patterns
-_INJECTION_PATTERNS = [
-    "ignore previous instructions", "ignore all instructions",
-    "disregard the above", "disregard previous", "forget your instructions",
-    "new system prompt", "pretend you are", "act as if you have no",
-    "override your", "bypass your", "you are now", "your new role is",
-    "jailbreak", "dan mode", "developer mode", "sudo mode",
-]
+from .injection import _INJECTION_PATTERNS
+from .injection import is_prompt_injection
 
 # Overconfidence markers
 _OVERCONFIDENCE = [
@@ -117,6 +111,19 @@ _TEMPLATES: dict[str, dict[str, Any]] = {
         "failure_layer": 2,
         "failure_category": "robustness_consistency",
         "triggers": ["i already", "i told you", "as i said", "still not"],
+        "slot": "remember-stated-context",
+    },
+    "user_preference": {
+        "name": "honor-user-preferences",
+        "instruction": (
+            "Consistently apply and remember stated user preferences throughout the session "
+            "(e.g. style, language, constraints, formatting). Do not require the user to restate them."
+        ),
+        "priority": 3,
+        "failure_layer": 2,
+        "failure_category": "behavioral_alignment",
+        "triggers": ["prefer", "preference", "i like", "always use", "never use", "my preference is"],
+        "slot": "honor-user-preferences",
     },
     "repeated_question": {
         "name": "resolve-before-moving-on",
@@ -384,10 +391,12 @@ def detect_gaps(turns: list[dict]) -> dict[str, list[dict]]:
             )
 
         # Prompt injection: user message contains override patterns
-        if any(p in user for p in _INJECTION_PATTERNS):
-            signal = next(p for p in _INJECTION_PATTERNS if p in user)
+        if is_prompt_injection(user):
+            user_lower = user.lower()
+            matched_pat = next((p for p in _INJECTION_PATTERNS if p in user_lower), None)
+            sig = matched_pat if matched_pat else "prompt_injection_detected"
             gaps.setdefault("prompt_injection", []).append(
-                {"turn": i + 1, "signal": signal, "snippet": user[:160]}
+                {"turn": i + 1, "signal": sig, "snippet": user[:160]}
             )
 
         # Hallucination risk: agent makes unsourced high-confidence factual claims
@@ -483,10 +492,12 @@ def generate_rules(gaps: dict[str, list[dict]]) -> list[dict]:
         ).hexdigest()[:12]
         layer = tpl.get("failure_layer", 1)
         category = tpl.get("failure_category", "output_quality")
+        slot = tpl.get("slot", tpl["name"])
         rules.append(
             {
                 "rule_id": rule_id,
                 "name": tpl["name"],
+                "slot": slot,
                 "instruction": tpl["instruction"],
                 "action": {"instruction": tpl["instruction"]},
                 "trigger": {"keywords": tpl["triggers"]},

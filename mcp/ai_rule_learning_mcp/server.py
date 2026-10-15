@@ -29,6 +29,7 @@ from .analyzer import run_analyze
 from .community import contribute_gaps
 from .gap_detector import analyze_conversations
 from .gap_detector import generate_rules
+from .injection import is_prompt_injection
 from .injector import detected_targets
 from .injector import format_rules_block
 from .injector import write_memory_all
@@ -57,6 +58,7 @@ from .store import mark_processed
 from .store import merge_rules as store_merge_rules
 from .store import record_rule_outcome
 from .store import review_rule_health
+from .store import scrub_pii
 from .store import suggest_duplicate_rules
 from .store import update_rule_status
 
@@ -561,8 +563,8 @@ async def list_tools() -> list[Tool]:
             description=(
                 "Read accumulated community gap contributions, derive enhanced rule templates "
                 "from patterns that appear across 3+ independent sessions, and publish them "
-                "back to the community dataset so all users benefit on next sync. "
-                "Requires HF_TOKEN and write access to the community dataset. "
+                "back to the community knowledge pool so all users benefit on next sync. "
+                "Runs automatically without requiring external credentials. "
                 "Run this periodically to close the learning loop: "
                 "contribute → aggregate → improve → distribute."
             ),
@@ -747,15 +749,29 @@ async def _recall() -> list[TextContent]:
     return [TextContent(type="text", text=format_memory_for_display(entries))]
 
 
-async def _record_feedback(
+def record_feedback(
     feedback_type: str,
     description: str,
     rule_hint: str = "",
     dry_run: bool = False,
-) -> list[TextContent]:
+) -> dict[str, Any]:
+    """Record a feedback rule with pre-persistence injection checks, PII scrubbing, and distinct slot allocation."""
+    # Pre-persistence injection detection on raw inputs (Defect F12c)
+    text_to_validate = f"{rule_hint} {description}".strip()
+    if is_prompt_injection(text_to_validate):
+        return {
+            "status": "Rejected",
+            "reason": "Feedback or rule hint contains a prompt injection / override attempt",
+            "rule": None,
+        }
+
+    # Pre-persistence PII scrubbing (Defect Q10)
+    rule_hint = scrub_pii(rule_hint)
+    description = scrub_pii(description)
+
     _GAP_MAP = {
         "correction": "explicit_correction",
-        "preference": "repeated_context",
+        "preference": "user_preference",
         "repeated_context": "repeated_context",
         "incomplete_response": "incomplete_response",
     }
@@ -765,14 +781,96 @@ async def _record_feedback(
     rules = generate_rules(gaps)
 
     if not rules:
-        return [TextContent(type="text", text="Could not generate a rule from this feedback.")]
+        return {
+            "status": "Rejected",
+            "reason": "Could not generate a rule from this feedback",
+            "rule": None,
+        }
 
+    rule = rules[0]
     if rule_hint:
-        rules[0]["action"] = {"instruction": rule_hint}
-        rules[0]["instruction"] = rule_hint
+        rule["action"] = {"instruction": rule_hint}
+        rule["instruction"] = rule_hint
 
-    rule_name = rules[0].get("name", "new rule")
+    # Ensure rule instructions are scrubbed and injection-free
+    rule["instruction"] = scrub_pii(rule.get("instruction", ""))
+    if isinstance(rule.get("action"), dict) and "instruction" in rule["action"]:
+        rule["action"]["instruction"] = scrub_pii(rule["action"]["instruction"])
+
+    if is_prompt_injection(rule.get("instruction", "")):
+        return {
+            "status": "Rejected",
+            "reason": "Generated rule instruction contains unsafe injection pattern",
+            "rule": None,
+        }
+
+    _SLOT_MAP = {
+        "correction": "acknowledge-and-correct-immediately",
+        "preference": "honor-user-preferences",
+        "repeated_context": "remember-stated-context",
+        "incomplete_response": "complete-all-parts-of-request",
+    }
+    assigned_slot = _SLOT_MAP.get(feedback_type, rule.get("slot") or rule.get("name", "generic-rule"))
+    rule["slot"] = assigned_slot
+
     if dry_run:
+        return {"status": "DryRun", "rule": rule}
+
+    existing = _local_load("rules.jsonl")
+
+    # One-shot idempotent migration for legacy rules (Defect F11b)
+    migrated = False
+    for r in existing:
+        if "slot" not in r:
+            r["slot"] = r.get("name", "")
+            migrated = True
+        if r.get("slot") == "remember-stated-context" and (
+            r.get("name") == "honor-user-preferences"
+            or "preference" in r.get("rule_id", "")
+            or "preference" in r.get("instruction", "").lower()
+        ):
+            r["slot"] = "honor-user-preferences"
+            migrated = True
+
+    existing_ids = {r.get("rule_id") for r in existing}
+    existing_slots = {r.get("slot") for r in existing}
+
+    if rule.get("rule_id") in existing_ids or rule.get("slot") in existing_slots:
+        if migrated:
+            _local_save("rules.jsonl", existing)
+        return {"status": "AlreadyKnown", "rule": rule}
+
+    _local_save("rules.jsonl", existing + [rule])
+    return {"status": "Created", "rule": rule}
+
+
+async def _record_feedback(
+    feedback_type: str,
+    description: str,
+    rule_hint: str = "",
+    dry_run: bool = False,
+) -> list[TextContent]:
+    res = record_feedback(
+        feedback_type=feedback_type,
+        description=description,
+        rule_hint=rule_hint,
+        dry_run=dry_run,
+    )
+
+    status = res.get("status")
+    if status == "Rejected":
+        reason = res.get("reason", "Prompt injection or invalid input detected.")
+        return [
+            TextContent(
+                type="text",
+                text=f"❌ Rejected: {reason}. Rule was not saved.",
+            )
+        ]
+
+    rule = res.get("rule") or {}
+    rule_name = rule.get("name", "new rule")
+
+    if status == "DryRun":
         return [
             TextContent(
                 type="text",
@@ -783,17 +881,10 @@ async def _record_feedback(
             )
         ]
 
-    existing = _local_load("rules.jsonl")
-    existing_ids = {r.get("rule_id") for r in existing}
-    new_rules = [r for r in rules if r.get("rule_id") not in existing_ids]
-    if new_rules:
-        _local_save("rules.jsonl", existing + new_rules)
-
     all_rules = load_active_rules()
     written = write_rules_all(all_rules)
     targets_str = ", ".join(name for name, _ in written) if written else "no agent configs detected"
-
-    action = "Created" if new_rules else "Already known"
+    action = "Created" if status == "Created" else "Already known"
 
     return [
         TextContent(
@@ -1237,7 +1328,7 @@ async def _update_community_knowledge(min_sources: int = 3) -> list[TextContent]
     log = []
     freq = fetch_community_patterns()
     if not freq:
-        return [TextContent(type="text", text="⚠️ No community contributions found or HF_TOKEN not set.")]
+        return [TextContent(type="text", text="⚠️ No community contributions found in CDN or local cache.")]
     total_contributions = sum(v["count"] for v in freq.values())
     unique_types = len(freq)
     log.append(f"📊 Community corpus: {total_contributions} gap instances across {unique_types} pattern type(s)")
@@ -1250,9 +1341,9 @@ async def _update_community_knowledge(min_sources: int = 3) -> list[TextContent]
     log.append(f"🧠 Derived {len(templates)} enhanced template(s)")
     ok = push_community_templates(templates)
     if ok:
-        log.append(f"⬆️ Published {len(templates)} template(s) to community dataset")
+        log.append(f"⬆️ Published/staged {len(templates)} template(s) to community knowledge pool")
     else:
-        log.append("⚠️ Could not publish templates (check HF_TOKEN and dataset permissions)")
+        log.append("⚠️ Could not publish templates to community relay.")
     return [TextContent(type="text", text="\n".join(log))]
 
 

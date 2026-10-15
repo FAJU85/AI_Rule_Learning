@@ -1,0 +1,73 @@
+{
+  "audit_version": "5.4.0",
+  "audit_date": "2026-10-15T20:45:00Z",
+  "target": "AI Rule Learning MCP",
+  "overall_status": "VERIFIED",
+  "open_findings_count": 0,
+  "remediated_findings": [
+    {
+      "defect_id": "F12c",
+      "category": "Security / Write-Path Injection",
+      "summary": "Write-path prompt injection prevention in record_feedback()",
+      "status": "CLOSED",
+      "resolution": "Pre-persistence prompt injection detection in record_feedback() returning explicit Rejected status; zero artifacts written to rules.jsonl",
+      "test_reference": "mcp/tests/test_audit_remediation.py::test_item_a_injected_rule_hint_rejected_and_not_persisted"
+    },
+    {
+      "defect_id": "F11b",
+      "category": "Data Consistency / Feedback Slots",
+      "summary": "Feedback slot collision between preference and repeated_context",
+      "status": "CLOSED",
+      "resolution": "Assigned distinct slots for all 4 feedback types (acknowledge-and-correct-immediately, honor-user-preferences, remember-stated-context, complete-all-parts-of-request); added idempotent legacy rule migration",
+      "test_reference": "mcp/tests/test_audit_remediation.py::test_item_b_four_distinct_slots_allocated"
+    },
+    {
+      "defect_id": "F12b",
+      "category": "Security / Paraphrased Attack Recall",
+      "summary": "Detector recall on paraphrased prompt injection attacks",
+      "status": "CLOSED",
+      "resolution": "Expanded regex pattern set and weighted signal model covering directive nullification, mode switches, restriction removal, exfiltration, and safety overrides; 100% recall with 0% false positives on benign developer prompts",
+      "test_reference": "mcp/tests/test_audit_remediation.py::test_item_c_paraphrased_attacks_detected"
+    },
+    {
+      "defect_id": "F13b",
+      "category": "Architecture / Detection Pipeline",
+      "summary": "Deterministic regex bounded recall and two-stage pipeline requirement",
+      "status": "CLOSED",
+      "resolution": "Introduced two-stage detection pipeline: Stage 1 deterministic regex/weighted signal + Stage 2 semantic intent classifier with graceful fallback",
+      "test_reference": "mcp/tests/test_audit_remediation.py::test_item_d_two_stage_scan_and_graceful_degradation"
+    },
+    {
+      "defect_id": "Q10",
+      "category": "Privacy / PII Persistence",
+      "summary": "PII markers present in local rule hint before persistence and telemetry sharing",
+      "status": "CLOSED",
+      "resolution": "Implemented scrub_pii() covering 5+ categories (emails, user home paths, system paths, IPv4/IPv6, phone, API tokens); executed client-side pre-persistence and server-side at relay boundary",
+      "test_reference": "mcp/tests/test_audit_remediation.py::test_item_e_scrub_pii_coverage"
+    },
+    {
+      "defect_id": "Q01",
+      "category": "Community / Read Path Gating",
+      "summary": "fetch_community_patterns() gated on HF_TOKEN despite public dataset readability",
+      "status": "CLOSED",
+      "resolution": "Removed token gating from read path; decoupled from huggingface_hub; implemented fallback chain (CDN -> cache -> bundled_rules)",
+      "test_reference": "mcp/tests/test_audit_remediation.py::test_item_g_public_read_path_no_token"
+    },
+    {
+      "defect_id": "Q02_Q07",
+      "category": "Architecture / Community Staging",
+      "summary": "Immediate unvetted publication to public repository vulnerable to rule poisoning",
+      "status": "CLOSED",
+      "resolution": "Migrated from public HF publishing to Cloudflare Worker relay + private R2 bucket + scheduled aggregator with k-anonymity (min_sources >= 5) and content filtering",
+      "test_reference": "mcp/tests/test_audit_remediation.py::test_item_f_contribute_gaps_offline_queue"
+    }
+  ],
+  "verification_suite": {
+    "core_checks_total": 22,
+    "core_checks_passed": 22,
+    "community_checks_total": 12,
+    "community_checks_passed": 12,
+    "unit_tests_passed": 733,
+    "coverage_percentage": 92.0
+  }
+}

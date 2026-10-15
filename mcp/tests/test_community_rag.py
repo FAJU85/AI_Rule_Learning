@@ -18,14 +18,16 @@ import pytest
 # ---------------------------------------------------------------------------
 
 def test_fetch_community_patterns_no_token():
-    """Returns {} when HF_TOKEN is not set."""
+    """A clean environment with no HF_TOKEN retrieves community templates successfully (Item G)."""
     import ai_rule_learning_mcp.community as community
 
     original = community.HF_TOKEN
     community.HF_TOKEN = ""
     try:
         result = community.fetch_community_patterns()
-        assert result == {}
+        # Successfully retrieves patterns from bundled/cached corpus without requiring credentials
+        assert isinstance(result, dict)
+        assert len(result) > 0
     finally:
         community.HF_TOKEN = original
 
@@ -211,10 +213,10 @@ def test_load_community_templates_rag_detection():
 # ---------------------------------------------------------------------------
 
 def test_pull_community_templates_empty_on_error():
-    """Returns [] when HF raises an exception (e.g. file not found)."""
+    """Returns [] when CDN fails and fallback_to_bundled is disabled."""
     import ai_rule_learning_mcp.community as community
 
-    with patch("huggingface_hub.hf_hub_download", side_effect=Exception("not found")):
-        result = community.pull_community_templates()
+    with patch("urllib.request.urlopen", side_effect=Exception("CDN network error")):
+        result = community.pull_community_templates(fallback_to_bundled=False)
 
     assert result == []
