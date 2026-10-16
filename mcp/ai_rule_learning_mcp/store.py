@@ -63,13 +63,28 @@ def mark_processed(file_path: Path) -> None:
         _local_save("processed.jsonl", processed)
 
 
-# PII patterns
-_EMAIL_RE = re.compile(r"[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}", re.IGNORECASE)
-_HOME_RE = re.compile(r"(?:/home/[^/\s]+|/Users/[^/\s]+|[a-zA-Z]:\\(?:Users|Documents)[^\s]*)", re.IGNORECASE)
-_PATH_RE = re.compile(r"(?:/(?:etc|var|tmp|app|opt|usr|root)/[^\s,;\"']+)", re.IGNORECASE)
+# PII patterns (Defect Q10 — comprehensive coverage)
+_EMAIL_RE = re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b")
+_HOME_RE = re.compile(
+    r"(?:~[/\\][^\s,;\"']+|/(?:home|Users)/[^\s,;\"']+|[a-zA-Z]:[/\\](?:Users|Documents)[^\s,;\"']*)",
+    re.IGNORECASE,
+)
+_SYS_PATH_RE = re.compile(
+    r"(?:/(?:etc|var|tmp|app|opt|usr|root|srv|bin|sbin|dev|private)[/\\][^\s,;\"']+)",
+    re.IGNORECASE,
+)
+_FILE_PATH_RE = re.compile(
+    r"(?:(?:\.{1,2}|[a-zA-Z]:)?[/\\](?:[a-zA-Z0-9_.\-]+[/\\])+[a-zA-Z0-9_.\-]+\.[a-zA-Z0-9]{1,8}\b)",
+    re.IGNORECASE,
+)
+_WIN_PATH_RE = re.compile(r"\b[a-zA-Z]:[\\/][^\s,;\"']+", re.IGNORECASE)
 _IPV4_RE = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
-_IPV6_RE = re.compile(r"\b(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}\b|\b(?:[0-9a-fA-F]{1,4}:){1,7}:[0-9a-fA-F]{0,4}\b")
-_PHONE_RE = re.compile(r"\b(?:\+?\d[\d\s\-().]{7,}\d)\b")
+_IPV6_RE = re.compile(
+    r"\b(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}\b|\b(?:[0-9a-fA-F]{1,4}:){1,7}:[0-9a-fA-F]{0,4}\b"
+)
+_PHONE_RE = re.compile(
+    r"(?:\+\d{1,3}[\s.-]?)?(?:\(\d{2,4}\)|\b\d{2,4})[\s.-]\d{3,4}[\s.-]\d{3,4}\b|\b\+\d{10,14}\b"
+)
 _TOKEN_RE = re.compile(
     r"\b(?:hf_|sk-|ghp_|gho_|ghs_|github_pat_|xoxb-|xoxp-)[A-Za-z0-9_\-]{6,}\b|\bAKIA[0-9A-Z]{16}\b",
     re.IGNORECASE,
@@ -79,23 +94,48 @@ _TOKEN_RE = re.compile(
 def scrub_pii(text: str) -> str:
     """Scrub PII from text before persistence or transmission (Defect Q10).
 
-    Covers 5+ PII categories:
+    Covers all PII categories:
     - Email addresses
-    - Home and absolute filesystem paths
+    - Home and user filesystem paths (~/, /home/, /Users/, C:\\Users)
+    - System, relative, and absolute file paths
+    - Windows drive paths
     - IPv4 and IPv6 addresses
     - Phone numbers
-    - API keys and cloud credentials
+    - API keys and cloud credentials (OpenAI, HuggingFace, GitHub, AWS, Slack)
     """
     if not text:
         return ""
     text = _EMAIL_RE.sub("[EMAIL]", text)
     text = _HOME_RE.sub("[HOME]", text)
-    text = _PATH_RE.sub("[PATH]", text)
+    text = _SYS_PATH_RE.sub("[PATH]", text)
+    text = _WIN_PATH_RE.sub("[PATH]", text)
+    text = _FILE_PATH_RE.sub("[PATH]", text)
     text = _IPV4_RE.sub("[IP]", text)
     text = _IPV6_RE.sub("[IP]", text)
     text = _PHONE_RE.sub("[PHONE]", text)
     text = _TOKEN_RE.sub("[TOKEN]", text)
     return text
+
+
+def scrub_record(obj: Any) -> Any:
+    """Recursively scrub PII across nested dicts, lists, and string fields."""
+    if isinstance(obj, str):
+        return scrub_pii(obj)
+    elif isinstance(obj, dict):
+        return {k: scrub_record(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [scrub_record(v) for v in obj]
+    return obj
+
+
+def _local_save(filename: str, records: list[dict]) -> None:
+    """Save records to ~/.ai-rule-learning/ with mandatory recursive PII scrubbing."""
+    if filename != "processed.jsonl":
+        records = [scrub_record(r) for r in records]
+    _local_path(filename).write_text(
+        "\n".join(json.dumps(r, ensure_ascii=False) for r in records) + "\n",
+        encoding="utf-8",
+    )
 
 
 def _hf_api():

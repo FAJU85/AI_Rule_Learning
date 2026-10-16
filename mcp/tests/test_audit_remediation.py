@@ -212,6 +212,26 @@ def test_item_e_record_feedback_scrubs_pii_before_persistence(clean_test_env: Pa
     assert "[EMAIL]" in inst or "[HOME]" in inst or "[TOKEN]" in inst
 
 
+def test_item_e_arabic_and_path_pii_scrubbed_in_rules_jsonl(clean_test_env: Path) -> None:
+    """Item E / Q10: record_feedback with Arabic rule_hint and email/file_path scrubs all PII before rules.jsonl."""
+    res = server.record_feedback(
+        feedback_type="preference",
+        description="تفضيل المستخدم",
+        rule_hint="قاعدة من ahmed@example.com ومسار /home/user/project/script.py",
+    )
+    assert res["status"] == "Created"
+
+    rules = _local_load("rules.jsonl")
+    assert len(rules) == 1
+    raw_saved = json.dumps(rules[0], ensure_ascii=False)
+
+    assert "ahmed@example.com" not in raw_saved
+    assert "/home/user" not in raw_saved
+    assert "script.py" not in raw_saved
+    assert "[EMAIL]" in raw_saved
+    assert "[HOME]" in raw_saved or "[PATH]" in raw_saved
+
+
 # ── Item F & G: Community Backend Without Tokens ──────────────────────────────
 
 def test_item_f_bundled_rules_available() -> None:

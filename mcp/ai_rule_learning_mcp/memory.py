@@ -39,11 +39,13 @@ def _memory_file() -> Path:
 
 
 def add_memory(memory_type: str, content: str) -> dict:
-    """Append a memory entry. Returns the saved entry."""
+    """Append a memory entry with mandatory PII scrubbing. Returns the saved entry."""
+    from .store import scrub_pii
+
     if memory_type not in _VALID_TYPES:
         memory_type = "context"
 
-    content = content.strip()
+    content = scrub_pii(content.strip())
     if not content:
         raise ValueError("content cannot be empty")
 
