@@ -227,23 +227,38 @@ def fetch_community_patterns() -> dict[str, dict]:
                 },
             })
 
-    # Aggregate patterns across sources
+    # Aggregate patterns across sources (supports raw contributions and published templates)
     freq: dict[str, dict] = {}
     for record in records:
         source_hash = record.get("source_hash", "")
-        gap_patterns = record.get("gap_patterns", {})
-        for gap_type, instances in gap_patterns.items():
+        if "gap_patterns" in record:
+            gap_patterns = record.get("gap_patterns", {})
+            for gap_type, instances in gap_patterns.items():
+                entry = freq.setdefault(
+                    gap_type,
+                    {"count": 0, "unique_sources": set(), "_signal_counts": Counter()},
+                )
+                entry["count"] += len(instances)
+                if source_hash:
+                    entry["unique_sources"].add(source_hash)
+                for inst in instances:
+                    sig = inst.get("signal", "")
+                    if sig:
+                        entry["_signal_counts"][sig] += 1
+        elif "gap_type" in record:
+            gap_type = record["gap_type"]
+            triggers = record.get("triggers", [])
             entry = freq.setdefault(
                 gap_type,
                 {"count": 0, "unique_sources": set(), "_signal_counts": Counter()},
             )
-            entry["count"] += len(instances)
-            if source_hash:
-                entry["unique_sources"].add(source_hash)
-            for inst in instances:
-                sig = inst.get("signal", "")
-                if sig:
-                    entry["_signal_counts"][sig] += 1
+            count = record.get("total_occurrences", len(triggers) or 1)
+            entry["count"] += count
+            uniq_count = record.get("unique_sources", 1)
+            for i in range(uniq_count):
+                entry["unique_sources"].add(f"{source_hash or 'cdn'}_{i}")
+            for t in triggers:
+                entry["_signal_counts"][t] += 1
 
     result: dict[str, dict] = {}
     for gap_type, entry in freq.items():

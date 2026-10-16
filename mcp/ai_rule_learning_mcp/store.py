@@ -99,21 +99,25 @@ def scrub_pii(text: str) -> str:
 
 
 def _hf_api():
-    from huggingface_hub import HfApi
-
-    return HfApi(token=HF_TOKEN)
+    try:
+        import importlib
+        hf = importlib.import_module("huggingface_hub")
+        return hf.HfApi(token=HF_TOKEN)
+    except Exception:
+        return None
 
 
 def _download(filename: str) -> list[dict]:
     """Load from HF if configured, otherwise fall back to local storage."""
     if HF_DATASET and HF_TOKEN:
         try:
-            from huggingface_hub import hf_hub_download
+            import importlib
+            hf = importlib.import_module("huggingface_hub")
 
             # nosec B615 — HF_DATASET is the user's own backup dataset; the
             # channel is intentionally the mutable `main` branch (latest backup),
             # so pinning to an immutable commit is not desirable here.
-            path = hf_hub_download(  # nosec B615
+            path = hf.hf_hub_download(  # nosec B615
                 repo_id=HF_DATASET,
                 filename=filename,
                 repo_type="dataset",
