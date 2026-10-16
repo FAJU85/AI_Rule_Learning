@@ -28,6 +28,29 @@ export default {
       });
     }
 
+    if ((url.pathname === "/templates.jsonl" || url.pathname === "/api/templates") && request.method === "GET") {
+      if (env.PUBLIC_TEMPLATES_BUCKET) {
+        const obj = await env.PUBLIC_TEMPLATES_BUCKET.get("templates.jsonl");
+        if (obj) {
+          return new Response(obj.body, {
+            status: 200,
+            headers: {
+              "Content-Type": "application/x-jsonlines",
+              "Cache-Control": "public, max-age=300",
+              "Access-Control-Allow-Origin": "*",
+            },
+          });
+        }
+      }
+      return new Response("", {
+        status: 200,
+        headers: {
+          "Content-Type": "application/x-jsonlines",
+          "Access-Control-Allow-Origin": "*",
+        },
+      });
+    }
+
     return new Response(JSON.stringify({ service: "community-aggregator", status: "ready" }), {
       headers: { "Content-Type": "application/json" },
     });

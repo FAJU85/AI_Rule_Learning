@@ -229,8 +229,9 @@ def test_item_f_contribute_gaps_offline_queue(clean_test_env: Path) -> None:
             {"type": "explicit_correction", "severity": 1, "turn": 2, "signal": "no that is wrong"}
         ]
     }
-    # Call contribute_gaps with zero credentials
-    ok = contribute_gaps(gaps, source_hash="test_session_hash_123")
+    # Simulate network failure to verify offline fallback queuing
+    with patch("urllib.request.urlopen", side_effect=Exception("Network unreachable")):
+        ok = contribute_gaps(gaps, source_hash="test_session_hash_123")
     assert ok is True
 
     # Verify contribution queued locally

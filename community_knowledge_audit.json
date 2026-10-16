@@ -62,6 +62,17 @@
       "test_reference": "mcp/tests/test_audit_remediation.py::test_item_f_contribute_gaps_offline_queue"
     }
   ],
+  "live_e2e_verification": {
+    "status": "PASSED",
+    "verified_at": "2026-10-16T08:03:41Z",
+    "relay_url": "https://ai-rule-learning-relay.ee-ee455.workers.dev/api/contribute",
+    "aggregator_url": "https://ai-rule-learning-aggregator.ee-ee455.workers.dev/aggregate",
+    "public_cdn_url": "https://ai-rule-learning-aggregator.ee-ee455.workers.dev/templates.jsonl",
+    "k_anonymity_threshold_tested": 5,
+    "independent_sources_submitted": 5,
+    "templates_published_count": 1,
+    "clean_client_b_consumption": "VERIFIED"
+  },
   "verification_suite": {
     "core_checks_total": 22,
     "core_checks_passed": 22,

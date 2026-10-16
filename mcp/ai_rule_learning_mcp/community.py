@@ -32,11 +32,11 @@ HF_TOKEN = os.environ.get("HF_TOKEN", "")
 # Endpoints for Cloudflare Worker Relay & R2 CDN
 COMMUNITY_CDN_URL = os.environ.get(
     "COMMUNITY_CDN_URL",
-    "https://community-rules.airulelearning.workers.dev/templates.jsonl",
+    "https://ai-rule-learning-aggregator.ee-ee455.workers.dev/templates.jsonl",
 )
 COMMUNITY_RELAY_URL = os.environ.get(
     "COMMUNITY_RELAY_URL",
-    "https://community-relay.airulelearning.workers.dev/api/contribute",
+    "https://ai-rule-learning-relay.ee-ee455.workers.dev/api/contribute",
 )
 MAX_PAYLOAD_BYTES = 64 * 1024  # 64 KB maximum payload limit
 

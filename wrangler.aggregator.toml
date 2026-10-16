@@ -1,0 +1,16 @@
+name = "ai-rule-learning-aggregator"
+main = "aggregator.js"
+compatibility_date = "2024-10-01"
+
+# Hourly cron schedule to aggregate patterns with k-anonymity (min_sources >= 5)
+[triggers]
+crons = ["0 * * * *"]
+
+# Bindings: Read from private staging, publish to public CDN
+[[r2_buckets]]
+binding = "RAW_CONTRIBUTIONS_BUCKET"
+bucket_name = "arl-contributions"
+
+[[r2_buckets]]
+binding = "PUBLIC_TEMPLATES_BUCKET"
+bucket_name = "arl-templates"
