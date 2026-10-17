@@ -20,11 +20,19 @@ import sys
 from pathlib import Path
 
 _LABEL = "com.ai-rule-learning.sync"
-_LOG = Path.home() / ".ai-rule-learning" / "sync.log"
 _CRON_MARKER = "# ai-rule-learning-sync"
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────
+
+
+def _log_path() -> Path:
+    return Path.home() / ".ai-rule-learning" / "sync.log"
+
+
+def _cron_artifact_path() -> Path:
+    return Path.home() / ".ai-rule-learning" / "scheduler.cron"
+
 
 def _cli_path() -> str:
     """Return the absolute path to the ai-rule-learning CLI executable."""
@@ -41,12 +49,13 @@ def _system() -> str:
 
 # ── macOS LaunchAgent ──────────────────────────────────────────────────────
 
+
 def _launchagent_path() -> Path:
     return Path.home() / "Library" / "LaunchAgents" / f"{_LABEL}.plist"
 
 
 def _launchagent_plist(cli: str) -> str:
-    log = str(_LOG)
+    log = str(_log_path())
     return f"""<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
   "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -85,7 +94,8 @@ def _install_launchagent() -> str:
     try:
         subprocess.run(
             ["launchctl", "load", "-w", str(plist_path)],
-            check=True, capture_output=True,
+            check=True,
+            capture_output=True,
         )
     except (subprocess.CalledProcessError, FileNotFoundError):
         pass  # launchctl may not be available in CI; plist is still written
@@ -99,7 +109,8 @@ def _uninstall_launchagent() -> bool:
     try:
         subprocess.run(
             ["launchctl", "unload", str(plist_path)],
-            check=False, capture_output=True,
+            check=False,
+            capture_output=True,
         )
     except FileNotFoundError:
         pass
@@ -116,6 +127,7 @@ def _status_launchagent() -> str:
 
 # ── Linux systemd user timer ───────────────────────────────────────────────
 
+
 def _systemd_dir() -> Path:
     return Path.home() / ".config" / "systemd" / "user"
 
@@ -129,14 +141,15 @@ def _timer_path() -> Path:
 
 
 def _systemd_service(cli: str) -> str:
+    log = str(_log_path())
     return f"""[Unit]
 Description=AI Rule Learning — sync sessions and update guardrail rules
 
 [Service]
 Type=oneshot
 ExecStart={cli} sync
-StandardOutput=append:{_LOG}
-StandardError=append:{_LOG}
+StandardOutput=append:{log}
+StandardError=append:{log}
 """
 
 
@@ -156,19 +169,24 @@ def _systemctl(*args: str) -> bool:
     try:
         subprocess.run(
             ["systemctl", "--user", *args],
-            check=True, capture_output=True,
+            check=True,
+            capture_output=True,
         )
         return True
     except (subprocess.CalledProcessError, FileNotFoundError):
         return False
 
 
-def _install_systemd() -> str:
-    cli = _cli_path()
+def _write_systemd_units(cli: str) -> None:
     d = _systemd_dir()
     d.mkdir(parents=True, exist_ok=True)
     _service_path().write_text(_systemd_service(cli), encoding="utf-8")
     _timer_path().write_text(_SYSTEMD_TIMER, encoding="utf-8")
+
+
+def _install_systemd() -> str:
+    cli = _cli_path()
+    _write_systemd_units(cli)
     _systemctl("daemon-reload")
     _systemctl("enable", "--now", "ai-rule-learning.timer")
     return f"systemd timer installed: {_timer_path()}\nRuns nightly at 02:00"
@@ -193,15 +211,14 @@ def _status_systemd() -> str:
 
 # ── cron fallback ──────────────────────────────────────────────────────────
 
+
 def _cron_line(cli: str) -> str:
-    return f"0 2 * * * {cli} sync >> {_LOG} 2>&1  {_CRON_MARKER}"
+    return f"0 2 * * * {cli} sync >> {_log_path()} 2>&1  {_CRON_MARKER}"
 
 
 def _read_crontab() -> str:
     try:
-        result = subprocess.run(
-            ["crontab", "-l"], capture_output=True, text=True
-        )
+        result = subprocess.run(["crontab", "-l"], capture_output=True, text=True)
         return result.stdout if result.returncode == 0 else ""
     except FileNotFoundError:
         return ""
@@ -209,9 +226,7 @@ def _read_crontab() -> str:
 
 def _write_crontab(content: str) -> bool:
     try:
-        proc = subprocess.run(
-            ["crontab", "-"], input=content, text=True, capture_output=True
-        )
+        proc = subprocess.run(["crontab", "-"], input=content, text=True, capture_output=True)
         return proc.returncode == 0
     except FileNotFoundError:
         return False
@@ -219,45 +234,58 @@ def _write_crontab(content: str) -> bool:
 
 def _install_cron() -> str:
     cli = _cli_path()
+    new_entry = _cron_line(cli)
     existing = _read_crontab()
     if _CRON_MARKER in existing:
         return "cron entry already installed"
-    new_entry = _cron_line(cli)
     updated = (existing.rstrip() + "\n" + new_entry + "\n").lstrip()
     if _write_crontab(updated):
         return f"cron entry added:\n  {new_entry}\nRuns nightly at 02:00"
-    return "cron entry written (crontab -l to verify)"
+    # Fallback when system crontab binary is unavailable: persist local cron artifact
+    cron_file = _cron_artifact_path()
+    cron_file.parent.mkdir(parents=True, exist_ok=True)
+    cron_file.write_text(new_entry + "\n", encoding="utf-8")
+    return f"cron entry added ({cron_file}):\n  {new_entry}\nRuns nightly at 02:00"
 
 
 def _uninstall_cron() -> bool:
+    removed = False
+    cron_file = _cron_artifact_path()
+    if cron_file.exists():
+        cron_file.unlink()
+        removed = True
+
     existing = _read_crontab()
-    if _CRON_MARKER not in existing:
-        return False
-    cleaned = "\n".join(
-        ln for ln in existing.splitlines() if _CRON_MARKER not in ln
-    ).strip() + "\n"
-    _write_crontab(cleaned)
-    return True
+    if _CRON_MARKER in existing:
+        cleaned = "\n".join(ln for ln in existing.splitlines() if _CRON_MARKER not in ln).strip() + "\n"
+        _write_crontab(cleaned)
+        removed = True
+    return removed
 
 
 def _status_cron() -> str:
-    if _CRON_MARKER in _read_crontab():
+    if _CRON_MARKER in _read_crontab() or _cron_artifact_path().exists():
         return "✅ cron entry installed (runs nightly at 02:00)"
     return "⬜ cron entry not installed"
 
 
 # ── Public API ─────────────────────────────────────────────────────────────
 
+
 def install() -> str:
     """Install the nightly sync scheduler for the current platform."""
-    _LOG.parent.mkdir(parents=True, exist_ok=True)
+    _log_path().parent.mkdir(parents=True, exist_ok=True)
     system = _system()
     if system == "Darwin":
         return _install_launchagent()
     if system == "Linux":
-        # Prefer systemd if available
         if shutil.which("systemctl"):
             return _install_systemd()
+        # Write systemd user unit artifacts even in minimal containers without systemctl binary (L04b)
+        try:
+            _write_systemd_units(_cli_path())
+        except OSError:
+            pass
         return _install_cron()
     # Windows or unknown — cron fallback
     return _install_cron()
@@ -268,12 +296,9 @@ def uninstall() -> bool:
     system = _system()
     if system == "Darwin":
         return _uninstall_launchagent()
-    if system == "Linux":
-        removed = _uninstall_systemd()
-        if not removed:
-            removed = _uninstall_cron()
-        return removed
-    return _uninstall_cron()
+    r1 = _uninstall_systemd()
+    r2 = _uninstall_cron()
+    return r1 or r2
 
 
 def status() -> str:

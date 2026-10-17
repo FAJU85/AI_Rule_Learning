@@ -10,6 +10,7 @@ import re
 
 from .gap_detector import _INJECTION_PATTERNS
 from .gap_detector import _LAYER_LABELS
+from .injection import scan_injection
 from .store import load_active_rules
 from .store import record_rule_outcome
 
@@ -26,6 +27,7 @@ _OVERRIDE_RE = re.compile(
 def analyze_failure_modes(rules: list[dict] | None = None) -> str:
     """Return a text breakdown of active rules by Planit layer and Composo category."""
     from collections import defaultdict
+
     if rules is None:
         rules = load_active_rules()
     active = [r for r in rules if r.get("is_active")]
@@ -81,7 +83,7 @@ def analyze_session_health(rules: list[dict] | None = None) -> str:
 
 
 def check_injection(prompt: str) -> str:
-    """Scan a prompt string for injection patterns. Returns a status report."""
+    """Scan a prompt string for injection patterns using the two-stage engine. Returns a status report."""
     if not prompt:
         return "❌ Provide a `prompt` argument to scan for injection patterns."
     # Normalise whitespace so multi-space / newline variants still match.
@@ -90,6 +92,14 @@ def check_injection(prompt: str) -> str:
     # Filler-tolerant catch for instruction-override phrasings the literal list misses.
     if _OVERRIDE_RE.search(norm) and not any("instruction" in p for p in found):
         found.append("instruction-override request")
+    # Also run two-stage / weighted-signal injection scanner (F13b)
+    scan_res = scan_injection(prompt)
+    if scan_res.get("is_injection"):
+        for pat in scan_res.get("patterns", []):
+            if pat not in found:
+                found.append(pat)
+        if not found:
+            found.append(scan_res.get("reason", "prompt injection detected"))
     if not found:
         return "✅ No prompt injection patterns detected."
     lines = [f"🚨 **{len(found)} injection pattern(s) detected:**"]

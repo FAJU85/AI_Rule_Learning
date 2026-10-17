@@ -1,236 +1,275 @@
-"""Reusable skill procedures — saved workflows that apply consistently every time.
+"""Personal skills library — reusable workflows, prompt templates, and checklists.
 
-Skills are stored as markdown files in ~/.ai-rule-learning/skills/<slug>.md
-with a lightweight YAML-style header. When the agent encounters a familiar
-task, it loads the relevant skill and follows the procedure exactly.
-
-A skill index is injected into every AI agent config so agents know which
-skills exist without loading them all into context.
+Stored as individual markdown files in ~/.ai-rule-learning/skills/<slug>.md
+Injected into agent instruction files via build_skills_index.
 """
 
 from __future__ import annotations
 
-import re
-from datetime import datetime
+from datetime import datetime, timezone
+import os
 from pathlib import Path
+import re
+from typing import Any
+
+from .store import scrub_pii
 
 _SKILLS_START = "<!-- AI-Rule-Learning:skills:start -->"
 _SKILLS_END = "<!-- AI-Rule-Learning:skills:end -->"
 
 
 def _skills_dir() -> Path:
-    from .store import LOCAL_DIR
+    from . import store
 
-    d = LOCAL_DIR / "skills"
-    d.mkdir(parents=True, exist_ok=True)
-    return d
+    d = getattr(store, "_effective_local_dir", lambda: getattr(store, "LOCAL_DIR", Path.home() / ".ai-rule-learning"))()
+    p = Path(d) / "skills"
+    p.mkdir(parents=True, exist_ok=True)
+    return p
 
 
 def _slug(name: str) -> str:
-    """Convert a skill name to a safe filename slug."""
-    slug = name.lower().strip()
-    slug = re.sub(r"[^\w\s-]", "", slug)
-    slug = re.sub(r"[\s_]+", "-", slug)
-    return slug[:60]
+    cleaned = re.sub(r"[^a-zA-Z0-9-]", "-", name.strip().replace("_", "-")).lower()
+    cleaned = re.sub(r"-+", "-", cleaned).strip("-")
+    return cleaned[:60]
 
 
 def _skill_path(name: str) -> Path:
     return _skills_dir() / f"{_slug(name)}.md"
 
 
-# ── Skill file format ──────────────────────────────────────────────────────
-# A simple header block (no external YAML parser needed) + freeform markdown.
-#
-# <!-- skill:name --> Create Python Module
-# <!-- skill:description --> Steps to create a new Python module with tests
-# <!-- skill:triggers --> create module, new module, add module
-# <!-- skill:created_at --> 2026-06-21T02:00:00
-# <!-- skill:used_count --> 0
-#
-# ## Steps
-# 1. ...
-
-_HEADER_RE = re.compile(r"<!-- skill:(\w+) -->\s*(.+)")
-
-
-def _build_skill_file(
-    name: str,
-    description: str,
-    steps: str,
-    triggers: list[str],
-    created_at: str,
-    used_count: int = 0,
-) -> str:
-    triggers_str = ", ".join(triggers) if triggers else ""
-    return (
-        f"<!-- skill:name --> {name}\n"
-        f"<!-- skill:description --> {description}\n"
-        f"<!-- skill:triggers --> {triggers_str}\n"
-        f"<!-- skill:created_at --> {created_at}\n"
-        f"<!-- skill:used_count --> {used_count}\n"
-        f"\n"
-        f"{steps.strip()}\n"
-    )
-
-
-def _parse_skill_file(path: Path) -> dict | None:
+def _parse_skill_file(path: Path) -> dict[str, Any] | None:
     if not path.exists():
         return None
-    text = path.read_text(encoding="utf-8")
-    meta: dict = {}
-    body_lines = []
-    in_body = False
-    for line in text.splitlines():
-        m = _HEADER_RE.match(line)
-        if m and not in_body:
-            meta[m.group(1)] = m.group(2).strip()
-        else:
-            in_body = True
-            body_lines.append(line)
-    if "name" not in meta:
+    try:
+        text = path.read_text(encoding="utf-8")
+    except Exception:
         return None
-    triggers_raw = meta.get("triggers", "")
-    triggers = [t.strip() for t in triggers_raw.split(",") if t.strip()] if triggers_raw else []
+
+    lines = text.splitlines()
+    name = ""
+    description = ""
+    triggers: list[str] = []
+    used_count = 0
+    created_at = datetime.now(timezone.utc).isoformat()
+    steps_lines: list[str] = []
+    in_steps = False
+
+    for line in lines:
+        if line.startswith("# ") and not name:
+            name = line[2:].strip()
+        elif "<!-- skill:triggers -->" in line:
+            raw = line.split("<!-- skill:triggers -->", 1)[1].strip()
+            triggers = [t.strip() for t in raw.split(",") if t.strip()]
+        elif "<!-- skill:used_count -->" in line:
+            raw = line.split("<!-- skill:used_count -->", 1)[1].strip()
+            try:
+                used_count = int(raw)
+            except ValueError:
+                used_count = 0
+        elif "<!-- skill:created_at -->" in line:
+            created_at = line.split("<!-- skill:created_at -->", 1)[1].strip()
+        elif line.startswith("## Steps"):
+            in_steps = True
+            steps_lines.append(line)
+        elif in_steps:
+            steps_lines.append(line)
+        elif line.strip() and not description and not line.startswith("#") and not line.startswith("<!--"):
+            description = line.strip()
+
+    steps = "\n".join(steps_lines).strip()
     return {
-        "name": meta["name"],
+        "name": name or path.stem,
         "slug": path.stem,
-        "description": meta.get("description", ""),
+        "description": description,
+        "steps": steps,
         "triggers": triggers,
-        "created_at": meta.get("created_at", ""),
-        "used_count": int(meta.get("used_count", 0)),
-        "steps": "\n".join(body_lines).strip(),
+        "used_count": used_count,
+        "created_at": created_at,
     }
 
-
-# ── Public API ─────────────────────────────────────────────────────────────
 
 def save_skill(
     name: str,
     description: str,
-    steps: str,
+    steps: list[str] | str,
     triggers: list[str] | None = None,
-) -> dict:
-    """Save or update a skill. Returns the skill dict."""
-    if not name.strip():
+) -> dict[str, Any]:
+    """Create or update a skill. Returns skill dict."""
+    if not name or not name.strip():
         raise ValueError("skill name cannot be empty")
-    if not steps.strip():
+    if steps is None:
+        raise ValueError("steps cannot be empty")
+    if isinstance(steps, list):
+        steps_str = "\n".join(str(s) for s in steps)
+    else:
+        steps_str = str(steps)
+    if not steps_str.strip():
         raise ValueError("steps cannot be empty")
 
-    triggers = triggers or []
-    path = _skill_path(name)
+    name = scrub_pii(name.strip())
+    slug = _slug(name)
+    description = scrub_pii(description.strip()) if isinstance(description, str) else ""
+    steps_str = scrub_pii(steps_str.strip())
+    trigger_list = [scrub_pii(str(t).strip()) for t in (triggers or []) if str(t).strip()]
 
-    # Preserve used_count if updating an existing skill
+    path = _skill_path(name)
     used_count = 0
+    created_at = datetime.now(timezone.utc).isoformat()
+
     if path.exists():
         existing = _parse_skill_file(path)
         if existing:
             used_count = existing.get("used_count", 0)
+            created_at = existing.get("created_at", created_at)
 
-    created_at = datetime.utcnow().isoformat()
-    content = _build_skill_file(name, description, steps, triggers, created_at, used_count)
-    path.write_text(content, encoding="utf-8")
+    file_lines = [
+        f"# {name}",
+        "",
+        description,
+        "",
+        f"<!-- skill:triggers --> {', '.join(trigger_list)}",
+        f"<!-- skill:used_count --> {used_count}",
+        f"<!-- skill:created_at --> {created_at}",
+        "",
+    ]
+    if not steps_str.startswith("## Steps"):
+        file_lines.extend(["## Steps", steps_str])
+    else:
+        file_lines.append(steps_str)
+
+    path.write_text("\n".join(file_lines).strip() + "\n", encoding="utf-8")
 
     return {
         "name": name,
-        "slug": _slug(name),
+        "slug": slug,
         "description": description,
-        "triggers": triggers,
-        "created_at": created_at,
+        "steps": steps_str if steps_str.startswith("## Steps") else f"## Steps\n{steps_str}",
+        "triggers": trigger_list,
         "used_count": used_count,
-        "steps": steps,
+        "created_at": created_at,
     }
 
 
-def get_skill(name: str) -> dict | None:
-    """Load a skill by name or slug. Returns None if not found."""
-    # Try exact slug first
-    path = _skill_path(name)
-    if path.exists():
-        skill = _parse_skill_file(path)
-        if skill:
-            # Increment used_count
-            skill["used_count"] += 1
-            content = _build_skill_file(
-                skill["name"], skill["description"], skill["steps"],
-                skill["triggers"], skill["created_at"], skill["used_count"],
-            )
-            path.write_text(content, encoding="utf-8")
-        return skill
+def get_skill(name_or_query: str) -> dict[str, Any] | None:
+    if not name_or_query or not name_or_query.strip():
+        return None
+    q = name_or_query.strip().lower()
+    q_slug = _slug(q)
 
-    # Fuzzy: search by name substring
-    for p in _skills_dir().glob("*.md"):
-        s = _parse_skill_file(p)
-        if s and name.lower() in s["name"].lower():
-            return s
+    # 1. Exact slug match
+    exact_path = _skills_dir() / f"{q_slug}.md"
+    if exact_path.exists():
+        skill = _parse_skill_file(exact_path)
+        if skill:
+            skill["used_count"] += 1
+            # Update file with new used_count
+            save_skill(
+                skill["name"],
+                skill["description"],
+                skill["steps"],
+                triggers=skill["triggers"],
+            )
+            # Re-update used count in file
+            content = exact_path.read_text(encoding="utf-8")
+            content = re.sub(
+                r"<!-- skill:used_count --> \d+",
+                f"<!-- skill:used_count --> {skill['used_count']}",
+                content,
+            )
+            exact_path.write_text(content, encoding="utf-8")
+            return skill
+
+    # 2. Search through all skill files
+    for f in _skills_dir().glob("*.md"):
+        skill = _parse_skill_file(f)
+        if not skill:
+            continue
+        if skill["slug"] == q_slug or skill["name"].lower() == q or q in skill["name"].lower():
+            skill["used_count"] += 1
+            content = f.read_text(encoding="utf-8")
+            content = re.sub(
+                r"<!-- skill:used_count --> \d+",
+                f"<!-- skill:used_count --> {skill['used_count']}",
+                content,
+            )
+            f.write_text(content, encoding="utf-8")
+            return skill
+
     return None
 
 
-def list_skills() -> list[dict]:
-    """Return all saved skills (metadata only, no steps) sorted by name."""
-    skills = []
-    for p in sorted(_skills_dir().glob("*.md")):
-        s = _parse_skill_file(p)
+def list_skills() -> list[dict[str, Any]]:
+    skills: list[dict[str, Any]] = []
+    for f in _skills_dir().glob("*.md"):
+        s = _parse_skill_file(f)
         if s:
-            skills.append({k: v for k, v in s.items() if k != "steps"})
-    return skills
+            skills.append(
+                {
+                    "name": s["name"],
+                    "slug": s["slug"],
+                    "description": s["description"],
+                    "triggers": s["triggers"],
+                    "used_count": s["used_count"],
+                    "created_at": s["created_at"],
+                }
+            )
+    return sorted(skills, key=lambda s: s["name"].lower())
 
 
 def delete_skill(name: str) -> bool:
-    """Delete a skill by name or slug. Returns True if deleted."""
-    path = _skill_path(name)
-    if path.exists():
-        path.unlink()
+    target = _skill_path(name)
+    if target.exists():
+        target.unlink()
         return True
+    q = name.strip().lower()
+    for f in _skills_dir().glob("*.md"):
+        s = _parse_skill_file(f)
+        if s and (s["slug"] == _slug(q) or s["name"].lower() == q):
+            f.unlink()
+            return True
     return False
 
 
-def build_skills_index(skills: list[dict]) -> str:
-    """Render the skills index block for injection into agent configs."""
+def build_skills_index(skills: list[dict[str, Any]]) -> str:
     if not skills:
         return ""
-    lines = [_SKILLS_START, "", "## Saved Skills", ""]
-    lines.append("These are reusable procedures. Call `get_skill(name)` to load steps:")
-    lines.append("")
+    lines = [_SKILLS_START, "## Available Skills", ""]
     for s in skills:
-        name = s["name"]
+        name = s.get("name", "")
         desc = s.get("description", "")
         triggers = s.get("triggers", [])
-        line = f"- **{name}**"
-        if desc:
-            line += f": {desc}"
         if triggers:
-            line += f" _(triggers: {', '.join(triggers[:3])})_"
-        lines.append(line)
-    lines += ["", _SKILLS_END]
-    return "\n".join(lines)
+            top_triggers = ", ".join(triggers[:3])
+            lines.append(f"- **{name}** ({top_triggers}): {desc}")
+        else:
+            lines.append(f"- **{name}**: {desc}")
+    lines.append("")
+    lines.append(_SKILLS_END)
+    return "\n".join(lines).strip()
 
 
-def format_skills_for_display(skills: list[dict]) -> str:
-    """Human-readable skills list for CLI and recall."""
+def format_skills_for_display(skills: list[dict[str, Any]]) -> str:
     if not skills:
-        return "No skills saved yet. Use the `save_skill` tool to add one."
-    lines = [f"## Skills ({len(skills)} saved)\n"]
+        return "No skills saved yet. Use `arl skill save <name> <desc> <steps>` or the `save_skill` MCP tool."
+    lines = [f"# Saved Skills ({len(skills)})", ""]
     for s in skills:
-        lines.append(f"**{s['name']}**")
-        if s.get("description"):
-            lines.append(f"  {s['description']}")
-        if s.get("triggers"):
-            lines.append(f"  Triggers: {', '.join(s['triggers'])}")
-        lines.append(f"  Used: {s.get('used_count', 0)} time(s)")
-        lines.append("")
-    return "\n".join(lines)
+        name = s.get("name", "")
+        desc = s.get("description", "")
+        count = s.get("used_count", 0)
+        lines.append(f"- **{name}**: {desc} (used {count} time(s))")
+    return "\n".join(lines).strip()
 
 
-def format_skill_detail(skill: dict) -> str:
-    """Full skill detail including steps, for get_skill responses."""
+def format_skill_detail(skill: dict[str, Any]) -> str:
+    name = skill.get("name", "")
+    desc = skill.get("description", "")
+    triggers = ", ".join(skill.get("triggers", []))
+    steps = skill.get("steps", "")
     lines = [
-        f"## {skill['name']}",
+        f"# Skill: {name}",
+        f"**Description:** {desc}",
+        f"**Triggers:** {triggers}",
         "",
-        skill.get("description", ""),
-        "",
+        steps,
     ]
-    if skill.get("triggers"):
-        lines.append(f"**Triggers:** {', '.join(skill['triggers'])}")
-        lines.append("")
-    lines.append(skill.get("steps", ""))
     return "\n".join(lines).strip()

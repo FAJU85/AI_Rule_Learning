@@ -1,0 +1,21 @@
+{
+  "capabilities": [
+    "rule extraction",
+    "guardrail injection",
+    "community learning"
+  ],
+  "limitations": [
+    "no semantic dedup",
+    "no TTL",
+    "no conflict resolution"
+  ],
+  "security": {
+    "injection": "documented patterns",
+    "pii": "scrub at write"
+  },
+  "permissions": [
+    "read HOME",
+    "write HOME",
+    "network for relay"
+  ]
+}

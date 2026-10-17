@@ -1,12 +1,13 @@
-# Privacy & Data Protection Policy
+# Privacy & Data Protection Policy (GDPR / CCPA)
 
-Version: 2.1.0
-Status: Enforced
-Target: AI Rule Learning MCP
+**Version**: 2.2.0  
+**Status**: Enforced  
+**Target**: AI Rule Learning MCP  
+**Effective Date**: 2026-04-16
 
 ---
 
-## 1. Overview & Principles
+## 1. Local-First Architecture
 
 AI Rule Learning is built on a **privacy-first, local-first architecture**.
 All learning, rule formulation, memory persistence, and guardrail enforcement
@@ -20,72 +21,57 @@ happen on the user's local machine inside `~/.ai-rule-learning/`.
 
 ---
 
-## 2. What Is Collected (When Opted-In)
+## 2. Multi-Layer PII Scrubbing Engine (`scrub_pii`)
 
-When community telemetry is explicitly enabled, only high-level structural gap
-metadata is transmitted:
-
-1. **Gap Category & Type**: Abstract friction labels (e.g. `explicit_correction`,
-   `user_preference`, `repeated_context`, `incomplete_response`).
-2. **Frequency Counts**: Aggregate counters of occurrences within a session.
-3. **Turn Number**: Position within the conversation where the friction occurred.
-4. **Scrubbed Trigger Phrase**: Short, sanitized trigger signals (truncated to 120 chars)
-   with all PII replaced by tokens.
-5. **Session Hash**: A one-way SHA-256 hash of the session identifier used solely
-   for deduplication.
-
----
-
-## 3. What Is NEVER Collected or Stored
-
-- **No Raw Conversation Text**: Full prompts, system prompts, or agent completions
-  are never shared.
-- **No User Code or File Contents**: Application code, scripts, and repository contents
-  remain local.
-- **No User Identity or Accounts**: No usernames, emails, IP addresses, or personal
-  account details are associated with contributions.
-- **No File Paths or Filenames**: Absolute paths, home folders, and project names are redacted.
-- **No Secrets, Tokens, or API Keys**: Passwords, PATs, cloud keys, and tokens are blocked.
-
----
-
-## 4. Multi-Layer PII Scrubbing Engine
-
-PII scrubbing (`scrub_pii`) is applied at both the client boundary (prior to disk storage
-and transmission) and at the Cloudflare Relay Worker boundary (server-side defense in depth).
+PII scrubbing (`scrub_pii`) is applied on the write path (prior to disk storage
+and HTTP transmission) and at the Cloudflare Relay Worker boundary (server-side defense in depth).
 
 The engine automatically matches and redacts:
 
-| PII Category               | Pattern Matched                                         | Replacement Token |
-| :------------------------- | :------------------------------------------------------ | :---------------- |
-| **Email Addresses**        | RFC-compliant email expressions                         | `[EMAIL]`         |
-| **Home & User Paths**      | `/home/*`, `/Users/*`, `C:\Users\*`                     | `[HOME]`          |
-| **System Paths**           | Absolute filesystem paths (`/var/*`, `/etc/*`, etc.)    | `[PATH]`          |
-| **IPv4 Addresses**         | Standard IPv4 octet addresses                           | `[IP]`            |
-| **IPv6 Addresses**         | Full and abbreviated IPv6 addresses                     | `[IP]`            |
-| **Phone Numbers**          | International and domestic phone formats                | `[PHONE]`         |
-| **API Keys & Credentials** | `hf_`, `sk-`, `ghp_`, `gho_`, `github_pat_`, AWS, Slack | `[TOKEN]`         |
+- **Email addresses** (`[EMAIL_REDACTED]`)
+- **Absolute filesystem paths** across Linux (`/home/...`), macOS (`/Users/...`), and Windows (`C:\Users\...`) (`[PATH_REDACTED]`)
+- **API keys, bearer tokens, and credentials** (`sk-...`, `ghp_...`, `hf_...`, `AKIA...`, `Bearer ...`) (`[TOKEN_REDACTED]`)
+- **Passwords and secrets** (`password=...`, `secret:...`) (`[SECRET_REDACTED]`)
+- **IPv4 and IPv6 addresses** (`[IP_REDACTED]`)
+- **Social Security Numbers (SSNs)** (`[SSN_REDACTED]`)
+- **Phone numbers** (`[PHONE_REDACTED]`)
 
 ---
 
-## 5. Community Architecture & Staging
+## 3. GDPR Data Retention Policy & TTL (GDPR Art. 5(1)(e) — Storage Limitation) — CO01
 
-Unlike public repository models where contributions are published immediately to web indices,
-AI Rule Learning uses a **private staging pipeline**:
+We enforce strict data retention limits across local storage and cloud relay infrastructure:
 
-1. **Write Relay (Cloudflare Worker)**: Validates payload size (≤64KB), scans for PII and
-   injection patterns, and writes valid payloads to a **private, unindexed R2 storage bucket**.
-2. **Aggregator Worker (Cron)**: Periodically processes the private staging bucket.
-3. **K-Anonymity Enforcement**: Patterns are published to the public CDN only when verified
-   across **5 or more independent sources** (`min_sources >= 5`).
-4. **Data Minimization & Deletion**: Raw staging contributions are ephemeral and eligible
-   for routine lifecycle pruning.
+- **Local Storage Retention**:
+  - Local rules (`rules.jsonl`), memory (`memory.jsonl`), and skills (`skills.jsonl`) remain under the user's sole local control on their device until pruned or deleted.
+  - Stale rules that have not been triggered within **90 days** (`STALE_DAYS = 90`) are flagged by `review_rules` / `arl health` for archival or removal.
+- **Cloudflare Relay & KV Storage Retention (TTL)**:
+  - Anonymized community contribution records stored in Cloudflare Workers KV (`CONTRIBUTIONS` namespace) are written with a mandatory hardware-enforced **Time-To-Live (TTL) of 90 days** (`expirationTtl: 7776000` seconds). After 90 days, individual contribution keys are automatically and permanently purged.
+  - Ephemeral rate-limiting counters in KV expire automatically after **60 seconds** (`expirationTtl: 60` seconds).
 
 ---
 
-## 6. Compliance
+## 4. Data Residency & International Transfers (GDPR Chapter V, Art. 44–49) — CO02
 
-The data processing pipeline is designed to comply with:
+- **Local Processing Residency**: All primary data processing and storage (`~/.ai-rule-learning/`) resides **100% on the user's local device** in the user's jurisdiction.
+- **Cloudflare Edge & KV Residency**: When optional community sync or contribution is used, requests are processed by Cloudflare Workers edge nodes and stored in Cloudflare Workers KV (with primary storage in EU/US regions under Cloudflare's Data Processing Addendum and Standard Contractual Clauses (SCCs)). Because contributed payloads contain exclusively anonymized statistical counters (`gap_type`, `severity`, `language`, `count`) and zero personal data, no PII crosses jurisdictional boundaries.
 
-- **GDPR (Regulation (EU) 2016/679)**: Data minimization, purpose limitation, and privacy by design.
-- **CCPA / CPRA**: No sale of personal data; zero personal identifier linkage.
+---
+
+## 5. Lawful Basis & Explicit Consent Tracking (GDPR Art. 6(1)(a) & Art. 7) — CO03
+
+Community contribution is disabled by default (`ARL_CONTRIBUTE=false`). When a user explicitly opts in by setting `ARL_CONTRIBUTE=true` or passing `contribute=True`, an explicit consent audit record is written to `~/.ai-rule-learning/consent.json` containing:
+
+- `consented`: `true`
+- `timestamp`: ISO-8601 UTC timestamp of the consent event
+- `trigger`: The tool or command that initiated the opt-in contribution
+- `fingerprint`: Deterministic SHA-256 fingerprint of the consent event
+
+Consent may be revoked at any time via `record_consent(consent=False)` or `arl consent --revoke`.
+
+---
+
+## 6. Right to Erasure & Subject Rights (GDPR Art. 17)
+
+- **Local Data Erasure**: Run `rm -rf ~/.ai-rule-learning/` or `arl clear` to delete all local rules, sessions, and memory.
+- **Agent Instruction Files**: Run `arl clear` (or `remove_rules_all`) to strip all injected rule blocks from Claude Code, Cursor, Windsurf, GitHub Copilot, and OpenAI Codex.

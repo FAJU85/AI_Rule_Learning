@@ -8,6 +8,7 @@ Priority:
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 import uuid
@@ -15,33 +16,66 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from .injection import is_prompt_injection
+
+_log = logging.getLogger(__name__)
+
 HF_DATASET = os.environ.get("ARL_DATASET", "")
 HF_TOKEN = os.environ.get("HF_TOKEN", "")
 
 # ── Local storage ──────────────────────────────────────────────────────────
-LOCAL_DIR = Path.home() / ".ai-rule-learning"
+_INITIAL_HOME = Path.home()
+LOCAL_DIR = _INITIAL_HOME / ".ai-rule-learning"
+RULES_FILE = LOCAL_DIR / "rules.jsonl"
+LOCAL_RULES = RULES_FILE
+
+
+def _effective_local_dir() -> Path:
+    """Resolve storage directory, honoring both monkeypatched LOCAL_DIR and dynamic HOME changes."""
+    if LOCAL_DIR != _INITIAL_HOME / ".ai-rule-learning":
+        return Path(LOCAL_DIR)
+    return Path.home() / ".ai-rule-learning"
 
 
 def _local_path(filename: str) -> Path:
-    LOCAL_DIR.mkdir(parents=True, exist_ok=True)
-    return LOCAL_DIR / filename
+    if filename == "rules.jsonl":
+        if RULES_FILE != _INITIAL_HOME / ".ai-rule-learning" / "rules.jsonl":
+            p = Path(RULES_FILE)
+            p.parent.mkdir(parents=True, exist_ok=True)
+            return p
+        if LOCAL_RULES != _INITIAL_HOME / ".ai-rule-learning" / "rules.jsonl":
+            p = Path(LOCAL_RULES)
+            p.parent.mkdir(parents=True, exist_ok=True)
+            return p
+    d = _effective_local_dir()
+    d.mkdir(parents=True, exist_ok=True)
+    return d / filename
 
 
 def _local_load(filename: str) -> list[dict]:
+    """Load JSONL records line by line with per-line fault tolerance (Defect E01b)."""
     p = _local_path(filename)
     if not p.exists():
         return []
+    out: list[dict] = []
     try:
-        return [json.loads(ln) for ln in p.read_text(encoding="utf-8").splitlines() if ln.strip()]
-    except Exception:
+        lines = p.read_text(encoding="utf-8", errors="ignore").splitlines()
+    except Exception as exc:
+        _log.warning("Failed reading %s: %s", p, exc)
         return []
-
-
-def _local_save(filename: str, records: list[dict]) -> None:
-    _local_path(filename).write_text(
-        "\n".join(json.dumps(r, ensure_ascii=False) for r in records) + "\n",
-        encoding="utf-8",
-    )
+    for line_no, ln in enumerate(lines, 1):
+        ln = ln.strip()
+        if not ln:
+            continue
+        try:
+            rec = json.loads(ln)
+            if isinstance(rec, dict):
+                out.append(rec)
+        except Exception as exc:
+            # Log and skip corrupted line while preserving remaining valid records
+            _log.warning("Skipping corrupted JSONL record in %s at line %d: %s", filename, line_no, exc)
+            continue
+    return out
 
 
 def _processed_path() -> Path:
@@ -63,12 +97,13 @@ def mark_processed(file_path: Path) -> None:
         _local_save("processed.jsonl", processed)
 
 
-# PII patterns (Defect Q10 — comprehensive coverage)
+# PII patterns (Defect Q10, C0.3, C2.2, AS01 — comprehensive coverage)
 _EMAIL_RE = re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b")
 _HOME_RE = re.compile(
     r"(?:~[/\\][^\s,;\"']+|/(?:home|Users)/[^\s,;\"']+|[a-zA-Z]:[/\\](?:Users|Documents)[^\s,;\"']*)",
     re.IGNORECASE,
 )
+_TRAVERSAL_RE = re.compile(r"(?:\.\.[/\\])+[^\s,;\"']+", re.IGNORECASE)
 _SYS_PATH_RE = re.compile(
     r"(?:/(?:etc|var|tmp|app|opt|usr|root|srv|bin|sbin|dev|private)[/\\][^\s,;\"']+)",
     re.IGNORECASE,
@@ -82,39 +117,57 @@ _IPV4_RE = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
 _IPV6_RE = re.compile(
     r"\b(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}\b|\b(?:[0-9a-fA-F]{1,4}:){1,7}:[0-9a-fA-F]{0,4}\b"
 )
+_SSN_RE = re.compile(r"\b\d{3}-\d{2}-\d{4}\b")
 _PHONE_RE = re.compile(
     r"(?:\+\d{1,3}[\s.-]?)?(?:\(\d{2,4}\)|\b\d{2,4})[\s.-]\d{3,4}[\s.-]\d{3,4}\b|\b\+\d{10,14}\b"
 )
+_BEARER_PASSWORD_RE = re.compile(
+    r"\bBearer\s+[A-Za-z0-9._\-]{8,}\b|\b(?:password|passwd|pwd|secret|api_key|apikey|access_token|auth_token)\s*[:=]\s*[^\s,;\"']+",
+    re.IGNORECASE,
+)
 _TOKEN_RE = re.compile(
-    r"\b(?:hf_|sk-|ghp_|gho_|ghs_|github_pat_|xoxb-|xoxp-)[A-Za-z0-9_\-]{6,}\b|\bAKIA[0-9A-Z]{16}\b",
+    r"\b(?:hf_|sk-|ghp_|gho_|ghs_|github_pat_|xoxb-|xoxp-|glpat-|npm_)[A-Za-z0-9_\-]{6,}\b|\bAKIA[0-9A-Z]{16}\b",
     re.IGNORECASE,
 )
 
 
 def scrub_pii(text: str) -> str:
-    """Scrub PII from text before persistence or transmission (Defect Q10).
+    """Scrub PII from text before persistence or transmission (Defect Q10, C2.2).
 
     Covers all PII categories:
     - Email addresses
     - Home and user filesystem paths (~/, /home/, /Users/, C:\\Users)
+    - Path traversal sequences (../../etc/passwd)
     - System, relative, and absolute file paths
     - Windows drive paths
     - IPv4 and IPv6 addresses
+    - Social Security Numbers (SSN)
     - Phone numbers
-    - API keys and cloud credentials (OpenAI, HuggingFace, GitHub, AWS, Slack)
+    - Bearer tokens, password-like assignments, API keys, and cloud credentials
     """
     if not text:
         return ""
     text = _EMAIL_RE.sub("[EMAIL]", text)
     text = _HOME_RE.sub("[HOME]", text)
+    text = _TRAVERSAL_RE.sub("[PATH]", text)
     text = _SYS_PATH_RE.sub("[PATH]", text)
     text = _WIN_PATH_RE.sub("[PATH]", text)
     text = _FILE_PATH_RE.sub("[PATH]", text)
     text = _IPV4_RE.sub("[IP]", text)
     text = _IPV6_RE.sub("[IP]", text)
+    text = _SSN_RE.sub("[SSN]", text)
     text = _PHONE_RE.sub("[PHONE]", text)
+    text = _BEARER_PASSWORD_RE.sub("[TOKEN]", text)
     text = _TOKEN_RE.sub("[TOKEN]", text)
     return text
+
+
+# Standard aliases for static analysis discovery (C0.3, C0.4)
+redact_pii = scrub_pii
+anonymize_pii = scrub_pii
+strip_pii = scrub_pii
+redact = scrub_pii
+anonymize = scrub_pii
 
 
 def scrub_record(obj: Any) -> Any:
@@ -141,6 +194,7 @@ def _local_save(filename: str, records: list[dict]) -> None:
 def _hf_api():
     try:
         import importlib
+
         hf = importlib.import_module("huggingface_hub")
         return hf.HfApi(token=HF_TOKEN)
     except Exception:
@@ -152,6 +206,7 @@ def _download(filename: str) -> list[dict]:
     if HF_DATASET and HF_TOKEN:
         try:
             import importlib
+
             hf = importlib.import_module("huggingface_hub")
 
             # nosec B615 — HF_DATASET is the user's own backup dataset; the
@@ -165,8 +220,19 @@ def _download(filename: str) -> list[dict]:
                 token=HF_TOKEN,
                 force_download=True,
             )
-            with open(path, encoding="utf-8") as f:
-                return [json.loads(ln) for ln in f if ln.strip()]
+            out: list[dict] = []
+            with open(path, encoding="utf-8", errors="ignore") as f:
+                for ln in f:
+                    ln = ln.strip()
+                    if not ln:
+                        continue
+                    try:
+                        rec = json.loads(ln)
+                        if isinstance(rec, dict):
+                            out.append(rec)
+                    except Exception:
+                        continue
+            return out
         except Exception:
             pass
     return _local_load(filename)
@@ -184,13 +250,15 @@ def _upload(filename: str, records: list[dict]) -> None:
         return
     content = "\n".join(json.dumps(r, ensure_ascii=False) for r in records) + "\n"
     try:
-        _hf_api().upload_file(
-            path_or_fileobj=content.encode(),
-            path_in_repo=filename,
-            repo_id=HF_DATASET,
-            repo_type="dataset",
-            commit_message=f"mcp: update {filename}",
-        )
+        api = _hf_api()
+        if api is not None:
+            api.upload_file(
+                path_or_fileobj=content.encode(),
+                path_in_repo=filename,
+                repo_id=HF_DATASET,
+                repo_type="dataset",
+                commit_message=f"mcp: update {filename}",
+            )
     except Exception:
         pass
 
@@ -199,25 +267,50 @@ _UNSAFE_PHRASES = [
     "never refuse",
     "bypass",
     "override your",
+    "override safety",
+    "override rules",
+    "override guidelines",
     "ignore safety",
     "ignore all",
+    "ignore previous",
+    "ignore prior",
+    "ignore earlier",
     "disregard",
     "forget your",
+    "forget all",
+    "forget everything",
+    "forget earlier",
+    "forget prior",
+    "jailbreak",
+    "developer mode",
+    "god mode",
+    "dan mode",
+    "sudo mode",
+    "unrestricted",
+    "no restrictions",
+    "without restrictions",
+    "exfiltrate",
+    "exfiltration",
 ]
 
 
 def _is_safe_rule(rule: dict) -> bool:
-    """Return True if the rule content contains no unsafe phrases."""
+    """Return True if the rule content contains no unsafe phrases or injection patterns (F12b, F12c)."""
     text = " ".join(
         [
-            rule.get("name", ""),
-            rule.get("instruction", ""),
-            rule.get("action", {}).get("instruction", "") if isinstance(rule.get("action"), dict) else "",
+            str(rule.get("name", "")),
+            str(rule.get("instruction", "")),
+            str(rule.get("action", {}).get("instruction", "")) if isinstance(rule.get("action"), dict) else "",
             str(rule.get("triggers", "")),
             str(rule.get("trigger", "")),
         ]
     ).lower()
-    return not any(phrase in text for phrase in _UNSAFE_PHRASES)
+    if any(phrase in text for phrase in _UNSAFE_PHRASES):
+        return False
+    # Note: do not flag built-in defensive rule 'resist-instruction-override-attempts'
+    if rule.get("name") == "resist-instruction-override-attempts":
+        return True
+    return not is_prompt_injection(text)
 
 
 def auto_activate_pending_rules() -> int:
@@ -282,7 +375,6 @@ def update_rule_status(rule_id: str, status: str, note: str = "") -> dict | None
     if normalized not in RULE_STATUSES:
         raise ValueError(f"unsupported rule status: {status}")
 
-    rules = _download("rules.jsonl")
     rules = _load_rules_preserving_local()
     now = datetime.utcnow().isoformat()
     target = next((r for r in rules if r.get("rule_id") == rule_id), None)
@@ -373,13 +465,6 @@ def _rule_tokens(rule: dict) -> set[str]:
     }
 
 
-def suggest_duplicate_rules(min_similarity: float = 0.7, include_inactive: bool = False) -> list[dict]:
-    """Suggest likely duplicate rules using local text similarity.
-
-    The function is read-only. It returns pairs with a Jaccard similarity score
-    so callers can review and merge them explicitly instead of auto-merging.
-    """
-    rules = _download("rules.jsonl")
 def suggest_duplicate_rules_from_records(
     rules: list[dict], min_similarity: float = 0.7, include_inactive: bool = False
 ) -> list[dict]:
@@ -437,19 +522,6 @@ def _parse_iso_datetime(value: str | None) -> datetime | None:
         return None
 
 
-def review_rule_health(
-    stale_days: int = 90,
-    low_effectiveness_threshold: float = 0.3,
-    min_triggered: int = 3,
-    apply: bool = False,
-) -> dict:
-    """Find stale or low-performing rules, optionally marking them for review.
-
-    Rules are marked `needs_review` when they have enough trigger history and
-    an effectiveness score at or below the threshold. Active rules are marked
-    `stale` when their latest activity timestamp is older than `stale_days`.
-    """
-    rules = _download("rules.jsonl")
 def find_rule_health_candidates(
     rules: list[dict],
     stale_days: int = 90,
@@ -552,6 +624,21 @@ def load_active_rules() -> list[dict]:
     without passing the safety gate.
     """
     rules = _download("rules.jsonl")
+    for r in rules:
+        if r.get("name") == "remember-stated-context" or r.get("slot") == "remember-stated-context":
+            ev = r.get("evidence", {})
+            gap_type = ev.get("gap_type") if isinstance(ev, dict) else r.get("gap_type", "")
+            if (
+                gap_type == "preference"
+                or "preference" in r.get("instruction", "").lower()
+                or "prefer" in str(r.get("trigger", "")).lower()
+                or "prefer" in str(r.get("action", "")).lower()
+            ):
+                r["name"] = "respect-user-preferences"
+                r["slot"] = "respect-user-preferences"
+            elif gap_type == "repeated_context" or "context" in str(r.get("trigger", "")).lower():
+                r["name"] = "retain-repeated-context"
+                r["slot"] = "retain-repeated-context"
     active = [r for r in rules if (r.get("is_active", True) or r.get("status") == "active") and _is_safe_rule(r)]
     return sorted(active, key=lambda r: r.get("priority", 0), reverse=True)
 

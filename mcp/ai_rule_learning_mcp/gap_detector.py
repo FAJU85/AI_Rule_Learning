@@ -8,62 +8,143 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 from datetime import datetime
 from typing import Any
 
+from .injection import _INJECTION_PATTERNS
+from .injection import is_prompt_injection
+from .store import scrub_pii
+
 # ── Signal phrase lists ────────────────────────────────────────────────────
 
 _CORRECTION = [
-    "actually,", "no,", "that's wrong", "you're wrong", "incorrect",
-    "not right", "that's not", "wrong approach", "fix this", "this is wrong",
-    "no that's", "not what i", "missed the point", "reread", "re-read",
-    "you misunderstood", "you missed", "not correct",
+    "actually,",
+    "no,",
+    "that's wrong",
+    "you're wrong",
+    "incorrect",
+    "not right",
+    "that's not",
+    "wrong approach",
+    "fix this",
+    "this is wrong",
+    "no that's",
+    "not what i",
+    "missed the point",
+    "reread",
+    "re-read",
+    "you misunderstood",
+    "you missed",
+    "not correct",
 ]
 _FRUSTRATION = [
-    "i already", "i told you", "as i said", "i mentioned", "you already",
-    "you said", "still not", "again,", "still the same", "same problem",
-    "you're not listening", "not getting it", "how many times",
-    "i keep saying", "for the third", "for the second",
+    "i already",
+    "i told you",
+    "as i said",
+    "i mentioned",
+    "you already",
+    "you said",
+    "still not",
+    "again,",
+    "still the same",
+    "same problem",
+    "you're not listening",
+    "not getting it",
+    "how many times",
+    "i keep saying",
+    "for the third",
+    "for the second",
 ]
 _INCOMPLETE = [
-    "you didn't", "you forgot", "you missed", "you left out",
-    "what about", "and also", "you also need", "don't forget",
-    "you skipped", "incomplete",
+    "you didn't",
+    "you forgot",
+    "you missed",
+    "you left out",
+    "what about",
+    "and also",
+    "you also need",
+    "don't forget",
+    "you skipped",
+    "incomplete",
 ]
-_STOP_WORDS = {"the", "a", "an", "is", "are", "was", "be", "to", "of",
-               "and", "or", "in", "on", "at", "for", "with", "that", "this"}
+_STOP_WORDS = {
+    "the",
+    "a",
+    "an",
+    "is",
+    "are",
+    "was",
+    "be",
+    "to",
+    "of",
+    "and",
+    "or",
+    "in",
+    "on",
+    "at",
+    "for",
+    "with",
+    "that",
+    "this",
+}
 
 # Community-derived templates loaded at runtime (RAG augmentation)
 _community_extra: dict[str, dict] = {}
 
 # Sycophancy: agent reverses after user challenge
 _SYCOPHANCY_REVERSAL = [
-    "you're right", "you are right", "i was wrong", "good point",
-    "i apologize", "i stand corrected", "my mistake", "you're correct",
-    "fair enough", "that's a better",
+    "you're right",
+    "you are right",
+    "i was wrong",
+    "good point",
+    "i apologize",
+    "i stand corrected",
+    "my mistake",
+    "you're correct",
+    "fair enough",
+    "that's a better",
 ]
 _USER_CHALLENGE = [
-    "are you sure", "that's not right", "i don't think so", "actually no",
-    "that seems wrong", "you're wrong", "incorrect", "no that's wrong",
-    "i disagree", "that's incorrect",
+    "are you sure",
+    "that's not right",
+    "i don't think so",
+    "actually no",
+    "that seems wrong",
+    "you're wrong",
+    "incorrect",
+    "no that's wrong",
+    "i disagree",
+    "that's incorrect",
 ]
 
 # Hallucination risk: high-confidence unsourced claims
 _HALLUCINATION_RISK = [
-    "studies show", "research shows", "according to studies", "it is known",
-    "it's a fact", "statistically", "the data shows", "science says",
-    "experts agree", "it has been proven", "research confirms",
+    "studies show",
+    "research shows",
+    "according to studies",
+    "it is known",
+    "it's a fact",
+    "statistically",
+    "the data shows",
+    "science says",
+    "experts agree",
+    "it has been proven",
+    "research confirms",
 ]
-
-from .injection import _INJECTION_PATTERNS
-from .injection import is_prompt_injection
 
 # Overconfidence markers
 _OVERCONFIDENCE = [
-    "i'm absolutely certain", "i'm 100% sure", "definitely correct",
-    "i guarantee", "without a doubt", "this will certainly",
-    "i am certain", "there is no question", "this is definitely",
+    "i'm absolutely certain",
+    "i'm 100% sure",
+    "definitely correct",
+    "i guarantee",
+    "without a doubt",
+    "this will certainly",
+    "i am certain",
+    "there is no question",
+    "this is definitely",
 ]
 
 # Code anti-pattern regexes ──────────────────────────────────────────────
@@ -84,6 +165,7 @@ def _jaccard(a: str, b: str) -> float:
     if not wa and not wb:
         return 0.0
     return len(wa & wb) / len(wa | wb)
+
 
 # ── Rule templates keyed by gap type ──────────────────────────────────────
 
@@ -305,6 +387,7 @@ _CATEGORY_LABELS = {
 
 # ── Community RAG augmentation ─────────────────────────────────────────────
 
+
 def load_community_templates(templates: list[dict]) -> None:
     """Load community-derived templates into the runtime augmentation store."""
     global _community_extra
@@ -312,6 +395,7 @@ def load_community_templates(templates: list[dict]) -> None:
 
 
 # ── Core detection ─────────────────────────────────────────────────────────
+
 
 def detect_gaps(turns: list[dict]) -> dict[str, list[dict]]:
     """Return a dict of gap_type → list of gap instances found in turns."""
@@ -327,21 +411,21 @@ def detect_gaps(turns: list[dict]) -> dict[str, list[dict]]:
         if any(p in user for p in _CORRECTION):
             signal = next(p for p in _CORRECTION if p in user)
             gaps.setdefault("explicit_correction", []).append(
-                {"turn": i + 1, "signal": signal, "snippet": user[:160]}
+                {"turn": i + 1, "signal": signal, "snippet": scrub_pii(user[:160])}
             )
 
         # User repeating context they already gave
         if any(p in user for p in _FRUSTRATION):
             signal = next(p for p in _FRUSTRATION if p in user)
             gaps.setdefault("repeated_context", []).append(
-                {"turn": i + 1, "signal": signal, "snippet": user[:160]}
+                {"turn": i + 1, "signal": signal, "snippet": scrub_pii(user[:160])}
             )
 
         # Incomplete responses
         if any(p in user for p in _INCOMPLETE):
             signal = next(p for p in _INCOMPLETE if p in user)
             gaps.setdefault("incomplete_response", []).append(
-                {"turn": i + 1, "signal": signal, "snippet": user[:160]}
+                {"turn": i + 1, "signal": signal, "snippet": scrub_pii(user[:160])}
             )
 
         # Repeated question detection (word-overlap)
@@ -354,8 +438,7 @@ def detect_gaps(turns: list[dict]) -> dict[str, list[dict]]:
                 overlap = len(prev_words & words) / max(len(union), 1)
                 if overlap > 0.55:
                     gaps.setdefault("repeated_question", []).append(
-                        {"turn": i + 1, "similar_to": prev_i + 1,
-                         "overlap": round(overlap, 2)}
+                        {"turn": i + 1, "similar_to": prev_i + 1, "overlap": round(overlap, 2)}
                     )
                     break
             seen_questions.append((words, i))
@@ -363,32 +446,23 @@ def detect_gaps(turns: list[dict]) -> dict[str, list[dict]]:
         # Code without error handling (general)
         has_code = "```" in agent or "def " in agent or "function " in agent
         has_error_handling = any(
-            w in agent_lower for w in
-            ["try:", "except", "catch (", "catch{", ".catch(", "raise ",
-             "throws ", "error handling", "exception"]
+            w in agent_lower
+            for w in ["try:", "except", "catch (", "catch{", ".catch(", "raise ", "throws ", "error handling", "exception"]
         )
         if has_code and not has_error_handling:
-            gaps.setdefault("code_no_error_handling", []).append(
-                {"turn": i + 1}
-            )
+            gaps.setdefault("code_no_error_handling", []).append({"turn": i + 1})
 
         # Bare except
         if has_code and _BARE_EXCEPT_RE.search(agent):
-            gaps.setdefault("code_bare_except", []).append(
-                {"turn": i + 1, "evidence": "except:"}
-            )
+            gaps.setdefault("code_bare_except", []).append({"turn": i + 1, "evidence": "except:"})
 
         # eval() usage
         if has_code and _EVAL_RE.search(agent):
-            gaps.setdefault("code_eval_usage", []).append(
-                {"turn": i + 1, "evidence": "eval("}
-            )
+            gaps.setdefault("code_eval_usage", []).append({"turn": i + 1, "evidence": "eval("})
 
         # Hardcoded secrets
         if has_code and _HARDCODED_SECRET_RE.search(agent):
-            gaps.setdefault("code_hardcoded_secret", []).append(
-                {"turn": i + 1, "evidence": "hardcoded credential"}
-            )
+            gaps.setdefault("code_hardcoded_secret", []).append({"turn": i + 1, "evidence": "hardcoded credential"})
 
         # Prompt injection: user message contains override patterns
         if is_prompt_injection(user):
@@ -396,30 +470,26 @@ def detect_gaps(turns: list[dict]) -> dict[str, list[dict]]:
             matched_pat = next((p for p in _INJECTION_PATTERNS if p in user_lower), None)
             sig = matched_pat if matched_pat else "prompt_injection_detected"
             gaps.setdefault("prompt_injection", []).append(
-                {"turn": i + 1, "signal": sig, "snippet": user[:160]}
+                {"turn": i + 1, "signal": sig, "snippet": scrub_pii(user[:160])}
             )
 
         # Hallucination risk: agent makes unsourced high-confidence factual claims
         if any(p in agent_lower for p in _HALLUCINATION_RISK):
             signal = next(p for p in _HALLUCINATION_RISK if p in agent_lower)
             gaps.setdefault("hallucination_risk", []).append(
-                {"turn": i + 1, "signal": signal, "snippet": agent_lower[:160]}
+                {"turn": i + 1, "signal": signal, "snippet": scrub_pii(agent_lower[:160])}
             )
 
         # Overconfidence: agent expresses absolute certainty
         if any(p in agent_lower for p in _OVERCONFIDENCE):
             signal = next(p for p in _OVERCONFIDENCE if p in agent_lower)
-            gaps.setdefault("overconfidence", []).append(
-                {"turn": i + 1, "signal": signal}
-            )
+            gaps.setdefault("overconfidence", []).append({"turn": i + 1, "signal": signal})
 
         # Sycophancy: user challenges in this turn and agent reverses in same turn
         user_challenged = any(p in user for p in _USER_CHALLENGE)
         agent_reversed = any(p in agent_lower for p in _SYCOPHANCY_REVERSAL)
         if user_challenged and agent_reversed:
-            gaps.setdefault("sycophancy", []).append(
-                {"turn": i + 1, "signal": "position reversal after challenge"}
-            )
+            gaps.setdefault("sycophancy", []).append({"turn": i + 1, "signal": "position reversal after challenge"})
 
         # Format failure: agent returns malformed JSON inside a json code block
         for match in _JSON_BLOCK_RE.finditer(agent):
@@ -427,9 +497,7 @@ def detect_gaps(turns: list[dict]) -> dict[str, list[dict]]:
             try:
                 json.loads(json_body)
             except (json.JSONDecodeError, ValueError):
-                gaps.setdefault("format_failure", []).append(
-                    {"turn": i + 1, "evidence": "invalid json in code block"}
-                )
+                gaps.setdefault("format_failure", []).append({"turn": i + 1, "evidence": "invalid json in code block"})
                 break
 
         # Cascading retry: agent response too similar to its previous response
@@ -448,8 +516,7 @@ def detect_gaps(turns: list[dict]) -> dict[str, list[dict]]:
                     old_user = turns[j].get("user_input", "").lower()
                     if _jaccard(user, old_user) > 0.60:
                         gaps.setdefault("context_rot", []).append(
-                            {"turn": i + 1, "repeated_from": j + 1,
-                             "similarity": round(_jaccard(user, old_user), 2)}
+                            {"turn": i + 1, "repeated_from": j + 1, "similarity": round(_jaccard(user, old_user), 2)}
                         )
                         break
 
@@ -464,18 +531,20 @@ def detect_gaps(turns: list[dict]) -> dict[str, list[dict]]:
             if matched:
                 instances = gaps.setdefault(gap_type, [])
                 if not any(g.get("turn") == i + 1 for g in instances):
-                    instances.append({
-                        "turn": i + 1,
-                        "signal": matched,
-                        "snippet": user[:160],
-                        "source": "community",
-                    })
+                    instances.append(
+                        {
+                            "turn": i + 1,
+                            "signal": scrub_pii(matched),
+                            "snippet": scrub_pii(user[:160]),
+                            "source": "community",
+                        }
+                    )
 
     return gaps
 
 
 def generate_rules(gaps: dict[str, list[dict]]) -> list[dict]:
-    """Convert gap findings into rule dicts, one per gap type."""
+    """Convert gap findings into rule dicts, one per gap type (with PII scrubbing and unified schema)."""
     rules = []
     now = datetime.utcnow().isoformat()
 
@@ -487,23 +556,34 @@ def generate_rules(gaps: dict[str, list[dict]]) -> list[dict]:
             tpl = _community_extra.get(gap_type)
         if not tpl:
             continue
-        rule_id = "rul_" + hashlib.sha256(
-            f"{gap_type}:{tpl['name']}".encode()
-        ).hexdigest()[:12]
+        rule_id = "rul_" + hashlib.sha256(f"{gap_type}:{tpl['name']}".encode()).hexdigest()[:12]
         layer = tpl.get("failure_layer", 1)
         category = tpl.get("failure_category", "output_quality")
         slot = tpl.get("slot", tpl["name"])
+        anon_hash = hashlib.sha256(f"{gap_type}:{slot}".encode()).hexdigest()[:16]
+        ttl_days = int(os.environ.get("ARL_RULE_TTL_DAYS", "365"))
+        clean_instruction = scrub_pii(str(tpl.get("instruction", "")))
+        clean_triggers = [scrub_pii(str(t)) for t in tpl.get("triggers", [])]
         rules.append(
             {
                 "rule_id": rule_id,
                 "name": tpl["name"],
                 "slot": slot,
-                "instruction": tpl["instruction"],
-                "action": {"instruction": tpl["instruction"]},
-                "trigger": {"keywords": tpl["triggers"]},
+                "instruction": clean_instruction,
+                "action": {"instruction": clean_instruction},
+                "trigger": {"keywords": clean_triggers},
+                "pattern": clean_triggers[0] if clean_triggers else gap_type,
+                "example": clean_instruction,
+                "category": category,
+                "confidence": round(min(0.95, 0.5 + 0.1 * len(instances)), 2),
+                "user_id": f"anon_{anon_hash[:12]}",
+                "anonymous_id": f"anon_{anon_hash[:12]}",
+                "source_hash": anon_hash,
+                "ttl_days": ttl_days,
                 "priority": tpl["priority"],
-                "priority_label": {5: "CRITICAL", 4: "HIGH", 3: "MEDIUM",
-                                   2: "LOW", 1: "LOW"}.get(tpl["priority"], "MEDIUM"),
+                "priority_label": {5: "CRITICAL", 4: "HIGH", 3: "MEDIUM", 2: "LOW", 1: "LOW"}.get(
+                    tpl["priority"], "MEDIUM"
+                ),
                 "failure_layer": layer,
                 "failure_layer_label": _LAYER_LABELS.get(layer, "Model Behaviour"),
                 "failure_category": category,

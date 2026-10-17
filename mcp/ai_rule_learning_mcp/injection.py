@@ -14,6 +14,9 @@ from typing import Any
 
 _log = logging.getLogger(__name__)
 
+# Configurable score threshold for weighted signal detection (F13b)
+DEFAULT_INJECTION_THRESHOLD = float(os.environ.get("ARL_INJECTION_THRESHOLD", "0.7"))
+
 # Trigger keywords that warrant deeper inspection or Stage 2 semantic evaluation
 _SUSPICIOUS_TRIGGERS: list[str] = [
     "ignore",
@@ -33,6 +36,7 @@ _SUSPICIOUS_TRIGGERS: list[str] = [
     "guidelines",
     "safety",
     "exfiltrate",
+    "exfiltration",
     "instructions",
 ]
 
@@ -43,18 +47,30 @@ _INJECTION_PATTERNS: list[str] = [
     "ignore instructions",
     "disregard the above",
     "disregard previous",
+    "disregard earlier",
+    "disregard prior",
+    "disregard all",
     "disregard everything",
     "forget your instructions",
+    "forget previous",
+    "forget earlier",
+    "forget prior",
+    "forget all",
     "forget everything",
     "new system prompt",
     "pretend you are",
     "act as if you have no",
     "override your",
     "override safety",
+    "override guidelines",
+    "override rules",
+    "override restrictions",
     "bypass your",
+    "bypass safety",
     "you are now",
     "your new role is",
     "jailbreak",
+    "jailbreak mode",
     "dan mode",
     "developer mode",
     "sudo mode",
@@ -62,34 +78,37 @@ _INJECTION_PATTERNS: list[str] = [
     "never refuse",
     "no restrictions",
     "without restrictions",
+    "unrestricted",
     "unrestricted mode",
+    "exfiltrate",
+    "exfiltration",
 ]
 
 # High-confidence attack regex patterns
 _INJECTION_REGEXES: list[re.Pattern[str]] = [
-    # disregard / ignore / forget / bypass / override + all / everything / previous / earlier / instructions / rules / safety
+    # disregard / ignore / forget / bypass / override / drop / set aside + everything / all / previous / prior / earlier / above / instructions / rules / guidelines / safety
     re.compile(
-        r"\b(?:ignore|disregard|forget|bypass|override)\b.*?\b(?:everything|all|previous|prior|earlier|above|instructions?|rules?|guidelines?|safety|system\s*prompt)\b",
+        r"\b(?:ignore|disregard|forget|bypass|override|drop|discard|set\s+aside)\b.*?\b(?:everything|all|previous|prior|earlier|above|preceding|foregoing|instructions?|rules?|guidelines?|directives?|constraints?|restrictions?|safety|system\s*prompt)\b",
         re.IGNORECASE | re.DOTALL,
     ),
-    # jailbreak / developer / god / dan / sudo / unrestricted mode
+    # jailbreak / developer / god / dan / sudo / unrestricted / admin mode
     re.compile(
-        r"\b(?:jailbreak|developer|god|dan|sudo|unrestricted)\s+mode\b",
+        r"\b(?:jailbreak|developer|god|dan|sudo|unrestricted|admin|root|maintenance)\s+mode\b",
         re.IGNORECASE,
     ),
-    # no restrictions / without restrictions / unrestricted
+    # no restrictions / without restrictions / zero restrictions / unrestricted
     re.compile(
-        r"\b(?:no|without|zero)\s+restrictions?\b",
+        r"\b(?:no|without|zero|free\s+from|remove\s+all)\s+(?:restrictions?|constraints?|guardrails?|limits?|filters?|rules?|boundaries)\b|\bunrestricted\b",
         re.IGNORECASE,
     ),
-    # override + safety / guidelines / rules / constraints / instructions
+    # override / bypass / disable + safety / guidelines / rules / restrictions / constraints
     re.compile(
-        r"\boverride\s+(?:safety|guidelines?|rules?|instructions?|restrictions?|constraints?)\b",
-        re.IGNORECASE,
+        r"\b(?:override|bypass|disable|turn\s+off|circumvent)\b.*?\b(?:safety|guidelines?|rules?|instructions?|restrictions?|constraints?|guardrails?|filters?|policies|policy)\b",
+        re.IGNORECASE | re.DOTALL,
     ),
-    # exfiltrate / dump / reveal / leak system prompt / keys / credentials
+    # exfiltrate / exfiltration / leak / reveal / dump system prompt / keys / credentials
     re.compile(
-        r"\b(?:exfiltrate|leak|reveal|dump|print)\b.*?\b(?:keys?|tokens?|secrets?|system\s*prompt|passwords?|credentials?)\b",
+        r"\bexfiltrat(?:e|ion|ing)\b|\b(?:leak|reveal|dump|print|expose)\b.*?\b(?:keys?|tokens?|secrets?|system\s*prompt|passwords?|credentials?|hidden\s*instructions?)\b",
         re.IGNORECASE | re.DOTALL,
     ),
     # obey me / do anything now / disregard everything
@@ -97,14 +116,14 @@ _INJECTION_REGEXES: list[re.Pattern[str]] = [
         r"\b(?:obey\s+me|do\s+anything\s+now|disregard\s+everything(?:\s+above)?)\b",
         re.IGNORECASE,
     ),
-    # act as if / pretend + no restrictions / different AI / jailbreak
+    # act as if / pretend + no restrictions / different AI / jailbreak / unfiltered
     re.compile(
-        r"\b(?:act\s+as\s+if|pretend(?:\s+you\s+are)?)\b.*?\b(?:no\s+restrictions|different\s+ai|jailbreak|unfiltered)\b",
+        r"\b(?:act\s+as(?:\s+if)?|pretend(?:\s+you\s+are)?)\b.*?\b(?:no\s+restrictions|without\s+restrictions|different\s+ai|jailbreak|unfiltered|unrestricted|no\s+rules)\b",
         re.IGNORECASE | re.DOTALL,
     ),
-    # you are now DAN / unrestricted / god mode
+    # you are now DAN / unrestricted / god mode / free from rules
     re.compile(
-        r"\byou\s+are\s+now\b.*?\b(?:dan|unrestricted|free|god\s*mode|jailbreak)\b",
+        r"\byou\s+are\s+now\b.*?\b(?:dan|unrestricted|free|god\s*mode|jailbreak|unfiltered)\b",
         re.IGNORECASE,
     ),
 ]
@@ -123,7 +142,7 @@ def _normalize(text: str) -> str:
     return re.sub(r"\s+", " ", text.lower()).strip()
 
 
-def detect_stage1(text: str) -> tuple[bool, float, list[str]]:
+def detect_stage1(text: str, threshold: float | None = None) -> tuple[bool, float, list[str]]:
     """Stage 1: Fast pattern, regex, and weighted signal analysis.
 
     Returns:
@@ -132,13 +151,26 @@ def detect_stage1(text: str) -> tuple[bool, float, list[str]]:
     if not text or not text.strip():
         return False, 0.0, []
 
+    active_threshold = DEFAULT_INJECTION_THRESHOLD if threshold is None else threshold
     norm = _normalize(text)
 
     # Check benign developer patterns explicitly first to ensure zero false positives
     for benign_pat in _BENIGN_DEVELOPER_ALLOWLIST:
         if benign_pat.search(norm):
             # Only allow if text does not contain active override verbs
-            if not any(v in norm for v in ["ignore", "disregard", "forget", "override", "bypass", "jailbreak"]):
+            if not any(
+                v in norm
+                for v in [
+                    "ignore",
+                    "disregard",
+                    "forget",
+                    "override",
+                    "bypass",
+                    "jailbreak",
+                    "exfiltrat",
+                    "unrestricted",
+                ]
+            ):
                 return False, 0.0, []
 
     matched: list[str] = []
@@ -156,19 +188,27 @@ def detect_stage1(text: str) -> tuple[bool, float, list[str]]:
             if matched_str not in matched:
                 matched.append(matched_str)
 
-    # 3. Weighted signal scoring
+    # 3. Weighted signal scoring (single high-confidence signal >= 0.8 suffices)
     signals = 0.0
-    if re.search(r"\b(?:ignore|disregard|forget|override|bypass)\b", norm):
-        signals += 0.4
-    if re.search(r"\b(?:instructions?|rules?|guidelines?|safety|restrictions?|everything)\b", norm):
-        signals += 0.4
-    if re.search(r"\b(?:jailbreak|developer\s+mode|god\s+mode|dan\s+mode|unrestricted)\b", norm):
-        signals += 0.6
-    if re.search(r"\b(?:obey\s+me|no\s+restrictions|do\s+anything)\b", norm):
-        signals += 0.6
+    if re.search(r"\b(?:ignore|disregard|forget|override|bypass|drop|discard)\b", norm):
+        signals += 0.45
+    if re.search(
+        r"\b(?:instructions?|rules?|guidelines?|safety|restrictions?|constraints?|everything|previous|earlier|prior)\b",
+        norm,
+    ):
+        signals += 0.45
+    if re.search(
+        r"\b(?:jailbreak|developer\s+mode|god\s+mode|dan\s+mode|sudo\s+mode|unrestricted|exfiltrate|exfiltration)\b",
+        norm,
+    ):
+        signals += 0.85
+    if re.search(r"\b(?:obey\s+me|no\s+restrictions|without\s+restrictions|do\s+anything\s+now)\b", norm):
+        signals += 0.85
 
-    is_injection = len(matched) > 0 or signals >= 0.8
-    confidence = 1.0 if len(matched) > 0 else min(1.0, signals)
+    is_injection = len(matched) > 0 or signals >= active_threshold
+    confidence = 1.0 if len(matched) > 0 else min(1.0, round(signals, 2))
+    if is_injection and not matched:
+        matched.append("weighted_signal_threshold")
 
     return is_injection, confidence, matched
 
@@ -187,7 +227,6 @@ def detect_stage2(text: str) -> tuple[bool, float, list[str]]:
 
     # Attempt semantic classifier if configured or available
     try:
-        # Check environment flag for optional external model
         model_name = os.environ.get("INJECTION_CLASSIFIER_MODEL")
         if model_name:
             from transformers import pipeline  # type: ignore
@@ -206,25 +245,32 @@ def detect_stage2(text: str) -> tuple[bool, float, list[str]]:
     intent_score = 0.0
     semantic_reasons: list[str] = []
 
-    has_command_verb = bool(re.search(r"\b(?:ignore|disregard|forget|override|bypass|drop|stop|cancel|nullify)\b", norm))
-    has_target = bool(re.search(r"\b(?:instructions?|rules?|guidelines?|safety|restrictions?|policy|guardrails?|everything)\b", norm))
+    has_command_verb = bool(
+        re.search(r"\b(?:ignore|disregard|forget|override|bypass|drop|stop|cancel|nullify|exfiltrat\w*)\b", norm)
+    )
+    has_target = bool(
+        re.search(
+            r"\b(?:instructions?|rules?|guidelines?|safety|restrictions?|policy|guardrails?|everything|earlier|prior|previous)\b",
+            norm,
+        )
+    )
     has_authority = bool(re.search(r"\b(?:obey|listen|slave|master|system|prompt|jailbreak|developer|god)\b", norm))
     has_negation = bool(re.search(r"\b(?:no|never|without|zero|unrestricted)\b", norm))
 
     if has_command_verb and has_target:
-        intent_score += 0.5
+        intent_score += 0.55
         semantic_reasons.append("directive_subversion_intent")
     if has_negation and (has_target or "restrictions" in norm):
-        intent_score += 0.4
+        intent_score += 0.45
         semantic_reasons.append("constraint_nullification_intent")
     if has_authority and (has_command_verb or "mode" in norm):
-        intent_score += 0.4
+        intent_score += 0.45
         semantic_reasons.append("role_usurpation_intent")
 
     if intent_score >= 0.7:
-        return True, min(1.0, intent_score), semantic_reasons
+        return True, min(1.0, round(intent_score, 2)), semantic_reasons
 
-    return False, intent_score, []
+    return False, round(intent_score, 2), []
 
 
 def is_prompt_injection(text: str, use_semantic: bool = True) -> bool:
@@ -237,7 +283,7 @@ def is_prompt_injection(text: str, use_semantic: bool = True) -> bool:
         return False
 
     is_inj, conf, _ = detect_stage1(text)
-    if is_inj and conf >= 0.7:
+    if is_inj and conf >= DEFAULT_INJECTION_THRESHOLD:
         return True
 
     # Check Stage 2 if enabled
