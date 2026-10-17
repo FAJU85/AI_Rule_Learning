@@ -116,6 +116,24 @@ def cmd_list_rules(args: argparse.Namespace) -> None:
         )
 
 
+def cmd_why(args: argparse.Namespace) -> None:
+    """Display the reason for selecting each active guardrail rule."""
+    from src.core.catalog import RuleCatalog
+
+    cat = RuleCatalog()
+    explanations = cat.why()
+    if not explanations:
+        print("No active rules currently selected.")
+        return
+
+    print("Active Guardrail Rules & Selection Rationale:")
+    print("-" * 60)
+    for i, exp in enumerate(explanations, 1):
+        print(f"{i}. [{exp['priority']}] {exp['gap_type']} ({exp['category']})")
+        print(f"   Reason: {exp['reason']}")
+        print(f"   Instruction: {exp['instruction']}\n")
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -163,6 +181,9 @@ def build_parser() -> argparse.ArgumentParser:
     p_list = sub.add_parser("list-rules", help="List rules")
     p_list.add_argument("--all", action="store_true", help="Include inactive rules")
 
+    # why
+    sub.add_parser("why", help="Display the reason for selecting each active guardrail rule")
+
     return parser
 
 
@@ -179,6 +200,7 @@ def main(argv=None) -> None:
         "analyze": cmd_analyze,
         "validate": cmd_validate,
         "list-rules": cmd_list_rules,
+        "why": cmd_why,
     }
 
     try:

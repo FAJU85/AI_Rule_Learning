@@ -699,6 +699,15 @@ async def list_tools() -> list[Tool]:
                 "required": [],
             },
         ),
+        Tool(
+            name="why",
+            description="Display the reason for selecting each active guardrail rule.",
+            inputSchema={
+                "type": "object",
+                "properties": {},
+                "required": [],
+            },
+        ),
     ]
 
 
@@ -714,7 +723,13 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
             record_consent(trigger=f"mcp:{name}")
 
         if name == "get_guardrail_rules":
-            return await _get_guardrail_rules(dry_run=bool(arguments.get("dry_run", False)))
+            return await _get_guardrail_rules(
+                dry_run=arguments.get("dry_run", False),
+                context=arguments.get("context"),
+                conversation=arguments.get("conversation"),
+            )
+        if name == "why":
+            return await _why()
         if name == "remember":
             return await _remember(
                 memory_type=arguments.get("type", "context"),
@@ -815,8 +830,60 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
         return [TextContent(type="text", text=f"❌ {name} failed: {type(exc).__name__}: {exc}")]
 
 
-async def _get_guardrail_rules(dry_run: bool = False) -> list[TextContent]:
-    rules = load_active_rules()
+async def _get_guardrail_rules(
+    dry_run: bool | dict[str, Any] = False,
+    context: dict[str, Any] | None = None,
+    conversation: Any = None,
+) -> list[TextContent]:
+    is_dry_run = False
+    if isinstance(dry_run, dict):
+        is_dry_run = bool(dry_run.get("dry_run", False) or dry_run.get("Inject") is False)
+    else:
+        is_dry_run = bool(dry_run)
+
+    local_rules = load_active_rules()
+
+    from src.core.catalog import RuleCatalog, detect_context
+
+    cat = RuleCatalog()
+    if context is None and conversation is not None:
+        context = detect_context(conversation)
+    if context is None:
+        context = {"language": "any", "task_type": "code_generation", "user_style": "concise"}
+
+    selected_catalog_rules = cat.select(context, budget_tokens=500, max_rules=10)
+
+    # Combine local rules and catalog rules, prioritizing local user feedback, capped at <= 10
+    combined: list[dict[str, Any]] = []
+    seen_slots: set[str] = set()
+
+    for r in local_rules:
+        slot = r.get("slot") or r.get("name") or r.get("rule_id") or ""
+        if slot not in seen_slots:
+            combined.append(r)
+            seen_slots.add(slot)
+        if len(combined) >= 10:
+            break
+
+    if len(combined) < 10:
+        for r in selected_catalog_rules:
+            gt = r.get("gap_type", "rule")
+            if gt not in seen_slots:
+                combined.append({
+                    "rule_id": f"catalog-{gt}",
+                    "name": gt,
+                    "slot": gt,
+                    "priority": r.get("priority", 3),
+                    "instruction": r.get("instruction", ""),
+                    "category": r.get("category", "guardrail"),
+                    "selection_reason": r.get("selection_reason", ""),
+                })
+                seen_slots.add(gt)
+            if len(combined) >= 10:
+                break
+
+    rules = combined[:10]
+
     if not rules:
         return [
             TextContent(
@@ -828,7 +895,11 @@ async def _get_guardrail_rules(dry_run: bool = False) -> list[TextContent]:
                 ),
             )
         ]
-    if dry_run:
+
+    # Write active_rules.json with selected rules
+    cat._write_active_rules(context, rules, accumulated_tokens=300, budget_tokens=500)
+
+    if is_dry_run:
         return [
             TextContent(
                 type="text",
@@ -838,6 +909,21 @@ async def _get_guardrail_rules(dry_run: bool = False) -> list[TextContent]:
         ]
     write_rules_all(rules)
     return [TextContent(type="text", text=format_rules_block(rules))]
+
+
+async def _why() -> list[TextContent]:
+    from src.core.catalog import RuleCatalog
+
+    cat = RuleCatalog()
+    reasons = cat.why()
+    if not reasons:
+        return [TextContent(type="text", text="No active rules currently selected.")]
+    lines = ["## Active Rule Selection Rationale", ""]
+    for i, r in enumerate(reasons, 1):
+        lines.append(f"{i}. **[{r.get('priority', 3)}] {r['gap_type']}** ({r.get('category', 'general')})")
+        lines.append(f"   - **Reason**: {r.get('reason', '')}")
+        lines.append(f"   - **Instruction**: {r.get('instruction', '')}\n")
+    return [TextContent(type="text", text="\n".join(lines).strip())]
 
 
 async def _remember(memory_type: str, content: str, dry_run: bool = False) -> list[TextContent]:

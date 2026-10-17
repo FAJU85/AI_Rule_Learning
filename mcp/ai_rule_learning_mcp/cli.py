@@ -586,6 +586,23 @@ def cmd_metrics(args: list[str]) -> None:
     print("Available: status, preview, enable, disable")
 
 
+def cmd_why(args: list[str]) -> None:
+    from src.core.catalog import RuleCatalog
+
+    cat = RuleCatalog()
+    explanations = cat.why()
+    if not explanations:
+        print("No active rules currently selected. Run 'ai-rule-learning sync' or invoke 'get_guardrail_rules' first.")
+        return
+
+    print("Active Guardrail Rules & Selection Rationale:")
+    print("=" * 60)
+    for i, exp in enumerate(explanations, 1):
+        print(f"{i}. [{exp['priority']}] {exp['gap_type']} ({exp['category']})")
+        print(f"   Reason: {exp['reason']}")
+        print(f"   Instruction: {exp['instruction']}\n")
+
+
 def main(argv: list[str] | None = None) -> int:
     if argv is None:
         argv = sys.argv[1:]
@@ -616,6 +633,7 @@ def main(argv: list[str] | None = None) -> int:
         "cron-status": cmd_cron_status,
         "scheduler-status": cmd_cron_status,
         "metrics": cmd_metrics,
+        "why": cmd_why,
     }
 
     fn = dispatch.get(cmd)

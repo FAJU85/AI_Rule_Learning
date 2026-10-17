@@ -1,0 +1,36 @@
+{
+  "parameterized_queries_only": {
+    "times_selected": 200,
+    "times_triggered": 200,
+    "success_count": 170,
+    "failure_count": 30,
+    "success_rate": 0.85,
+    "context_stats": {
+      "security_audit:sql": {
+        "success": 170,
+        "failure": 30
+      }
+    },
+    "best_contexts": ["security_audit:sql"],
+    "worst_contexts": ["security_audit:sql"]
+  },
+  "sanitized_file_paths": {
+    "times_selected": 40,
+    "times_triggered": 40,
+    "success_count": 24,
+    "failure_count": 16,
+    "success_rate": 0.6,
+    "context_stats": {
+      "security_audit:python": {
+        "success": 20,
+        "failure": 0
+      },
+      "general_chat:any": {
+        "success": 4,
+        "failure": 16
+      }
+    },
+    "best_contexts": ["security_audit:python", "general_chat:any"],
+    "worst_contexts": ["general_chat:any", "security_audit:python"]
+  }
+}
