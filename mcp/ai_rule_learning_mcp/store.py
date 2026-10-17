@@ -53,16 +53,25 @@ def _local_path(filename: str) -> Path:
 
 
 def _local_load(filename: str) -> list[dict]:
-    """Load JSONL records line by line with per-line fault tolerance (Defect E01b)."""
+    """Load JSONL records line by line with per-line fault tolerance and concurrent read tolerance (E01b, X04a)."""
     p = _local_path(filename)
     if not p.exists():
         return []
+    lines: list[str] = []
+    for attempt in range(3):
+        try:
+            lines = p.read_text(encoding="utf-8", errors="ignore").splitlines()
+            break
+        except Exception as exc:
+            if attempt < 2:
+                import time
+
+                time.sleep(0.01)
+            else:
+                _log.warning("Failed reading %s after 3 attempts: %s", p, exc)
+                return []
+
     out: list[dict] = []
-    try:
-        lines = p.read_text(encoding="utf-8", errors="ignore").splitlines()
-    except Exception as exc:
-        _log.warning("Failed reading %s: %s", p, exc)
-        return []
     for line_no, ln in enumerate(lines, 1):
         ln = ln.strip()
         if not ln:
@@ -122,7 +131,7 @@ _PHONE_RE = re.compile(
     r"(?:\+\d{1,3}[\s.-]?)?(?:\(\d{2,4}\)|\b\d{2,4})[\s.-]\d{3,4}[\s.-]\d{3,4}\b|\b\+\d{10,14}\b"
 )
 _BEARER_PASSWORD_RE = re.compile(
-    r"\bBearer\s+[A-Za-z0-9._\-]{8,}\b|\b(?:password|passwd|pwd|secret|api_key|apikey|access_token|auth_token)\s*[:=]\s*[^\s,;\"']+",
+    r"\bBearer\s+[A-Za-z0-9._\-~+/=]{8,}\b|\b(?:password|passwd|pwd|secret|api_key|apikey|access_token|auth_token)\s*[:=]\s*(?:['\"][^'\"]*['\"]|[^\s,;]+)",
     re.IGNORECASE,
 )
 _TOKEN_RE = re.compile(
@@ -182,13 +191,15 @@ def scrub_record(obj: Any) -> Any:
 
 
 def _local_save(filename: str, records: list[dict]) -> None:
-    """Save records to ~/.ai-rule-learning/ with mandatory recursive PII scrubbing."""
+    """Save records to ~/.ai-rule-learning/ with mandatory recursive PII scrubbing and atomic replace (X04a)."""
     if filename != "processed.jsonl":
         records = [scrub_record(r) for r in records]
-    _local_path(filename).write_text(
-        "\n".join(json.dumps(r, ensure_ascii=False) for r in records) + "\n",
-        encoding="utf-8",
-    )
+    target = _local_path(filename)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path = target.with_suffix(f".tmp.{uuid.uuid4().hex[:8]}")
+    payload = "\n".join(json.dumps(r, ensure_ascii=False) for r in records) + "\n"
+    tmp_path.write_text(payload, encoding="utf-8")
+    os.replace(tmp_path, target)
 
 
 def _hf_api():

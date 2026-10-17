@@ -1,4 +1,0 @@
-{"type": "user", "message": {"role": "user", "content": "Write code"}}
-{"type": "assistant", "message": {"role": "assistant", "content": "def f(): pass"}}
-{"type": "user", "message": {"role": "user", "content": "Wrong - type hints and ? placeholders"}}
-{"type": "assistant", "message": {"role": "assistant", "content": "fixed"}}

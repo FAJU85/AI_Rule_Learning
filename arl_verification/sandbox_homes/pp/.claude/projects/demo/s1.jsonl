@@ -1,4 +1,0 @@
-{"type": "user", "message": {"role": "user", "content": "x"}}
-{"type": "assistant", "message": {"role": "assistant", "content": "y"}}
-{"type": "user", "message": {"role": "user", "content": "wrong"}}
-{"type": "assistant", "message": {"role": "assistant", "content": "ok"}}
