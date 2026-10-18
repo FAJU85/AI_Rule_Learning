@@ -1,0 +1,31 @@
+name = "ai-rule-learning-relay"
+main = "src/relay/index.ts"
+compatibility_date = "2024-10-01"
+
+[vars]
+RETENTION_TTL_DAYS = "90"
+RETENTION_TTL_SECONDS = "7776000"
+DATA_RESIDENCY = "EU/US Cloudflare Edge (GDPR Art. 44-49 SCCs)"
+DEPLOYMENT_URL = "https://ai-rule-learning-relay.ee-ee455.workers.dev"
+AGGREGATOR_URL = "https://ai-rule-learning-aggregator.ee-ee455.workers.dev"
+MIN_SOURCES_THRESHOLD = "5"
+
+# KV Namespace for anonymized contributions with 90-day TTL (CO01)
+[[kv_namespaces]]
+binding = "CONTRIBUTIONS_KV"
+id = "arl-contributions-kv"
+
+# KV Namespace for sliding-window IP rate limiting (60s TTL)
+[[kv_namespaces]]
+binding = "RATE_LIMIT_KV"
+id = "arl-rate-limit-kv"
+
+# Private staging bucket for unvetted, PII-scrubbed contributions
+[[r2_buckets]]
+binding = "RAW_CONTRIBUTIONS_BUCKET"
+bucket_name = "arl-contributions"
+
+# Public bucket for k-anonymity verified templates
+[[r2_buckets]]
+binding = "PUBLIC_TEMPLATES_BUCKET"
+bucket_name = "arl-templates"

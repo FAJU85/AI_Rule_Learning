@@ -398,6 +398,46 @@ def update_rule_status(rule_id: str, status: str, note: str = "") -> dict | None
     target[f"{normalized}_at"] = now
     if note:
         target["review_note"] = note
+    if normalized in ("active", "approved"):
+        target["review_status"] = "approved"
+        target["reviewed_by"] = "local_admin"
+        target["reviewed_at"] = now
+    elif normalized == "rejected":
+        target["review_status"] = "rejected"
+        target["reviewed_by"] = "local_admin"
+        target["reviewed_at"] = now
+    elif normalized == "pending":
+        target["review_status"] = "pending"
+        target["reviewed_by"] = None
+        target["reviewed_at"] = None
+    _upload("rules.jsonl", rules)
+    return target
+
+
+def edit_rule_metadata(
+    rule_id: str,
+    priority: int | None = None,
+    trigger_if: dict | None = None,
+    exclude_if: dict | None = None,
+) -> dict | None:
+    """Update rule metadata fields (priority, trigger_if, exclude_if) while preserving static instruction."""
+    rules = _load_rules_preserving_local()
+    now = datetime.utcnow().isoformat()
+    target = next((r for r in rules if r.get("rule_id") == rule_id), None)
+    if target is None:
+        return None
+
+    if priority is not None:
+        target["priority"] = int(priority)
+        target["priority_label"] = {5: "CRITICAL", 4: "HIGH", 3: "MEDIUM", 2: "LOW", 1: "LOW"}.get(
+            int(priority), "MEDIUM"
+        )
+    if trigger_if is not None:
+        target["trigger_if"] = trigger_if
+        target.setdefault("trigger", {})["keywords"] = list(trigger_if.keys())
+    if exclude_if is not None:
+        target["exclude_if"] = exclude_if
+    target["updated_at"] = now
     _upload("rules.jsonl", rules)
     return target
 

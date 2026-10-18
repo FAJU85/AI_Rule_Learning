@@ -242,6 +242,27 @@ def contribute_gaps(gaps_by_type: dict[str, list[dict]], source_hash: str) -> bo
         return False
 
 
+def contribute_rules(rules: list[dict], source_hash: str) -> bool:
+    """Submit rules to community relay only if review_status == 'approved' (SEC-04).
+
+    Rules with review_status 'pending' or 'rejected' are strictly suppressed.
+    """
+    approved_rules = [r for r in rules if r.get("review_status") == "approved"]
+    if not approved_rules:
+        _log.info("No approved rules to contribute; pending/rejected rules are suppressed.")
+        return False
+    gaps_by_type: dict[str, list[dict]] = {}
+    for r in approved_rules:
+        gt = r.get("gap_type") or r.get("slot") or "rule"
+        gaps_by_type.setdefault(gt, []).append({
+            "type": gt,
+            "signal": r.get("instruction", ""),
+            "confidence": float(r.get("confidence", 0.85)),
+            "category": str(r.get("category", "robustness_consistency")),
+        })
+    return contribute_gaps(gaps_by_type, source_hash=source_hash)
+
+
 def fetch_community_patterns() -> dict[str, dict]:
     """Retrieve community patterns without requiring an HF_TOKEN (Item F.1, G).
 

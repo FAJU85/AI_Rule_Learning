@@ -1,0 +1,17 @@
+{
+  "name": "ai-rule-learning-cloudflare",
+  "version": "0.3.0",
+  "description": "Cloudflare Worker relay and R2 aggregator for AI Rule Learning",
+  "main": "src/relay/index.ts",
+  "scripts": {
+    "build": "tsc --noEmit",
+    "deploy:relay": "wrangler deploy --config wrangler.toml",
+    "deploy:aggregator": "wrangler deploy --config ../wrangler.aggregator.toml"
+  },
+  "dependencies": {
+    "@cloudflare/workers-types": "^4.20241022.0",
+    "@hono/zod-validator": "^0.4.1",
+    "hono": "^4.6.0",
+    "zod": "^3.23.8"
+  }
+}

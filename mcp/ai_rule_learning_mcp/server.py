@@ -15,11 +15,13 @@ Environment variables (all optional):
 from __future__ import annotations
 
 import asyncio
+from datetime import datetime
 import hashlib
 import json
 import os
 import signal
 import sys
+import uuid
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from pathlib import Path
@@ -50,6 +52,7 @@ from .store import _local_save
 from .store import append_conversations
 from .store import auto_activate_pending_rules
 from .store import edit_rule_instruction
+from .store import edit_rule_metadata
 from .store import hf_enabled
 from .store import is_already_processed
 from .store import list_rules as store_list_rules
@@ -528,18 +531,21 @@ async def list_tools() -> list[Tool]:
         ),
         Tool(
             name="edit_rule",
-            description="Update a stored rule instruction without manually editing JSONL files.",
+            description="Update rule metadata (priority, trigger_if, exclude_if) without modifying the static instruction text. Instruction modification is prohibited by catalog policy to prevent prompt injection and instruction drift.",
             inputSchema={
                 "type": "object",
                 "properties": {
                     "rule_id": {"type": "string", "description": "Rule id to edit."},
-                    "instruction": {"type": "string", "description": "Replacement instruction for the rule."},
+                    "priority": {"type": "integer", "description": "Updated rule priority rating (1 to 5)."},
+                    "trigger_if": {"type": "object", "description": "Updated context activation conditions."},
+                    "exclude_if": {"type": "object", "description": "Updated context suppression conditions."},
+                    "instruction": {"type": "string", "description": "Prohibited. Any non-empty value will be rejected."},
                     "dry_run": {
                         "type": "boolean",
                         "description": "Preview the edit without changing the rule store.",
                     },
                 },
-                "required": ["rule_id", "instruction"],
+                "required": ["rule_id"],
             },
         ),
         Tool(
@@ -789,6 +795,9 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
             return await _edit_rule(
                 rule_id=arguments.get("rule_id", ""),
                 instruction=arguments.get("instruction", ""),
+                priority=arguments.get("priority"),
+                trigger_if=arguments.get("trigger_if"),
+                exclude_if=arguments.get("exclude_if"),
                 dry_run=bool(arguments.get("dry_run", False)),
             )
         if name == "merge_rules":
@@ -1025,6 +1034,15 @@ def record_feedback(
     assigned_slot = _SLOT_MAP.get(feedback_type, rule.get("slot") or rule.get("name", "generic-rule"))
     rule["slot"] = assigned_slot
 
+    now_iso = datetime.utcnow().isoformat()
+    rule.setdefault("source_session_id", "session_feedback_realtime")
+    rule.setdefault("extraction_version", "0.2.1")
+    rule.setdefault("extracted_at", now_iso)
+    rule.setdefault("review_status", "approved")
+    rule.setdefault("reviewed_by", "user")
+    rule.setdefault("reviewed_at", now_iso)
+    rule.setdefault("qa_report_id", f"qa_feedback_{hashlib.sha256(now_iso.encode()).hexdigest()[:8]}")
+
     if dry_run:
         return {"status": "DryRun", "rule": rule}
 
@@ -1214,6 +1232,15 @@ async def _sync_sessions(
         existing_ids = {r.get("rule_id") for r in existing}
         new_rules = [r for r in detected_rules if r.get("rule_id") not in existing_ids]
         if new_rules:
+            now_iso = datetime.utcnow().isoformat()
+            for r in new_rules:
+                r.setdefault("source_session_id", r.get("source_hash", "session_local")[:16])
+                r.setdefault("extraction_version", "0.2.1")
+                r.setdefault("extracted_at", now_iso)
+                r.setdefault("review_status", "pending")
+                r.setdefault("reviewed_by", None)
+                r.setdefault("reviewed_at", None)
+                r.setdefault("qa_report_id", f"qa_sync_{uuid.uuid4().hex[:8]}")
             if dry_run:
                 log.append(f"🔎 Dry run: would generate {len(new_rules)} new rule(s) from detected patterns")
             else:
@@ -1448,17 +1475,45 @@ async def _reject_rule(rule_id: str, note: str = "", dry_run: bool = False) -> l
     return [TextContent(type="text", text=f"✅ Rejected rule: {rule_id}")]
 
 
-async def _edit_rule(rule_id: str, instruction: str, dry_run: bool = False) -> list[TextContent]:
+async def _edit_rule(
+    rule_id: str,
+    instruction: str = "",
+    priority: int | None = None,
+    trigger_if: dict[str, Any] | None = None,
+    exclude_if: dict[str, Any] | None = None,
+    dry_run: bool = False,
+) -> list[TextContent]:
     if not rule_id.strip():
         return [TextContent(type="text", text="❌ Rule id cannot be empty.")]
-    if not instruction.strip():
-        return [TextContent(type="text", text="❌ Instruction cannot be empty.")]
+    if instruction.strip():
+        return [
+            TextContent(
+                type="text",
+                text=(
+                    "❌ Instruction modification is prohibited. Rule instructions are static and drawn "
+                    "from the verified catalog to prevent prompt injection and instruction drift. "
+                    "Only metadata fields (priority, trigger_if, exclude_if) may be edited."
+                ),
+            )
+        ]
+    if priority is None and trigger_if is None and exclude_if is None:
+        return [
+            TextContent(
+                type="text",
+                text="❌ No metadata fields provided for editing. Allowed fields: priority, trigger_if, exclude_if.",
+            )
+        ]
     if dry_run:
-        return [TextContent(type="text", text=f"🔎 Dry run: would update instruction for rule {rule_id!r}.")]
-    rule = edit_rule_instruction(rule_id, instruction)
+        return [TextContent(type="text", text=f"🔎 Dry run: would update metadata for rule {rule_id!r}.")]
+    rule = edit_rule_metadata(
+        rule_id,
+        priority=priority,
+        trigger_if=trigger_if,
+        exclude_if=exclude_if,
+    )
     if rule is None:
         return [TextContent(type="text", text=f"❌ Rule not found: {rule_id}")]
-    return [TextContent(type="text", text=f"✅ Updated rule instruction: {rule_id}")]
+    return [TextContent(type="text", text=f"✅ Updated rule metadata: {rule_id}")]
 
 
 async def _merge_rules(

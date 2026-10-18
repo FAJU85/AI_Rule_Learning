@@ -5,6 +5,14 @@ All notable changes to `ai-rule-learning-mcp` are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1] - 2026-10-17
+
+### Fixed
+
+- **P0 Remediation (ARL-REM-2026-006):** Declared strict upper bound ceiling `mcp>=1.0.0,<2.0.0` in `pyproject.toml` to prevent package installation failure against incompatible `mcp>=2.0.0` releases.
+- Added default install regression test suite in `tests/test_default_install.py`.
+- Added compatibility and migration documentation in `docs/mcp-versioning.md`.
+
 ## [0.2.0] - 2026-06-25
 
 ### Added

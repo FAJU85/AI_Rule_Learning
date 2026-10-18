@@ -173,16 +173,30 @@ class _ClaudeCodeTarget(_Target):
     name = "Claude Code"
 
     def config_path(self) -> Path:
+        if (Path.cwd() / "CLAUDE.md").exists():
+            return Path.cwd() / "CLAUDE.md"
         return Path.home() / ".claude" / "CLAUDE.md"
 
+    def _all_paths(self) -> list[Path]:
+        if type(self).config_path is not _ClaudeCodeTarget.config_path:
+            return [self.config_path()]
+        paths: list[Path] = []
+        if (Path.home() / ".claude").exists():
+            paths.append(Path.home() / ".claude" / "CLAUDE.md")
+        if (Path.cwd() / "CLAUDE.md").exists():
+            paths.append(Path.cwd() / "CLAUDE.md")
+        return paths or [self.config_path()]
+
     def is_detected(self) -> bool:
-        return (Path.home() / ".claude").exists()
+        return (Path.home() / ".claude").exists() or (Path.cwd() / "CLAUDE.md").exists()
 
 
 class _CursorTarget(_Target):
     name = "Cursor"
 
     def config_path(self) -> Path:
+        if (Path.cwd() / ".cursorrules").exists():
+            return Path.cwd() / ".cursorrules"
         cwd_cursor = Path.cwd() / ".cursor"
         if cwd_cursor.exists():
             return cwd_cursor / "rules" / "ai-rule-learning.mdc"
@@ -199,16 +213,24 @@ class _CursorTarget(_Target):
         if cwd_cursor.exists() and cwd_cursor != (Path.home() / ".cursor"):
             paths.append(cwd_cursor / "rules" / "ai-guardrails.md")
             paths.append(cwd_cursor / "rules" / "ai-rule-learning.mdc")
+        if (Path.cwd() / ".cursorrules").exists():
+            paths.append(Path.cwd() / ".cursorrules")
         return paths or [self.config_path()]
 
     def is_detected(self) -> bool:
-        return (Path.home() / ".cursor").exists() or (Path.cwd() / ".cursor").exists()
+        return (
+            (Path.home() / ".cursor").exists()
+            or (Path.cwd() / ".cursor").exists()
+            or (Path.cwd() / ".cursorrules").exists()
+        )
 
 
 class _WindsurfTarget(_Target):
     name = "Windsurf"
 
     def config_path(self) -> Path:
+        if (Path.cwd() / ".windsurfrules").exists():
+            return Path.cwd() / ".windsurfrules"
         cwd_ws = Path.cwd() / ".windsurf"
         if cwd_ws.exists():
             return cwd_ws / "rules" / "ai-rule-learning.md"
@@ -227,10 +249,16 @@ class _WindsurfTarget(_Target):
             paths.append(cwd_ws / "rules" / "ai-guardrails.md")
             paths.append(cwd_ws / "rules" / "ai-rule-learning.md")
             paths.append(cwd_ws / "ai-guardrails.md")
+        if (Path.cwd() / ".windsurfrules").exists():
+            paths.append(Path.cwd() / ".windsurfrules")
         return paths or [self.config_path()]
 
     def is_detected(self) -> bool:
-        return (Path.home() / ".windsurf").exists() or (Path.cwd() / ".windsurf").exists()
+        return (
+            (Path.home() / ".windsurf").exists()
+            or (Path.cwd() / ".windsurf").exists()
+            or (Path.cwd() / ".windsurfrules").exists()
+        )
 
 
 class _CopilotTarget(_Target):

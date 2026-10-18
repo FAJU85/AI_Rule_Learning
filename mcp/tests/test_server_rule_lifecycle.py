@@ -65,13 +65,26 @@ def test_reject_rule_tool_dry_run_does_not_write() -> None:
     assert get_rule("rule-1")["status"] == "pending"
 
 
-def test_edit_rule_tool_updates_instruction() -> None:
+def test_edit_rule_tool_rejects_instruction_modification() -> None:
     _local_save("rules.jsonl", [_rule("rule-1")])
 
-    result = asyncio.run(server._edit_rule("rule-1", "Always run focused tests first."))
+    result = asyncio.run(server._edit_rule("rule-1", instruction="Always run focused tests first."))
 
-    assert "Updated" in result[0].text
-    assert get_rule("rule-1")["instruction"] == "Always run focused tests first."
+    assert "prohibited" in result[0].text.lower()
+    assert "static and drawn from the verified catalog" in result[0].text.lower()
+    assert get_rule("rule-1")["instruction"] == "Use tests."
+
+
+def test_edit_rule_tool_updates_metadata() -> None:
+    _local_save("rules.jsonl", [_rule("rule-1")])
+
+    result = asyncio.run(server._edit_rule("rule-1", priority=4, trigger_if={"language": "python"}))
+
+    assert "Updated rule metadata" in result[0].text
+    updated = get_rule("rule-1")
+    assert updated["priority"] == 4
+    assert updated["trigger_if"] == {"language": "python"}
+    assert updated["instruction"] == "Use tests."
 
 
 def test_merge_rules_tool_marks_duplicate_merged() -> None:

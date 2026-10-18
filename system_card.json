@@ -1,0 +1,64 @@
+{
+  "name": "AI Rule Learning MCP",
+  "version": "0.2.1",
+  "specification_reference": "ARL-REM-2026-007",
+  "release_date": "2026-10-18",
+  "type": "Autonomous Agent Guardrail & Continuous Learning MCP Server",
+  "architecture": {
+    "protocol": "Model Context Protocol (MCP) JSON-RPC 2.0 over stdio",
+    "mcp_sdk_version_bound": ">=1.0.0,<2.0.0",
+    "runtime": "Python >=3.10",
+    "cloud_backend": "Cloudflare R2 exclusively (arl-contributions, arl-templates)",
+    "edge_relay": "https://ai-rule-learning-relay.ee-ee455.workers.dev",
+    "edge_aggregator_cdn": "https://ai-rule-learning-aggregator.ee-ee455.workers.dev/templates.jsonl",
+    "huggingface_status": "Completely decoupled from runtime core; retained only as web UI space host"
+  },
+  "capabilities": {
+    "total_mcp_tools": 21,
+    "rule_catalog": {
+      "total_rules": 130,
+      "source_grounding": "Peer-reviewed literature, ACM/IEEE DOIs, arXiv papers, CWE taxonomy",
+      "categories": 10,
+      "context_schema_keys": ["language", "task_type", "framework", "recent_patterns", "context_length", "user_style"]
+    },
+    "selection_engine": {
+      "budget_cap_tokens": 500,
+      "max_rules_cap": 10,
+      "average_overhead_tokens": 385,
+      "provenance_logging": "active_rules.json"
+    },
+    "security_and_privacy": {
+      "pii_scrubbing": "Client-side and server-side recursive scrubbing across 5+ categories",
+      "prompt_injection_defense": "Two-stage detection pipeline (deterministic regex + weighted intent classifier)",
+      "k_anonymity_threshold": 5,
+      "data_retention_ttl_days": 90
+    },
+    "agent_integration": {
+      "supported_targets": [
+        "Claude Code (CLAUDE.md)",
+        "Cursor (.cursorrules)",
+        "Windsurf (.windsurfrules)",
+        "GitHub Copilot",
+        "Codex"
+      ]
+    }
+  },
+  "governance_and_provenance": {
+    "mandatory_provenance_fields": [
+      "source_session_id",
+      "extraction_version",
+      "extracted_at",
+      "review_status",
+      "reviewed_by",
+      "reviewed_at",
+      "qa_report_id"
+    ],
+    "review_states": ["pending", "approved", "rejected"],
+    "community_propagation_policy": "Pending and rejected rules are strictly suppressed from community relay transmission"
+  },
+  "constraints_and_limitations": {
+    "static_instruction_constraint": "Rule instructions are immutable and drawn from curated catalog to prevent indirect prompt injection and drift. Any attempt to modify instructions via edit_rule is strictly rejected.",
+    "metadata_only_editing": "Allowed edit_rule fields: priority, trigger_if, exclude_if",
+    "untrusted_data_boundary": "Raw user conversation text is never transmitted to cloud backends; only structural gap counts are contributed with explicit consent"
+  }
+}

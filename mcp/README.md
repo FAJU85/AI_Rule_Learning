@@ -30,6 +30,8 @@ examples have been removed because those public classes are not part of the curr
 pip install ai-rule-learning-mcp
 ```
 
+> **Note on MCP SDK Compatibility:** Compatible with `mcp>=1.0.0,<2.0.0`. See [MCP Versioning Guide](../docs/mcp-versioning.md) for details on supported SDK versions and the 2.x migration path.
+
 Run the MCP server:
 
 ```bash
