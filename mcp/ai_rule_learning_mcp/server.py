@@ -62,7 +62,6 @@ from .store import scrub_pii
 from .store import suggest_duplicate_rules
 from .store import update_rule_status
 
-
 # ── Lightweight MCP types & Server (CH05 CPU throttle resilience) ──────────
 # Avoids importing ~100 Pydantic models from mcp.types at module import time,
 # keeping import & startup CPU time under 30ms while remaining 100% compatible
@@ -843,7 +842,8 @@ async def _get_guardrail_rules(
 
     local_rules = load_active_rules()
 
-    from src.core.catalog import RuleCatalog, detect_context
+    from .catalog import RuleCatalog
+    from .catalog import detect_context
 
     cat = RuleCatalog()
     if context is None and conversation is not None:
@@ -869,15 +869,17 @@ async def _get_guardrail_rules(
         for r in selected_catalog_rules:
             gt = r.get("gap_type", "rule")
             if gt not in seen_slots:
-                combined.append({
-                    "rule_id": f"catalog-{gt}",
-                    "name": gt,
-                    "slot": gt,
-                    "priority": r.get("priority", 3),
-                    "instruction": r.get("instruction", ""),
-                    "category": r.get("category", "guardrail"),
-                    "selection_reason": r.get("selection_reason", ""),
-                })
+                combined.append(
+                    {
+                        "rule_id": f"catalog-{gt}",
+                        "name": gt,
+                        "slot": gt,
+                        "priority": r.get("priority", 3),
+                        "instruction": r.get("instruction", ""),
+                        "category": r.get("category", "guardrail"),
+                        "selection_reason": r.get("selection_reason", ""),
+                    }
+                )
                 seen_slots.add(gt)
             if len(combined) >= 10:
                 break
@@ -897,7 +899,10 @@ async def _get_guardrail_rules(
         ]
 
     # Write active_rules.json with selected rules
-    cat._write_active_rules(context, rules, accumulated_tokens=300, budget_tokens=500)
+    from .catalog import estimate_tokens
+
+    accumulated_tokens = estimate_tokens(format_rules_block(rules))
+    cat._write_active_rules(context, rules, accumulated_tokens=accumulated_tokens, budget_tokens=500)
 
     if is_dry_run:
         return [
@@ -912,7 +917,7 @@ async def _get_guardrail_rules(
 
 
 async def _why() -> list[TextContent]:
-    from src.core.catalog import RuleCatalog
+    from .catalog import RuleCatalog
 
     cat = RuleCatalog()
     reasons = cat.why()
@@ -1099,7 +1104,7 @@ async def _record_feedback(
         return [
             TextContent(
                 type="text",
-                text=f'❌ status: Rejected, reason: {reason}. Rule was not saved.',
+                text=f"❌ status: Rejected, reason: {reason}. Rule was not saved.",
             )
         ]
 

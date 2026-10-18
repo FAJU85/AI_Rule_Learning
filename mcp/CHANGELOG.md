@@ -5,6 +5,21 @@ All notable changes to `ai-rule-learning-mcp` are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- Package is now self-contained: the rule catalog engine and its data assets ship inside
+  `ai_rule_learning_mcp` instead of importing the repository-only `src` package. This
+  fixes `get_guardrail_rules` and `why` after a plain PyPI install.
+- `data/bundled_rules.jsonl`, `catalog_v1.json`, `context_schema.json`, and
+  `rule_metrics.json` are explicitly included in wheels.
+- Default catalog/schema/metrics paths resolve relative to the package, not the caller's
+  working directory; `why` falls back to `~/.ai-rule-learning/active_rules.json`.
+- Tests run from an isolated working directory and no longer write agent configs or
+  `active_rules.json` into the repository.
+- Live Cloudflare verification tests are opt-in via `ARL_LIVE_TESTS=1`.
+
 ## [0.2.0] - 2026-06-25
 
 ### Added

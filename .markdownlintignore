@@ -1,3 +1,6 @@
+node_modules
+.venv
+.cline-home
 README-DEVELOPMENT-1.md
 MVP.md
 AGENTS.md

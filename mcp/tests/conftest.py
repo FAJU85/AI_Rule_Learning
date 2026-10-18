@@ -6,7 +6,30 @@ import sys
 import types
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
+
+import pytest
+
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+
+
+@pytest.fixture(autouse=True)
+def _isolate_cwd(tmp_path, monkeypatch):
+    """Run every MCP test from a temporary directory.
+
+    Server tools inject rules into the current directory's agent configs, and
+    rule selection writes active_rules.json. Isolating cwd prevents tests from
+    modifying repository files such as .github/copilot-instructions.md.
+    """
+    monkeypatch.chdir(tmp_path)
+    return tmp_path
+
+
+@pytest.fixture()
+def repo_root() -> Path:
+    return _REPO_ROOT
+
 
 try:  # pragma: no cover - used only when the real MCP SDK is installed
     import mcp.server  # noqa: F401

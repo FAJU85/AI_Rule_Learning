@@ -29,9 +29,10 @@ CITATION_PATTERNS = [
     r"Anthropic",
 ]
 
-_DEFAULT_CATALOG_PATH = Path("data/catalog_v1.json")
-_DEFAULT_SCHEMA_PATH = Path("data/context_schema.json")
-_DEFAULT_METRICS_PATH = Path("data/rule_metrics.json")
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+_DEFAULT_CATALOG_PATH = _REPO_ROOT / "data" / "catalog_v1.json"
+_DEFAULT_SCHEMA_PATH = _REPO_ROOT / "data" / "context_schema.json"
+_DEFAULT_METRICS_PATH = _REPO_ROOT / "data" / "rule_metrics.json"
 _ACTIVE_RULES_PATH = Path("active_rules.json")
 
 

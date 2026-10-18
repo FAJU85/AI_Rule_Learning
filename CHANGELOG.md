@@ -51,6 +51,22 @@ managed by [standard-version](https://github.com/conventional-changelog/standard
   alongside the existing rules block; all writes to Claude Code, Cursor, Windsurf, and
   GitHub Copilot configs.
 
+### Fixed
+
+- The packaged MCP server no longer imports the repository-only `src` package. The rule
+  catalog engine and data are now bundled inside `ai_rule_learning_mcp`, so
+  `get_guardrail_rules`, `why`, and the `ai-rule-learning why` CLI command work after a
+  plain `pip install ai-rule-learning-mcp`.
+- Bundled seed rules (`data/bundled_rules.jsonl`) and catalog assets are now included in
+  built wheels via explicit package-data configuration.
+- Catalog data paths are resolved relative to the package/repository instead of the
+  process working directory.
+- Test suites are filesystem-isolated and no longer modify repository files such as
+  `.github/copilot-instructions.md` or `active_rules.json`.
+- The live Cloudflare verification matrix is opt-in (`ARL_LIVE_TESTS=1`), keeping the
+  default suite hermetic and offline-safe.
+- README no longer contains duplicated, unclosed scheduler code fences.
+
 ## [0.1.0] — Initial tooling setup
 
 ### Added — tooling

@@ -17,6 +17,23 @@ from src.models.rules import RuleTrigger
 from src.models.rules import RuleType
 
 # ---------------------------------------------------------------------------
+# Filesystem isolation
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(autouse=True)
+def _isolate_cwd(tmp_path, monkeypatch):
+    """Run every test from a temporary directory.
+
+    Several workflows (rule selection, agent-config injection) write to the
+    current working directory. Isolating cwd keeps the repository clean and
+    makes tests independent of the developer's shell location.
+    """
+    monkeypatch.chdir(tmp_path)
+    return tmp_path
+
+
+# ---------------------------------------------------------------------------
 # DatasetManager mock
 # ---------------------------------------------------------------------------
 

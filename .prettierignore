@@ -1,4 +1,6 @@
 node_modules
+.venv
+.cline-home
 CLAUDE.md
 AGENTS.md
 .agents

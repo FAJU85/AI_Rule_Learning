@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ContextSchema",
+  "description": "Permitted context keys and enumerated values for rule activation triggers and exclusions",
+  "type": "object",
+  "properties": {
+    "language": {
+      "type": "string",
+      "enum": [
+        "python",
+        "typescript",
+        "javascript",
+        "go",
+        "rust",
+        "java",
+        "csharp",
+        "cpp",
+        "bash",
+        "sql",
+        "agnostic",
+        "any"
+      ]
+    },
+    "task_type": {
+      "type": "string",
+      "enum": [
+        "code_generation",
+        "code_review",
+        "debugging",
+        "architecture",
+        "refactoring",
+        "documentation",
+        "explanation",
+        "security_audit",
+        "testing",
+        "general_chat",
+        "any"
+      ]
+    },
+    "framework": {
+      "type": "string",
+      "enum": ["fastapi", "react", "nextjs", "node", "django", "flask", "express", "pytest", "tailwind", "none", "any"]
+    },
+    "recent_patterns": {
+      "type": "string",
+      "enum": [
+        "user_correction",
+        "negative_feedback",
+        "repeated_query",
+        "verbose_output",
+        "code_error",
+        "hallucination_detected",
+        "drift_detected",
+        "sycophancy_detected",
+        "unverified_claim",
+        "unhandled_exception",
+        "missing_import",
+        "injection_attempt",
+        "none",
+        "any"
+      ]
+    },
+    "context_length": {
+      "type": "string",
+      "enum": ["short", "medium", "long", "extended", "extreme", "any"]
+    },
+    "user_style": {
+      "type": "string",
+      "enum": [
+        "concise",
+        "verbose",
+        "technical",
+        "skeptical",
+        "authoritative",
+        "exploratory",
+        "casual",
+        "demanding",
+        "any"
+      ]
+    }
+  },
+  "additionalProperties": false,
+  "categories": [
+    "hallucination",
+    "verbosity",
+    "sycophancy",
+    "instruction_drift",
+    "context_loss",
+    "reasoning_failure",
+    "code_quality",
+    "security",
+    "format_compliance",
+    "task_completeness",
+    "persona_and_tone"
+  ]
+}

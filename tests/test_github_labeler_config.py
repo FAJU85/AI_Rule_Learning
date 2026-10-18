@@ -28,7 +28,7 @@ UniqueKeyLoader.add_constructor(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, 
 
 
 def _load_labeler_config() -> dict[str, Any]:
-    config_path = Path(".github/labeler.yml")
+    config_path = Path(__file__).resolve().parents[1] / ".github" / "labeler.yml"
     return yaml.load(config_path.read_text(), Loader=UniqueKeyLoader)
 
 

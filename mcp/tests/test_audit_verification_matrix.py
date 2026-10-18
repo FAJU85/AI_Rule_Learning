@@ -5,6 +5,7 @@ infrastructure and the local package architecture.
 """
 
 import json
+import os
 import re
 import urllib.error
 import urllib.request
@@ -12,6 +13,13 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+
+# These checks exercise the deployed Cloudflare relay/aggregator. They are
+# opt-in so the default unit suite stays hermetic and offline-safe.
+pytestmark = pytest.mark.skipif(
+    os.environ.get("ARL_LIVE_TESTS") != "1",
+    reason="Live Cloudflare verification matrix; set ARL_LIVE_TESTS=1 to run.",
+)
 
 RELAY_URL = "https://ai-rule-learning-relay.ee-ee455.workers.dev/api/contribute"
 RELAY_HEALTH = "https://ai-rule-learning-relay.ee-ee455.workers.dev/health"

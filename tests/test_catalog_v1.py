@@ -13,11 +13,13 @@ import pytest
 
 from src.core.catalog import RuleCatalog
 
+REPO_ROOT = Path(__file__).resolve().parents[1]
+
 
 @pytest.fixture
 def catalog() -> RuleCatalog:
-    cat_path = Path("data/catalog_v1.json")
-    schema_path = Path("data/context_schema.json")
+    cat_path = REPO_ROOT / "data" / "catalog_v1.json"
+    schema_path = REPO_ROOT / "data" / "context_schema.json"
     assert cat_path.exists(), "data/catalog_v1.json must exist"
     assert schema_path.exists(), "data/context_schema.json must exist"
     return RuleCatalog(catalog_path=cat_path, schema_path=schema_path)

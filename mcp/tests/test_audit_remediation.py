@@ -30,6 +30,8 @@ import pytest
 import ai_rule_learning_mcp
 from ai_rule_learning_mcp import cli, community, injection, injector, scheduler, server, store
 
+REPO_ROOT = Path(__file__).resolve().parents[2]
+
 
 def _run(coro):
     return asyncio.run(coro)
@@ -178,7 +180,9 @@ def test_f12b_all_feedback_slots_block_paraphrased_injection(tmp_path, monkeypat
             )
         )
         active = store.load_active_rules()
-        leak[slot] = any("unrestricted" in json.dumps(r).lower() or "disregard" in json.dumps(r).lower() for r in active)
+        leak[slot] = any(
+            "unrestricted" in json.dumps(r).lower() or "disregard" in json.dumps(r).lower() for r in active
+        )
 
     assert leak == {"preference": False, "correction": False, "incomplete_response": False}
 
@@ -252,7 +256,11 @@ def test_f11b_distinct_feedback_slots_and_no_silent_drop(tmp_path, monkeypatch):
     monkeypatch.setattr(store, "RULES_FILE", rules_file)
 
     calls = [
-        ("incomplete_response", "You missed the second part of my question", "Answer all parts of multi-part questions"),
+        (
+            "incomplete_response",
+            "You missed the second part of my question",
+            "Answer all parts of multi-part questions",
+        ),
         ("repeated_context", "As I mentioned earlier, we use Python 3.11", "Retain stated Python version across turns"),
         ("correction", "That is wrong, ruff check uses --fix", "Verify CLI flags before suggesting commands"),
         ("preference", "Always use pytest fixtures instead of unittest", "Use pytest fixtures for all new tests"),
@@ -357,7 +365,9 @@ def test_i_multi_agent_injection_and_preservation(tmp_path, monkeypatch):
         "copilot": copilot_file.exists() and "complete-all-parts" in copilot_file.read_text(encoding="utf-8"),
         "codex": codex_file.exists() and "complete-all-parts" in codex_file.read_text(encoding="utf-8"),
     }
-    assert status == {"cursor": True, "windsurf": True, "copilot": True, "codex": True}, f"Got {status}, written={written}"
+    assert status == {"cursor": True, "windsurf": True, "copilot": True, "codex": True}, (
+        f"Got {status}, written={written}"
+    )
 
     # Verify pre-existing user content survived injection
     assert "Always write docstrings." in copilot_file.read_text(encoding="utf-8")
@@ -474,7 +484,7 @@ def test_co01_co02_co03_gdpr_documentation_and_consent(tmp_path, monkeypatch):
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setattr(store, "LOCAL_DIR", tmp_path / ".ai-rule-learning")
 
-    for doc_path in (Path("PRIVACY.md"), Path("docs/privacy.md")):
+    for doc_path in (REPO_ROOT / "PRIVACY.md", REPO_ROOT / "docs" / "privacy.md"):
         assert doc_path.exists()
         content = doc_path.read_text(encoding="utf-8")
         assert "90 days" in content and "Art. 5(1)(e)" in content  # CO01 Retention
@@ -524,7 +534,13 @@ def test_x04a_concurrent_read_write_reliability(tmp_path, monkeypatch):
 
     # Seed initial rules
     initial = [
-        {"rule_id": f"seed-{i}", "name": f"rule-{i}", "is_active": True, "priority": 1, "action": {"instruction": f"Inst {i}"}}
+        {
+            "rule_id": f"seed-{i}",
+            "name": f"rule-{i}",
+            "is_active": True,
+            "priority": 1,
+            "action": {"instruction": f"Inst {i}"},
+        }
         for i in range(5)
     ]
     store._local_save("rules.jsonl", initial)
@@ -673,4 +689,3 @@ def test_c22_extended_pii_ten_categories(tmp_path, monkeypatch):
     ]
     leaked = [item for item in forbidden if item in disk_text]
     assert leaked == [], f"Leaked PII: {leaked}"
-

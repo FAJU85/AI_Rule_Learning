@@ -40,3 +40,11 @@ Repository = "https://github.com/faju85/ai_rule_learning"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["ai_rule_learning_mcp*"]
+
+[tool.setuptools.package-data]
+ai_rule_learning_mcp = ["data/*.json", "data/*.jsonl", "data/*.yaml"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = [".."]
+addopts = ""

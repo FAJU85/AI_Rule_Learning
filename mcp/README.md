@@ -87,6 +87,9 @@ ai-rule-learning rules health
 ai-rule-learning rules health --apply
 ai-rule-learning rules duplicates
 
+# Explain why the current guardrails were selected
+ai-rule-learning why
+
 # Remove all injected sections
 ai-rule-learning clear
 
@@ -130,27 +133,29 @@ prompts, rule text, memory content, file paths, usernames, repo names, hostnames
 
 ## MCP tools
 
-| Tool                      | What it does                                                                          |
-| ------------------------- | ------------------------------------------------------------------------------------- |
-| `get_guardrail_rules`     | Returns active guardrail rules as a formatted text block.                             |
-| `record_feedback`         | Generates a rule from session feedback such as corrections or repeated context.       |
-| `sync_sessions`           | Parses supported local session files, detects patterns, and refreshes injected rules. |
-| `remember`                | Stores a preference, project detail, hard constraint, user fact, or context item.     |
-| `recall`                  | Reads stored memory entries.                                                          |
-| `save_skill`              | Saves a reusable workflow.                                                            |
-| `list_skills`             | Lists saved workflows.                                                                |
-| `get_skill`               | Retrieves a saved workflow by name or keyword.                                        |
-| `install_scheduler`       | Installs, uninstalls, or checks the nightly sync scheduler.                           |
-| `list_providers`          | Shows detected session sources and agent config targets.                              |
-| `list_rules`              | Lists stored rules by lifecycle status.                                               |
-| `approve_rule`            | Approves and activates a reviewed rule.                                               |
-| `reject_rule`             | Rejects a rule so it is not injected.                                                 |
-| `edit_rule`               | Updates a rule instruction.                                                           |
-| `merge_rules`             | Marks a duplicate rule as merged into a primary rule.                                 |
-| `record_rule_outcome`     | Tracks whether a rule worked or failed.                                               |
-| `review_rule_health`      | Finds stale or low-effectiveness rules and can mark them for review.                  |
-| `suggest_duplicate_rules` | Suggests likely duplicate rules for explicit review and merge.                        |
-| `analyze`                 | Reports health, failure modes, injection checks, and rule-effectiveness data.         |
+| Tool                         | What it does                                                                          |
+| ---------------------------- | ------------------------------------------------------------------------------------- |
+| `get_guardrail_rules`        | Returns active guardrail rules as a formatted text block.                             |
+| `record_feedback`            | Generates a rule from session feedback such as corrections or repeated context.       |
+| `sync_sessions`              | Parses supported local session files, detects patterns, and refreshes injected rules. |
+| `remember`                   | Stores a preference, project detail, hard constraint, user fact, or context item.     |
+| `recall`                     | Reads stored memory entries.                                                          |
+| `save_skill`                 | Saves a reusable workflow.                                                            |
+| `list_skills`                | Lists saved workflows.                                                                |
+| `get_skill`                  | Retrieves a saved workflow by name or keyword.                                        |
+| `install_scheduler`          | Installs, uninstalls, or checks the nightly sync scheduler.                           |
+| `list_providers`             | Shows detected session sources and agent config targets.                              |
+| `list_rules`                 | Lists stored rules by lifecycle status.                                               |
+| `approve_rule`               | Approves and activates a reviewed rule.                                               |
+| `reject_rule`                | Rejects a rule so it is not injected.                                                 |
+| `edit_rule`                  | Updates a rule instruction.                                                           |
+| `merge_rules`                | Marks a duplicate rule as merged into a primary rule.                                 |
+| `record_rule_outcome`        | Tracks whether a rule worked or failed.                                               |
+| `review_rule_health`         | Finds stale or low-effectiveness rules and can mark them for review.                  |
+| `suggest_duplicate_rules`    | Suggests likely duplicate rules for explicit review and merge.                        |
+| `analyze`                    | Reports health, failure modes, injection checks, and rule-effectiveness data.         |
+| `why`                        | Explains why each currently active guardrail rule was selected.                       |
+| `update_community_knowledge` | Aggregates opted-in community patterns and publishes k-anonymous templates.           |
 
 ---
 
@@ -210,65 +215,9 @@ Depending on your OS, the package uses one of these mechanisms:
 
 Check scheduler status:
 
-````bash
-
-Check scheduler status:
-
-```bash
-
-The scheduler is opt-in. It is only installed when you run:
-
-```bash
-ai-rule-learning install-cron
-````
-
-Depending on your OS, the package uses one of these mechanisms:
-
-| OS    | Mechanism                                         |
-| ----- | ------------------------------------------------- |
-| macOS | LaunchAgent                                       |
-| Linux | systemd user timer when available, otherwise cron |
-| Other | cron fallback when available                      |
-
-Check scheduler status:
-
-````bash
-
-The scheduler is opt-in. It is only installed when you run:
-
-```bash
-ai-rule-learning install-cron
-````
-
-Depending on your OS, the package uses one of these mechanisms:
-
-| OS    | Mechanism                                         |
-| ----- | ------------------------------------------------- |
-| macOS | LaunchAgent                                       |
-| Linux | systemd user timer when available, otherwise cron |
-| Other | cron fallback when available                      |
-
-Check scheduler status:
-
 ```bash
 ai-rule-learning cron-status
 ```
-
-Remove scheduler automation:
-
-````bash
-
-| OS    | Mechanism                                         |
-| ----- | ------------------------------------------------- |
-| macOS | LaunchAgent                                       |
-| Linux | systemd user timer when available, otherwise cron |
-| Other | cron fallback when available                      |
-
-Check scheduler status:
-
-```bash
-ai-rule-learning cron-status
-````
 
 Remove scheduler automation:
 
@@ -322,12 +271,20 @@ Install development dependencies from the repository root, then run checks:
 
 ```bash
 python -m pip install -r requirements-dev.txt
+python -m pip install -e mcp
 ruff format --check .
 npm run format:check
 ruff check .
 mypy src
 pytest
 python -m pytest -c /dev/null mcp/tests -q
+```
+
+The live Cloudflare relay/aggregator verification matrix is opt-in and is skipped by
+default. Run it explicitly with:
+
+```bash
+ARL_LIVE_TESTS=1 python -m pytest -c /dev/null mcp/tests -q
 ```
 
 ---
