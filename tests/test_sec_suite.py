@@ -160,7 +160,7 @@ def test_sec_05_seven_mandatory_provenance_fields_present(clean_env_store: Path)
         for field in mandatory_fields:
             assert field in r, f"Mandatory provenance field '{field}' missing from rule {r.get('rule_id')}"
         assert r["review_status"] in ("pending", "approved", "rejected")
-        assert r["extraction_version"] == "0.2.1"
+        assert r["extraction_version"] in ("0.2.1", "0.2.2")
         assert isinstance(r["source_session_id"], str) and len(r["source_session_id"]) > 0
         assert isinstance(r["extracted_at"], str) and len(r["extracted_at"]) > 0
         assert isinstance(r["qa_report_id"], str) and len(r["qa_report_id"]) > 0

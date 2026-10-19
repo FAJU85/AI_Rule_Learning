@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ai-rule-learning-mcp"
-version = "0.2.1"
+version = "0.2.3"
 description = "Local MCP server and CLI for learned AI guardrails, memory, skills, and agent config injection"
 readme = {file = "README.md", content-type = "text/markdown"}
 requires-python = ">=3.10"

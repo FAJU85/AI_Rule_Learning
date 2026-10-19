@@ -905,9 +905,6 @@ async def _get_guardrail_rules(
             )
         ]
 
-    # Write active_rules.json with selected rules
-    cat._write_active_rules(context, rules, accumulated_tokens=300, budget_tokens=500)
-
     if is_dry_run:
         return [
             TextContent(
@@ -1036,7 +1033,7 @@ def record_feedback(
 
     now_iso = datetime.utcnow().isoformat()
     rule.setdefault("source_session_id", "session_feedback_realtime")
-    rule.setdefault("extraction_version", "0.2.1")
+    rule.setdefault("extraction_version", "0.2.2")
     rule.setdefault("extracted_at", now_iso)
     rule.setdefault("review_status", "approved")
     rule.setdefault("reviewed_by", "user")
@@ -1235,7 +1232,7 @@ async def _sync_sessions(
             now_iso = datetime.utcnow().isoformat()
             for r in new_rules:
                 r.setdefault("source_session_id", r.get("source_hash", "session_local")[:16])
-                r.setdefault("extraction_version", "0.2.1")
+                r.setdefault("extraction_version", "0.2.2")
                 r.setdefault("extracted_at", now_iso)
                 r.setdefault("review_status", "pending")
                 r.setdefault("reviewed_by", None)

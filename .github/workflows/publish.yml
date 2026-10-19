@@ -1,0 +1,81 @@
+name: Publish to PyPI
+
+on:
+  push:
+    tags:
+      - 'v*'
+      - 'mcp-v*'
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  pypi-publish:
+    name: Build and publish ai-rule-learning-mcp to PyPI
+    runs-on: ubuntu-latest
+    environment: pypi
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install build twine
+
+      - name: Build wheel and source distribution
+        run: |
+          python -m build mcp/
+
+      - name: Verify wheel contents with zipfile
+        run: |
+          python - << 'EOF'
+          import glob
+          import sys
+          import zipfile
+
+          wheels = glob.glob("mcp/dist/*.whl")
+          if not wheels:
+              print("ERROR: No wheel found in mcp/dist/")
+              sys.exit(1)
+
+          wheel_path = wheels[0]
+          print(f"Verifying wheel: {wheel_path}")
+
+          required_files = [
+              "ai_rule_learning_mcp/data/catalog_v1.json",
+              "ai_rule_learning_mcp/data/context_schema.json",
+              "ai_rule_learning_mcp/catalog.py",
+              "ai_rule_learning_mcp/server.py",
+          ]
+
+          with zipfile.ZipFile(wheel_path, "r") as z:
+              namelist = z.namelist()
+              for req in required_files:
+                  if req not in namelist:
+                      print(f"ERROR: Missing required file in wheel: {req}")
+                      sys.exit(1)
+                  info = z.getinfo(req)
+                  print(f"  OK: {req} ({info.file_size} bytes)")
+
+          print("Wheel verification PASSED: all required catalog data and modules present.")
+          EOF
+
+      - name: Verify package with twine
+        run: |
+          twine check mcp/dist/*
+
+      - name: Publish package distributions to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: mcp/dist/

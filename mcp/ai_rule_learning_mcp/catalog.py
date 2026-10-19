@@ -39,7 +39,7 @@ _DEFAULT_SCHEMA_PATH = (
     else Path("data/context_schema.json")
 )
 _DEFAULT_METRICS_PATH = Path("data/rule_metrics.json")
-_ACTIVE_RULES_PATH = Path("active_rules.json")
+_ACTIVE_RULES_PATH = Path.home() / ".ai-rule-learning" / "active_rules.json"
 
 
 class CatalogValidationError(Exception):
@@ -348,7 +348,11 @@ class RuleCatalog:
         accumulated_tokens: int,
         budget_tokens: int,
     ) -> None:
+        global _ACTIVE_RULES_PATH
+        if _ACTIVE_RULES_PATH.name == "active_rules.json" and _ACTIVE_RULES_PATH.parent.name == ".ai-rule-learning":
+            _ACTIVE_RULES_PATH = Path.home() / ".ai-rule-learning" / "active_rules.json"
         try:
+            _ACTIVE_RULES_PATH.parent.mkdir(parents=True, exist_ok=True)
             active_rules_list = [
                 {
                     "rule_id": r.get("rule_id") or f"catalog-{r.get('gap_type')}",
@@ -378,5 +382,42 @@ class RuleCatalog:
             with open(_ACTIVE_RULES_PATH, "w", encoding="utf-8") as f:
                 json.dump(active_data, f, indent=2)
                 f.write("\n")
+            logger.debug("Persisted active_rules.json → %s", _ACTIVE_RULES_PATH)
         except Exception as exc:
-            logger.warning("Could not persist active_rules.json: %s", exc)
+            logger.error(
+                "Failed to persist active_rules.json → %s: %s: %s",
+                _ACTIVE_RULES_PATH,
+                type(exc).__name__,
+                exc,
+            )
+
+    def why(self, active_rules: list[dict[str, Any]] | None = None) -> list[dict[str, Any]]:
+        """Return explanations for why active rules were selected."""
+        rules_to_explain = active_rules
+        if rules_to_explain is None:
+            active_path = _ACTIVE_RULES_PATH
+            if active_path.name == "active_rules.json" and active_path.parent.name == ".ai-rule-learning":
+                active_path = Path.home() / ".ai-rule-learning" / "active_rules.json"
+            if active_path.exists():
+                try:
+                    data = json.loads(active_path.read_text(encoding="utf-8"))
+                    rules_to_explain = data.get("rules") or data.get("active_rules", [])
+                except Exception:
+                    rules_to_explain = []
+            else:
+                rules_to_explain = []
+
+        explanations = []
+        for r in rules_to_explain or []:
+            gt = r.get("gap_type") or r.get("name") or "unknown"
+            reason = r.get("selection_reason") or f"Active rule in catalog: {r.get('instruction', '')}"
+            explanations.append(
+                {
+                    "gap_type": gt,
+                    "category": r.get("category", "general"),
+                    "priority": r.get("priority", 3),
+                    "instruction": r.get("instruction", ""),
+                    "reason": reason,
+                }
+            )
+        return explanations

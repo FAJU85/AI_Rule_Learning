@@ -109,3 +109,35 @@ Implemented `R2Bucket.list({ prefix: 'raw/', cursor })` loop in `cloudflare/src/
 
 ### Test Verification
 Executed intentional failure injection test (HTTP 500 mock on `/templates.jsonl`). Synthetic alert webhook fired within 1 evaluation cycle (30 seconds).
+
+---
+
+## 8. Active Rules Audit File Semantics & Path Resolution (ARL-BUG-003 / v0.2.3)
+
+### Resolved Path Location
+The active rules audit file is resolved strictly to the user's home directory:
+```
+$HOME/.ai-rule-learning/active_rules.json
+```
+- **Constant:** `_ACTIVE_RULES_PATH = Path.home() / ".ai-rule-learning" / "active_rules.json"`
+- **Directory Creation:** The directory `$HOME/.ai-rule-learning/` is automatically created with `mkdir(parents=True, exist_ok=True)` before writing.
+- **CWD Independence:** The file is always written to `$HOME/.ai-rule-learning/active_rules.json` regardless of the process current working directory (e.g. when invoked from `/tmp` or as an arbitrary subprocess).
+
+### Single-Write Semantics & Token Accounting
+- **Single Write:** `RuleCatalog.select()` performs exactly one write to `active_rules.json` during the selection pass.
+- **Accurate Token Calculation:** The `token_count` field reflects the real accumulated token sum calculated for the selected rules:
+  $$\text{token\_count} = \sum_{r \in \text{selected}} \text{estimate\_tokens}(r)$$
+- **Duplicate Removal:** The previous duplicate call in `server.py` (which overwrote `token_count` with a hardcoded constant of 300) has been eliminated.
+- **Invariants:** Every written audit record satisfies:
+  $$\text{token\_count} \le \text{budget\_tokens} \quad \text{and} \quad \text{rules\_count} \le 10$$
+
+### Error Handling & Non-Fatal Degradation
+- If writing fails (e.g., read-only filesystem or insufficient permissions), an `ERROR` level log is emitted containing the target path and exception type:
+  ```
+  Failed to persist active_rules.json → {path}: {exc_type}: {exc}
+  ```
+- Storage failure does not raise an exception to the caller; the MCP server gracefully returns the selected guardrail rules to the client.
+- Successful writes emit a `DEBUG` level log:
+  ```
+  Persisted active_rules.json → {path}
+  ```

@@ -595,7 +595,7 @@ def generate_rules(gaps: dict[str, list[dict]]) -> list[dict]:
                 "source": "local_detector",
                 "created_at": now,
                 "source_session_id": anon_hash[:16],
-                "extraction_version": "0.2.1",
+                "extraction_version": "0.2.2",
                 "extracted_at": now,
                 "review_status": "pending",
                 "reviewed_by": None,

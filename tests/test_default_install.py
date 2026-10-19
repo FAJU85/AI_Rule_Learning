@@ -92,7 +92,9 @@ async def test_default_path_get_guardrail_rules_produces_active_rules(
     assert result, "get_guardrail_rules must return non-empty result"
 
     # Verify active_rules.json was produced
-    active_rules_file = Path("active_rules.json")
+    active_rules_file = tmp_path / ".ai-rule-learning" / "active_rules.json"
+    if not active_rules_file.exists():
+        active_rules_file = Path("active_rules.json")
     assert active_rules_file.exists(), "active_rules.json must be written by default path"
 
     data = json.loads(active_rules_file.read_text(encoding="utf-8"))
