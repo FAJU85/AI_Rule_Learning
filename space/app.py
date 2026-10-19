@@ -4682,7 +4682,7 @@ def explain_rule_decision(rule_id: str, user_input: str, agent_response: str) ->
         resp = client.chat_completion(
             model="Qwen/Qwen2.5-72B-Instruct",
             messages=[{"role": "user", "content": prompt}],
-            max_tokens=200,
+            max_tokens=600,
             temperature=0.3,
         )
         explanation = resp.choices[0].message.content.strip()

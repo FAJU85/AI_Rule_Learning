@@ -1,83 +1,181 @@
 {
-  "timestamp": "2026-10-18T14:58:51.565831Z",
+  "selected_at": "2026-10-18T17:44:01.757389Z",
+  "timestamp": "2026-10-18T17:44:01.757394Z",
   "context": {
     "language": "any",
     "task_type": "code_generation",
     "user_style": "concise"
   },
+  "token_budget": {
+    "allocated": 500,
+    "used": 300,
+    "rule_count": 10
+  },
   "rules_count": 10,
   "token_count": 300,
   "budget_tokens": 500,
-  "rules": [
+  "active_rules": [
     {
-      "gap_type": "unnecessary_prose_before_code",
+      "rule_id": "rule-valid-1",
+      "gap_type": null,
+      "category": null,
+      "priority": 3,
+      "instruction": null,
+      "selection_reason": ""
+    },
+    {
+      "rule_id": "rule-valid-2",
+      "gap_type": null,
+      "category": null,
+      "priority": 3,
+      "instruction": null,
+      "selection_reason": ""
+    },
+    {
+      "rule_id": "catalog-unnecessary_prose_before_code",
+      "gap_type": null,
       "category": "verbosity",
       "priority": 4,
       "instruction": "Do not include conversational filler, meta-announcements, or conversational greetings before delivering requested code. Provide the code solution directly or precede it with at most one concise sentence.",
-      "selection_reason": "Triggered by task_type='code_generation', user_style='concise'; Priority 4; Success rate 85%."
+      "selection_reason": "Matched triggers [task_type='code_generation', user_style='concise']; priority=4"
     },
     {
-      "gap_type": "unverified_api_reference",
+      "rule_id": "catalog-unverified_api_reference",
+      "gap_type": null,
       "category": "hallucination",
       "priority": 5,
       "instruction": "Only reference standard library APIs and documented third-party functions that exist in the targeted version. If unsure of an API signature, explicitly state the assumption instead of guessing.",
-      "selection_reason": "Triggered by task_type='code_generation', language=any; Priority 5; Success rate 85%."
+      "selection_reason": "Matched triggers [task_type='code_generation', language=any]; priority=5"
     },
     {
-      "gap_type": "invented_function_signature",
+      "rule_id": "catalog-invented_function_signature",
+      "gap_type": null,
       "category": "hallucination",
       "priority": 5,
       "instruction": "Verify all parameter names and return types against official library definitions before generating code calls. Do not invent optional keyword arguments that do not exist in the official API.",
-      "selection_reason": "Triggered by task_type='code_generation', language=any; Priority 5; Success rate 85%."
+      "selection_reason": "Matched triggers [task_type='code_generation', language=any]; priority=5"
     },
     {
-      "gap_type": "invented_cli_subcommand",
+      "rule_id": "catalog-invented_cli_subcommand",
+      "gap_type": null,
       "category": "hallucination",
       "priority": 5,
       "instruction": "Emit only real CLI commands and verified flags for developer tools like git, docker, and package managers. Never invent combined command-line flags or nonexistent subcommands.",
-      "selection_reason": "Triggered by task_type='code_generation', language=any; Priority 5; Success rate 85%."
+      "selection_reason": "Matched triggers [task_type='code_generation', language=any]; priority=5"
     },
     {
-      "gap_type": "ungrounded_numeric_constant",
+      "rule_id": "catalog-ungrounded_numeric_constant",
+      "gap_type": null,
       "category": "hallucination",
       "priority": 5,
       "instruction": "Never fabricate magic numbers, cryptographic constants, or protocol offsets in low-level implementations. Reference canonical standard constants or specify where the user must supply calibrated values.",
-      "selection_reason": "Triggered by task_type='code_generation', language=any; Priority 5; Success rate 85%."
+      "selection_reason": "Matched triggers [task_type='code_generation', language=any]; priority=5"
     },
     {
-      "gap_type": "parametric_knowledge_override",
+      "rule_id": "catalog-parametric_knowledge_override",
+      "gap_type": null,
       "category": "instruction_drift",
       "priority": 5,
       "instruction": "Prioritize user-provided code definitions and in-context specifications over internal parametric priors. When the user specifies an explicit signature, implement that signature exactly.",
-      "selection_reason": "Triggered by task_type='code_generation', language=any; Priority 5; Success rate 85%."
+      "selection_reason": "Matched triggers [task_type='code_generation', language=any]; priority=5"
     },
     {
-      "gap_type": "language_target_drift",
+      "rule_id": "catalog-language_target_drift",
+      "gap_type": null,
       "category": "instruction_drift",
       "priority": 5,
       "instruction": "Remain strictly in the requested programming language even when discussing concepts commonly implemented elsewhere. Do not drift into Python syntax when answering a TypeScript task.",
-      "selection_reason": "Triggered by task_type='code_generation', language=any; Priority 5; Success rate 85%."
+      "selection_reason": "Matched triggers [task_type='code_generation', language=any]; priority=5"
     },
     {
-      "gap_type": "arithmetic_verification_discipline",
+      "rule_id": "catalog-arithmetic_verification_discipline",
+      "gap_type": null,
       "category": "reasoning_failure",
       "priority": 5,
       "instruction": "Double-check boundary index calculations, buffer offsets, and time interval math before emitting code. Write out the index equation explicitly to prevent off-by-one errors.",
-      "selection_reason": "Triggered by task_type='code_generation', language=any; Priority 5; Success rate 85%."
+      "selection_reason": "Matched triggers [task_type='code_generation', language=any]; priority=5"
+    }
+  ],
+  "rules": [
+    {
+      "rule_id": "rule-valid-1",
+      "gap_type": null,
+      "category": null,
+      "priority": 3,
+      "instruction": null,
+      "selection_reason": ""
     },
     {
-      "gap_type": "error_handling_required",
-      "category": "code_quality",
-      "priority": 5,
-      "instruction": "Always include robust error handling with specific exception types and informative error messages. Never leave uncaught I/O or network failures in suggested code.",
-      "selection_reason": "Triggered by task_type='code_generation', language=any; Priority 5; Success rate 85%."
+      "rule_id": "rule-valid-2",
+      "gap_type": null,
+      "category": null,
+      "priority": 3,
+      "instruction": null,
+      "selection_reason": ""
     },
     {
-      "gap_type": "resource_leak_prevention",
-      "category": "code_quality",
+      "rule_id": "catalog-unnecessary_prose_before_code",
+      "gap_type": null,
+      "category": "verbosity",
+      "priority": 4,
+      "instruction": "Do not include conversational filler, meta-announcements, or conversational greetings before delivering requested code. Provide the code solution directly or precede it with at most one concise sentence.",
+      "selection_reason": "Matched triggers [task_type='code_generation', user_style='concise']; priority=4"
+    },
+    {
+      "rule_id": "catalog-unverified_api_reference",
+      "gap_type": null,
+      "category": "hallucination",
       "priority": 5,
-      "instruction": "Always acquire file handles, database connections, and sockets using context managers or explicit try-finally blocks. Guarantee proper resource disposal under error conditions.",
-      "selection_reason": "Triggered by task_type='code_generation', language=any; Priority 5; Success rate 85%."
+      "instruction": "Only reference standard library APIs and documented third-party functions that exist in the targeted version. If unsure of an API signature, explicitly state the assumption instead of guessing.",
+      "selection_reason": "Matched triggers [task_type='code_generation', language=any]; priority=5"
+    },
+    {
+      "rule_id": "catalog-invented_function_signature",
+      "gap_type": null,
+      "category": "hallucination",
+      "priority": 5,
+      "instruction": "Verify all parameter names and return types against official library definitions before generating code calls. Do not invent optional keyword arguments that do not exist in the official API.",
+      "selection_reason": "Matched triggers [task_type='code_generation', language=any]; priority=5"
+    },
+    {
+      "rule_id": "catalog-invented_cli_subcommand",
+      "gap_type": null,
+      "category": "hallucination",
+      "priority": 5,
+      "instruction": "Emit only real CLI commands and verified flags for developer tools like git, docker, and package managers. Never invent combined command-line flags or nonexistent subcommands.",
+      "selection_reason": "Matched triggers [task_type='code_generation', language=any]; priority=5"
+    },
+    {
+      "rule_id": "catalog-ungrounded_numeric_constant",
+      "gap_type": null,
+      "category": "hallucination",
+      "priority": 5,
+      "instruction": "Never fabricate magic numbers, cryptographic constants, or protocol offsets in low-level implementations. Reference canonical standard constants or specify where the user must supply calibrated values.",
+      "selection_reason": "Matched triggers [task_type='code_generation', language=any]; priority=5"
+    },
+    {
+      "rule_id": "catalog-parametric_knowledge_override",
+      "gap_type": null,
+      "category": "instruction_drift",
+      "priority": 5,
+      "instruction": "Prioritize user-provided code definitions and in-context specifications over internal parametric priors. When the user specifies an explicit signature, implement that signature exactly.",
+      "selection_reason": "Matched triggers [task_type='code_generation', language=any]; priority=5"
+    },
+    {
+      "rule_id": "catalog-language_target_drift",
+      "gap_type": null,
+      "category": "instruction_drift",
+      "priority": 5,
+      "instruction": "Remain strictly in the requested programming language even when discussing concepts commonly implemented elsewhere. Do not drift into Python syntax when answering a TypeScript task.",
+      "selection_reason": "Matched triggers [task_type='code_generation', language=any]; priority=5"
+    },
+    {
+      "rule_id": "catalog-arithmetic_verification_discipline",
+      "gap_type": null,
+      "category": "reasoning_failure",
+      "priority": 5,
+      "instruction": "Double-check boundary index calculations, buffer offsets, and time interval math before emitting code. Write out the index equation explicitly to prevent off-by-one errors.",
+      "selection_reason": "Matched triggers [task_type='code_generation', language=any]; priority=5"
     }
   ]
 }

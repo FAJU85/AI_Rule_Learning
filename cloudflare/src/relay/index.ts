@@ -108,8 +108,10 @@ app.get('/api/health', (c) => {
   }, 200);
 });
 
-// 2. Ingestion endpoint (POST /contribute)
-app.post('/contribute', async (c) => {
+app.options('/contribute', (c) => c.text('', 204, { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type, Authorization' }));
+app.options('/api/contribute', (c) => c.text('', 204, { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type, Authorization' }));
+
+const handleContribute = async (c: any) => {
   const req = c.req.raw;
   const contentLength = parseInt(req.headers.get('content-length') || '0', 10);
   if (contentLength > MAX_PAYLOAD_BYTES) {
@@ -228,7 +230,10 @@ app.post('/contribute', async (c) => {
     storage_key: storageKey,
     residency: c.env.DATA_RESIDENCY || 'EU/US Cloudflare Edge (GDPR Art. 44-49 SCCs)',
   }, 201);
-});
+};
+
+app.post('/contribute', handleContribute);
+app.post('/api/contribute', handleContribute);
 
 // 3. Admin endpoints for governance
 app.post('/admin/approve', async (c) => {

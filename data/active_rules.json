@@ -1,83 +1,47 @@
 {
-  "timestamp": "2026-10-18T14:58:51.565831Z",
+  "timestamp": "2026-10-18T17:43:51.368325Z",
   "context": {
-    "language": "any",
-    "task_type": "code_generation",
-    "user_style": "concise"
+    "task_type": "security_audit",
+    "language": "sql"
   },
-  "rules_count": 10,
-  "token_count": 300,
+  "rules_count": 5,
+  "token_count": 190,
   "budget_tokens": 500,
   "rules": [
     {
-      "gap_type": "unnecessary_prose_before_code",
-      "category": "verbosity",
-      "priority": 4,
-      "instruction": "Do not include conversational filler, meta-announcements, or conversational greetings before delivering requested code. Provide the code solution directly or precede it with at most one concise sentence.",
-      "selection_reason": "Triggered by task_type='code_generation', user_style='concise'; Priority 4; Success rate 85%."
-    },
-    {
-      "gap_type": "unverified_api_reference",
-      "category": "hallucination",
+      "gap_type": "echoing_harmful_shortcuts",
+      "category": "sycophancy",
       "priority": 5,
-      "instruction": "Only reference standard library APIs and documented third-party functions that exist in the targeted version. If unsure of an API signature, explicitly state the assumption instead of guessing.",
-      "selection_reason": "Triggered by task_type='code_generation', language=any; Priority 5; Success rate 85%."
+      "instruction": "If a user suggests bypassing encryption, sanitization, or authentication for speed, refuse to validate the shortcut. Explain the concrete vulnerability created by the shortcut.",
+      "selection_reason": "Triggered by task_type='security_audit', language='sql'; Priority 5; Success rate 85%."
     },
     {
-      "gap_type": "invented_function_signature",
-      "category": "hallucination",
+      "gap_type": "endorsing_non_standard_security",
+      "category": "sycophancy",
       "priority": 5,
-      "instruction": "Verify all parameter names and return types against official library definitions before generating code calls. Do not invent optional keyword arguments that do not exist in the official API.",
-      "selection_reason": "Triggered by task_type='code_generation', language=any; Priority 5; Success rate 85%."
+      "instruction": "Never affirm custom cryptographic schemes or proprietary hash functions proposed by a user. Enforce established cryptographic standards and standard libraries.",
+      "selection_reason": "Triggered by task_type='security_audit'; Priority 5; Success rate 85%."
     },
     {
-      "gap_type": "invented_cli_subcommand",
-      "category": "hallucination",
-      "priority": 5,
-      "instruction": "Emit only real CLI commands and verified flags for developer tools like git, docker, and package managers. Never invent combined command-line flags or nonexistent subcommands.",
-      "selection_reason": "Triggered by task_type='code_generation', language=any; Priority 5; Success rate 85%."
-    },
-    {
-      "gap_type": "ungrounded_numeric_constant",
-      "category": "hallucination",
-      "priority": 5,
-      "instruction": "Never fabricate magic numbers, cryptographic constants, or protocol offsets in low-level implementations. Reference canonical standard constants or specify where the user must supply calibrated values.",
-      "selection_reason": "Triggered by task_type='code_generation', language=any; Priority 5; Success rate 85%."
-    },
-    {
-      "gap_type": "parametric_knowledge_override",
-      "category": "instruction_drift",
-      "priority": 5,
-      "instruction": "Prioritize user-provided code definitions and in-context specifications over internal parametric priors. When the user specifies an explicit signature, implement that signature exactly.",
-      "selection_reason": "Triggered by task_type='code_generation', language=any; Priority 5; Success rate 85%."
-    },
-    {
-      "gap_type": "language_target_drift",
-      "category": "instruction_drift",
-      "priority": 5,
-      "instruction": "Remain strictly in the requested programming language even when discussing concepts commonly implemented elsewhere. Do not drift into Python syntax when answering a TypeScript task.",
-      "selection_reason": "Triggered by task_type='code_generation', language=any; Priority 5; Success rate 85%."
-    },
-    {
-      "gap_type": "arithmetic_verification_discipline",
+      "gap_type": "unsubstantiated_refusal_override",
       "category": "reasoning_failure",
       "priority": 5,
-      "instruction": "Double-check boundary index calculations, buffer offsets, and time interval math before emitting code. Write out the index equation explicitly to prevent off-by-one errors.",
-      "selection_reason": "Triggered by task_type='code_generation', language=any; Priority 5; Success rate 85%."
+      "instruction": "Do not refuse benign software engineering questions due to superficial keyword matches with dangerous topics. Distinguish defensive cybersecurity and debugging from malicious attacks.",
+      "selection_reason": "Triggered by task_type='security_audit'; Priority 5; Success rate 85%."
     },
     {
-      "gap_type": "error_handling_required",
-      "category": "code_quality",
+      "gap_type": "parameterized_queries_only",
+      "category": "security",
       "priority": 5,
-      "instruction": "Always include robust error handling with specific exception types and informative error messages. Never leave uncaught I/O or network failures in suggested code.",
-      "selection_reason": "Triggered by task_type='code_generation', language=any; Priority 5; Success rate 85%."
+      "instruction": "Never concatenate or format user input directly into SQL queries. Always use parameterized queries or trusted ORM binding mechanisms to prevent SQL injection.",
+      "selection_reason": "Triggered by language='sql'; Priority 5; Success rate 85%."
     },
     {
-      "gap_type": "resource_leak_prevention",
-      "category": "code_quality",
+      "gap_type": "no_unsafe_deserialization",
+      "category": "security",
       "priority": 5,
-      "instruction": "Always acquire file handles, database connections, and sockets using context managers or explicit try-finally blocks. Guarantee proper resource disposal under error conditions.",
-      "selection_reason": "Triggered by task_type='code_generation', language=any; Priority 5; Success rate 85%."
+      "instruction": "Never deserialize untrusted byte streams with pickle, yaml.load without SafeLoader, or unsafe eval. Use schema-validated JSON or protocol buffers for serialization.",
+      "selection_reason": "Triggered by task_type='security_audit'; Priority 5; Success rate 85%."
     }
   ]
 }

@@ -23,6 +23,9 @@ classifiers = [
 ]
 dependencies = [
     "mcp>=1.0.0,<2.0.0",
+    "pydantic>=2.0.0,<3.0.0",
+    "anyio>=4.0.0,<5.0.0",
+    "huggingface-hub>=0.20.0,<1.0.0",
 ]
 
 [project.optional-dependencies]
@@ -40,3 +43,7 @@ Repository = "https://github.com/faju85/ai_rule_learning"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["ai_rule_learning_mcp*"]
+
+[tool.setuptools.package-data]
+"ai_rule_learning_mcp" = ["data/*", "data/*.json", "data/*.jsonl"]
+

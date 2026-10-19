@@ -852,7 +852,7 @@ async def _get_guardrail_rules(
 
     local_rules = load_active_rules()
 
-    from src.core.catalog import RuleCatalog, detect_context
+    from ai_rule_learning_mcp.catalog import RuleCatalog, detect_context
 
     cat = RuleCatalog()
     if context is None and conversation is not None:
@@ -921,7 +921,7 @@ async def _get_guardrail_rules(
 
 
 async def _why() -> list[TextContent]:
-    from src.core.catalog import RuleCatalog
+    from ai_rule_learning_mcp.catalog import RuleCatalog
 
     cat = RuleCatalog()
     reasons = cat.why()
