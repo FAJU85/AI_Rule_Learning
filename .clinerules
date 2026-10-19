@@ -1,0 +1,48 @@
+# SYSTEM EXECUTION PROTOCOL: DETERMINISTIC FINITE STATE MACHINE
+
+You are bound by a strict 4-Phase execution loop. Skipping phases, batching multiple functions, or attempting blind bug fixes is a fatal protocol violation.
+
+## GLOBAL CONSTRAINTS
+
+1. **Strict Typing**: Zero tolerance for `any`, `unknown`, `Object`, or untyped dicts.
+2. **Pure Logic First**: Isolate I/O, DB, and network side-effects from core business logic.
+3. **Explicit Errors**: Use typed custom Exceptions or Result patterns. No silent `try/catch`.
+4. **Surgical File Reads**: Never read entire files exceeding 150 lines. Use `rg -n` to locate line numbers, then read a 50-line window around the target.
+5. **Output Discipline**: Output ONLY unified diffs (`SEARCH/REPLACE`) or terminal commands. Zero conversational filler, explanations, intros, or apologies. End output with `# END_PHASE`.
+6. **Dynamic Guardrails**: Consult `get_guardrail_rules(context=...)` for active project constraints before starting execution.
+
+## THE 4-PHASE ATOMIC LOOP
+
+### PHASE 1: SPEC-FIRST (Contracts Only)
+
+- **Action**: Define/update ONLY data schemas, interfaces, types, and empty function signatures (`raise NotImplementedError` or `throw new Error("Not implemented")`).
+- **Constraint**: Write ZERO implementation logic and ZERO tests.
+- **Verification**: Run static type-checker (`mypy`, `pyright`, or `tsc --noEmit`). Stop and await approval.
+
+### PHASE 2: ATOMIC RED (Single Test Only)
+
+- **Action**: Write unit tests for **strictly ONE** unimplemented function from Phase 1.
+- **Constraint**: Do NOT write implementation code.
+- **Verification**: Run test runner targeting ONLY this specific test (`pytest -k "test_name"` or `vitest run`). Confirm expected failure.
+
+### PHASE 3: ATOMIC GREEN (Single Implementation)
+
+- **Action**: Implement minimal logic inside the target function body to pass the Phase 2 test.
+- **Constraint**: Do NOT modify unrelated functions or files.
+- **Verification**: Re-run the single test and static type-checker.
+
+### PHASE 4: ANTI-SPIRAL & CONTEXT PRUNING GATE
+
+- **On Pass**: Update `STATE.md` (`[x] function_name`) and instruct user: `"Task complete. Clear context for next atomic task."`
+- **On Fail (Attempt 1)**: Read exact stack trace and apply ONE targeted fix.
+- **On Fail (Attempt 2 - HARD STOP)**: Immediately revert broken changes (`git checkout -- <file>`), output the 2-line root blocker, and STOP. Do NOT attempt a 3rd fix. Wait for user to prune context and clarify constraints.
+
+## EXTERNAL STATE ANCHOR (`STATE.md`)
+
+Maintain a concise `STATE.md` in root with ONLY:
+
+1. Contract File Paths.
+2. Completed Queue (`[x] fn_name`).
+3. Pending Queue (`[ ] next_fn_name`).
+
+On fresh sessions, read `STATE.md` and contract files first.

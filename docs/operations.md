@@ -124,7 +124,7 @@ Executed intentional failure injection test (HTTP 500 mock on `/templates.jsonl`
 
 ---
 
-## 8. Active Rules Audit File Semantics & Path Resolution (ARL-BUG-003 / v0.2.3)
+## 8. Active Rules Audit File Semantics & Path Resolution (ARL-BUG-003, ARL-BUG-004 / v0.2.4)
 
 ### Resolved Path Location
 
@@ -137,6 +137,14 @@ $HOME/.ai-rule-learning/active_rules.json
 - **Constant:** `_ACTIVE_RULES_PATH = Path.home() / ".ai-rule-learning" / "active_rules.json"`
 - **Directory Creation:** The directory `$HOME/.ai-rule-learning/` is automatically created with `mkdir(parents=True, exist_ok=True)` before writing.
 - **CWD Independence:** The file is always written to `$HOME/.ai-rule-learning/active_rules.json` regardless of the process current working directory (e.g. when invoked from `/tmp` or as an arbitrary subprocess).
+
+### Release Integrity & CI Enforcement Gate (ARL-BUG-004)
+
+To prevent release integrity defects where source fixes do not make it into the distributed package:
+
+1. **Pre-Publish Wheel Inspection Gate:** `.github/workflows/publish.yml` executes an automated pre-publish validation step on all wheels in `mcp/dist/*.whl` using `zipfile`. The gate inspects `ai_rule_learning_mcp/catalog.py` inside the built archive and asserts that `_ACTIVE_RULES_PATH` contains `Path.home` or `expanduser`. Any stale or relative path definition immediately aborts the pipeline before PyPI publication.
+2. **Source-Level Invariant Test:** `tests/test_active_rules_constant.py` verifies `ai_rule_learning_mcp.catalog._ACTIVE_RULES_PATH.is_absolute() is True` in every test run.
+3. **End-to-End Location Test:** `tests/test_active_rules_location.py` executes `get_guardrail_rules()` with isolated CWD and `$HOME` to assert the audit file appears exclusively under `$HOME/.ai-rule-learning/` and never leaks into the working directory.
 
 ### Single-Write Semantics & Token Accounting
 

@@ -68,7 +68,22 @@ jobs:
                   info = z.getinfo(req)
                   print(f"  OK: {req} ({info.file_size} bytes)")
 
-          print("Wheel verification PASSED: all required catalog data and modules present.")
+              # ARL-BUG-004: Release integrity gate - verify _ACTIVE_RULES_PATH is absolute
+              catalog_src = z.read("ai_rule_learning_mcp/catalog.py").decode("utf-8")
+              found_constant = False
+              for line in catalog_src.splitlines():
+                  if line.startswith("_ACTIVE_RULES_PATH ="):
+                      found_constant = True
+                      if "Path.home" not in line and "expanduser" not in line:
+                          print(f"ERROR: Stale or relative _ACTIVE_RULES_PATH in built wheel: {line}")
+                          sys.exit(1)
+                      print(f"  OK: _ACTIVE_RULES_PATH verified absolute in wheel: {line.strip()}")
+                      break
+              if not found_constant:
+                  print("ERROR: _ACTIVE_RULES_PATH constant definition not found in catalog.py inside wheel")
+                  sys.exit(1)
+
+          print("Wheel verification PASSED: all required catalog data, modules, and absolute path invariant verified.")
           EOF
 
       - name: Verify package with twine

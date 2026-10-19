@@ -27,3 +27,8 @@ venv/
 htmlcov/
 .coverage
 coverage.xml
+
+# AI Rule Learning audit paths
+active_rules.json
+data/active_rules.json
+.ai-rule-learning/

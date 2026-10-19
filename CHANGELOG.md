@@ -8,6 +8,20 @@ managed by [standard-version](https://github.com/conventional-changelog/standard
 
 ## [Unreleased]
 
+## [0.2.4] - 2026-10-19
+
+### Fixed
+
+- **Release integrity defect (ARL-BUG-004)**: Resolved packaging discrepancy where the published v0.2.3 wheel on PyPI retained a stale relative path (`Path("active_rules.json")`) rather than the absolute path under `$HOME/.ai-rule-learning/active_rules.json`.
+- **Pre-publish CI verification gate**: Added automated zipfile wheel inspection to `.github/workflows/publish.yml` that asserts `_ACTIVE_RULES_PATH` in `ai_rule_learning_mcp/catalog.py` contains `Path.home` or `expanduser` prior to PyPI distribution.
+- **Source and location assertion gates**: Added `tests/test_active_rules_constant.py`, `tests/test_wheel_contains_absolute_path.py`, and `tests/test_active_rules_location.py` ensuring active rules always land under `$HOME/.ai-rule-learning/` and never leak into the working directory.
+
+## [0.2.3] - 2026-10-19
+
+### Fixed
+
+- **Active rules path resolution & duplicate write (ARL-BUG-003)**: Resolved `active_rules.json` to `$HOME/.ai-rule-learning/active_rules.json` and removed duplicate call in `server.py` overriding token count.
+
 ### Added
 
 - **Skills pillar** (`mcp/ai_rule_learning_mcp/skills.py`) — save and retrieve reusable
