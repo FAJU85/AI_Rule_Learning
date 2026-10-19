@@ -47,9 +47,7 @@ def test_space_app_is_only_allowed_hf_consumer() -> None:
     for py_file in mcp_files:
         for line in py_file.read_text(encoding="utf-8").splitlines():
             stripped = line.strip()
-            assert not stripped.startswith("import huggingface_hub"), (
-                f"Prohibited import in {py_file.name}: {line}"
-            )
+            assert not stripped.startswith("import huggingface_hub"), f"Prohibited import in {py_file.name}: {line}"
             assert not stripped.startswith("from huggingface_hub import"), (
                 f"Prohibited import in {py_file.name}: {line}"
             )

@@ -224,3 +224,37 @@ def test_load_active_rules_filters_unsafe_active_rule(isolated_store):
     ids = {r["rule_id"] for r in load_active_rules()}
     assert "safe" in ids
     assert "poisoned" not in ids
+
+
+def test_load_active_rules_excludes_pending_and_rejected(isolated_store):
+    """A rule marked is_active but not approved must not reach agent configs."""
+    rules = [
+        {
+            "rule_id": "pending-rule",
+            "name": "Pending rule",
+            "instruction": "Prefer focused tests.",
+            "is_active": True,
+            "status": "pending",
+            "review_status": "pending",
+        },
+        {
+            "rule_id": "rejected-rule",
+            "name": "Rejected rule",
+            "instruction": "Prefer focused tests.",
+            "is_active": True,
+            "status": "active",
+            "review_status": "rejected",
+        },
+        {
+            "rule_id": "approved-rule",
+            "name": "Approved rule",
+            "instruction": "Prefer focused tests.",
+            "is_active": True,
+            "status": "active",
+            "review_status": "approved",
+        },
+    ]
+    _local_save("rules.jsonl", rules)
+
+    ids = {r["rule_id"] for r in load_active_rules()}
+    assert ids == {"approved-rule"}

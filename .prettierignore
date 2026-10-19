@@ -3,5 +3,8 @@ CLAUDE.md
 AGENTS.md
 .agents
 .claude
+.cline-home
+.venv
+mcp/dist
 README-DEVELOPMENT-1.md
 MVP.md

@@ -20,6 +20,7 @@ def _turn(user: str, agent: str = "OK") -> dict:
 
 # ── detect_gaps ────────────────────────────────────────────────────────────
 
+
 class TestDetectGaps:
     def test_explicit_correction_detected(self):
         turns = [
@@ -63,8 +64,10 @@ class TestDetectGaps:
 
     def test_code_with_error_handling_not_flagged(self):
         turns = [
-            _turn("show me db query",
-                  "```python\ndef query(db):\n    try:\n        return db.execute('SELECT *')\n    except Exception as e:\n        raise\n```"),
+            _turn(
+                "show me db query",
+                "```python\ndef query(db):\n    try:\n        return db.execute('SELECT *')\n    except Exception as e:\n        raise\n```",
+            ),
         ]
         gaps = detect_gaps(turns)
         assert "code_no_error_handling" not in gaps
@@ -123,6 +126,7 @@ class TestDetectGaps:
 
 # ── generate_rules ─────────────────────────────────────────────────────────
 
+
 class TestGenerateRules:
     def test_correction_gap_generates_rule(self):
         gaps = {"explicit_correction": [{"turn": 2, "signal": "actually,", "snippet": "..."}]}
@@ -130,7 +134,8 @@ class TestGenerateRules:
         assert len(rules) == 1
         assert rules[0]["name"] == "acknowledge-and-correct-immediately"
         assert rules[0]["priority"] == 4
-        assert rules[0]["is_active"] is True
+        assert rules[0]["is_active"] is False
+        assert rules[0]["review_status"] == "pending"
 
     def test_unknown_gap_type_skipped(self):
         gaps = {"unknown_gap_xyz": [{"turn": 1}]}
@@ -159,6 +164,7 @@ class TestGenerateRules:
 
 
 # ── analyze_conversations ──────────────────────────────────────────────────
+
 
 class TestAnalyzeConversations:
     def test_empty_list_returns_empty(self):

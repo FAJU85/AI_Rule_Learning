@@ -447,7 +447,17 @@ def detect_gaps(turns: list[dict]) -> dict[str, list[dict]]:
         has_code = "```" in agent or "def " in agent or "function " in agent
         has_error_handling = any(
             w in agent_lower
-            for w in ["try:", "except", "catch (", "catch{", ".catch(", "raise ", "throws ", "error handling", "exception"]
+            for w in [
+                "try:",
+                "except",
+                "catch (",
+                "catch{",
+                ".catch(",
+                "raise ",
+                "throws ",
+                "error handling",
+                "exception",
+            ]
         )
         if has_code and not has_error_handling:
             gaps.setdefault("code_no_error_handling", []).append({"turn": i + 1})
@@ -590,7 +600,9 @@ def generate_rules(gaps: dict[str, list[dict]]) -> list[dict]:
                 "failure_category_label": _CATEGORY_LABELS.get(category, category),
                 "gap_type": gap_type,
                 "instance_count": len(instances),
-                "is_active": True,
+                # Newly extracted rules must not be injected until a human
+                # approves them (PRD §3.1, docs/schema.md lifecycle machine).
+                "is_active": False,
                 "status": "pending",
                 "source": "local_detector",
                 "created_at": now,

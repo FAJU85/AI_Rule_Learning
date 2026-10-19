@@ -17,6 +17,7 @@ import pytest
 # fetch_community_patterns
 # ---------------------------------------------------------------------------
 
+
 def test_fetch_community_patterns_no_token():
     """A clean environment with no HF_TOKEN retrieves community templates successfully (Item G)."""
     import ai_rule_learning_mcp.community as community
@@ -81,7 +82,7 @@ def test_fetch_community_patterns_aggregates():
 
     assert "explicit_correction" in result
     ec = result["explicit_correction"]
-    assert ec["count"] == 4          # 2 + 1 + 1
+    assert ec["count"] == 4  # 2 + 1 + 1
     assert ec["unique_sources"] == 3  # aaa, bbb, ccc
     assert "actually," in ec["top_signals"]
     assert "no," in ec["top_signals"]
@@ -90,6 +91,24 @@ def test_fetch_community_patterns_aggregates():
 # ---------------------------------------------------------------------------
 # build_community_templates
 # ---------------------------------------------------------------------------
+
+
+def test_build_community_templates_default_enforces_k5():
+    """The default local merge threshold must match the documented k>=5 floor."""
+    freq = {
+        "explicit_correction": {"count": 10, "unique_sources": 4, "top_signals": ["actually,"]},
+        "repeated_context": {"count": 9, "unique_sources": 5, "top_signals": ["I already said"]},
+    }
+
+    import ai_rule_learning_mcp.community as community
+
+    with patch.object(community, "fetch_community_patterns", return_value=freq):
+        default_templates = community.build_community_templates()
+        relaxed_templates = community.build_community_templates(min_sources=4)
+
+    assert [t["gap_type"] for t in default_templates] == ["repeated_context"]
+    assert {t["gap_type"] for t in relaxed_templates} == {"explicit_correction", "repeated_context"}
+
 
 def test_build_community_templates_threshold():
     """Only gap_types with unique_sources >= min_sources generate templates."""
@@ -172,6 +191,7 @@ def test_build_community_templates_new_type():
 # load_community_templates + detect_gaps RAG augmentation
 # ---------------------------------------------------------------------------
 
+
 def test_load_community_templates_rag_detection():
     """After loading community templates, detect_gaps finds matches via community triggers."""
     import ai_rule_learning_mcp.gap_detector as gd
@@ -211,6 +231,7 @@ def test_load_community_templates_rag_detection():
 # ---------------------------------------------------------------------------
 # pull_community_templates — error path
 # ---------------------------------------------------------------------------
+
 
 def test_pull_community_templates_empty_on_error():
     """Returns [] when CDN fails and fallback_to_bundled is disabled."""

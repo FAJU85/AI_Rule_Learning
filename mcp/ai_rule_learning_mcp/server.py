@@ -539,7 +539,10 @@ async def list_tools() -> list[Tool]:
                     "priority": {"type": "integer", "description": "Updated rule priority rating (1 to 5)."},
                     "trigger_if": {"type": "object", "description": "Updated context activation conditions."},
                     "exclude_if": {"type": "object", "description": "Updated context suppression conditions."},
-                    "instruction": {"type": "string", "description": "Prohibited. Any non-empty value will be rejected."},
+                    "instruction": {
+                        "type": "string",
+                        "description": "Prohibited. Any non-empty value will be rejected.",
+                    },
                     "dry_run": {
                         "type": "boolean",
                         "description": "Preview the edit without changing the rule store.",
@@ -688,7 +691,7 @@ async def list_tools() -> list[Tool]:
             name="update_community_knowledge",
             description=(
                 "Read accumulated community gap contributions, derive enhanced rule templates "
-                "from patterns that appear across 3+ independent sessions, and publish them "
+                "from patterns that appear across 5+ independent sessions (k-anonymity floor), and publish them "
                 "back to the community knowledge pool so all users benefit on next sync. "
                 "Runs automatically without requiring external credentials. "
                 "Run this periodically to close the learning loop: "
@@ -699,7 +702,7 @@ async def list_tools() -> list[Tool]:
                 "properties": {
                     "min_sources": {
                         "type": "integer",
-                        "description": "Minimum unique session sources before a pattern becomes a template. Default: 3.",
+                        "description": "Minimum unique session sources before a pattern becomes a template. Default: 5 (k-anonymity floor).",
                     }
                 },
                 "required": [],
@@ -833,7 +836,7 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 fired_again=arguments.get("fired_again"),
             )
         if name == "update_community_knowledge":
-            return await _update_community_knowledge(min_sources=int(arguments.get("min_sources", 3)))
+            return await _update_community_knowledge(min_sources=int(arguments.get("min_sources", 5)))
         return [TextContent(type="text", text=f"Unknown tool: {name}")]
     except Exception as exc:  # noqa: BLE001 — boundary handler, report not crash
         return [TextContent(type="text", text=f"❌ {name} failed: {type(exc).__name__}: {exc}")]
@@ -852,7 +855,7 @@ async def _get_guardrail_rules(
 
     local_rules = load_active_rules()
 
-    from src.core.catalog import RuleCatalog, detect_context
+    from src.core.catalog import RuleCatalog, detect_context, estimate_tokens
 
     cat = RuleCatalog()
     if context is None and conversation is not None:
@@ -878,15 +881,17 @@ async def _get_guardrail_rules(
         for r in selected_catalog_rules:
             gt = r.get("gap_type", "rule")
             if gt not in seen_slots:
-                combined.append({
-                    "rule_id": f"catalog-{gt}",
-                    "name": gt,
-                    "slot": gt,
-                    "priority": r.get("priority", 3),
-                    "instruction": r.get("instruction", ""),
-                    "category": r.get("category", "guardrail"),
-                    "selection_reason": r.get("selection_reason", ""),
-                })
+                combined.append(
+                    {
+                        "rule_id": f"catalog-{gt}",
+                        "name": gt,
+                        "slot": gt,
+                        "priority": r.get("priority", 3),
+                        "instruction": r.get("instruction", ""),
+                        "category": r.get("category", "guardrail"),
+                        "selection_reason": r.get("selection_reason", ""),
+                    }
+                )
                 seen_slots.add(gt)
             if len(combined) >= 10:
                 break
@@ -905,8 +910,16 @@ async def _get_guardrail_rules(
             )
         ]
 
+    # Enforce the 500-token ceiling across the *combined* local + catalog set.
+    # cat.select() already budgets catalog rules, but local rules are unbounded
+    # and could otherwise push the injected block over the invariant.
+    token_count = estimate_tokens(format_rules_block(rules))
+    while rules and token_count > 500:
+        rules.pop()
+        token_count = estimate_tokens(format_rules_block(rules))
+
     # Write active_rules.json with selected rules
-    cat._write_active_rules(context, rules, accumulated_tokens=300, budget_tokens=500)
+    cat._write_active_rules(context, rules, accumulated_tokens=token_count, budget_tokens=500)
 
     if is_dry_run:
         return [
@@ -1038,7 +1051,11 @@ def record_feedback(
     rule.setdefault("source_session_id", "session_feedback_realtime")
     rule.setdefault("extraction_version", "0.2.1")
     rule.setdefault("extracted_at", now_iso)
-    rule.setdefault("review_status", "approved")
+    rule["review_status"] = "approved"
+    rule["status"] = "active"
+    # record_feedback is an explicit user approval action, so the generated
+    # rule may be activated immediately (unlike sync-generated rules).
+    rule["is_active"] = True
     rule.setdefault("reviewed_by", "user")
     rule.setdefault("reviewed_at", now_iso)
     rule.setdefault("qa_report_id", f"qa_feedback_{hashlib.sha256(now_iso.encode()).hexdigest()[:8]}")
@@ -1117,7 +1134,7 @@ async def _record_feedback(
         return [
             TextContent(
                 type="text",
-                text=f'❌ status: Rejected, reason: {reason}. Rule was not saved.',
+                text=f"❌ status: Rejected, reason: {reason}. Rule was not saved.",
             )
         ]
 
@@ -1616,7 +1633,7 @@ async def _analyze(
     return [TextContent(type="text", text=text)]
 
 
-async def _update_community_knowledge(min_sources: int = 3) -> list[TextContent]:
+async def _update_community_knowledge(min_sources: int = 5) -> list[TextContent]:
     from .community import build_community_templates
     from .community import fetch_community_patterns
     from .community import push_community_templates

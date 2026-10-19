@@ -212,65 +212,9 @@ Depending on your OS, the package uses one of these mechanisms:
 
 Check scheduler status:
 
-````bash
-
-Check scheduler status:
-
-```bash
-
-The scheduler is opt-in. It is only installed when you run:
-
-```bash
-ai-rule-learning install-cron
-````
-
-Depending on your OS, the package uses one of these mechanisms:
-
-| OS    | Mechanism                                         |
-| ----- | ------------------------------------------------- |
-| macOS | LaunchAgent                                       |
-| Linux | systemd user timer when available, otherwise cron |
-| Other | cron fallback when available                      |
-
-Check scheduler status:
-
-````bash
-
-The scheduler is opt-in. It is only installed when you run:
-
-```bash
-ai-rule-learning install-cron
-````
-
-Depending on your OS, the package uses one of these mechanisms:
-
-| OS    | Mechanism                                         |
-| ----- | ------------------------------------------------- |
-| macOS | LaunchAgent                                       |
-| Linux | systemd user timer when available, otherwise cron |
-| Other | cron fallback when available                      |
-
-Check scheduler status:
-
 ```bash
 ai-rule-learning cron-status
 ```
-
-Remove scheduler automation:
-
-````bash
-
-| OS    | Mechanism                                         |
-| ----- | ------------------------------------------------- |
-| macOS | LaunchAgent                                       |
-| Linux | systemd user timer when available, otherwise cron |
-| Other | cron fallback when available                      |
-
-Check scheduler status:
-
-```bash
-ai-rule-learning cron-status
-````
 
 Remove scheduler automation:
 

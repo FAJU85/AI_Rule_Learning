@@ -142,6 +142,10 @@ app.post('/contribute', async (c) => {
 
   // Check for un-scrubbed PII presence
   for (const { regex, label } of PII_PATTERNS) {
+    // PII regexes are global (/g); RegExp.test() is stateful and advances
+    // lastIndex, which would let a warm isolate skip a PII match on the next
+    // request. Reset it before every probe to keep the filter deterministic.
+    regex.lastIndex = 0;
     if (regex.test(rawText)) {
       return c.json({
         error: 'Rejected: Un-scrubbed PII detected in contribution payload',

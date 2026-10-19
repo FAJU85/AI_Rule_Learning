@@ -36,7 +36,9 @@ def _http_call(url: str, data: Any = None, method: str = "GET") -> tuple[int, di
         method = "POST" if method == "GET" else method
 
     req = urllib.request.Request(url, data=body_bytes, headers=headers, method=method)
-    with urllib.request.urlopen(req, timeout=8.0) as resp:
+    # The manual /aggregate endpoint performs full R2 listing + aggregation and
+    # routinely takes ~10s; 8s caused deterministic false failures.
+    with urllib.request.urlopen(req, timeout=30.0) as resp:
         return resp.status, dict(resp.headers), resp.read()
 
 

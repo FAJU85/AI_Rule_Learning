@@ -136,7 +136,11 @@ def normalize_contribution_payload(item: dict[str, Any]) -> dict[str, Any]:
     raw_signal = str(
         item.get("pattern")
         or item.get("signal")
-        or (item.get("trigger", {}).get("keywords", [gap_type])[0] if isinstance(item.get("trigger"), dict) else gap_type)
+        or (
+            item.get("trigger", {}).get("keywords", [gap_type])[0]
+            if isinstance(item.get("trigger"), dict)
+            else gap_type
+        )
     )
     raw_example = str(
         item.get("example")
@@ -254,12 +258,14 @@ def contribute_rules(rules: list[dict], source_hash: str) -> bool:
     gaps_by_type: dict[str, list[dict]] = {}
     for r in approved_rules:
         gt = r.get("gap_type") or r.get("slot") or "rule"
-        gaps_by_type.setdefault(gt, []).append({
-            "type": gt,
-            "signal": r.get("instruction", ""),
-            "confidence": float(r.get("confidence", 0.85)),
-            "category": str(r.get("category", "robustness_consistency")),
-        })
+        gaps_by_type.setdefault(gt, []).append(
+            {
+                "type": gt,
+                "signal": r.get("instruction", ""),
+                "confidence": float(r.get("confidence", 0.85)),
+                "category": str(r.get("category", "robustness_consistency")),
+            }
+        )
     return contribute_gaps(gaps_by_type, source_hash=source_hash)
 
 
@@ -293,7 +299,9 @@ def fetch_community_patterns() -> dict[str, dict]:
                         force_download=True,
                     )
                     if path and os.path.exists(path):
-                        records = _parse_jsonl_lines(Path(path).read_text(encoding="utf-8", errors="ignore").splitlines())
+                        records = _parse_jsonl_lines(
+                            Path(path).read_text(encoding="utf-8", errors="ignore").splitlines()
+                        )
                 except Exception:
                     pass
     except Exception:
@@ -387,7 +395,7 @@ def fetch_community_patterns() -> dict[str, dict]:
     return result
 
 
-def build_community_templates(min_sources: int = 3) -> list[dict]:
+def build_community_templates(min_sources: int = 5) -> list[dict]:
     """Build enhanced rule templates from community patterns (k-anonymity threshold)."""
     from .gap_detector import _TEMPLATES
 

@@ -50,56 +50,91 @@ def session_file(tmp_path):
     """Write a realistic Claude Code session JSONL with friction patterns."""
     lines = []
     # Turn 1 — user corrects the agent
-    lines.append(json.dumps({
-        "sessionId": "e2e-session-1",
-        "slug": "e2e-test",
-        "cwd": "/home/user/project",
-        "timestamp": "2026-06-21T10:00:00",
-        "message": {"role": "user", "content": "Write a function to parse dates"},
-    }))
-    lines.append(json.dumps({
-        "sessionId": "e2e-session-1",
-        "message": {
-            "role": "assistant",
-            "content": "Here is a date parser: def parse(s): return s",
-        },
-    }))
+    lines.append(
+        json.dumps(
+            {
+                "sessionId": "e2e-session-1",
+                "slug": "e2e-test",
+                "cwd": "/home/user/project",
+                "timestamp": "2026-06-21T10:00:00",
+                "message": {"role": "user", "content": "Write a function to parse dates"},
+            }
+        )
+    )
+    lines.append(
+        json.dumps(
+            {
+                "sessionId": "e2e-session-1",
+                "message": {
+                    "role": "assistant",
+                    "content": "Here is a date parser: def parse(s): return s",
+                },
+            }
+        )
+    )
     # Turn 2 — explicit correction
-    lines.append(json.dumps({
-        "sessionId": "e2e-session-1",
-        "message": {
-            "role": "user",
-            "content": "No that's wrong, actually I need it to handle ISO format",
-        },
-    }))
-    lines.append(json.dumps({
-        "sessionId": "e2e-session-1",
-        "message": {
-            "role": "assistant",
-            "content": "from datetime import datetime; def parse(s): return datetime.fromisoformat(s)",
-        },
-    }))
+    lines.append(
+        json.dumps(
+            {
+                "sessionId": "e2e-session-1",
+                "message": {
+                    "role": "user",
+                    "content": "No that's wrong, actually I need it to handle ISO format",
+                },
+            }
+        )
+    )
+    lines.append(
+        json.dumps(
+            {
+                "sessionId": "e2e-session-1",
+                "message": {
+                    "role": "assistant",
+                    "content": "from datetime import datetime; def parse(s): return datetime.fromisoformat(s)",
+                },
+            }
+        )
+    )
     # Turn 3 — repeated context
-    lines.append(json.dumps({
-        "sessionId": "e2e-session-1",
-        "message": {
-            "role": "user",
-            "content": "As I mentioned before, I'm using Python 3.10",
-        },
-    }))
-    lines.append(json.dumps({
-        "sessionId": "e2e-session-1",
-        "message": {"role": "assistant", "content": "Got it, Python 3.10 compatible solution:"},
-    }))
+    lines.append(
+        json.dumps(
+            {
+                "sessionId": "e2e-session-1",
+                "message": {
+                    "role": "user",
+                    "content": "As I mentioned before, I'm using Python 3.10",
+                },
+            }
+        )
+    )
+    lines.append(
+        json.dumps(
+            {
+                "sessionId": "e2e-session-1",
+                "message": {"role": "assistant", "content": "Got it, Python 3.10 compatible solution:"},
+            }
+        )
+    )
     # Turn 4 — more turns to meet minimum
-    lines.append(json.dumps({
-        "sessionId": "e2e-session-1",
-        "message": {"role": "user", "content": "Add error handling please"},
-    }))
-    lines.append(json.dumps({
-        "sessionId": "e2e-session-1",
-        "message": {"role": "assistant", "content": "def parse(s):\n    try:\n        return datetime.fromisoformat(s)\n    except ValueError:\n        return None"},
-    }))
+    lines.append(
+        json.dumps(
+            {
+                "sessionId": "e2e-session-1",
+                "message": {"role": "user", "content": "Add error handling please"},
+            }
+        )
+    )
+    lines.append(
+        json.dumps(
+            {
+                "sessionId": "e2e-session-1",
+                "message": {
+                    "role": "assistant",
+                    "content": "def parse(s):\n    try:\n        return datetime.fromisoformat(s)\n    except ValueError:\n        return None",
+                },
+            }
+        )
+    )
 
     p = tmp_path / "e2e-session-1.jsonl"
     p.write_text("\n".join(lines), encoding="utf-8")
@@ -128,7 +163,12 @@ def test_sync_journey_end_to_end(session_file, store_dir, agent_config, monkeypa
     rules = analyze_conversations(conversations)
     assert len(rules) >= 1, "at least one rule should be generated from explicit correction"
 
-    # Step 3: persist rules locally
+    # Step 3: persist rules locally and approve them (pending rules are
+    # intentionally not injectable until review).
+    for rule in rules:
+        rule["review_status"] = "approved"
+        rule["status"] = "active"
+        rule["is_active"] = True
     _local_save("rules.jsonl", rules)
     active = load_active_rules()
     assert len(active) >= 1
@@ -155,6 +195,7 @@ def test_sync_deduplicates_processed_files(session_file, store_dir, monkeypatch)
     # Marking again must not create duplicate entries
     mark_processed(session_file)
     from ai_rule_learning_mcp.store import _local_load
+
     processed = _local_load("processed.jsonl")
     assert len([r for r in processed if r["path"] == str(session_file.resolve())]) == 1
 
@@ -190,10 +231,16 @@ def test_feedback_journey_creates_rule_in_config(store_dir, agent_config, monkey
 
     class _FakeTarget:
         name = "Claude Code"
-        def config_path(self): return agent_config
-        def is_detected(self): return True
+
+        def config_path(self):
+            return agent_config
+
+        def is_detected(self):
+            return True
+
         def write(self, rules, memory_block="", skills_block=""):
             from ai_rule_learning_mcp.injector import _upsert, _build_section, _SECTION_RE
+
             _upsert(agent_config, _build_section(rules), _SECTION_RE, _START)
             return agent_config
 
@@ -203,6 +250,11 @@ def test_feedback_journey_creates_rule_in_config(store_dir, agent_config, monkey
     gaps = {"explicit_correction": [{"turn": 1, "signal": "correction", "snippet": "No, that's wrong"}]}
     rules = generate_rules(gaps)
     assert rules
+    # Simulate explicit operator approval before injection.
+    for rule in rules:
+        rule["review_status"] = "approved"
+        rule["status"] = "active"
+        rule["is_active"] = True
 
     existing = _local_load("rules.jsonl")
     _local_save("rules.jsonl", existing + rules)
@@ -377,10 +429,16 @@ def test_all_pillars_write_to_single_config(store_dir, skills_dir, agent_config,
     from ai_rule_learning_mcp.skills import build_skills_index, list_skills, save_skill
     from ai_rule_learning_mcp.store import _local_save
     from ai_rule_learning_mcp.injector import (
-        _MEM_START, _MEM_END,
-        _SKILLS_START, _SKILLS_END,
-        _START, _END,
-        _upsert, _MEM_RE, _SKILLS_RE, _SECTION_RE,
+        _MEM_START,
+        _MEM_END,
+        _SKILLS_START,
+        _SKILLS_END,
+        _START,
+        _END,
+        _upsert,
+        _MEM_RE,
+        _SKILLS_RE,
+        _SECTION_RE,
         _build_section,
     )
 
@@ -395,8 +453,15 @@ def test_all_pillars_write_to_single_config(store_dir, skills_dir, agent_config,
     _upsert(agent_config, skills_block, _SKILLS_RE, _SKILLS_START)
 
     # Rules
-    rules = [{"rule_id": "r1", "name": "Always use ruff", "priority": 4, "is_active": True,
-               "instruction": "Run ruff check before committing"}]
+    rules = [
+        {
+            "rule_id": "r1",
+            "name": "Always use ruff",
+            "priority": 4,
+            "is_active": True,
+            "instruction": "Run ruff check before committing",
+        }
+    ]
     _local_save("rules.jsonl", rules)
     _upsert(agent_config, _build_section(rules), _SECTION_RE, _START)
 
@@ -427,9 +492,14 @@ def test_e2e_remove_clears_all_sections(store_dir, skills_dir, agent_config):
     from ai_rule_learning_mcp.memory import add_memory, build_memory_block, load_memory
     from ai_rule_learning_mcp.skills import build_skills_index, list_skills, save_skill
     from ai_rule_learning_mcp.injector import (
-        _MEM_START, _SKILLS_START, _START,
-        _upsert, _remove,
-        _MEM_RE, _SKILLS_RE, _SECTION_RE,
+        _MEM_START,
+        _SKILLS_START,
+        _START,
+        _upsert,
+        _remove,
+        _MEM_RE,
+        _SKILLS_RE,
+        _SECTION_RE,
         _build_section,
     )
 

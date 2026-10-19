@@ -21,6 +21,7 @@ build/
 .eggs/
 .venv/
 venv/
+.cline-home/
 .mypy_cache/
 .ruff_cache/
 .pytest_cache/

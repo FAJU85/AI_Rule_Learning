@@ -123,13 +123,9 @@ _FILE_PATH_RE = re.compile(
 )
 _WIN_PATH_RE = re.compile(r"\b[a-zA-Z]:[\\/][^\s,;\"']+", re.IGNORECASE)
 _IPV4_RE = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
-_IPV6_RE = re.compile(
-    r"\b(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}\b|\b(?:[0-9a-fA-F]{1,4}:){1,7}:[0-9a-fA-F]{0,4}\b"
-)
+_IPV6_RE = re.compile(r"\b(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}\b|\b(?:[0-9a-fA-F]{1,4}:){1,7}:[0-9a-fA-F]{0,4}\b")
 _SSN_RE = re.compile(r"\b\d{3}-\d{2}-\d{4}\b")
-_PHONE_RE = re.compile(
-    r"(?:\+\d{1,3}[\s.-]?)?(?:\(\d{2,4}\)|\b\d{2,4})[\s.-]\d{3,4}[\s.-]\d{3,4}\b|\b\+\d{10,14}\b"
-)
+_PHONE_RE = re.compile(r"(?:\+\d{1,3}[\s.-]?)?(?:\(\d{2,4}\)|\b\d{2,4})[\s.-]\d{3,4}[\s.-]\d{3,4}\b|\b\+\d{10,14}\b")
 _BEARER_PASSWORD_RE = re.compile(
     r"\bBearer\s+[A-Za-z0-9._\-~+/=]{8,}\b|\b(?:password|passwd|pwd|secret|api_key|apikey|access_token|auth_token)\s*[:=]\s*(?:['\"][^'\"]*['\"]|[^\s,;]+)",
     re.IGNORECASE,
@@ -690,7 +686,19 @@ def load_active_rules() -> list[dict]:
             elif gap_type == "repeated_context" or "context" in str(r.get("trigger", "")).lower():
                 r["name"] = "retain-repeated-context"
                 r["slot"] = "retain-repeated-context"
-    active = [r for r in rules if (r.get("is_active", True) or r.get("status") == "active") and _is_safe_rule(r)]
+    # Governance gate: a rule is injectable only when it is active *and* has
+    # not been left in a non-approved lifecycle state. Legacy rules without
+    # status/review_status fields remain eligible.
+    blocked_statuses = {"pending", "pending_review", "rejected", "merged", "stale", "inactive", "needs_review"}
+    blocked_review = {"pending", "rejected"}
+    active = [
+        r
+        for r in rules
+        if (r.get("is_active", True) or r.get("status") == "active")
+        and r.get("status") not in blocked_statuses
+        and r.get("review_status") not in blocked_review
+        and _is_safe_rule(r)
+    ]
     return sorted(active, key=lambda r: r.get("priority", 0), reverse=True)
 
 
