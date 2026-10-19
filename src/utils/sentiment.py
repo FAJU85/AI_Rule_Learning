@@ -32,7 +32,10 @@ def _get_pipeline():
             )
             logger.info("Sentiment model loaded")
         except Exception as exc:
-            logger.error("Failed to load sentiment model", extra={"error": str(exc)})
+            logger.warning(
+                "Sentiment model unavailable; defaulting to zero-sentiment fallback",
+                extra={"error": str(exc)},
+            )
             raise
     return _pipeline
 

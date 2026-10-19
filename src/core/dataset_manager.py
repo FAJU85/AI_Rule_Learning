@@ -44,7 +44,7 @@ class DatasetManager:
         return self._api
 
     def _load_dataset(self, dataset_name: str) -> list[dict[str, Any]]:
-        """Download and parse a JSONL dataset from the Hub."""
+        """Download and parse a JSONL dataset from the Hub, with local file fallback."""
         try:
             from datasets import load_dataset  # type: ignore
 
@@ -52,10 +52,40 @@ class DatasetManager:
             return [dict(row) for row in ds]
         except Exception as exc:
             logger.warning(
-                "Could not load dataset",
+                "Could not load dataset from Hub; checking local fallback",
                 extra={"dataset": dataset_name, "error": str(exc)},
             )
-            return []
+            return self._load_local_dataset(dataset_name)
+
+    def _load_local_dataset(self, dataset_name: str) -> list[dict[str, Any]]:
+        """Load dataset rows from local storage fallback."""
+        import json
+        from pathlib import Path
+
+        local_file = Path("data") / "active_rules.json"
+        if local_file.exists():
+            try:
+                with open(local_file, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    if isinstance(data, list):
+                        return data
+            except Exception:
+                pass
+        return []
+
+    def _save_local_dataset(self, dataset_name: str, rows: list[dict[str, Any]]) -> None:
+        """Save dataset rows to local storage fallback."""
+        import json
+        from pathlib import Path
+
+        data_dir = Path("data")
+        data_dir.mkdir(parents=True, exist_ok=True)
+        local_file = data_dir / "active_rules.json"
+        try:
+            with open(local_file, "w", encoding="utf-8") as f:
+                json.dump(rows, f, indent=2, default=str)
+        except Exception as exc:
+            logger.warning("Failed to save local dataset fallback", extra={"error": str(exc)})
 
     def _push_rows(self, dataset_name: str, rows: list[dict[str, Any]]) -> None:
         """Append *rows* to a Hub dataset by uploading a JSONL file."""
@@ -158,12 +188,13 @@ class DatasetManager:
 
             ds = Dataset.from_list(rows)
             ds.push_to_hub(self._rules_dataset, token=self._hf_token)
-            logger.info("Rule saved", extra={"rule_id": rule.rule_id})
+            logger.info("Rule saved to HF Hub", extra={"rule_id": rule.rule_id})
         except Exception as exc:
-            logger.error(
-                "Failed to save rule",
+            logger.warning(
+                "Could not push rule to HF Hub; saving to local fallback",
                 extra={"rule_id": rule.rule_id, "error": str(exc)},
             )
+            self._save_local_dataset(self._rules_dataset, rows)
             raise
 
     def load_rules(self, active_only: bool = True) -> list[Rule]:  # type: ignore[name-defined]  # noqa: F821
