@@ -6,8 +6,8 @@ Validates:
 3. Context selector greedy packing strictly enforces the 500-token cap and 10-rule ceiling under adversarial multi-trigger contexts.
 """
 
-import json
 from pathlib import Path
+
 import pytest
 
 from src.core.catalog import RuleCatalog

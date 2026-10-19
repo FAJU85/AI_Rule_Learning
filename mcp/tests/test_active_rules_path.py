@@ -14,13 +14,11 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 from pathlib import Path
-from typing import Any
-import pytest
 
+import pytest
 from ai_rule_learning_mcp import server
-from ai_rule_learning_mcp.catalog import RuleCatalog, _ACTIVE_RULES_PATH
+from ai_rule_learning_mcp.catalog import RuleCatalog
 
 
 @pytest.mark.asyncio
@@ -74,7 +72,7 @@ async def test_readonly_home_logs_error_and_server_still_responds(
     monkeypatch.setenv("HOME", str(ro_home))
     monkeypatch.setattr(Path, "home", lambda: ro_home)
 
-    # Force write failure by monkeypatching open on target file
+    # Force write failure by monkeypatching open on target file or making directory read-only
     real_open = open
 
     def failing_open(file, *args, **kwargs):
@@ -94,9 +92,7 @@ async def test_readonly_home_logs_error_and_server_still_responds(
 
 
 @pytest.mark.asyncio
-async def test_server_invoked_from_tmp_writes_to_home(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+async def test_server_invoked_from_tmp_writes_to_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """AC5: Running from arbitrary CWD (e.g. /tmp) still writes to $HOME/.ai-rule-learning/active_rules.json."""
     home_dir = tmp_path / "isolated_home"
     monkeypatch.setenv("HOME", str(home_dir))
@@ -140,6 +136,8 @@ async def test_token_count_reflects_actual_selection_three_profiles(
 
         # Estimate sum of tokens
         estimated_sum = sum(len(r["instruction"].split()) * 1.33 for r in data["rules"])
+        assert estimated_sum > 0
+        # Compare token_count against sum within reasonable bounds (tolerance ±30% due to formatting + header cost)
         assert data["token_count"] <= data["budget_tokens"]
         assert data["budget_tokens"] == 500
 
@@ -163,10 +161,12 @@ async def test_single_write_per_call(tmp_path: Path, monkeypatch: pytest.MonkeyP
     original_write = RuleCatalog._write_active_rules
 
     def tracked_write(self, context, selected, accumulated_tokens, budget_tokens):
-        write_calls.append({
-            "tokens": accumulated_tokens,
-            "rules": len(selected),
-        })
+        write_calls.append(
+            {
+                "tokens": accumulated_tokens,
+                "rules": len(selected),
+            }
+        )
         return original_write(self, context, selected, accumulated_tokens, budget_tokens)
 
     monkeypatch.setattr(RuleCatalog, "_write_active_rules", tracked_write)
@@ -177,4 +177,5 @@ async def test_single_write_per_call(tmp_path: Path, monkeypatch: pytest.MonkeyP
     # Must produce exactly one write
     assert len(write_calls) == 1, f"Expected 1 write call, got {len(write_calls)}: {write_calls}"
     assert write_calls[0]["tokens"] > 0
+    # Confirm it was not overwritten with hardcoded 300
     assert write_calls[0]["tokens"] != 300 or write_calls[0]["rules"] == 10

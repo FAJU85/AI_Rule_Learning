@@ -14,13 +14,11 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 from pathlib import Path
-from typing import Any
-import pytest
 
+import pytest
 from ai_rule_learning_mcp import server
-from ai_rule_learning_mcp.catalog import RuleCatalog, _ACTIVE_RULES_PATH
+from ai_rule_learning_mcp.catalog import RuleCatalog
 
 
 @pytest.mark.asyncio
@@ -94,9 +92,7 @@ async def test_readonly_home_logs_error_and_server_still_responds(
 
 
 @pytest.mark.asyncio
-async def test_server_invoked_from_tmp_writes_to_home(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+async def test_server_invoked_from_tmp_writes_to_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """AC5: Running from arbitrary CWD (e.g. /tmp) still writes to $HOME/.ai-rule-learning/active_rules.json."""
     home_dir = tmp_path / "isolated_home"
     monkeypatch.setenv("HOME", str(home_dir))
@@ -140,6 +136,7 @@ async def test_token_count_reflects_actual_selection_three_profiles(
 
         # Estimate sum of tokens
         estimated_sum = sum(len(r["instruction"].split()) * 1.33 for r in data["rules"])
+        assert estimated_sum > 0
         # Compare token_count against sum within reasonable bounds (tolerance ±30% due to formatting + header cost)
         assert data["token_count"] <= data["budget_tokens"]
         assert data["budget_tokens"] == 500
@@ -164,10 +161,12 @@ async def test_single_write_per_call(tmp_path: Path, monkeypatch: pytest.MonkeyP
     original_write = RuleCatalog._write_active_rules
 
     def tracked_write(self, context, selected, accumulated_tokens, budget_tokens):
-        write_calls.append({
-            "tokens": accumulated_tokens,
-            "rules": len(selected),
-        })
+        write_calls.append(
+            {
+                "tokens": accumulated_tokens,
+                "rules": len(selected),
+            }
+        )
         return original_write(self, context, selected, accumulated_tokens, budget_tokens)
 
     monkeypatch.setattr(RuleCatalog, "_write_active_rules", tracked_write)

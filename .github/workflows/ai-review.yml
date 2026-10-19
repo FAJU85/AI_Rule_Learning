@@ -19,10 +19,6 @@ jobs:
     if: ${{ !github.event.pull_request.draft }}
     steps:
       - name: Run CodeRabbit AI review
-        uses: coderabbitai/ai-pr-reviewer@1.16.2
-    if: ${{ !github.event.pull_request.draft }}
-    steps:
-      - name: Run CodeRabbit AI review
         uses: coderabbitai/ai-pr-reviewer@latest
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

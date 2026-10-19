@@ -74,17 +74,20 @@ jobs:
 
       - name: Deploy space/ to idle Hugging Face Space
         env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
           TARGET_SPACE_ID: ${{ steps.plan.outputs.idle_space_id }}
           HF_OIDC_RESOURCE: spaces/${{ steps.plan.outputs.idle_space_id }}
         run: |
           python - <<'EOF'
           import os
+          import sys
           import time
           from huggingface_hub import HfApi
           from huggingface_hub.errors import HfHubHTTPError
 
-          api = HfApi()
           target_space_id = os.environ["TARGET_SPACE_ID"]
+          token = os.environ.get("HF_TOKEN") or None
+          api = HfApi(token=token)
           for attempt in range(1, 6):
               try:
                   api.upload_folder(
@@ -101,7 +104,15 @@ jobs:
                       print(f"Rate limited (429). Retrying in {wait}s (attempt {attempt}/5)...")
                       time.sleep(wait)
                   else:
+                      print(f"Hugging Face API HTTP error: {e}", file=sys.stderr)
+                      if not token:
+                          print("Hint: HF_TOKEN is not set. Ensure repository secret HF_TOKEN is configured or Trusted Publisher is enabled on Hugging Face.", file=sys.stderr)
                       raise
+              except Exception as e:
+                  print(f"Deployment error: {type(e).__name__}: {e}", file=sys.stderr)
+                  if not token and "oauth/token" in str(e):
+                      print("Hugging Face OIDC token exchange failed (400 Bad Request). Configure repository secret HF_TOKEN to enable authentication.", file=sys.stderr)
+                  raise
           EOF
 
       - name: Smoke-test idle Space

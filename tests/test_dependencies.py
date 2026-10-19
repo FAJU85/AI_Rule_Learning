@@ -4,8 +4,8 @@ Validates that all critical dependencies in pyproject.toml carry upper bounds
 to prevent breaking changes and silent major version upgrades.
 """
 
-from pathlib import Path
 import tomllib
+from pathlib import Path
 
 
 def test_dependency_upper_bounds_present():

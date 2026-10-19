@@ -1,6 +1,7 @@
 # Operations Manual & Maintenance Verification (ARL-MAINT-002 / v0.3.1)
 
 ## Executive Summary
+
 This document records the operational health, scale benchmarks, failure mode probes, and maintenance verification results for the AI Rule Learning MCP system (`ai-rule-learning`) as specified in Story ARL-MAINT-002.
 
 ---
@@ -8,9 +9,11 @@ This document records the operational health, scale benchmarks, failure mode pro
 ## 1. Cron Automation Verification (AC1)
 
 ### Probe Procedure
+
 1. Verified schedule configuration in `wrangler.aggregator.toml`: `[triggers] crons = ["0 * * * *"]`.
 2. Verified Worker deployments via Cloudflare Workers platform logs.
 3. Polled `/health` endpoint on `ai-rule-learning-aggregator.ee-ee455.workers.dev`:
+
    ```json
    {
      "status": "healthy",
@@ -21,6 +24,7 @@ This document records the operational health, scale benchmarks, failure mode pro
      "timestamp": "2026-10-18T10:25:00.000Z"
    }
    ```
+
 4. Verified that `GET /templates.jsonl` reflects community aggregation output automatically without manual trigger.
 
 ---
@@ -31,13 +35,14 @@ This document records the operational health, scale benchmarks, failure mode pro
 
 To test the aggregator Worker's R2 listing cursor pagination, CPU ceiling (30s paid tier), and memory ceiling (128 MB), synthetic candidates were generated at 100, 500, and 1000 volumes.
 
-| Candidate Volume | Cursor Pages | Aggregation Latency | Peak Memory Usage | Status |
-|---|---|---|---|---|
-| **100 candidates** | 1 page | **42 ms** | 18.4 MB | PASS (100% within limits) |
-| **500 candidates** | 1 page | **188 ms** | 34.2 MB | PASS (Pagination active) |
-| **1000 candidates** | 2 pages | **340 ms** | 58.6 MB | PASS (R2 cursor loop verified) |
+| Candidate Volume    | Cursor Pages | Aggregation Latency | Peak Memory Usage | Status                         |
+| ------------------- | ------------ | ------------------- | ----------------- | ------------------------------ |
+| **100 candidates**  | 1 page       | **42 ms**           | 18.4 MB           | PASS (100% within limits)      |
+| **500 candidates**  | 1 page       | **188 ms**          | 34.2 MB           | PASS (Pagination active)       |
+| **1000 candidates** | 2 pages      | **340 ms**          | 58.6 MB           | PASS (R2 cursor loop verified) |
 
 ### Pagination Implementation
+
 Implemented `R2Bucket.list({ prefix: 'raw/', cursor })` loop in `cloudflare/src/aggregator/index.ts` to ensure memory stays flat ($< 60\text{ MB}$) even as object counts scale past Cloudflare R2's 1000-object default limit.
 
 ---
@@ -45,19 +50,24 @@ Implemented `R2Bucket.list({ prefix: 'raw/', cursor })` loop in `cloudflare/src/
 ## 3. HMAC Attestation, Secret Rotation & Rollback Runbook (AC3)
 
 ### Backup & Restore Procedure
+
 1. **Backup Phase:**
+
    ```bash
    npx wrangler r2 object get arl-catalog/templates.jsonl --file=backups/templates.jsonl
    npx wrangler r2 object get arl-catalog/manifest.json --file=backups/manifest.json
    ```
+
 2. **Simulated Failure Probe:**
    Injected invalid HMAC signing key in staging Worker. Aggregator rejected manifest attestation and logged `HMAC_SIGNATURE_MISMATCH`.
 3. **Restore Phase:**
    Restored catalog to public availability in 2 operations:
+
    ```bash
    npx wrangler r2 object put arl-catalog/templates.jsonl --file=backups/templates.jsonl
    npx wrangler r2 object put arl-catalog/manifest.json --file=backups/manifest.json
    ```
+
 4. **Secret Rotation:** Rotated `HMAC_SECRET` in Cloudflare Workers environment variables. Edge CDN served cached catalog with zero downtime during secret rotation.
 
 ---
@@ -65,6 +75,7 @@ Implemented `R2Bucket.list({ prefix: 'raw/', cursor })` loop in `cloudflare/src/
 ## 4. Staging Architecture Decision Record (AC4)
 
 ### ADR-2026-004: Standardizing on 6-Stage Edge Pipeline (Removal of 1% Canary Path)
+
 - **Status:** Approved / Architecture Standard.
 - **Context:** Previous documentation referenced an experimental 1% traffic canary staging rollout (Stage 4). For a static, cryptographically signed catalog distributed globally via edge CDN, client-side or CDN canary routing without a persistent session identifier introduces indeterminate cache state and verification divergence across clients.
 - **Decision:** Formally remove the 1% canary path from documentation. Standardize on the deterministic 6-Stage Governance Pipeline:
@@ -100,14 +111,15 @@ Implemented `R2Bucket.list({ prefix: 'raw/', cursor })` loop in `cloudflare/src/
 
 ### Alert Rules & Routing
 
-| Alert Name | Condition / Threshold | Routing Target | Recovery Action |
-|---|---|---|---|
-| `AggregatorCronFailure` | Missed cron run (> 120 minutes) | SRE PagerDuty / Webhook | Trigger manual `/aggregate` endpoint |
-| `QAPipelineDropSpike` | Stage 3 drop rate > 20% of batch | Security Engineering | Audit raw contributions for spam attack |
-| `CatalogUnavailable` | `GET /templates.jsonl` non-200 | SRE On-Call | Execute HMAC Rollback Runbook |
-| `KVNamespaceGrowth` | `RATE_LIMIT_KV` > 100,000 keys | Cloudflare Operations | Purge expired rate limit keys |
+| Alert Name              | Condition / Threshold            | Routing Target          | Recovery Action                         |
+| ----------------------- | -------------------------------- | ----------------------- | --------------------------------------- |
+| `AggregatorCronFailure` | Missed cron run (> 120 minutes)  | SRE PagerDuty / Webhook | Trigger manual `/aggregate` endpoint    |
+| `QAPipelineDropSpike`   | Stage 3 drop rate > 20% of batch | Security Engineering    | Audit raw contributions for spam attack |
+| `CatalogUnavailable`    | `GET /templates.jsonl` non-200   | SRE On-Call             | Execute HMAC Rollback Runbook           |
+| `KVNamespaceGrowth`     | `RATE_LIMIT_KV` > 100,000 keys   | Cloudflare Operations   | Purge expired rate limit keys           |
 
 ### Test Verification
+
 Executed intentional failure injection test (HTTP 500 mock on `/templates.jsonl`). Synthetic alert webhook fired within 1 evaluation cycle (30 seconds).
 
 ---
@@ -115,15 +127,19 @@ Executed intentional failure injection test (HTTP 500 mock on `/templates.jsonl`
 ## 8. Active Rules Audit File Semantics & Path Resolution (ARL-BUG-003 / v0.2.3)
 
 ### Resolved Path Location
+
 The active rules audit file is resolved strictly to the user's home directory:
-```
+
+```text
 $HOME/.ai-rule-learning/active_rules.json
 ```
+
 - **Constant:** `_ACTIVE_RULES_PATH = Path.home() / ".ai-rule-learning" / "active_rules.json"`
 - **Directory Creation:** The directory `$HOME/.ai-rule-learning/` is automatically created with `mkdir(parents=True, exist_ok=True)` before writing.
 - **CWD Independence:** The file is always written to `$HOME/.ai-rule-learning/active_rules.json` regardless of the process current working directory (e.g. when invoked from `/tmp` or as an arbitrary subprocess).
 
 ### Single-Write Semantics & Token Accounting
+
 - **Single Write:** `RuleCatalog.select()` performs exactly one write to `active_rules.json` during the selection pass.
 - **Accurate Token Calculation:** The `token_count` field reflects the real accumulated token sum calculated for the selected rules:
   $$\text{token\_count} = \sum_{r \in \text{selected}} \text{estimate\_tokens}(r)$$
@@ -132,12 +148,16 @@ $HOME/.ai-rule-learning/active_rules.json
   $$\text{token\_count} \le \text{budget\_tokens} \quad \text{and} \quad \text{rules\_count} \le 10$$
 
 ### Error Handling & Non-Fatal Degradation
+
 - If writing fails (e.g., read-only filesystem or insufficient permissions), an `ERROR` level log is emitted containing the target path and exception type:
-  ```
+
+  ```text
   Failed to persist active_rules.json → {path}: {exc_type}: {exc}
   ```
+
 - Storage failure does not raise an exception to the caller; the MCP server gracefully returns the selected guardrail rules to the client.
 - Successful writes emit a `DEBUG` level log:
-  ```
+
+  ```text
   Persisted active_rules.json → {path}
   ```

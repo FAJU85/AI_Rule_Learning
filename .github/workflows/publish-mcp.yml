@@ -1,9 +1,6 @@
 name: Publish MCP to PyPI
 
 on:
-  push:
-    tags:
-      - 'mcp-v*'
   workflow_dispatch:
     inputs:
       version:
