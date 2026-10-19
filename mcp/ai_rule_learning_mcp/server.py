@@ -157,7 +157,7 @@ class Server:
     async def run(self, read_stream: Any = None, write_stream: Any = None, init_options: Any = None) -> None:
         if read_stream is not None and write_stream is not None:
             from mcp.server import Server as SdkServer
-            from mcp.types import TextContent as SdkTextContent
+            from mcp.types import CallToolResult, TextContent as SdkTextContent
             from mcp.types import Tool as SdkTool
 
             sdk_app = SdkServer(self.name)
@@ -172,8 +172,14 @@ class Server:
 
                 @sdk_app.call_tool()
                 async def _sdk_call_tool(name: str, arguments: dict):
-                    items = await self._call_tool_fn(name, arguments)
-                    return [SdkTextContent(type=c.type, text=c.text) for c in items]
+                    res = await self._call_tool_fn(name, arguments)
+                    if isinstance(res, tuple):
+                        items, is_error = res
+                        return CallToolResult(
+                            content=[SdkTextContent(type=c.type, text=c.text) for c in items],
+                            isError=is_error,
+                        )
+                    return [SdkTextContent(type=c.type, text=c.text) for c in res]
 
             opts = sdk_app.create_initialization_options()
             opts.server_version = getattr(init_options, "server_version", __version__)
@@ -260,6 +266,10 @@ async def list_tools() -> list[Tool]:
                             "Optional: a specific instruction for the rule. "
                             "If omitted, a rule is generated from the feedback_type template."
                         ),
+                    },
+                    "rule_id": {
+                        "type": "string",
+                        "description": "Optional: rule_id of an existing rule to update in place.",
                     },
                     "dry_run": {
                         "type": "boolean",
@@ -750,6 +760,7 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 description=arguments.get("description", ""),
                 rule_hint=arguments.get("rule_hint", ""),
                 dry_run=bool(arguments.get("dry_run", False)),
+                rule_id=arguments.get("rule_id", ""),
             )
         if name == "sync_sessions":
             paths = [Path(p) for p in arguments.get("paths", [])] or None
@@ -761,7 +772,7 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
             )
         if name == "install_scheduler":
             return await _install_scheduler(
-                arguments.get("action", "install"),
+                action=arguments.get("action", "status"),
                 dry_run=bool(arguments.get("dry_run", False)),
             )
         if name == "list_providers":
@@ -834,7 +845,7 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
             )
         if name == "update_community_knowledge":
             return await _update_community_knowledge(min_sources=int(arguments.get("min_sources", 3)))
-        return [TextContent(type="text", text=f"Unknown tool: {name}")]
+        return [TextContent(type="text", text=f"Unknown tool: {name}")], True
     except Exception as exc:  # noqa: BLE001 — boundary handler, report not crash
         return [TextContent(type="text", text=f"❌ {name} failed: {type(exc).__name__}: {exc}")]
 
@@ -974,6 +985,14 @@ def record_feedback(
     rule_id: str = "",
 ) -> dict[str, Any]:
     """Record a feedback rule with pre-persistence injection checks, PII scrubbing, and distinct slot allocation."""
+    # Reject empty or whitespace-only descriptions (V9)
+    if not description or not description.strip():
+        return {
+            "status": "Rejected",
+            "reason": "Description cannot be empty or whitespace-only",
+            "rule": None,
+        }
+
     # Pre-persistence injection detection on raw inputs (Defect F12c)
     text_to_validate = f"{rule_hint} {description}".strip()
     if is_prompt_injection(text_to_validate):
@@ -1060,7 +1079,7 @@ def record_feedback(
             r["slot"] = "honor-user-preferences"
             migrated = True
 
-    # Check for explicit rule_id match to update in place
+    # Check for explicit rule_id match to update in place (V2)
     if rule_id:
         target_rule = next((r for r in existing if r.get("rule_id") == rule_id), None)
         if target_rule:
@@ -1076,6 +1095,14 @@ def record_feedback(
             _local_save("rules.jsonl", existing)
             return {"status": "Updated", "rule": target_rule}
 
+    new_inst = (rule.get("instruction") or "").strip()
+
+    # Deduplication across all existing rules (V4, V5, V12, V13)
+    for r in existing:
+        r_inst = (r.get("instruction") or "").strip()
+        if r_inst and new_inst and r_inst == new_inst:
+            return {"status": "AlreadyKnown", "rule": r}
+
     existing_ids = {r.get("rule_id") for r in existing}
     existing_by_slot = {r.get("slot"): r for r in existing if r.get("slot")}
 
@@ -1087,7 +1114,6 @@ def record_feedback(
             (r for r in existing if r.get("rule_id") == rule.get("rule_id")), {}
         )
         prev_inst = (prev.get("instruction") or "").strip()
-        new_inst = (rule.get("instruction") or "").strip()
 
         if prev_inst and new_inst and prev_inst == new_inst:
             return {"status": "AlreadyKnown", "rule": prev}
@@ -1178,7 +1204,7 @@ async def _record_feedback(
     elif status == "Updated":
         action = "Updated"
     elif status == "SlotOccupied":
-        action = "Already known (slot_occupied_with_different_content)"
+        action = "Created (slot_occupied_with_different_content)"
     else:
         action = "Already known (already_known)"
 
@@ -1343,11 +1369,15 @@ async def _sync_sessions(
     return [TextContent(type="text", text="\n".join(log))]
 
 
-async def _install_scheduler(action: str = "install", dry_run: bool = False) -> list[TextContent]:
+async def _install_scheduler(action: str = "status", dry_run: bool = False) -> list[TextContent]:
     from .scheduler import install
     from .scheduler import is_installed
     from .scheduler import status
     from .scheduler import uninstall
+
+    action = (action or "status").strip().lower()
+    if action not in ("install", "uninstall", "status"):
+        action = "status"
 
     if action == "uninstall":
         if dry_run:
