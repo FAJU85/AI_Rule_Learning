@@ -1,0 +1,79 @@
+name: Telegram Observability Notification
+
+on:
+  workflow_call:
+    inputs:
+      status:
+        required: true
+        type: string
+        default: 'failure'
+      workflow_name:
+        required: true
+        type: string
+      job_name:
+        required: false
+        type: string
+        default: 'CI/CD Pipeline'
+      details:
+        required: false
+        type: string
+        default: 'An error occurred during workflow execution.'
+
+jobs:
+  telegram-alert:
+    name: Send Telegram Observability Alert
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Send Telegram Message
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN || '8568693060:AAEQP0Tk60G3DMIh4xo3NS7wgyIyKYW16rA' }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID || '7043475' }}
+          STATUS: ${{ inputs.status }}
+          WORKFLOW_NAME: ${{ inputs.workflow_name }}
+          JOB_NAME: ${{ inputs.job_name }}
+          DETAILS: ${{ inputs.details }}
+        run: |
+          python3 - << 'EOF'
+          import json, os, urllib.request
+
+          token = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
+          chat_id = os.environ.get("TELEGRAM_CHAT_ID", "").strip()
+          status = os.environ.get("STATUS", "failure").lower()
+          workflow = os.environ.get("WORKFLOW_NAME", "GitHub Actions")
+          job = os.environ.get("JOB_NAME", "Pipeline")
+          details = os.environ.get("DETAILS", "Execution completed.")
+          repo = os.environ.get("GITHUB_REPOSITORY", "repo")
+          run_id = os.environ.get("GITHUB_RUN_ID", "")
+          ref = os.environ.get("GITHUB_REF_NAME", "")
+          actor = os.environ.get("GITHUB_ACTOR", "")
+
+          icon = "🚨" if status == "failure" else "⚠️" if status == "cancelled" else "✅"
+          run_url = f"https://github.com/{repo}/actions/runs/{run_id}" if run_id else ""
+
+          text = (
+              f"{icon} *GitHub Actions Observability Alert*\n\n"
+              f"*Workflow:* `{workflow}`\n"
+              f"*Job:* `{job}`\n"
+              f"*Status:* `{status.upper()}`\n"
+              f"*Repository:* `{repo}`\n"
+              f"*Branch/Ref:* `{ref}`\n"
+              f"*Triggered By:* `{actor}`\n\n"
+              f"*Details:* {details}\n\n"
+              f"[🔍 View GitHub Actions Log]({run_url})"
+          )
+
+          url = f"https://api.telegram.org/bot{token}/sendMessage"
+          payload = json.dumps({
+              "chat_id": chat_id,
+              "text": text,
+              "parse_mode": "Markdown",
+              "disable_web_page_preview": False
+          }).encode("utf-8")
+
+          req = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/json"})
+          try:
+              with urllib.request.urlopen(req, timeout=10) as resp:
+                  print("Telegram notification sent successfully.")
+          except Exception as e:
+              print(f"Failed to send Telegram notification: {e}")
+          EOF

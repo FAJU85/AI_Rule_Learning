@@ -10,11 +10,12 @@ on:
 permissions:
   contents: read
   id-token: write
+  attestations: write
 
 jobs:
   build-and-publish:
     name: Build and publish ai-rule-learning-mcp
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     environment: pypi
 
     steps:
@@ -95,3 +96,39 @@ jobs:
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: mcp/dist/
+          attestations: false
+
+      - name: Send Telegram notification
+        if: always()
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN || '8568693060:AAEQP0Tk60G3DMIh4xo3NS7wgyIyKYW16rA' }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID || '7043475' }}
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          python3 - << 'EOF'
+          import json, os, urllib.request
+          token = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
+          chat_id = os.environ.get("TELEGRAM_CHAT_ID", "").strip()
+          status = os.environ.get("JOB_STATUS", "unknown").lower()
+          repo = os.environ.get("GITHUB_REPOSITORY", "repo")
+          run_id = os.environ.get("GITHUB_RUN_ID", "")
+          ref = os.environ.get("GITHUB_REF_NAME", "")
+          actor = os.environ.get("GITHUB_ACTOR", "")
+          run_url = f"https://github.com/{repo}/actions/runs/{run_id}"
+
+          icon = "📦" if status == "success" else "🚨"
+          text = (
+              f"{icon} *MCP PyPI Workflow Dispatch Alert*\n\n"
+              f"*Workflow:* `Publish MCP to PyPI`\n"
+              f"*Status:* `{status.upper()}`\n"
+              f"*Repository:* `{repo}`\n"
+              f"*Branch/Ref:* `{ref}`\n"
+              f"*Triggered By:* `{actor}`\n\n"
+              f"[🔍 View Release Action Logs]({run_url})"
+          )
+          req = urllib.request.Request(f"https://api.telegram.org/bot{token}/sendMessage", data=json.dumps({"chat_id": chat_id, "text": text, "parse_mode": "Markdown"}).encode("utf-8"), headers={"Content-Type": "application/json"})
+          try:
+              urllib.request.urlopen(req, timeout=10)
+          except Exception as e:
+              print(e)
+          EOF

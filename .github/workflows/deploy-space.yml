@@ -42,7 +42,7 @@ permissions:
 jobs:
   deploy:
     name: Deploy idle Space and smoke test
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     if: ${{ github.event_name == 'push' || inputs.operation != 'rollback' }}
     env:
       BG_BLUE_SPACE_ID: ${{ vars.BG_BLUE_SPACE_ID || 'vooom/AI_Rule_Learning' }}
@@ -120,7 +120,7 @@ jobs:
 
   cutover:
     name: Approved traffic cutover or rollback
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: deploy
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.operation == 'deploy-and-cutover' }}
     environment: production
@@ -140,7 +140,7 @@ jobs:
 
   rollback:
     name: Approved production rollback
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.operation == 'rollback' }}
     environment: production
     env:

@@ -11,7 +11,7 @@ permissions:
 jobs:
   coderabbit:
     name: CodeRabbit review
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # CodeRabbit posts pull-request review comments, so this job needs PR write access.
     permissions:
       contents: read

@@ -27,6 +27,16 @@ def get_logger(name: str) -> logging.Logger:
     handler.setFormatter(formatter)
     logger.addHandler(handler)
 
+    # Attach Telegram observability handler for ERROR/CRITICAL logs
+    try:
+        from src.utils.telegram_notifier import TelegramLogHandler
+
+        tg_handler = TelegramLogHandler(level=logging.ERROR)
+        tg_handler.setFormatter(formatter)
+        logger.addHandler(tg_handler)
+    except Exception:
+        pass
+
     # Prevent propagation to the root logger to avoid duplicate output
     logger.propagate = False
 
