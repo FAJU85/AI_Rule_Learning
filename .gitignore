@@ -27,3 +27,6 @@ venv/
 htmlcov/
 .coverage
 coverage.xml
+
+# Accidental pip shell-redirect artifact (e.g. pip install pkg >=1.0 -> =1.0)
+=*
