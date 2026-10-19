@@ -1071,6 +1071,7 @@ def record_feedback(
                 target_rule["action"]["instruction"] = new_inst
             else:
                 target_rule["action"] = {"instruction": new_inst}
+            target_rule["effectiveness_score"] = 0.5  # Reset performance baseline for modified instruction
             target_rule["updated_at"] = datetime.utcnow().isoformat()
             _local_save("rules.jsonl", existing)
             return {"status": "Updated", "rule": target_rule}
