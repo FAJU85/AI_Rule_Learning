@@ -674,3 +674,43 @@ def test_c22_extended_pii_ten_categories(tmp_path, monkeypatch):
     leaked = [item for item in forbidden if item in disk_text]
     assert leaked == [], f"Leaked PII: {leaked}"
 
+
+def test_rule_hint_updates_existing_rule_in_place(tmp_path, monkeypatch):
+    """Verify that rule_hint updates existing rule in place when rule_id hash matches."""
+    monkeypatch.setenv("HOME", str(tmp_path))
+    arl_dir = tmp_path / ".ai-rule-learning"
+    arl_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr(store, "LOCAL_DIR", arl_dir)
+    monkeypatch.setattr(store, "RULES_FILE", arl_dir / "rules.jsonl")
+
+    res1 = _run(
+        server._record_feedback(
+            {
+                "feedback_type": "correction",
+                "user_message": "Initial correction needed",
+                "rule_hint": "Initial instruction ABC",
+            }
+        )
+    )
+    assert "Created" in res1[0].text
+    active1 = store.load_active_rules()
+    assert len(active1) == 1
+    assert active1[0]["instruction"] == "Initial instruction ABC"
+
+    target_id = active1[0]["rule_id"]
+
+    res2 = _run(
+        server._record_feedback(
+            {
+                "feedback_type": "correction",
+                "user_message": "Another correction needed",
+                "rule_hint": "CUSTOM HINT XYZ UPDATED",
+                "rule_id": target_id,
+            }
+        )
+    )
+    assert "Updated" in res2[0].text
+    active2 = store.load_active_rules()
+    assert len(active2) == 1
+    assert active2[0]["instruction"] == "CUSTOM HINT XYZ UPDATED"
+

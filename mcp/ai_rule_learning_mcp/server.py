@@ -971,6 +971,7 @@ def record_feedback(
     description: str,
     rule_hint: str = "",
     dry_run: bool = False,
+    rule_id: str = "",
 ) -> dict[str, Any]:
     """Record a feedback rule with pre-persistence injection checks, PII scrubbing, and distinct slot allocation."""
     # Pre-persistence injection detection on raw inputs (Defect F12c)
@@ -1059,15 +1060,48 @@ def record_feedback(
             r["slot"] = "honor-user-preferences"
             migrated = True
 
+    # Check for explicit rule_id match to update in place
+    if rule_id:
+        target_rule = next((r for r in existing if r.get("rule_id") == rule_id), None)
+        if target_rule:
+            new_inst = rule_hint or rule.get("instruction", "")
+            target_rule["instruction"] = new_inst
+            target_rule["example"] = new_inst
+            if isinstance(target_rule.get("action"), dict):
+                target_rule["action"]["instruction"] = new_inst
+            else:
+                target_rule["action"] = {"instruction": new_inst}
+            target_rule["updated_at"] = datetime.utcnow().isoformat()
+            _local_save("rules.jsonl", existing)
+            return {"status": "Updated", "rule": target_rule}
+
     existing_ids = {r.get("rule_id") for r in existing}
     existing_by_slot = {r.get("slot"): r for r in existing if r.get("slot")}
 
     if rule.get("rule_id") in existing_ids or rule.get("slot") in existing_by_slot:
         if migrated:
             _local_save("rules.jsonl", existing)
-        prev = existing_by_slot.get(rule.get("slot"), {})
+
+        prev = existing_by_slot.get(rule.get("slot")) or next(
+            (r for r in existing if r.get("rule_id") == rule.get("rule_id")), {}
+        )
         prev_inst = (prev.get("instruction") or "").strip()
         new_inst = (rule.get("instruction") or "").strip()
+
+        if prev_inst and new_inst and prev_inst == new_inst:
+            return {"status": "AlreadyKnown", "rule": prev}
+
+        if not prev_inst and new_inst:
+            prev["instruction"] = new_inst
+            prev["example"] = new_inst
+            if isinstance(prev.get("action"), dict):
+                prev["action"]["instruction"] = new_inst
+            else:
+                prev["action"] = {"instruction": new_inst}
+            prev["updated_at"] = datetime.utcnow().isoformat()
+            _local_save("rules.jsonl", existing)
+            return {"status": "Updated", "rule": prev}
+
         if prev_inst and new_inst and prev_inst != new_inst:
             sub_id = hashlib.sha256(f"{rule['slot']}:{new_inst}".encode()).hexdigest()[:8]
             rule["slot"] = f"{rule['slot']}-{sub_id}"
@@ -1092,12 +1126,14 @@ async def _record_feedback(
     dry_run: bool = False,
     user_message: str = "",
 ) -> list[TextContent]:
+    rule_id = ""
     if isinstance(feedback_type, dict):
         d = feedback_type
         feedback_type = d.get("feedback_type", "")
         description = d.get("description") or d.get("user_message", "")
         rule_hint = d.get("rule_hint", "")
         dry_run = bool(d.get("dry_run", False))
+        rule_id = str(d.get("rule_id") or d.get("id") or "")
     elif not description and user_message:
         description = user_message
 
@@ -1106,6 +1142,7 @@ async def _record_feedback(
         description=description,
         rule_hint=rule_hint,
         dry_run=dry_run,
+        rule_id=rule_id,
     )
 
     status = res.get("status")
@@ -1137,6 +1174,8 @@ async def _record_feedback(
     targets_str = ", ".join(name for name, _ in written) if written else "no agent configs detected"
     if status == "Created":
         action = "Created"
+    elif status == "Updated":
+        action = "Updated"
     elif status == "SlotOccupied":
         action = "Already known (slot_occupied_with_different_content)"
     else:
