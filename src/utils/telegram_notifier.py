@@ -5,12 +5,14 @@ import urllib.parse
 import urllib.request
 from typing import Any
 
-DEFAULT_TELEGRAM_BOT_TOKEN = "8568693060:AAEQP0Tk60G3DMIh4xo3NS7wgyIyKYW16rA"
-DEFAULT_TELEGRAM_CHAT_ID = "7043475"
+# No hardcoded fallback credentials — token/chat id come from the environment
+# only (set them as secrets). Alerts no-op when unset.
+DEFAULT_TELEGRAM_BOT_TOKEN = ""
+DEFAULT_TELEGRAM_CHAT_ID = ""
 
 
 def get_telegram_config() -> tuple[str, str]:
-    """Retrieve Telegram bot token and chat ID from environment or defaults."""
+    """Retrieve Telegram bot token and chat ID from the environment."""
     token = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip() or DEFAULT_TELEGRAM_BOT_TOKEN
     chat_id = os.environ.get("TELEGRAM_CHAT_ID", "").strip() or DEFAULT_TELEGRAM_CHAT_ID
     return token, chat_id
