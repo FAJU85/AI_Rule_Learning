@@ -9,9 +9,9 @@ Categories/Types:
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
 import json
-import os
+from datetime import UTC
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -79,8 +79,8 @@ def add_memory(
         "content": content,
         "fact": content,
         "project": project,
-        "added_at": datetime.now(timezone.utc).isoformat(),
-        "created_at": datetime.now(timezone.utc).isoformat(),
+        "added_at": datetime.now(UTC).isoformat(),
+        "created_at": datetime.now(UTC).isoformat(),
     }
     entries.append(entry)
     mf.parent.mkdir(parents=True, exist_ok=True)

@@ -6,10 +6,10 @@ Injected into agent instruction files via build_skills_index.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-import os
-from pathlib import Path
 import re
+from datetime import UTC
+from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 from .store import scrub_pii
@@ -50,7 +50,7 @@ def _parse_skill_file(path: Path) -> dict[str, Any] | None:
     description = ""
     triggers: list[str] = []
     used_count = 0
-    created_at = datetime.now(timezone.utc).isoformat()
+    created_at = datetime.now(UTC).isoformat()
     steps_lines: list[str] = []
     in_steps = False
 
@@ -114,7 +114,7 @@ def save_skill(
 
     path = _skill_path(name)
     used_count = 0
-    created_at = datetime.now(timezone.utc).isoformat()
+    created_at = datetime.now(UTC).isoformat()
 
     if path.exists():
         existing = _parse_skill_file(path)
