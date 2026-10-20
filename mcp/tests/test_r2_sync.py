@@ -95,6 +95,43 @@ def test_disabled_when_credentials_missing(monkeypatch: pytest.MonkeyPatch, tmp_
     monkeypatch.setattr(store, "LOCAL_DIR", tmp_path)
     monkeypatch.setenv("R2_BUCKET", "test-bucket")  # no keys/endpoint
     assert store.remote_enabled() is False
-    # _upload must still persist locally without a remote client
-    store._upload("rules.jsonl", [{"rule_id": "x"}])
+    # _upload must still persist locally without a remote client, reporting no upload
+    assert store._upload("rules.jsonl", [{"rule_id": "x"}]) is False
     assert store._download("rules.jsonl") == [{"rule_id": "x"}]
+
+
+def test_upload_reports_success_and_failure(
+    r2_env: pytest.MonkeyPatch, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(store, "_r2_client", lambda: _FakeClient())
+    assert store._upload("rules.jsonl", [{"rule_id": "r1"}]) is True
+
+    class _Broken:
+        def put_object(self, **_kw):
+            raise RuntimeError("network down")
+
+    monkeypatch.setattr(store, "_r2_client", lambda: _Broken())
+    # local write still happens, but the remote failure is reported honestly
+    assert store._upload("rules.jsonl", [{"rule_id": "r2"}]) is False
+    assert store._local_load("rules.jsonl") == [{"rule_id": "r2"}]
+
+
+def test_r2_upload_scrubs_pii_like_local(
+    r2_env: pytest.MonkeyPatch, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fake = _FakeClient()
+    monkeypatch.setattr(store, "_r2_client", lambda: fake)
+    store._upload("rules.jsonl", [{"rule_id": "r1", "text": "mail me at alice@example.com"}])
+    body = fake.objects[("test-bucket", "rules.jsonl")].decode("utf-8")
+    assert "alice@example.com" not in body  # remote copy scrubbed, like local
+
+
+def test_append_conversations_reports_remote_status(
+    r2_env: pytest.MonkeyPatch, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(store, "_r2_client", lambda: _FakeClient())
+    count, remote_ok = store.append_conversations([{"conversation_id": "c1"}])
+    assert (count, remote_ok) == (1, True)
+    # no new conversations ⇒ nothing uploaded ⇒ remote_ok False
+    count2, remote_ok2 = store.append_conversations([{"conversation_id": "c1"}])
+    assert (count2, remote_ok2) == (0, False)

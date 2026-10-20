@@ -5,8 +5,9 @@ MCP-compatible agent. Rules are written automatically to every detected
 agent's config directory so they apply to future sessions with zero setup.
 
 Environment variables (all optional):
-  HF_TOKEN        HuggingFace write token — enables cloud backup/sync
-  ARL_DATASET     Your HF dataset, e.g. "yourname/AI_Rule_Learning"
+  R2_BUCKET       Cloudflare R2 bucket for rule/conversation backup/sync
+  R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_ACCOUNT_ID   R2 credentials
+                  (endpoint derived from the account id; R2_ENDPOINT to override)
   ARL_SESSIONS    Comma-separated paths to session dirs/files.
                   Defaults to existing Claude dirs: ~/.claude/projects, ~/.claude.
   ARL_CONTRIBUTE  "true" to contribute anonymised gap patterns (default: false)
@@ -1319,14 +1320,16 @@ async def _sync_sessions(
             log.append("ℹ️  All detected patterns already have rules")
 
     # ── Remote upload (optional, Cloudflare R2) ────────────────────────────
-    added = 0 if dry_run else append_conversations(all_conversations)
+    added, remote_ok = (0, False) if dry_run else append_conversations(all_conversations)
     if dry_run and all_conversations:
         log.append(f"🔎 Dry run: would save {len(all_conversations)} conversation(s) locally")
     if added:
-        if remote_enabled():
+        if remote_ok:
             log.append(f"⬆️  Uploaded {added} new conversation(s) to the R2 bucket")
+        elif remote_enabled():
+            log.append(f"💾 Saved {added} new conversation(s) locally (R2 upload failed)")
         else:
-            log.append(f"💾 Saved {added} new conversation(s) locally (R2 not configured — upload skipped)")
+            log.append(f"💾 Saved {added} new conversation(s) locally (R2 not configured)")
 
     if contribute and dry_run:
         log.append("🔎 Dry run: would evaluate anonymised community contribution eligibility")
@@ -1347,7 +1350,7 @@ async def _sync_sessions(
 
     activated = 0 if dry_run else auto_activate_pending_rules()
     if activated:
-        log.append(f"✅ Auto-activated {activated} safe pending rule(s) from HF dataset")
+        log.append(f"✅ Auto-activated {activated} safe pending rule(s) from the rule store")
 
     # ── RAG: pull and load community templates ─────────────────────────────
     from .community import pull_community_templates

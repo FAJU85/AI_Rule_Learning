@@ -277,12 +277,18 @@ def _download(filename: str) -> list[dict]:
     return _local_load(filename)
 
 
-def _upload(filename: str, records: list[dict]) -> None:
-    """Save to local storage always; also push to the R2 bucket if configured."""
+def _upload(filename: str, records: list[dict]) -> bool:
+    """Save to local storage always; mirror to the R2 bucket if configured.
+
+    Returns True only when the remote upload actually succeeded.
+    """
     _local_save(filename, records)
     if not remote_enabled():
-        return
-    content = "\n".join(json.dumps(r, ensure_ascii=False) for r in records) + "\n"
+        return False
+    # Mirror the same PII scrubbing _local_save applies, so the remote copy never
+    # carries data the local copy strips (processed.jsonl is the one exception).
+    scrubbed = records if filename == "processed.jsonl" else [scrub_record(r) for r in records]
+    content = "\n".join(json.dumps(r, ensure_ascii=False) for r in scrubbed) + "\n"
     try:
         client = _r2_client()
         if client is not None:
@@ -293,8 +299,10 @@ def _upload(filename: str, records: list[dict]) -> None:
                 Body=content.encode("utf-8"),
                 ContentType="application/x-ndjson",
             )
+            return True
     except Exception:
         pass
+    return False
 
 
 _UNSAFE_PHRASES = [
@@ -745,14 +753,19 @@ def record_rule_outcome(rule_id: str, fired_again: bool) -> dict | None:
     return target
 
 
-def append_conversations(convs: list[dict]) -> int:
-    """Merge new conversations into dataset. Returns count added."""
+def append_conversations(convs: list[dict]) -> tuple[int, bool]:
+    """Merge new conversations into the store.
+
+    Returns (count_added, remote_ok) where remote_ok is True only when the new
+    records were successfully mirrored to R2.
+    """
     existing = _download("conversations.jsonl")
     existing_ids = {c.get("conversation_id") for c in existing}
     new = [c for c in convs if c.get("conversation_id") not in existing_ids]
+    remote_ok = False
     if new:
-        _upload("conversations.jsonl", existing + new)
-    return len(new)
+        remote_ok = _upload("conversations.jsonl", existing + new)
+    return len(new), remote_ok
 
 
 def _extract_text(content: Any) -> str:
