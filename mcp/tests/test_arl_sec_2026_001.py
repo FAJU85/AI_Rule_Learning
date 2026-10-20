@@ -28,8 +28,6 @@ def clean_store(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     monkeypatch.setattr("ai_rule_learning_mcp.store.LOCAL_DIR", store_dir)
     monkeypatch.setattr("ai_rule_learning_mcp.server._local_load", lambda f: _local_load(f))
     monkeypatch.setattr("ai_rule_learning_mcp.server._local_save", lambda f, r: _local_save(f, r))
-    monkeypatch.setattr("ai_rule_learning_mcp.store.HF_TOKEN", "")
-    monkeypatch.setattr("ai_rule_learning_mcp.store.HF_DATASET", "")
     return store_dir
 
 

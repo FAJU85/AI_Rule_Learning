@@ -30,6 +30,10 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0", "pytest-asyncio>=0.23"]
+# Cloudflare R2 (S3-compatible) remote sync backend for store.py. Optional:
+# the store is local-first and only syncs to R2 when boto3 is installed and
+# the R2_* credentials are configured.
+r2 = ["boto3>=1.34.0"]
 
 [project.scripts]
 ai-rule-learning-mcp = "ai_rule_learning_mcp.server:main"
