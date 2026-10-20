@@ -10,6 +10,7 @@ import hashlib
 import json
 import os
 import re
+from datetime import UTC
 from datetime import datetime
 from typing import Any
 
@@ -546,7 +547,7 @@ def detect_gaps(turns: list[dict]) -> dict[str, list[dict]]:
 def generate_rules(gaps: dict[str, list[dict]]) -> list[dict]:
     """Convert gap findings into rule dicts, one per gap type (with PII scrubbing and unified schema)."""
     rules = []
-    now = datetime.utcnow().isoformat()
+    now = datetime.now(UTC).replace(tzinfo=None).isoformat()
 
     for gap_type, instances in gaps.items():
         if not instances:

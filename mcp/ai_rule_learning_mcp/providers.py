@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 import re
 import uuid
+from datetime import UTC
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -47,9 +48,9 @@ def _make_conv(session_id: str, turns: list[dict], source: str, slug: str = "", 
         "turns": turns,
         "escalation_occurred": False,
         "human_intervention": False,
-        "started_at": turns[0]["timestamp"] if turns else datetime.utcnow().isoformat(),
-        "ended_at": datetime.utcnow().isoformat(),
-        "exported_at": datetime.utcnow().isoformat(),
+        "started_at": turns[0]["timestamp"] if turns else datetime.now(UTC).replace(tzinfo=None).isoformat(),
+        "ended_at": datetime.now(UTC).replace(tzinfo=None).isoformat(),
+        "exported_at": datetime.now(UTC).replace(tzinfo=None).isoformat(),
     }
 
 
@@ -88,7 +89,7 @@ def parse_claude_code_session(path: Path) -> dict | None:
                         "session_id": obj.get("sessionId", str(uuid.uuid4())),
                         "slug": obj.get("slug", ""),
                         "cwd": obj.get("cwd", ""),
-                        "started_at": obj.get("timestamp", datetime.utcnow().isoformat()),
+                        "started_at": obj.get("timestamp", datetime.now(UTC).replace(tzinfo=None).isoformat()),
                     }
                 if role not in ("user", "assistant"):
                     continue

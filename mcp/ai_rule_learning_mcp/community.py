@@ -15,6 +15,7 @@ import os
 import urllib.error
 import urllib.request
 from collections import Counter
+from datetime import UTC
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -107,7 +108,7 @@ def record_consent(trigger: str = "ARL_CONTRIBUTE=true") -> dict[str, Any]:
     """Record an explicit consent event in ~/.ai-rule-learning/consent.json (CO05)."""
     import hashlib
 
-    now = datetime.utcnow().isoformat() + "Z"
+    now = datetime.now(UTC).replace(tzinfo=None).isoformat() + "Z"
     fp = hashlib.sha256(f"{trigger}:{now}".encode()).hexdigest()[:16]
     consent_record = {
         "consented": True,
@@ -203,7 +204,7 @@ def contribute_gaps(gaps_by_type: dict[str, list[dict]], source_hash: str) -> bo
         "source_hash": source_hash,
         "user_id": anon_id,
         "anonymous_id": anon_id,
-        "contributed_at": datetime.utcnow().isoformat(),
+        "contributed_at": datetime.now(UTC).replace(tzinfo=None).isoformat(),
         "pattern": first_item.get("pattern", first_type),
         "category": first_item.get("category", "robustness_consistency"),
         "example": first_item.get("example", first_type),

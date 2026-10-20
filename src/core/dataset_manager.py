@@ -65,7 +65,7 @@ class DatasetManager:
         local_file = Path("data") / "active_rules.json"
         if local_file.exists():
             try:
-                with open(local_file, "r", encoding="utf-8") as f:
+                with open(local_file, encoding="utf-8") as f:
                     data = json.load(f)
                     if isinstance(data, list):
                         return data

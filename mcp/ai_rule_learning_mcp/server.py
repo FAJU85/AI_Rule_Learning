@@ -15,7 +15,6 @@ Environment variables (all optional):
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime
 import hashlib
 import json
 import os
@@ -24,6 +23,8 @@ import sys
 import uuid
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
+from datetime import UTC
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -51,7 +52,6 @@ from .store import _local_load
 from .store import _local_save
 from .store import append_conversations
 from .store import auto_activate_pending_rules
-from .store import edit_rule_instruction
 from .store import edit_rule_metadata
 from .store import hf_enabled
 from .store import is_already_processed
@@ -64,7 +64,6 @@ from .store import review_rule_health
 from .store import scrub_pii
 from .store import suggest_duplicate_rules
 from .store import update_rule_status
-
 
 # ── Lightweight MCP types & Server (CH05 CPU throttle resilience) ──────────
 # Avoids importing ~100 Pydantic models from mcp.types at module import time,
@@ -157,7 +156,8 @@ class Server:
     async def run(self, read_stream: Any = None, write_stream: Any = None, init_options: Any = None) -> None:
         if read_stream is not None and write_stream is not None:
             from mcp.server import Server as SdkServer
-            from mcp.types import CallToolResult, TextContent as SdkTextContent
+            from mcp.types import CallToolResult
+            from mcp.types import TextContent as SdkTextContent
             from mcp.types import Tool as SdkTool
 
             sdk_app = SdkServer(self.name)
@@ -728,9 +728,13 @@ async def list_tools() -> list[Tool]:
 
 
 @app.call_tool()
-async def call_tool(name: str, arguments: dict) -> list[TextContent]:
+async def call_tool(
+    name: str, arguments: dict
+) -> list[TextContent] | tuple[list[TextContent], bool]:
     # Contain handler failures: return a structured error to the agent rather
     # than letting an unexpected exception propagate (and leak a stack trace).
+    # Error results are returned as ``(content, True)`` so the SDK wrapper sets
+    # ``isError=True``; successful results are returned as a plain content list.
     try:
         env_contribute = os.environ.get("ARL_CONTRIBUTE", "false").lower() in ("true", "1", "yes")
         if _CONTRIBUTE or env_contribute or bool(arguments.get("contribute", False)):
@@ -847,7 +851,7 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
             return await _update_community_knowledge(min_sources=int(arguments.get("min_sources", 3)))
         return [TextContent(type="text", text=f"Unknown tool: {name}")], True
     except Exception as exc:  # noqa: BLE001 — boundary handler, report not crash
-        return [TextContent(type="text", text=f"❌ {name} failed: {type(exc).__name__}: {exc}")]
+        return [TextContent(type="text", text=f"❌ {name} failed: {type(exc).__name__}: {exc}")], True
 
 
 async def _get_guardrail_rules(
@@ -863,7 +867,8 @@ async def _get_guardrail_rules(
 
     local_rules = load_active_rules()
 
-    from ai_rule_learning_mcp.catalog import RuleCatalog, detect_context
+    from .catalog import RuleCatalog
+    from .catalog import detect_context
 
     cat = RuleCatalog()
     if context is None and conversation is not None:
@@ -929,7 +934,7 @@ async def _get_guardrail_rules(
 
 
 async def _why() -> list[TextContent]:
-    from ai_rule_learning_mcp.catalog import RuleCatalog
+    from .catalog import RuleCatalog
 
     cat = RuleCatalog()
     reasons = cat.why()
@@ -1051,7 +1056,7 @@ def record_feedback(
     assigned_slot = _SLOT_MAP.get(feedback_type, rule.get("slot") or rule.get("name", "generic-rule"))
     rule["slot"] = assigned_slot
 
-    now_iso = datetime.utcnow().isoformat()
+    now_iso = datetime.now(UTC).replace(tzinfo=None).isoformat()
     rule.setdefault("source_session_id", "session_feedback_realtime")
     rule.setdefault("extraction_version", "0.2.2")
     rule.setdefault("extracted_at", now_iso)
@@ -1091,7 +1096,7 @@ def record_feedback(
             else:
                 target_rule["action"] = {"instruction": new_inst}
             target_rule["effectiveness_score"] = 0.5  # Reset performance baseline for modified instruction
-            target_rule["updated_at"] = datetime.utcnow().isoformat()
+            target_rule["updated_at"] = datetime.now(UTC).replace(tzinfo=None).isoformat()
             _local_save("rules.jsonl", existing)
             return {"status": "Updated", "rule": target_rule}
 
@@ -1125,7 +1130,7 @@ def record_feedback(
                 prev["action"]["instruction"] = new_inst
             else:
                 prev["action"] = {"instruction": new_inst}
-            prev["updated_at"] = datetime.utcnow().isoformat()
+            prev["updated_at"] = datetime.now(UTC).replace(tzinfo=None).isoformat()
             _local_save("rules.jsonl", existing)
             return {"status": "Updated", "rule": prev}
 
@@ -1152,18 +1157,19 @@ async def _record_feedback(
     rule_hint: str = "",
     dry_run: bool = False,
     user_message: str = "",
+    rule_id: str = "",
 ) -> list[TextContent]:
-    rule_id = ""
     if isinstance(feedback_type, dict):
         d = feedback_type
-        feedback_type = d.get("feedback_type", "")
+        feedback_type = str(d.get("feedback_type", ""))
         description = d.get("description") or d.get("user_message", "")
         rule_hint = d.get("rule_hint", "")
         dry_run = bool(d.get("dry_run", False))
-        rule_id = str(d.get("rule_id") or d.get("id") or "")
+        rule_id = str(d.get("rule_id") or d.get("id") or rule_id)
     elif not description and user_message:
         description = user_message
 
+    feedback_type = str(feedback_type)
     res = record_feedback(
         feedback_type=feedback_type,
         description=description,
@@ -1295,7 +1301,7 @@ async def _sync_sessions(
         existing_ids = {r.get("rule_id") for r in existing}
         new_rules = [r for r in detected_rules if r.get("rule_id") not in existing_ids]
         if new_rules:
-            now_iso = datetime.utcnow().isoformat()
+            now_iso = datetime.now(UTC).replace(tzinfo=None).isoformat()
             for r in new_rules:
                 r.setdefault("source_session_id", r.get("source_hash", "session_local")[:16])
                 r.setdefault("extraction_version", "0.2.2")
@@ -1758,13 +1764,20 @@ def _handle_jsonrpc_message(raw_line: str) -> dict[str, Any] | None:
     if method == "tools/call":
         t_name = params.get("name", "") if isinstance(params, dict) else ""
         t_args = (params.get("arguments") or {}) if isinstance(params, dict) else {}
-        content = asyncio.run(call_tool(t_name, t_args))
+        result = asyncio.run(call_tool(t_name, t_args))
+        # call_tool returns either a plain content list or a (content, isError)
+        # tuple for error results; unpack so stdio requests surface tool errors
+        # instead of crashing the request loop.
+        if isinstance(result, tuple):
+            content, is_error = result
+        else:
+            content, is_error = result, False
         return {
             "jsonrpc": "2.0",
             "id": msg_id,
             "result": {
                 "content": [c.model_dump() for c in content],
-                "isError": False,
+                "isError": is_error,
             },
         }
 

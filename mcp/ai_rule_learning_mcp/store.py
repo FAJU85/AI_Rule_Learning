@@ -12,6 +12,7 @@ import logging
 import os
 import re
 import uuid
+from datetime import UTC
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -102,7 +103,7 @@ def mark_processed(file_path: Path) -> None:
     key = str(file_path.resolve())
     processed = _local_load("processed.jsonl")
     if not any(r.get("path") == key for r in processed):
-        processed.append({"path": key, "at": datetime.utcnow().isoformat()})
+        processed.append({"path": key, "at": datetime.now(UTC).replace(tzinfo=None).isoformat()})
         _local_save("processed.jsonl", processed)
 
 
@@ -330,7 +331,7 @@ def auto_activate_pending_rules() -> int:
     if not rules:
         return 0
     activated = 0
-    now = datetime.utcnow().isoformat()
+    now = datetime.now(UTC).replace(tzinfo=None).isoformat()
     for rule in rules:
         if rule.get("status") == "pending_review" and not rule.get("is_active", False):
             if _is_safe_rule(rule):
@@ -387,7 +388,7 @@ def update_rule_status(rule_id: str, status: str, note: str = "") -> dict | None
         raise ValueError(f"unsupported rule status: {status}")
 
     rules = _load_rules_preserving_local()
-    now = datetime.utcnow().isoformat()
+    now = datetime.now(UTC).replace(tzinfo=None).isoformat()
     target = next((r for r in rules if r.get("rule_id") == rule_id), None)
     if target is None:
         return None
@@ -422,7 +423,7 @@ def edit_rule_metadata(
 ) -> dict | None:
     """Update rule metadata fields (priority, trigger_if, exclude_if) while preserving static instruction."""
     rules = _load_rules_preserving_local()
-    now = datetime.utcnow().isoformat()
+    now = datetime.now(UTC).replace(tzinfo=None).isoformat()
     target = next((r for r in rules if r.get("rule_id") == rule_id), None)
     if target is None:
         return None
@@ -448,7 +449,7 @@ def edit_rule_instruction(rule_id: str, instruction: str) -> dict | None:
         raise ValueError("instruction cannot be empty")
 
     rules = _download("rules.jsonl")
-    now = datetime.utcnow().isoformat()
+    now = datetime.now(UTC).replace(tzinfo=None).isoformat()
     target = next((r for r in rules if r.get("rule_id") == rule_id), None)
     if target is None:
         return None
@@ -471,7 +472,7 @@ def merge_rules(primary_rule_id: str, duplicate_rule_id: str) -> dict | None:
         raise ValueError("cannot merge a rule into itself")
 
     rules = _download("rules.jsonl")
-    now = datetime.utcnow().isoformat()
+    now = datetime.now(UTC).replace(tzinfo=None).isoformat()
     primary = next((r for r in rules if r.get("rule_id") == primary_rule_id), None)
     duplicate = next((r for r in rules if r.get("rule_id") == duplicate_rule_id), None)
     if primary is None or duplicate is None:
@@ -580,7 +581,7 @@ def find_rule_health_candidates(
     min_triggered: int = 3,
 ) -> tuple[list[dict], list[dict]]:
     """Return stale and low-effectiveness rule candidates from explicit records."""
-    now = datetime.utcnow()
+    now = datetime.now(UTC).replace(tzinfo=None)
     stale: list[dict] = []
     needs_review: list[dict] = []
 
@@ -623,7 +624,7 @@ def review_rule_health(
     `stale` when their latest activity timestamp is older than `stale_days`.
     """
     rules = _download("rules.jsonl")
-    now = datetime.utcnow()
+    now = datetime.now(UTC).replace(tzinfo=None)
     stale, needs_review = find_rule_health_candidates(
         rules,
         stale_days=stale_days,
@@ -703,7 +704,7 @@ def record_rule_outcome(rule_id: str, fired_again: bool) -> dict | None:
     Returns the updated rule dict, or None if rule_id not found.
     """
     rules = _download("rules.jsonl")
-    now = datetime.utcnow().isoformat()
+    now = datetime.now(UTC).replace(tzinfo=None).isoformat()
     target = next((r for r in rules if r.get("rule_id") == rule_id), None)
     if target is None:
         return None
@@ -767,7 +768,7 @@ def parse_claude_session(path: Path) -> dict | None:
                         "slug": obj.get("slug", ""),
                         "cwd": obj.get("cwd", ""),
                         "git_branch": obj.get("gitBranch", ""),
-                        "started_at": obj.get("timestamp", datetime.utcnow().isoformat()),
+                        "started_at": obj.get("timestamp", datetime.now(UTC).replace(tzinfo=None).isoformat()),
                     }
                 if role not in ("user", "assistant"):
                     continue
@@ -825,6 +826,6 @@ def parse_claude_session(path: Path) -> dict | None:
         "escalation_occurred": False,
         "human_intervention": False,
         "started_at": meta["started_at"],
-        "ended_at": datetime.utcnow().isoformat(),
-        "exported_at": datetime.utcnow().isoformat(),
+        "ended_at": datetime.now(UTC).replace(tzinfo=None).isoformat(),
+        "exported_at": datetime.now(UTC).replace(tzinfo=None).isoformat(),
     }

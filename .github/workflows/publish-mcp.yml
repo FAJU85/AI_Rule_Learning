@@ -1,11 +1,21 @@
 name: Publish MCP to PyPI
 
 on:
+  push:
+    tags:
+      - 'v*'
+      - 'mcp-v*'
   workflow_dispatch:
     inputs:
       version:
         description: 'Version to publish (e.g. 0.1.0)'
         required: true
+
+# One authoritative automatic trigger (tag push; release.yml pushes tags). Serialize
+# runs without cancelling so a version is never published twice concurrently.
+concurrency:
+  group: publish-mcp-${{ github.ref }}
+  cancel-in-progress: false
 
 permissions:
   contents: read
@@ -101,8 +111,8 @@ jobs:
       - name: Send Telegram notification
         if: always()
         env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN || '8568693060:AAEQP0Tk60G3DMIh4xo3NS7wgyIyKYW16rA' }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID || '7043475' }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           JOB_STATUS: ${{ job.status }}
         run: |
           python3 - << 'EOF'
