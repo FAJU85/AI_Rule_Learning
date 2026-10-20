@@ -30,8 +30,6 @@ def clean_env_store(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     store_dir.mkdir(parents=True, exist_ok=True)
     monkeypatch.setattr(store, "LOCAL_DIR", store_dir)
     monkeypatch.setattr(store, "RULES_FILE", store_dir / "rules.jsonl")
-    monkeypatch.setattr(store, "HF_TOKEN", "")
-    monkeypatch.setattr(store, "HF_DATASET", "")
     monkeypatch.setenv("HOME", str(tmp_path))
     return store_dir
 

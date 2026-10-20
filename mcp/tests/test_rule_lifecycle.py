@@ -21,8 +21,6 @@ from ai_rule_learning_mcp.store import update_rule_status
 @pytest.fixture(autouse=True)
 def isolated_store(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     monkeypatch.setattr("ai_rule_learning_mcp.store.LOCAL_DIR", tmp_path)
-    monkeypatch.setattr("ai_rule_learning_mcp.store.HF_TOKEN", "")
-    monkeypatch.setattr("ai_rule_learning_mcp.store.HF_DATASET", "")
     return tmp_path
 
 

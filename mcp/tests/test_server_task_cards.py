@@ -15,8 +15,6 @@ from ai_rule_learning_mcp.skills import get_skill
 def local_store(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     store_dir = tmp_path / "store"
     monkeypatch.setattr("ai_rule_learning_mcp.store.LOCAL_DIR", store_dir)
-    monkeypatch.setattr("ai_rule_learning_mcp.store.HF_TOKEN", "")
-    monkeypatch.setattr("ai_rule_learning_mcp.store.HF_DATASET", "")
     return store_dir
 
 

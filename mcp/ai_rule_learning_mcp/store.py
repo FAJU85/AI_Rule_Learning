@@ -1,8 +1,8 @@
-"""Read and write rules/conversations — local-first, HF optional.
+"""Read and write rules/conversations — local-first, remote optional.
 
 Priority:
   1. Local storage at ~/.ai-rule-learning/ (always works, no config)
-  2. HuggingFace dataset (sync/backup when HF_TOKEN + ARL_DATASET are set)
+  2. Cloudflare R2 bucket (sync/backup when R2_BUCKET + credentials are set)
 """
 
 from __future__ import annotations
@@ -21,8 +21,9 @@ from .injection import is_prompt_injection
 
 _log = logging.getLogger(__name__)
 
-HF_DATASET = os.environ.get("ARL_DATASET", "")
-HF_TOKEN = os.environ.get("HF_TOKEN", "")
+# Remote sync backend is a Cloudflare R2 bucket (S3-compatible). Connection
+# settings are read at call time from the environment (see ``_r2_config``);
+# credentials must be supplied via secrets and are never hardcoded.
 
 # ── Local storage ──────────────────────────────────────────────────────────
 _INITIAL_HOME = Path.home()
@@ -203,38 +204,63 @@ def _local_save(filename: str, records: list[dict]) -> None:
     os.replace(tmp_path, target)
 
 
-def _hf_api():
+def _r2_config() -> dict[str, str]:
+    """Resolve Cloudflare R2 connection settings from the environment (call time)."""
+    account = os.environ.get("R2_ACCOUNT_ID", "") or os.environ.get("CLOUDFLARE_ACCOUNT_ID", "")
+    endpoint = os.environ.get("R2_ENDPOINT", "") or (
+        f"https://{account}.r2.cloudflarestorage.com" if account else ""
+    )
+    return {
+        "bucket": os.environ.get("R2_BUCKET", ""),
+        "access_key": os.environ.get("R2_ACCESS_KEY_ID", ""),
+        "secret_key": os.environ.get("R2_SECRET_ACCESS_KEY", ""),
+        "endpoint": endpoint,
+        "prefix": os.environ.get("R2_PREFIX", ""),
+    }
+
+
+def remote_enabled() -> bool:
+    """True when R2 is fully configured, so uploads/downloads use the bucket."""
+    c = _r2_config()
+    return bool(c["bucket"] and c["access_key"] and c["secret_key"] and c["endpoint"])
+
+
+def hf_enabled() -> bool:
+    """Backwards-compatible alias; the remote backend is now Cloudflare R2."""
+    return remote_enabled()
+
+
+def _r2_client():
+    """Return a boto3 S3 client pointed at R2, or None if unavailable."""
+    c = _r2_config()
+    if not (c["access_key"] and c["secret_key"] and c["endpoint"]):
+        return None
     try:
         import importlib
 
-        hf = importlib.import_module("huggingface_hub")
-        return hf.HfApi(token=HF_TOKEN)
+        boto3 = importlib.import_module("boto3")
+        return boto3.client(
+            "s3",
+            endpoint_url=c["endpoint"],
+            aws_access_key_id=c["access_key"],
+            aws_secret_access_key=c["secret_key"],
+            region_name="auto",
+        )
     except Exception:
         return None
 
 
 def _download(filename: str) -> list[dict]:
-    """Load from HF if configured, otherwise fall back to local storage."""
-    if HF_DATASET and HF_TOKEN:
+    """Load from the R2 bucket if configured, otherwise fall back to local storage."""
+    if remote_enabled():
         try:
-            import importlib
-
-            hf = importlib.import_module("huggingface_hub")
-
-            # nosec B615 — HF_DATASET is the user's own backup dataset; the
-            # channel is intentionally the mutable `main` branch (latest backup),
-            # so pinning to an immutable commit is not desirable here.
-            path = hf.hf_hub_download(  # nosec B615
-                repo_id=HF_DATASET,
-                filename=filename,
-                repo_type="dataset",
-                revision="main",
-                token=HF_TOKEN,
-                force_download=True,
-            )
-            out: list[dict] = []
-            with open(path, encoding="utf-8", errors="ignore") as f:
-                for ln in f:
+            client = _r2_client()
+            if client is not None:
+                c = _r2_config()
+                obj = client.get_object(Bucket=c["bucket"], Key=c["prefix"] + filename)
+                body = obj["Body"].read().decode("utf-8", errors="ignore")
+                out: list[dict] = []
+                for ln in body.splitlines():
                     ln = ln.strip()
                     if not ln:
                         continue
@@ -244,32 +270,28 @@ def _download(filename: str) -> list[dict]:
                             out.append(rec)
                     except Exception:
                         continue
-            return out
+                return out
         except Exception:
+            # Missing key (fresh bucket) or transient error → use local copy.
             pass
     return _local_load(filename)
 
 
-def hf_enabled() -> bool:
-    """True when both an HF dataset and token are configured (uploads will happen)."""
-    return bool(HF_DATASET and HF_TOKEN)
-
-
 def _upload(filename: str, records: list[dict]) -> None:
-    """Save to local storage always; also push to HF if configured."""
+    """Save to local storage always; also push to the R2 bucket if configured."""
     _local_save(filename, records)
-    if not HF_DATASET or not HF_TOKEN:
+    if not remote_enabled():
         return
     content = "\n".join(json.dumps(r, ensure_ascii=False) for r in records) + "\n"
     try:
-        api = _hf_api()
-        if api is not None:
-            api.upload_file(
-                path_or_fileobj=content.encode(),
-                path_in_repo=filename,
-                repo_id=HF_DATASET,
-                repo_type="dataset",
-                commit_message=f"mcp: update {filename}",
+        client = _r2_client()
+        if client is not None:
+            c = _r2_config()
+            client.put_object(
+                Bucket=c["bucket"],
+                Key=c["prefix"] + filename,
+                Body=content.encode("utf-8"),
+                ContentType="application/x-ndjson",
             )
     except Exception:
         pass

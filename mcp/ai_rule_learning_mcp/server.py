@@ -53,7 +53,7 @@ from .store import _local_save
 from .store import append_conversations
 from .store import auto_activate_pending_rules
 from .store import edit_rule_metadata
-from .store import hf_enabled
+from .store import remote_enabled
 from .store import is_already_processed
 from .store import list_rules as store_list_rules
 from .store import load_active_rules
@@ -1318,15 +1318,15 @@ async def _sync_sessions(
         else:
             log.append("ℹ️  All detected patterns already have rules")
 
-    # ── HF upload (optional) ───────────────────────────────────────────────
+    # ── Remote upload (optional, Cloudflare R2) ────────────────────────────
     added = 0 if dry_run else append_conversations(all_conversations)
     if dry_run and all_conversations:
         log.append(f"🔎 Dry run: would save {len(all_conversations)} conversation(s) locally")
     if added:
-        if hf_enabled():
-            log.append(f"⬆️  Uploaded {added} new conversation(s) to HF dataset")
+        if remote_enabled():
+            log.append(f"⬆️  Uploaded {added} new conversation(s) to the R2 bucket")
         else:
-            log.append(f"💾 Saved {added} new conversation(s) locally (no HF token — upload skipped)")
+            log.append(f"💾 Saved {added} new conversation(s) locally (R2 not configured — upload skipped)")
 
     if contribute and dry_run:
         log.append("🔎 Dry run: would evaluate anonymised community contribution eligibility")
