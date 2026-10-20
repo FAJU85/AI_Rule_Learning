@@ -375,7 +375,7 @@ def write_rules_all(
     from .memory import build_memory_block
     from .skills import build_skills_index
 
-    target_dir = Path(project_dir or cwd) if (project_dir or cwd) else None
+    target_dir = Path(project_dir) if project_dir else (Path(cwd) if cwd else None)
     orig_cwd = os.getcwd()
 
     try:
@@ -406,7 +406,7 @@ def write_memory_all(
     """Write only the memory block to every detected agent config."""
     from .memory import build_memory_block
 
-    target_dir = Path(project_dir or cwd) if (project_dir or cwd) else None
+    target_dir = Path(project_dir) if project_dir else (Path(cwd) if cwd else None)
     orig_cwd = os.getcwd()
 
     try:
@@ -438,7 +438,7 @@ def write_skills_all(
     """Write only the skills index block to every detected agent config."""
     from .skills import build_skills_index
 
-    target_dir = Path(project_dir or cwd) if (project_dir or cwd) else None
+    target_dir = Path(project_dir) if project_dir else (Path(cwd) if cwd else None)
     orig_cwd = os.getcwd()
 
     try:
@@ -467,7 +467,7 @@ def remove_rules_all(
     cwd: Path | str | None = None,
 ) -> list[str]:
     """Remove both rules and memory sections from all targets."""
-    target_dir = Path(project_dir or cwd) if (project_dir or cwd) else None
+    target_dir = Path(project_dir) if project_dir else (Path(cwd) if cwd else None)
     orig_cwd = os.getcwd()
 
     try:

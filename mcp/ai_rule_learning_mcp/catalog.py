@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+from datetime import UTC
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -277,7 +278,6 @@ class RuleCatalog:
         scored_candidates: list[tuple[float, dict[str, Any], str]] = []
 
         for r in self.rules:
-            gt = r.get("gap_type") or r.get("id", "unknown")
             trigger_if = r.get("trigger_if", {})
             exclude_if = r.get("exclude_if", {})
 
@@ -365,8 +365,8 @@ class RuleCatalog:
                 for r in selected_rules
             ]
             active_data = {
-                "selected_at": datetime.utcnow().isoformat() + "Z",
-                "timestamp": datetime.utcnow().isoformat() + "Z",
+                "selected_at": datetime.now(UTC).replace(tzinfo=None).isoformat() + "Z",
+                "timestamp": datetime.now(UTC).replace(tzinfo=None).isoformat() + "Z",
                 "context": context,
                 "token_budget": {
                     "allocated": budget_tokens,

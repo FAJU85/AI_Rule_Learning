@@ -587,7 +587,7 @@ def cmd_metrics(args: list[str]) -> None:
 
 
 def cmd_why(args: list[str]) -> None:
-    from ai_rule_learning_mcp.catalog import RuleCatalog
+    from .catalog import RuleCatalog
 
     cat = RuleCatalog()
     explanations = cat.why()
