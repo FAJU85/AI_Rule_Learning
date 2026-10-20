@@ -5,13 +5,17 @@ on:
     tags:
       - 'v*'
       - 'mcp-v*'
-  release:
-    types: [published]
   workflow_dispatch:
     inputs:
       version:
         description: 'Version to publish (e.g. 0.1.0)'
         required: true
+
+# One authoritative automatic trigger (tag push; release.yml pushes tags). Serialize
+# runs without cancelling so a version is never published twice concurrently.
+concurrency:
+  group: publish-mcp-${{ github.ref }}
+  cancel-in-progress: false
 
 permissions:
   contents: read
