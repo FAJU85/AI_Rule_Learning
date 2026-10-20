@@ -1764,13 +1764,20 @@ def _handle_jsonrpc_message(raw_line: str) -> dict[str, Any] | None:
     if method == "tools/call":
         t_name = params.get("name", "") if isinstance(params, dict) else ""
         t_args = (params.get("arguments") or {}) if isinstance(params, dict) else {}
-        content = asyncio.run(call_tool(t_name, t_args))
+        result = asyncio.run(call_tool(t_name, t_args))
+        # call_tool returns either a plain content list or a (content, isError)
+        # tuple for error results; unpack so stdio requests surface tool errors
+        # instead of crashing the request loop.
+        if isinstance(result, tuple):
+            content, is_error = result
+        else:
+            content, is_error = result, False
         return {
             "jsonrpc": "2.0",
             "id": msg_id,
             "result": {
                 "content": [c.model_dump() for c in content],
-                "isError": False,
+                "isError": is_error,
             },
         }
 
