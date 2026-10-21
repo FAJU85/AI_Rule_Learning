@@ -16,9 +16,9 @@ def test_dependency_upper_bounds_present():
         data = tomllib.load(f)
 
     deps = data.get("project", {}).get("dependencies", [])
-    assert len(deps) >= 4, f"Expected at least 4 dependencies, got {len(deps)}"
+    assert len(deps) >= 3, f"Expected at least 3 dependencies, got {len(deps)}"
 
-    required_pinned_packages = ["mcp", "pydantic", "anyio", "huggingface-hub"]
+    required_pinned_packages = ["mcp", "pydantic", "anyio"]
 
     for pkg in required_pinned_packages:
         matching = [d for d in deps if d.startswith(pkg)]

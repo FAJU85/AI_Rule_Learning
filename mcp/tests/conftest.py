@@ -27,6 +27,7 @@ def _isolate_remote_env(monkeypatch: pytest.MonkeyPatch) -> None:
     ):
         monkeypatch.delenv(var, raising=False)
 
+
 try:  # pragma: no cover - used only when the real MCP SDK is installed
     import mcp.server  # noqa: F401
     import mcp.types  # noqa: F401
@@ -91,21 +92,5 @@ except ModuleNotFoundError:  # pragma: no cover - local test environment fallbac
     sys.modules["mcp.types"] = types_mod
 
 
-try:  # pragma: no cover - used only when optional dependency is installed
-    import huggingface_hub  # noqa: F401
-except ModuleNotFoundError:  # pragma: no cover - local test environment fallback
-    hf_mod = types.ModuleType("huggingface_hub")
-
-    def hf_hub_download(*args: Any, **kwargs: Any) -> str:
-        raise RuntimeError("huggingface_hub test fallback: hf_hub_download was not patched")
-
-    class HfApi:
-        def __init__(self, *args: Any, **kwargs: Any) -> None:
-            pass
-
-        def upload_file(self, *args: Any, **kwargs: Any) -> None:
-            return None
-
-    hf_mod.hf_hub_download = hf_hub_download
-    hf_mod.HfApi = HfApi
-    sys.modules["huggingface_hub"] = hf_mod
+# Hugging Face has been fully removed; the community layer talks only to the
+# R2-backed Workers over HTTP, so no huggingface_hub stub is registered here.
