@@ -33,7 +33,7 @@ genuinely better and simpler.
 ## 2. What was done in the investigation
 
 - Fixed CI/CD red→green (PR #271) and migrated storage HF→Cloudflare R2 (PR #272);
-  scrubbed hard-coded secrets. *(Scaffolding, not product value.)*
+  scrubbed hard-coded secrets. _(Scaffolding, not product value.)_
 - Ran a real, independent QA harness (owner-authored): installs the published PyPI wheel,
   verifies its SHA against PyPI, drives the real MCP server over stdio, and benchmarks a
   real LLM with a **length-matched placebo control**.
@@ -48,13 +48,13 @@ genuinely better and simpler.
 
 Phase C behavioural benchmark (OpenRouter `gpt-4o-mini`, one task family, small N):
 
-| Condition | Input tokens | Rule compliance |
-|---|---|---|
-| cold (no rules) | 0 | 3/12 |
-| **manual** (4-line hand-written note) | **102** | **12/12** |
-| placebo (length-matched filler) | 435 | 3/12 |
-| **mcp** (tool's rule text) | **409** | **12/12** |
-| **auto** (tool's *auto-learned* rules) | **494** | **3/12** |
+| Condition                              | Input tokens | Rule compliance |
+| -------------------------------------- | ------------ | --------------- |
+| cold (no rules)                        | 0            | 3/12            |
+| **manual** (4-line hand-written note)  | **102**      | **12/12**       |
+| placebo (length-matched filler)        | 435          | 3/12            |
+| **mcp** (tool's rule text)             | **409**      | **12/12**       |
+| **auto** (tool's _auto-learned_ rules) | **494**      | **3/12**        |
 
 Three facts:
 
@@ -106,10 +106,10 @@ is the 40% that functions.
 
 Investigated by reading the owner's fork `FAJU85/agent-beacon_faju85` directly.
 
-- **Fork status:** clean, unmodified mirror, *behind* upstream (`99c7090` vs `77e3f98`).
+- **Fork status:** clean, unmodified mirror, _behind_ upstream (`99c7090` vs `77e3f98`).
   Every commit author is asymptote-labs + their bots; **no owner commits**. "Building on
   beacon" = tracking upstream; there is nothing in the fork to preserve.
-- **Extraction (the part ARL fails):** *not an algorithm — a prompt.* An external evaluator
+- **Extraction (the part ARL fails):** _not an algorithm — a prompt._ An external evaluator
   returns **probabilities only** ("it does not say what the lesson is. You write the lesson,
   from the trace, and the user approves it"). The **LLM drafts the lesson from the real
   trace events**, must **cite event numbers**, and is constrained by a rubric
@@ -131,21 +131,21 @@ Investigated by reading the owner's fork `FAJU85/agent-beacon_faju85` directly.
 
 ## 5. Head-to-head
 
-| Dimension | Beacon | ARL |
-|---|---|---|
-| Learns the *specific* rule | ✅ LLM drafts from trace, cited | ❌ template, discards input |
-| Human review before trust | ✅ mandatory | ❌ auto `is_active` |
-| Storage | ✅ 3-stage SQLite + supersede | ⚠️ JSONL, slot collisions drop input |
-| Delivery / token cost | ✅ recall on demand | ❌ inject all rules every session |
-| Capture | ✅ cross-harness OTel+hooks (daemon) | ⚠️ reads Claude JSONL on demand |
-| Auto PII scrub (outbound) | ⚠️ bounded projection + human gate | ✅ automatic scrubber |
-| External dependency | ⚠️ default evaluator = paid 3rd-party (optional/pluggable) | ✅ none (R2 now) |
-| Maturity | ✅ high | ⚠️ 0.2.4, small |
-| Zero-infra minimalism | ❌ runs a daemon | ✅ (its one real edge) |
+| Dimension                  | Beacon                                                     | ARL                                  |
+| -------------------------- | ---------------------------------------------------------- | ------------------------------------ |
+| Learns the _specific_ rule | ✅ LLM drafts from trace, cited                            | ❌ template, discards input          |
+| Human review before trust  | ✅ mandatory                                               | ❌ auto `is_active`                  |
+| Storage                    | ✅ 3-stage SQLite + supersede                              | ⚠️ JSONL, slot collisions drop input |
+| Delivery / token cost      | ✅ recall on demand                                        | ❌ inject all rules every session    |
+| Capture                    | ✅ cross-harness OTel+hooks (daemon)                       | ⚠️ reads Claude JSONL on demand      |
+| Auto PII scrub (outbound)  | ⚠️ bounded projection + human gate                         | ✅ automatic scrubber                |
+| External dependency        | ⚠️ default evaluator = paid 3rd-party (optional/pluggable) | ✅ none (R2 now)                     |
+| Maturity                   | ✅ high                                                    | ⚠️ 0.2.4, small                      |
+| Zero-infra minimalism      | ❌ runs a daemon                                           | ✅ (its one real edge)               |
 
 **ARL's only surviving advantages:** zero-daemon minimalism (P2/P5 for one harness) and
-automatic outbound PII scrubbing. Everything that makes it a *learning* tool, beacon does
-better — and does it with a markdown prompt + SQLite, i.e. *less* code, not more
+automatic outbound PII scrubbing. Everything that makes it a _learning_ tool, beacon does
+better — and does it with a markdown prompt + SQLite, i.e. _less_ code, not more
 (ARL invested a Python classifier precisely where beacon invested a prompt).
 
 ---
@@ -169,7 +169,7 @@ with less maturity.
 
 - If running a local daemon is acceptable → **Option A.** Highest result for least new work.
 - If zero-infrastructure is a hard requirement → **Option B**, and own the narrow niche
-  beacon over-serves (solo dev, one harness, no daemon). Borrow beacon's *method* wholesale;
+  beacon over-serves (solo dev, one harness, no daemon). Borrow beacon's _method_ wholesale;
   keep ARL's auto PII scrubber.
 - **Regardless of A/B/C, fix the F11 correction-dropping bug now.** A tool whose pitch is
   "learn my corrections" that silently discards them is actively harmful, and the fix is
@@ -180,8 +180,8 @@ with less maturity.
 ## 8. Honest notes on process
 
 - Early in the investigation the reviewer oscillated (proposed a SQLite layer, then
-  retracted it). The correction was the owner's discipline: *objectives → test against
-  objectives → QA → then solutions*. The lesson retained: with this project the default move
+  retracted it). The correction was the owner's discipline: _objectives → test against
+  objectives → QA → then solutions_. The lesson retained: with this project the default move
   is **subtract and verify**, not add.
 - An earlier claim that beacon was an "enforcement / zero-token / rubric-gate" tool was
   **wrong** and is corrected here: beacon is an observability-first memory layer.
