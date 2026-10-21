@@ -8,28 +8,21 @@ from __future__ import annotations
 import json
 import os
 import tempfile
-from unittest.mock import MagicMock, patch
-
-import pytest
-
+from unittest.mock import patch
 
 # ---------------------------------------------------------------------------
 # fetch_community_patterns
 # ---------------------------------------------------------------------------
 
+
 def test_fetch_community_patterns_no_token():
-    """A clean environment with no HF_TOKEN retrieves community templates successfully (Item G)."""
+    """A clean environment with no credentials retrieves community templates successfully (Item G)."""
     import ai_rule_learning_mcp.community as community
 
-    original = community.HF_TOKEN
-    community.HF_TOKEN = ""
-    try:
-        result = community.fetch_community_patterns()
-        # Successfully retrieves patterns from bundled/cached corpus without requiring credentials
-        assert isinstance(result, dict)
-        assert len(result) > 0
-    finally:
-        community.HF_TOKEN = original
+    result = community.fetch_community_patterns()
+    # Successfully retrieves patterns from bundled/cached corpus without requiring credentials
+    assert isinstance(result, dict)
+    assert len(result) > 0
 
 
 def test_fetch_community_patterns_aggregates():
@@ -66,22 +59,23 @@ def test_fetch_community_patterns_aggregates():
 
     import ai_rule_learning_mcp.community as community
 
-    original_token = community.HF_TOKEN
-    community.HF_TOKEN = "fake-token"
-    try:
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", delete=False) as f:
-            f.write(jsonl)
-            tmp_path = f.name
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", delete=False) as f:
+        f.write(jsonl)
+        tmp_path = f.name
 
-        with patch("huggingface_hub.hf_hub_download", return_value=tmp_path):
-            result = community.fetch_community_patterns()
+    # Offline file override replaces the former Hugging Face mock: fetch reads the
+    # local contributions file instead of hitting the network.
+    original_file = community.COMMUNITY_CONTRIBUTIONS_FILE
+    community.COMMUNITY_CONTRIBUTIONS_FILE = tmp_path
+    try:
+        result = community.fetch_community_patterns()
     finally:
-        community.HF_TOKEN = original_token
+        community.COMMUNITY_CONTRIBUTIONS_FILE = original_file
         os.unlink(tmp_path)
 
     assert "explicit_correction" in result
     ec = result["explicit_correction"]
-    assert ec["count"] == 4          # 2 + 1 + 1
+    assert ec["count"] == 4  # 2 + 1 + 1
     assert ec["unique_sources"] == 3  # aaa, bbb, ccc
     assert "actually," in ec["top_signals"]
     assert "no," in ec["top_signals"]
@@ -90,6 +84,7 @@ def test_fetch_community_patterns_aggregates():
 # ---------------------------------------------------------------------------
 # build_community_templates
 # ---------------------------------------------------------------------------
+
 
 def test_build_community_templates_threshold():
     """Only gap_types with unique_sources >= min_sources generate templates."""
@@ -100,13 +95,8 @@ def test_build_community_templates_threshold():
 
     import ai_rule_learning_mcp.community as community
 
-    original_token = community.HF_TOKEN
-    community.HF_TOKEN = "fake-token"
-    try:
-        with patch.object(community, "fetch_community_patterns", return_value=freq):
-            templates = community.build_community_templates(min_sources=3)
-    finally:
-        community.HF_TOKEN = original_token
+    with patch.object(community, "fetch_community_patterns", return_value=freq):
+        templates = community.build_community_templates(min_sources=3)
 
     gap_types = [t["gap_type"] for t in templates]
     assert "explicit_correction" in gap_types
@@ -125,13 +115,8 @@ def test_build_community_templates_enhances_builtin():
 
     import ai_rule_learning_mcp.community as community
 
-    original_token = community.HF_TOKEN
-    community.HF_TOKEN = "fake-token"
-    try:
-        with patch.object(community, "fetch_community_patterns", return_value=freq):
-            templates = community.build_community_templates(min_sources=3)
-    finally:
-        community.HF_TOKEN = original_token
+    with patch.object(community, "fetch_community_patterns", return_value=freq):
+        templates = community.build_community_templates(min_sources=3)
 
     assert len(templates) == 1
     tpl = templates[0]
@@ -155,13 +140,8 @@ def test_build_community_templates_new_type():
 
     import ai_rule_learning_mcp.community as community
 
-    original_token = community.HF_TOKEN
-    community.HF_TOKEN = "fake-token"
-    try:
-        with patch.object(community, "fetch_community_patterns", return_value=freq):
-            templates = community.build_community_templates(min_sources=3)
-    finally:
-        community.HF_TOKEN = original_token
+    with patch.object(community, "fetch_community_patterns", return_value=freq):
+        templates = community.build_community_templates(min_sources=3)
 
     assert len(templates) == 1
     assert templates[0]["source"] == "community_new"
@@ -171,6 +151,7 @@ def test_build_community_templates_new_type():
 # ---------------------------------------------------------------------------
 # load_community_templates + detect_gaps RAG augmentation
 # ---------------------------------------------------------------------------
+
 
 def test_load_community_templates_rag_detection():
     """After loading community templates, detect_gaps finds matches via community triggers."""
@@ -211,6 +192,7 @@ def test_load_community_templates_rag_detection():
 # ---------------------------------------------------------------------------
 # pull_community_templates — error path
 # ---------------------------------------------------------------------------
+
 
 def test_pull_community_templates_empty_on_error():
     """Returns [] when CDN fails and fallback_to_bundled is disabled."""

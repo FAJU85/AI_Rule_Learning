@@ -14,3 +14,9 @@ bucket_name = "arl-contributions"
 [[r2_buckets]]
 binding = "PUBLIC_TEMPLATES_BUCKET"
 bucket_name = "arl-templates"
+
+# Promoted, QA'd community-rules catalog (public read). Create before deploy:
+#   npx wrangler r2 bucket create arl-community-rules
+[[r2_buckets]]
+binding = "COMMUNITY_RULES_BUCKET"
+bucket_name = "arl-community-rules"

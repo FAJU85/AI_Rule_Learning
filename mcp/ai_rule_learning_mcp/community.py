@@ -26,21 +26,29 @@ from .store import scrub_pii
 
 _log = logging.getLogger(__name__)
 
-COMMUNITY_DATASET = "vooom/AI_Rule_Learning_Community"
-_HF_REVISION = "main"
-
-# Optional token for legacy/administrative sync if specified, but NEVER required for read or contribution
-HF_TOKEN = os.environ.get("HF_TOKEN", "")
-
-# Endpoints for Cloudflare Worker Relay & R2 CDN
+# Storage backend: three Cloudflare R2 buckets, reached only over HTTP via the
+# relay/aggregator Workers. The client never holds R2 credentials and never
+# requires a token for read or contribution.
+#   arl-contributions   raw contributions (relay writes; private)
+#   arl-templates       derived templates (aggregator serves; public read)
+#   arl-community-rules promoted, QA'd catalog (aggregator serves; public read)
+# Read path: COMMUNITY_RULES_URL (promoted catalog) -> COMMUNITY_CDN_URL (templates)
+# -> local cache -> bundled rules. Write path: COMMUNITY_RELAY_URL.
 COMMUNITY_CDN_URL = os.environ.get(
     "COMMUNITY_CDN_URL",
     "https://ai-rule-learning-aggregator.ee-ee455.workers.dev/templates.jsonl",
 )
+# Promoted community-rules catalog (R2 bucket: arl-community-rules). Empty by
+# default so the client stays non-breaking until the aggregator route and bucket
+# are deployed; set it to the aggregator's community-rules endpoint to activate.
+COMMUNITY_RULES_URL = os.environ.get("COMMUNITY_RULES_URL", "")
 COMMUNITY_RELAY_URL = os.environ.get(
     "COMMUNITY_RELAY_URL",
     "https://ai-rule-learning-relay.ee-ee455.workers.dev/api/contribute",
 )
+# Optional offline/local contributions file (tests, air-gapped use). No network,
+# no token; takes precedence over the network read when set and present.
+COMMUNITY_CONTRIBUTIONS_FILE = os.environ.get("ARL_COMMUNITY_CONTRIBUTIONS_FILE", "")
 MAX_PAYLOAD_BYTES = 64 * 1024  # 64 KB maximum payload limit
 
 # Aliases for static analysis discovery (C0.3, C0.4)
@@ -137,7 +145,11 @@ def normalize_contribution_payload(item: dict[str, Any]) -> dict[str, Any]:
     raw_signal = str(
         item.get("pattern")
         or item.get("signal")
-        or (item.get("trigger", {}).get("keywords", [gap_type])[0] if isinstance(item.get("trigger"), dict) else gap_type)
+        or (
+            item.get("trigger", {}).get("keywords", [gap_type])[0]
+            if isinstance(item.get("trigger"), dict)
+            else gap_type
+        )
     )
     raw_example = str(
         item.get("example")
@@ -255,17 +267,19 @@ def contribute_rules(rules: list[dict], source_hash: str) -> bool:
     gaps_by_type: dict[str, list[dict]] = {}
     for r in approved_rules:
         gt = r.get("gap_type") or r.get("slot") or "rule"
-        gaps_by_type.setdefault(gt, []).append({
-            "type": gt,
-            "signal": r.get("instruction", ""),
-            "confidence": float(r.get("confidence", 0.85)),
-            "category": str(r.get("category", "robustness_consistency")),
-        })
+        gaps_by_type.setdefault(gt, []).append(
+            {
+                "type": gt,
+                "signal": r.get("instruction", ""),
+                "confidence": float(r.get("confidence", 0.85)),
+                "category": str(r.get("category", "robustness_consistency")),
+            }
+        )
     return contribute_gaps(gaps_by_type, source_hash=source_hash)
 
 
 def fetch_community_patterns() -> dict[str, dict]:
-    """Retrieve community patterns without requiring an HF_TOKEN (Item F.1, G).
+    """Retrieve community patterns over HTTP without requiring any token (Item F.1, G).
 
     Fallback chain:
     1. Check if mock/local contributions file exists (for test compatibility).
@@ -278,33 +292,24 @@ def fetch_community_patterns() -> dict[str, dict]:
     """
     records: list[dict] = []
 
-    # Test compatibility: check if hf_hub_download is mocked or test environment provided files
-    try:
-        import sys
+    # Offline / test override: a local contributions file bypasses the network.
+    if COMMUNITY_CONTRIBUTIONS_FILE:
+        local = Path(COMMUNITY_CONTRIBUTIONS_FILE)
+        if local.exists():
+            try:
+                records = _parse_jsonl_lines(local.read_text(encoding="utf-8", errors="ignore").splitlines())
+            except Exception:
+                pass
 
-        if "huggingface_hub" in sys.modules:
-            hf = sys.modules["huggingface_hub"]
-            if hasattr(hf, "hf_hub_download"):
-                try:
-                    path = hf.hf_hub_download(
-                        repo_id=COMMUNITY_DATASET,
-                        filename="contributions.jsonl",
-                        repo_type="dataset",
-                        revision=_HF_REVISION,
-                        force_download=True,
-                    )
-                    if path and os.path.exists(path):
-                        records = _parse_jsonl_lines(Path(path).read_text(encoding="utf-8", errors="ignore").splitlines())
-                except Exception:
-                    pass
-    except Exception:
-        pass
-
-    # If no mock records, fetch from CDN
-    if not records and COMMUNITY_CDN_URL:
+    # Fetch over HTTP from the R2-backed Workers: the promoted community-rules
+    # catalog first (arl-community-rules), then derived templates (arl-templates).
+    # No token required; successful reads are cached locally.
+    for url in (COMMUNITY_RULES_URL, COMMUNITY_CDN_URL):
+        if records or not url:
+            continue
         try:
             req = urllib.request.Request(
-                COMMUNITY_CDN_URL,
+                url,
                 headers={"User-Agent": "ai-rule-learning-mcp"},
                 method="GET",
             )
@@ -318,7 +323,7 @@ def fetch_community_patterns() -> dict[str, dict]:
                     except Exception:
                         pass
         except Exception as exc:
-            _log.debug("CDN read failed, trying cache: %s", exc)
+            _log.debug("Community read from %s failed: %s", url, exc)
 
     # Fallback to local cache if CDN was unreachable
     if not records:
