@@ -1,14 +1,14 @@
 language: en-US
 early_access: false
+# CodeRabbit auto-review is disabled for this repository. Reviews, the review
+# status check, summaries, and chat auto-replies are all turned off so the bot
+# does not comment on or gate pull requests.
 reviews:
-  profile: assertive
-  request_changes_workflow: false
-  high_level_summary: true
+  auto_review:
+    enabled: false
+  review_status: false
+  high_level_summary: false
   poem: false
-  review_status: true
   collapse_walkthrough: true
-  path_filters:
-    - '!node_modules/**'
-    - '!coverage.xml'
 chat:
-  auto_reply: true
+  auto_reply: false

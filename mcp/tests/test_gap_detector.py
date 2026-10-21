@@ -196,6 +196,30 @@ class TestGenerateRules:
         rules = generate_rules(gaps)
         assert rules[0]["evidence"] == [snippet]
 
+    def test_evidence_scoped_to_single_session(self):
+        # Two sessions trigger the same gap type with distinct corrections; the
+        # generated rule's evidence must come from one session, not a mix.
+        convs = [
+            {
+                "conversation_id": "sess-a",
+                "turns": [{"user_input": "that's wrong, use type hints", "agent_response": "ok"}],
+            },
+            {
+                "conversation_id": "sess-b",
+                "turns": [{"user_input": "that's wrong, use parameterized queries", "agent_response": "ok"}],
+            },
+        ]
+        rules = analyze_conversations(convs)
+        corr = [r for r in rules if r["gap_type"] == "explicit_correction"]
+        assert corr, "an explicit_correction rule should be generated"
+        joined = " ".join(corr[0]["evidence"])
+        assert corr[0]["evidence"], "evidence should not be empty"
+        assert not ("type hints" in joined and "parameterized queries" in joined), (
+            f"evidence co-mingled sessions: {corr[0]['evidence']}"
+        )
+        # Counts still aggregate across both sessions.
+        assert corr[0]["instance_count"] == 2
+
 
 # ── analyze_conversations ──────────────────────────────────────────────────
 
