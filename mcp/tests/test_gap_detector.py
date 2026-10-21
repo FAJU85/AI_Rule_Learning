@@ -7,11 +7,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from ai_rule_learning_mcp.gap_detector import (
-    analyze_conversations,
-    detect_gaps,
-    generate_rules,
-)
+from ai_rule_learning_mcp.gap_detector import analyze_conversations
+from ai_rule_learning_mcp.gap_detector import detect_gaps
+from ai_rule_learning_mcp.gap_detector import generate_rules
 
 
 def _turn(user: str, agent: str = "OK") -> dict:
@@ -19,6 +17,7 @@ def _turn(user: str, agent: str = "OK") -> dict:
 
 
 # ── detect_gaps ────────────────────────────────────────────────────────────
+
 
 class TestDetectGaps:
     def test_explicit_correction_detected(self):
@@ -63,8 +62,10 @@ class TestDetectGaps:
 
     def test_code_with_error_handling_not_flagged(self):
         turns = [
-            _turn("show me db query",
-                  "```python\ndef query(db):\n    try:\n        return db.execute('SELECT *')\n    except Exception as e:\n        raise\n```"),
+            _turn(
+                "show me db query",
+                "```python\ndef query(db):\n    try:\n        return db.execute('SELECT *')\n    except Exception as e:\n        raise\n```",
+            ),
         ]
         gaps = detect_gaps(turns)
         assert "code_no_error_handling" not in gaps
@@ -123,6 +124,7 @@ class TestDetectGaps:
 
 # ── generate_rules ─────────────────────────────────────────────────────────
 
+
 class TestGenerateRules:
     def test_correction_gap_generates_rule(self):
         gaps = {"explicit_correction": [{"turn": 2, "signal": "actually,", "snippet": "..."}]}
@@ -157,8 +159,37 @@ class TestGenerateRules:
         rules = generate_rules(gaps)
         assert rules[0]["instance_count"] == 3
 
+    def test_rule_grounds_in_user_correction_content(self):
+        # Regression for "auto == cold": the generated rule must carry the user's
+        # actual correction, not only the generic template text.
+        snippet = "that's wrong, use parameterized queries not f-strings"
+        gaps = {"explicit_correction": [{"turn": 2, "signal": "wrong", "snippet": snippet}]}
+        rules = generate_rules(gaps)
+        assert len(rules) == 1
+        rule = rules[0]
+        assert "parameterized queries" in rule["instruction"]
+        assert rule["evidence"] == [snippet]
+
+    def test_rule_without_snippet_uses_template_only(self):
+        gaps = {"explicit_correction": [{"turn": 2, "signal": "wrong"}]}
+        rules = generate_rules(gaps)
+        assert rules[0]["evidence"] == []
+        assert "The user said" not in rules[0]["instruction"]
+
+    def test_distinct_snippets_deduplicated_in_evidence(self):
+        snippet = "always use type hints and a -> dict return"
+        gaps = {
+            "explicit_correction": [
+                {"turn": 2, "signal": "wrong", "snippet": snippet},
+                {"turn": 4, "signal": "wrong", "snippet": snippet},
+            ]
+        }
+        rules = generate_rules(gaps)
+        assert rules[0]["evidence"] == [snippet]
+
 
 # ── analyze_conversations ──────────────────────────────────────────────────
+
 
 class TestAnalyzeConversations:
     def test_empty_list_returns_empty(self):
