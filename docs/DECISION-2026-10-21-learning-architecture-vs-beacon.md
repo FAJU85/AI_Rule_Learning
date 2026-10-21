@@ -87,9 +87,15 @@ why `auto = cold`, independent of the benchmark.
 
 ### 3.3 Related defects
 
-- **Bundled seed rules collide with user input.** The package ships 12 always-active rules
-  (`data/bundled_rules.jsonl`) keyed to the same slots users record into; a real correction
-  hits "slot occupied" and is dropped (benchmark F11). There is **no true empty state**.
+- **Bundled seed rules occupy user slots; repeated corrections proliferate.** The package
+  ships 12 always-active rules (`data/bundled_rules.jsonl`) keyed to the same slots users
+  record into, so there is **no true empty state**. A correction to an occupied slot with
+  _different_ content is **not dropped**: `record_feedback` appends it as a new suffixed rule
+  (`<slot>-<hash>`, `server.py:1138`) and returns `SlotOccupied`, and a user-supplied
+  `rule_hint` is preserved. The real cost is proliferation — repeated corrections to one
+  category pile up as near-duplicate slots instead of updating a canonical rule; benchmark
+  F11 failed because a second correction raised the on-disk count 3→4, not because content
+  was lost. (Corrects an earlier draft of this record that said "dropped".)
 - **Delivery injects all active rules every session** (token-heavy; P4 regression).
 - **Doc drift:** server exposes 21 tools; docs/tests referenced 12.
 
@@ -135,7 +141,7 @@ Investigated by reading the owner's fork `FAJU85/agent-beacon_faju85` directly.
 | -------------------------- | ---------------------------------------------------------- | ------------------------------------ |
 | Learns the _specific_ rule | ✅ LLM drafts from trace, cited                            | ❌ template, discards input          |
 | Human review before trust  | ✅ mandatory                                               | ❌ auto `is_active`                  |
-| Storage                    | ✅ 3-stage SQLite + supersede                              | ⚠️ JSONL, slot collisions drop input |
+| Storage                    | ✅ 3-stage SQLite + supersede                              | ⚠️ JSONL; collisions spawn near-dups |
 | Delivery / token cost      | ✅ recall on demand                                        | ❌ inject all rules every session    |
 | Capture                    | ✅ cross-harness OTel+hooks (daemon)                       | ⚠️ reads Claude JSONL on demand      |
 | Auto PII scrub (outbound)  | ⚠️ bounded projection + human gate                         | ✅ automatic scrubber                |
@@ -171,9 +177,11 @@ with less maturity.
 - If zero-infrastructure is a hard requirement → **Option B**, and own the narrow niche
   beacon over-serves (solo dev, one harness, no daemon). Borrow beacon's _method_ wholesale;
   keep ARL's auto PII scrubber.
-- **Regardless of A/B/C, fix the F11 correction-dropping bug now.** A tool whose pitch is
-  "learn my corrections" that silently discards them is actively harmful, and the fix is
-  cheap.
+- **Regardless of A/B/C, the real defect is autonomous extraction, not storage.** The manual
+  `record_feedback` path preserves the user's `rule_hint`; the autonomous `sync` path
+  (`generate_rules`) is what discards content and makes `auto == cold`. Secondary cleanup:
+  slot collisions should update a canonical rule instead of spawning near-duplicate suffixed
+  slots.
 
 ---
 
