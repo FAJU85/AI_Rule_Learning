@@ -174,6 +174,8 @@ class TestGenerateRules:
         gaps = {"explicit_correction": [{"turn": 2, "signal": "wrong"}]}
         rules = generate_rules(gaps)
         assert rules[0]["evidence"] == []
+        # Positive assertion: the template guidance is present (not just absent evidence).
+        assert "acknowledge the specific error" in rules[0]["instruction"]
         assert "The user said" not in rules[0]["instruction"]
 
     def test_distinct_snippets_deduplicated_in_evidence(self):
