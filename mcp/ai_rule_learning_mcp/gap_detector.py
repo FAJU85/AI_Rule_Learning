@@ -448,7 +448,17 @@ def detect_gaps(turns: list[dict]) -> dict[str, list[dict]]:
         has_code = "```" in agent or "def " in agent or "function " in agent
         has_error_handling = any(
             w in agent_lower
-            for w in ["try:", "except", "catch (", "catch{", ".catch(", "raise ", "throws ", "error handling", "exception"]
+            for w in [
+                "try:",
+                "except",
+                "catch (",
+                "catch{",
+                ".catch(",
+                "raise ",
+                "throws ",
+                "error handling",
+                "exception",
+            ]
         )
         if has_code and not has_error_handling:
             gaps.setdefault("code_no_error_handling", []).append({"turn": i + 1})
@@ -563,7 +573,24 @@ def generate_rules(gaps: dict[str, list[dict]]) -> list[dict]:
         slot = tpl.get("slot", tpl["name"])
         anon_hash = hashlib.sha256(f"{gap_type}:{slot}".encode()).hexdigest()[:16]
         ttl_days = int(os.environ.get("ARL_RULE_TTL_DAYS", "365"))
-        clean_instruction = scrub_pii(str(tpl.get("instruction", "")))
+        base_instruction = scrub_pii(str(tpl.get("instruction", "")))
+        # Ground the rule in the specific correction(s) actually observed this
+        # session rather than emitting only the generic template text. Template-only
+        # instructions produced behaviourally inert "auto" rules (2026-10-21 decision
+        # record: auto == cold); surfacing the user's own words makes the rule name
+        # the concrete constraint the user cared about.
+        observed: list[str] = []
+        for inst in instances:
+            snippet = scrub_pii(str(inst.get("snippet", ""))).strip()
+            if snippet and snippet not in observed:
+                observed.append(snippet)
+        if observed:
+            evidence_clause = " ".join(f'The user said: "{s}".' for s in observed[:3])
+            clean_instruction = (
+                f"{base_instruction} Apply this to the specific correction(s) that triggered it — {evidence_clause}"
+            )
+        else:
+            clean_instruction = base_instruction
         clean_triggers = [scrub_pii(str(t)) for t in tpl.get("triggers", [])]
         rules.append(
             {
@@ -575,6 +602,7 @@ def generate_rules(gaps: dict[str, list[dict]]) -> list[dict]:
                 "trigger": {"keywords": clean_triggers},
                 "pattern": clean_triggers[0] if clean_triggers else gap_type,
                 "example": clean_instruction,
+                "evidence": observed[:5],
                 "category": category,
                 "confidence": round(min(0.95, 0.5 + 0.1 * len(instances)), 2),
                 "user_id": f"anon_{anon_hash[:12]}",
