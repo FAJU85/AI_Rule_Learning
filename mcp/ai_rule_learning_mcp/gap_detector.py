@@ -579,8 +579,20 @@ def generate_rules(gaps: dict[str, list[dict]]) -> list[dict]:
         # instructions produced behaviourally inert "auto" rules (2026-10-21 decision
         # record: auto == cold); surfacing the user's own words makes the rule name
         # the concrete constraint the user cared about.
-        observed: list[str] = []
+        # Scope evidence to a single session for provenance: a rule's evidence must
+        # not co-mingle snippets from different sessions (counts still aggregate
+        # across sessions via instance_count). Deterministic choice: the session
+        # contributing the most instances, ties broken by session id.
+        by_session: dict[str, list[dict]] = {}
         for inst in instances:
+            by_session.setdefault(str(inst.get("_session", "local")), []).append(inst)
+        if by_session:
+            chosen_sid = max(by_session, key=lambda s: (len(by_session[s]), s))
+            chosen = by_session[chosen_sid]
+        else:
+            chosen = instances
+        observed: list[str] = []
+        for inst in chosen:
             snippet = scrub_pii(str(inst.get("snippet", ""))).strip()
             if snippet and snippet not in observed:
                 observed.append(snippet)
@@ -652,8 +664,11 @@ def analyze_conversations(conversations: list[dict]) -> list[dict]:
         turns = conv.get("turns", [])
         if not turns:
             continue
+        sid = str(conv.get("conversation_id") or conv.get("session_id") or "local")
         gaps = detect_gaps(turns)
         for gap_type, instances in gaps.items():
+            for inst in instances:
+                inst.setdefault("_session", sid)
             aggregate.setdefault(gap_type, []).extend(instances)
 
     return generate_rules(aggregate)
