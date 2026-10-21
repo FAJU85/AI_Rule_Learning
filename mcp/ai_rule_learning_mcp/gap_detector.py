@@ -619,8 +619,11 @@ def generate_rules(gaps: dict[str, list[dict]]) -> list[dict]:
                 "failure_category_label": _CATEGORY_LABELS.get(category, category),
                 "gap_type": gap_type,
                 "instance_count": len(instances),
-                "is_active": True,
-                "status": "pending",
+                # Review-before-trust: autonomously-learned rules start inactive and
+                # pending review. They activate only via approve_rule (or an opt-in
+                # ARL_AUTO_ACTIVATE sync). Explicit record_feedback overrides this.
+                "is_active": False,
+                "status": "pending_review",
                 "source": "local_detector",
                 "created_at": now,
                 "source_session_id": anon_hash[:16],

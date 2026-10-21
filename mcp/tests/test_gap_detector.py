@@ -132,7 +132,14 @@ class TestGenerateRules:
         assert len(rules) == 1
         assert rules[0]["name"] == "acknowledge-and-correct-immediately"
         assert rules[0]["priority"] == 4
-        assert rules[0]["is_active"] is True
+
+    def test_autonomous_rules_are_pending_review_not_active(self):
+        # Review-before-trust: autonomously-learned rules must not be auto-trusted.
+        gaps = {"explicit_correction": [{"turn": 2, "signal": "wrong", "snippet": "use type hints"}]}
+        rules = generate_rules(gaps)
+        assert rules[0]["is_active"] is False
+        assert rules[0]["status"] == "pending_review"
+        assert rules[0]["review_status"] == "pending"
 
     def test_unknown_gap_type_skipped(self):
         gaps = {"unknown_gap_xyz": [{"turn": 1}]}

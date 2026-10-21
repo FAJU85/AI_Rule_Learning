@@ -127,8 +127,13 @@ def test_sync_journey_end_to_end(session_file, store_dir, agent_config, monkeypa
     # Step 2: detect gaps and generate rules
     rules = analyze_conversations(conversations)
     assert len(rules) >= 1, "at least one rule should be generated from explicit correction"
+    # Review-before-trust: autonomously-learned rules start pending/inactive.
+    assert all(not r["is_active"] for r in rules)
 
-    # Step 3: persist rules locally
+    # Step 3: approve (what approve_rule / ARL_AUTO_ACTIVATE does) then persist
+    for r in rules:
+        r["is_active"] = True
+        r["status"] = "active"
     _local_save("rules.jsonl", rules)
     active = load_active_rules()
     assert len(active) >= 1
@@ -203,6 +208,10 @@ def test_feedback_journey_creates_rule_in_config(store_dir, agent_config, monkey
     gaps = {"explicit_correction": [{"turn": 1, "signal": "correction", "snippet": "No, that's wrong"}]}
     rules = generate_rules(gaps)
     assert rules
+    # Explicit feedback is trusted and activated immediately (as record_feedback does).
+    for r in rules:
+        r["is_active"] = True
+        r["status"] = "active"
 
     existing = _local_load("rules.jsonl")
     _local_save("rules.jsonl", existing + rules)
