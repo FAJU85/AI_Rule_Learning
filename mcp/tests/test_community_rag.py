@@ -19,7 +19,10 @@ def test_fetch_community_patterns_no_token():
     """A clean environment with no credentials retrieves community templates successfully (Item G)."""
     import ai_rule_learning_mcp.community as community
 
-    result = community.fetch_community_patterns()
+    # Disable the network so the test exercises the cache/bundled fallback only,
+    # never an external service.
+    with patch.object(community.urllib.request, "urlopen", side_effect=OSError("network disabled in test")):
+        result = community.fetch_community_patterns()
     # Successfully retrieves patterns from bundled/cached corpus without requiring credentials
     assert isinstance(result, dict)
     assert len(result) > 0

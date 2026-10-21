@@ -292,10 +292,13 @@ def fetch_community_patterns() -> dict[str, dict]:
     """
     records: list[dict] = []
 
-    # Offline / test override: a local contributions file bypasses the network.
+    # Offline / test override: an existing local contributions file bypasses the
+    # network entirely, even if it parses to zero records.
+    local_override_active = False
     if COMMUNITY_CONTRIBUTIONS_FILE:
         local = Path(COMMUNITY_CONTRIBUTIONS_FILE)
         if local.exists():
+            local_override_active = True
             try:
                 records = _parse_jsonl_lines(local.read_text(encoding="utf-8", errors="ignore").splitlines())
             except Exception:
@@ -303,9 +306,10 @@ def fetch_community_patterns() -> dict[str, dict]:
 
     # Fetch over HTTP from the R2-backed Workers: the promoted community-rules
     # catalog first (arl-community-rules), then derived templates (arl-templates).
-    # No token required; successful reads are cached locally.
+    # No token required; successful reads are cached locally. Skipped entirely
+    # when the offline override is active.
     for url in (COMMUNITY_RULES_URL, COMMUNITY_CDN_URL):
-        if records or not url:
+        if local_override_active or records or not url:
             continue
         try:
             req = urllib.request.Request(

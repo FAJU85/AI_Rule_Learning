@@ -59,7 +59,7 @@ Phase C behavioural benchmark (OpenRouter `gpt-4o-mini`, one task family, small 
 Three facts:
 
 1. Good rule text works, and not as a length artifact (`mcp` 12/12 vs `placebo` 3/12 at
-   equal length).
+   roughly matched length — 409 vs 435 tokens on this backend's tokenizer).
 2. ARL is **dominated by a 4-line manual note** (`manual` 12/12 at 102 tok = `mcp` 12/12 at
    409 tok). When the user supplies the rule, the tool adds no quality and costs ~4× the
    tokens — the opposite of P4.
@@ -144,8 +144,8 @@ Investigated by reading the owner's fork `FAJU85/agent-beacon_faju85` directly.
 | Storage                    | ✅ 3-stage SQLite + supersede                              | ⚠️ JSONL; collisions spawn near-dups |
 | Delivery / token cost      | ✅ recall on demand                                        | ❌ inject all rules every session    |
 | Capture                    | ✅ cross-harness OTel+hooks (daemon)                       | ⚠️ reads Claude JSONL on demand      |
-| Auto PII scrub (outbound)  | ⚠️ bounded projection + human gate                         | ✅ automatic scrubber                |
-| External dependency        | ⚠️ default evaluator = paid 3rd-party (optional/pluggable) | ✅ none (R2 now)                     |
+| Auto PII scrub (outbound)  | ⚠️ bounded projection only (review is post-send)           | ✅ automatic scrubber                |
+| External dependency        | ⚠️ default evaluator = paid 3rd-party (optional/pluggable) | ⚠️ own R2 Workers + offline fallback |
 | Maturity                   | ✅ high                                                    | ⚠️ 0.2.4, small                      |
 | Zero-infra minimalism      | ❌ runs a daemon                                           | ✅ (its one real edge)               |
 
