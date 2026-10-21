@@ -1065,6 +1065,10 @@ def record_feedback(
     rule.setdefault("reviewed_by", "user")
     rule.setdefault("reviewed_at", now_iso)
     rule.setdefault("qa_report_id", f"qa_feedback_{hashlib.sha256(now_iso.encode()).hexdigest()[:8]}")
+    # Explicit user feedback is trusted and bypasses the autonomous review gate
+    # (generate_rules now returns inactive, pending-review rules by default).
+    rule["is_active"] = True
+    rule["status"] = "active"
 
     if dry_run:
         return {"status": "DryRun", "rule": rule}
@@ -1315,7 +1319,11 @@ async def _sync_sessions(
                 log.append(f"🔎 Dry run: would generate {len(new_rules)} new rule(s) from detected patterns")
             else:
                 _local_save("rules.jsonl", existing + new_rules)
-                log.append(f"🧠 Generated {len(new_rules)} new rule(s) from detected patterns")
+                log.append(f"🧠 Generated {len(new_rules)} new rule(s) from detected patterns (pending review)")
+                log.append(
+                    "   Review with `approve_rule <id>` / `reject_rule <id>`, "
+                    "or set ARL_AUTO_ACTIVATE=true to auto-activate learned rules."
+                )
         else:
             log.append("ℹ️  All detected patterns already have rules")
 
@@ -1348,9 +1356,11 @@ async def _sync_sessions(
         if contributed:
             log.append(f"🤝 Contributed anonymised patterns from {contributed} session(s)")
 
-    activated = 0 if dry_run else auto_activate_pending_rules()
+    # Review-before-trust: learned rules stay pending unless the user opts in.
+    auto_activate = os.environ.get("ARL_AUTO_ACTIVATE", "false").lower() in ("true", "1", "yes")
+    activated = auto_activate_pending_rules() if (not dry_run and auto_activate) else 0
     if activated:
-        log.append(f"✅ Auto-activated {activated} safe pending rule(s) from the rule store")
+        log.append(f"✅ Auto-activated {activated} safe pending rule(s) (ARL_AUTO_ACTIVATE=true)")
 
     # ── RAG: pull and load community templates ─────────────────────────────
     from .community import pull_community_templates
