@@ -5,6 +5,56 @@ All notable changes to `ai-rule-learning-mcp` are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.5] - 2026-10-22
+
+### Added
+
+- **Grounded rule extraction:** autonomously generated rules now carry the user's
+  actual correction text in a new `evidence` field, instead of discarding it in
+  favour of generic template wording. Fixes the "auto == cold" defect where
+  learned rules were behaviourally inert.
+- **Review-before-trust gate:** autonomously learned rules are created as
+  `pending_review` / inactive and are not written to agent configs until
+  approved. Explicit user feedback (`record_feedback`) remains trusted and is
+  activated immediately. Opt-in auto-activation via the `ARL_AUTO_ACTIVATE`
+  environment variable.
+- **Per-session evidence scoping:** when the same gap type recurs across
+  sessions, a rule's `evidence` is drawn from a single session rather than
+  co-mingling corrections, while instance counts still aggregate across sessions.
+
+### Changed
+
+- **Community rules backend migrated from the Hugging Face dataset to Cloudflare
+  R2.** Reads resolve through an offline override file, then `COMMUNITY_RULES_URL`,
+  then the CDN URL, then cache, then the bundled snapshot. The Hugging Face Space
+  continues to host the core package and dashboard.
+- `sync_sessions` now reports newly generated rules as "(pending review)" with
+  approve/reject guidance.
+
+### Removed
+
+- `huggingface-hub` runtime dependency (community sync no longer requires it).
+
+## [0.2.4] - 2026-10-19
+
+### Added
+
+- `CallToolResult` support with structured error handling in `server.py`.
+- Regression tests for tool feedback logic.
+
+## [0.2.3] - 2026-10-19
+
+### Fixed
+
+- **Packaging defect (ARL-BUG-004):** `active_rules.json` is now always resolved
+  to an absolute path under `~/.ai-rule-learning/`, so relative paths no longer
+  persist in distributed wheels.
+
+### Added
+
+- CI wheel-integrity verification that inspects built wheels for the absolute
+  `_ACTIVE_RULES_PATH` invariant and required catalog data.
+
 ## [0.2.1] - 2026-10-17
 
 ### Fixed
@@ -52,6 +102,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Initial public release: rules, memory, skills, injection, and auto-sync across
   Claude Code, Cursor, Windsurf, and Copilot.
 
+[0.2.5]: https://github.com/faju85/ai_rule_learning/releases/tag/mcp-v0.2.5
+[0.2.4]: https://github.com/faju85/ai_rule_learning/releases/tag/mcp-v0.2.4
+[0.2.3]: https://github.com/faju85/ai_rule_learning/releases/tag/mcp-v0.2.3
+[0.2.1]: https://github.com/faju85/ai_rule_learning/releases/tag/mcp-v0.2.1
 [0.2.0]: https://github.com/faju85/ai_rule_learning/releases/tag/mcp-v0.2.0
 [0.1.1]: https://github.com/faju85/ai_rule_learning/releases/tag/mcp-v0.1.1
 [0.1.0]: https://github.com/faju85/ai_rule_learning/releases/tag/mcp-v0.1.0
