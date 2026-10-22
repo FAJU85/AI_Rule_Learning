@@ -106,7 +106,7 @@ jobs:
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: mcp/dist/
-          attestations: false
+          attestations: true
 
       - name: Send Telegram notification
         if: always()
