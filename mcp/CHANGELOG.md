@@ -5,6 +5,26 @@ All notable changes to `ai-rule-learning-mcp` are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.6] - 2026-10-22
+
+### Changed
+
+- **Faithful correction capture:** autonomously learned rules now carry the
+  user's own correction as an imperative directive (e.g. "you forgot the type
+  hints" → "Always include the type hints."), rather than a generic meta-template
+  with the correction only attached as `evidence`. This is deterministic (no
+  LLM): `distill_directive` strips friction, cuts PII/unrelated tails, and nudges
+  a complaint into an imperative; behavioural corrections keep the user's own
+  phrasing verbatim. Corrections that yield nothing usable fall back to the
+  template, and code-smell gaps (no user utterance) keep their template. Fixes
+  the behaviourally-inert "auto == cold" result the 0.2.5 evidence capture did
+  not resolve on its own.
+
+### Build
+
+- PyPI releases emit PEP 740 provenance attestations again (the publish step had
+  `attestations: false`, which caused a "loss of provenance" warning on 0.2.5).
+
 ## [0.2.5] - 2026-10-22
 
 ### Added
@@ -102,6 +122,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Initial public release: rules, memory, skills, injection, and auto-sync across
   Claude Code, Cursor, Windsurf, and Copilot.
 
+[0.2.6]: https://github.com/faju85/ai_rule_learning/releases/tag/mcp-v0.2.6
 [0.2.5]: https://github.com/faju85/ai_rule_learning/releases/tag/mcp-v0.2.5
 [0.2.4]: https://github.com/faju85/ai_rule_learning/releases/tag/mcp-v0.2.4
 [0.2.3]: https://github.com/faju85/ai_rule_learning/releases/tag/mcp-v0.2.3
