@@ -9,6 +9,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from ai_rule_learning_mcp.gap_detector import analyze_conversations
 from ai_rule_learning_mcp.gap_detector import detect_gaps
+from ai_rule_learning_mcp.gap_detector import distill_directive
 from ai_rule_learning_mcp.gap_detector import generate_rules
 
 
@@ -256,3 +257,66 @@ class TestAnalyzeConversations:
         # Same gap type should produce same rule regardless of how many convs
         names = [r["name"] for r in rules]
         assert len(names) == len(set(names))
+
+
+# ── distill_directive: faithful, deterministic correction -> directive ──────
+
+
+class TestDistillDirective:
+    def test_complaint_becomes_imperative(self):
+        assert distill_directive("you forgot the type hints") == "Always include the type hints."
+
+    def test_didnt_becomes_always(self):
+        assert distill_directive("you didn't use parameterized queries") == "Always use parameterized queries."
+
+    def test_strips_friction_prefix(self):
+        assert distill_directive("that's wrong, use parameterized queries") == "Use parameterized queries."
+
+    def test_already_imperative_kept(self):
+        assert distill_directive("never use f-strings in sql") == "Never use f-strings in sql."
+
+    def test_behavioural_correction_keeps_user_words(self):
+        # The sycophancy-style case: no fixed taxonomy, no LLM — the user's own
+        # phrasing is preserved as the rule.
+        assert distill_directive("stop being so verbose and sycophantic") == (
+            "Stop being so verbose and sycophantic."
+        )
+
+    def test_pii_scrubbed_and_tail_cut(self):
+        out = distill_directive("you forgot the type hints. my email is bob@x.com, token sk-abc123def456")
+        assert "type hints" in out.lower()
+        assert "bob@x.com" not in out and "sk-abc123" not in out
+
+    def test_mid_sentence_as_i_said_removed(self):
+        assert distill_directive("use parameterized queries, as I said before") == "Use parameterized queries."
+
+    def test_friction_only_or_empty_yields_nothing(self):
+        assert distill_directive("that's wrong") == ""
+        assert distill_directive("") == ""
+        assert distill_directive("   ") == ""
+
+
+class TestFaithfulRuleInstruction:
+    def test_correction_rule_carries_user_directive_not_meta(self):
+        snippet = "that's wrong, you forgot the type hints"
+        rules = generate_rules({"explicit_correction": [{"turn": 2, "signal": "wrong", "snippet": snippet}]})
+        inst = rules[0]["instruction"]
+        assert "type hints" in inst.lower()
+        # the generic meta-template must no longer BE the instruction
+        assert "acknowledge the specific error" not in inst
+        assert rules[0]["evidence"] == [snippet]
+
+    def test_behavioural_preference_survives_into_rule(self):
+        snippet = "stop praising me before answering, just give the verdict"
+        rules = generate_rules({"user_preference": [{"turn": 1, "signal": "stop", "snippet": snippet}]})
+        inst = rules[0]["instruction"].lower()
+        assert "verdict" in inst and "praising" in inst
+
+    def test_code_smell_gap_is_not_distilled(self):
+        # code gaps carry a code snippet, never a user utterance -> keep the template,
+        # the raw code must not leak into the instruction.
+        rules = generate_rules(
+            {"code_no_error_handling": [{"turn": 1, "signal": "no try", "snippet": "db.execute('SELECT 1')"}]}
+        )
+        assert rules, "code gap should still produce a rule"
+        assert "db.execute" not in rules[0]["instruction"]

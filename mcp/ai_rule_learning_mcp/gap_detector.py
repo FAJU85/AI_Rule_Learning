@@ -554,6 +554,92 @@ def detect_gaps(turns: list[dict]) -> dict[str, list[dict]]:
     return gaps
 
 
+# ── Faithful correction → directive distillation ───────────────────────────
+# For user-correction gaps we keep the user's OWN words as the rule, lightly
+# normalised to an imperative, instead of swapping in a generic meta-template.
+# This is deterministic (no LLM): the human already identified the problem, so we
+# preserve their phrasing rather than let a model reinterpret (and risk softening)
+# it. Code-smell gaps carry no user utterance and keep their template instruction.
+_PREFERENCE_GAPS = {
+    "explicit_correction",
+    "repeated_context",
+    "user_preference",
+    "repeated_question",
+    "incomplete_response",
+}
+
+# Leading friction/filler that precedes the actual correction.
+_FRICTION_PREFIX = re.compile(
+    r"^(?:\s*(?:no+|nope|wait|um+|uh+|well|hmm+|ok(?:ay)?|hey|sorry|please)\b[\s,.!:;-]*)+"
+    r"|^(?:\s*(?:that'?s|this is|it'?s|you'?re|you are)\s+"
+    r"(?:wrong|incorrect|not right|not correct|mistaken|off)\b[\s,.!:;-]*)+"
+    r"|^(?:\s*(?:actually|again|still|also)\b[\s,.!:;-]*)+"
+    r"|^(?:\s*(?:i\s+already\s+told\s+you(?:\s+to|\s+that)?|as\s+i\s+(?:said|told\s+you)"
+    r"(?:\s+before)?|like\s+i\s+said|i\s+said(?:\s+before)?)\b[\s,.!:;-]*)+",
+    re.I,
+)
+# Mid-sentence "as I said" style noise, removed anywhere in the clause.
+_MIDNOISE = re.compile(
+    r"[,;]?\s*(?:as\s+i\s+said(?:\s+before)?|like\s+i\s+said|i\s+already\s+told\s+you(?:\s+to)?)\b",
+    re.I,
+)
+# Point where the utterance starts leaking unrelated / PII context — cut before it.
+_TAIL = re.compile(
+    r"[.,;]?\s*\b(?:my|the|your)\s+"
+    r"(?:e-?mail|email|token|api\s*key|password|passwd|secret|credential|path|ip|server|address|phone)\b",
+    re.I,
+)
+# Clause that already reads as an instruction — keep it as-is.
+_IMPERATIVE_START = re.compile(
+    r"^(?:use|always|never|don'?t|do\s+not|stop|quit|avoid|prefer|ensure|make\s+sure|"
+    r"return|add|include|write|keep|put|wrap|handle|annotate|format|follow)\b",
+    re.I,
+)
+
+
+def _cap(text: str) -> str:
+    text = re.sub(r"\s{2,}", " ", text).strip(" ,.;:-")
+    if len(text) < 3:
+        return ""
+    text = text[0].upper() + text[1:]
+    return text if text.endswith((".", "!", "?")) else text + "."
+
+
+def distill_directive(snippet: str) -> str:
+    """Turn a user's correction utterance into a short imperative directive using
+    the user's OWN words with minimal, deterministic normalisation.
+
+    No LLM and no semantic rewriting: the human already identified the problem, so
+    this only strips friction ("that's wrong,"), cuts PII/unrelated tails, and
+    nudges a complaint into an imperative. Returns '' when nothing usable remains
+    (the caller then falls back to the generic template instruction).
+    """
+    s = scrub_pii(str(snippet or "")).strip()
+    if not s:
+        return ""
+    s = _TAIL.split(s)[0]
+    prev = None
+    while prev != s:  # peel stacked friction prefixes ("no, that's wrong, ...")
+        prev = s
+        s = _FRICTION_PREFIX.sub("", s).strip()
+    s = _MIDNOISE.sub("", s)
+    s = re.split(r"[.\n?!]", s)[0]
+    s = re.sub(r"\s*,\s*,", ",", s).strip(" ,.;:-")
+    if len(s) < 3:
+        return ""
+    low = s.lower()
+    m = re.match(r"you(?:'?ve)?\s+(?:forgot|missed|skipped|left\s+out)\s+(?:to\s+)?(\S.*)", low)
+    if m:
+        return _cap("Always include " + s[m.start(1):])
+    m = re.match(r"you\s+did\s*n'?t\s+(\S.*)", low)
+    if m:
+        return _cap("Always " + s[m.start(1):])
+    if _IMPERATIVE_START.match(low):
+        return _cap(s)
+    # Fallback: the user's cleaned words, preserved verbatim as the directive.
+    return _cap(s)
+
+
 def generate_rules(gaps: dict[str, list[dict]]) -> list[dict]:
     """Convert gap findings into rule dicts, one per gap type (with PII scrubbing and unified schema)."""
     rules = []
@@ -596,13 +682,19 @@ def generate_rules(gaps: dict[str, list[dict]]) -> list[dict]:
             snippet = scrub_pii(str(inst.get("snippet", ""))).strip()
             if snippet and snippet not in observed:
                 observed.append(snippet)
-        if observed:
-            evidence_clause = " ".join(f'The user said: "{s}".' for s in observed[:3])
-            clean_instruction = (
-                f"{base_instruction} Apply this to the specific correction(s) that triggered it — {evidence_clause}"
-            )
-        else:
-            clean_instruction = base_instruction
+        # Faithful capture: for user-correction gaps the rule instruction IS the
+        # user's own correction, distilled to an imperative (deterministic, no LLM),
+        # not a generic meta-template. Falls back to the template when nothing
+        # usable can be extracted, and for code-smell gaps that carry no utterance.
+        # The template name/slot are kept so dedup and review stay stable; only the
+        # injected instruction becomes the user's concrete directive.
+        clean_instruction = base_instruction
+        if gap_type in _PREFERENCE_GAPS:
+            for snip in observed:
+                directive = distill_directive(snip)
+                if directive:
+                    clean_instruction = directive
+                    break
         clean_triggers = [scrub_pii(str(t)) for t in tpl.get("triggers", [])]
         rules.append(
             {
