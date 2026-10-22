@@ -5,53 +5,22 @@ on:
     branches: [main]
     paths:
       - 'space/**'
-      - 'scripts/blue_green.py'
       - '.github/workflows/deploy-space.yml'
   workflow_dispatch:
-    inputs:
-      live_color:
-        description: Current production color before this run
-        required: true
-        default: blue
-        type: choice
-        options:
-          - blue
-          - green
-      operation:
-        description: Deployment operation to run
-        required: true
-        default: deploy-and-smoke
-        type: choice
-        options:
-          - deploy-and-smoke
-          - deploy-and-cutover
-          - rollback
-      rollback_color:
-        description: Previous known-good color for rollback operations
-        required: false
-        default: blue
-        type: choice
-        options:
-          - blue
-          - green
 
 permissions:
-  id-token: write
   contents: read
+
+concurrency:
+  group: deploy-space
+  cancel-in-progress: true
 
 jobs:
   deploy:
-    name: Deploy idle Space and smoke test
+    name: Deploy space/ to Hugging Face
     runs-on: ubuntu-24.04
-    if: ${{ github.event_name == 'push' || inputs.operation != 'rollback' }}
     env:
-      BG_BLUE_SPACE_ID: ${{ vars.BG_BLUE_SPACE_ID || 'vooom/AI_Rule_Learning' }}
-      BG_GREEN_SPACE_ID: ${{ vars.BG_GREEN_SPACE_ID || 'vooom/AI_Rule_Learning_Green' }}
-      BG_LIVE_COLOR: ${{ inputs.live_color || 'blue' }}
-      BG_HEALTH_PATH: ${{ vars.BG_HEALTH_PATH || '/' }}
-    outputs:
-      idle_color: ${{ steps.plan.outputs.idle_color }}
-      idle_space_id: ${{ steps.plan.outputs.idle_space_id }}
+      SPACE_ID: ${{ vars.HF_SPACE_ID || 'vooom/AI_Rule_Learning' }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -65,18 +34,10 @@ jobs:
       - name: Install huggingface_hub
         run: pip install "huggingface_hub>=0.24.0"
 
-      - name: Plan idle target
-        id: plan
-        run: |
-          echo "idle_color=$(python scripts/blue_green.py plan --output-field idle_color)" >> "$GITHUB_OUTPUT"
-          echo "idle_space_id=$(python scripts/blue_green.py plan --output-field idle_space_id)" >> "$GITHUB_OUTPUT"
-          python scripts/blue_green.py plan
-
-      - name: Deploy space/ to idle Hugging Face Space
+      - name: Upload space/ to the Hugging Face Space
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
-          TARGET_SPACE_ID: ${{ steps.plan.outputs.idle_space_id }}
-          HF_OIDC_RESOURCE: spaces/${{ steps.plan.outputs.idle_space_id }}
+          TARGET_SPACE_ID: ${{ env.SPACE_ID }}
         run: |
           python - <<'EOF'
           import os
@@ -85,87 +46,73 @@ jobs:
           from huggingface_hub import HfApi
           from huggingface_hub.errors import HfHubHTTPError
 
-          target_space_id = os.environ["TARGET_SPACE_ID"]
+          space_id = os.environ["TARGET_SPACE_ID"]
           token = os.environ.get("HF_TOKEN") or None
+          if not token:
+              print("ERROR: HF_TOKEN secret is not set; cannot authenticate to Hugging Face.", file=sys.stderr)
+              sys.exit(1)
           api = HfApi(token=token)
-          # Ensure the target (idle-color) Space exists before uploading. The green
-          # Space may not have been provisioned yet; create_repo is idempotent with
-          # exist_ok=True, so this is a no-op once it exists. SDK config is taken
-          # from space/README.md on upload.
-          try:
-              api.create_repo(
-                  repo_id=target_space_id,
-                  repo_type="space",
-                  space_sdk="gradio",
-                  exist_ok=True,
-              )
-          except Exception as e:
-              print(f"Warning: could not ensure Space exists ({type(e).__name__}: {e}); continuing to upload.", file=sys.stderr)
+          # Deploy straight to the EXISTING Space. We do NOT create_repo: creating a
+          # new Gradio Space now requires an HF PRO subscription (402), and this Space
+          # already exists. The SDK config comes from space/README.md.
           for attempt in range(1, 6):
               try:
                   api.upload_folder(
                       folder_path="space",
-                      repo_id=target_space_id,
+                      repo_id=space_id,
                       repo_type="space",
-                      commit_message="Deploy idle blue-green Space from GitHub Actions (${{ github.sha }})",
+                      commit_message="Deploy space/ from GitHub Actions (${{ github.sha }})",
                   )
-                  print(f"Space deployed successfully to {target_space_id}.")
+                  print(f"Deployed space/ to {space_id}.")
                   break
               except HfHubHTTPError as e:
-                  if e.response is not None and e.response.status_code == 429 and attempt < 5:
+                  code = getattr(getattr(e, "response", None), "status_code", None)
+                  if code == 429 and attempt < 5:
                       wait = 2 ** attempt
-                      print(f"Rate limited (429). Retrying in {wait}s (attempt {attempt}/5)...")
+                      print(f"Rate limited (429); retrying in {wait}s ({attempt}/5)...")
                       time.sleep(wait)
-                  else:
-                      print(f"Hugging Face API HTTP error: {e}", file=sys.stderr)
-                      if not token:
-                          print("Hint: HF_TOKEN is not set. Ensure repository secret HF_TOKEN is configured or Trusted Publisher is enabled on Hugging Face.", file=sys.stderr)
-                      raise
-              except Exception as e:
-                  print(f"Deployment error: {type(e).__name__}: {e}", file=sys.stderr)
-                  if not token and "oauth/token" in str(e):
-                      print("Hugging Face OIDC token exchange failed (400 Bad Request). Configure repository secret HF_TOKEN to enable authentication.", file=sys.stderr)
+                      continue
+                  print(f"Hugging Face API error ({code}): {e}", file=sys.stderr)
                   raise
           EOF
 
-      - name: Smoke-test idle Space
-        run: python scripts/blue_green.py smoke --color "${{ steps.plan.outputs.idle_color }}"
+      - name: Smoke-test the Space (authenticated build-status check)
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          TARGET_SPACE_ID: ${{ env.SPACE_ID }}
+        run: |
+          python - <<'EOF'
+          import os
+          import sys
+          import time
+          from huggingface_hub import HfApi
 
-  cutover:
-    name: Approved traffic cutover or rollback
-    runs-on: ubuntu-24.04
-    needs: deploy
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.operation == 'deploy-and-cutover' }}
-    environment: production
-    env:
-      BG_BLUE_SPACE_ID: ${{ vars.BG_BLUE_SPACE_ID || 'vooom/AI_Rule_Learning' }}
-      BG_GREEN_SPACE_ID: ${{ vars.BG_GREEN_SPACE_ID || 'vooom/AI_Rule_Learning_Green' }}
-      BG_LIVE_COLOR: ${{ inputs.live_color }}
-      BG_ROUTER_CUTOVER_URL: ${{ secrets.BG_ROUTER_CUTOVER_URL }}
-      BG_ROUTER_TOKEN: ${{ secrets.BG_ROUTER_TOKEN }}
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          persist-credentials: false
-
-      - name: Switch production traffic to idle color
-        run: python scripts/blue_green.py cutover --target-color "${{ needs.deploy.outputs.idle_color }}" --commit-sha "${{ github.sha }}"
-
-  rollback:
-    name: Approved production rollback
-    runs-on: ubuntu-24.04
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.operation == 'rollback' }}
-    environment: production
-    env:
-      BG_BLUE_SPACE_ID: ${{ vars.BG_BLUE_SPACE_ID || 'vooom/AI_Rule_Learning' }}
-      BG_GREEN_SPACE_ID: ${{ vars.BG_GREEN_SPACE_ID || 'vooom/AI_Rule_Learning_Green' }}
-      BG_LIVE_COLOR: ${{ inputs.live_color }}
-      BG_ROUTER_CUTOVER_URL: ${{ secrets.BG_ROUTER_CUTOVER_URL }}
-      BG_ROUTER_TOKEN: ${{ secrets.BG_ROUTER_TOKEN }}
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          persist-credentials: false
-
-      - name: Switch production traffic to previous color
-        run: python scripts/blue_green.py rollback --previous-color "${{ inputs.rollback_color }}" --commit-sha "${{ github.sha }}"
+          space_id = os.environ["TARGET_SPACE_ID"]
+          api = HfApi(token=os.environ.get("HF_TOKEN") or None)
+          # The Space is private and rebuilds after upload, so check build status via
+          # the authenticated API rather than an unauthenticated HTTP GET. Fail only on
+          # a real build/runtime error; a slow build warns but does not fail the deploy.
+          deadline = time.time() + 420
+          last = None
+          while time.time() < deadline:
+              try:
+                  runtime = api.get_space_runtime(space_id)
+                  stage = getattr(runtime, "stage", None)
+              except Exception as e:
+                  print(f"Could not read Space runtime ({type(e).__name__}: {e}); skipping smoke check.")
+                  sys.exit(0)
+              last = stage
+              print(f"Space stage: {stage}")
+              if stage == "RUNNING":
+                  print("Space is RUNNING.")
+                  sys.exit(0)
+              if stage in ("BUILD_ERROR", "RUNTIME_ERROR", "CONFIG_ERROR"):
+                  print(f"Space failed to come up: {stage}", file=sys.stderr)
+                  sys.exit(1)
+              time.sleep(15)
+          print(
+              f"Warning: Space not RUNNING within timeout (last stage: {last}); "
+              "upload succeeded, the build may still be in progress."
+          )
+          sys.exit(0)
+          EOF
