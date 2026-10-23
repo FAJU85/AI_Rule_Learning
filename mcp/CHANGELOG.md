@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`AGENTS.md` as a first-class injection target.** Rules are now written to an
+  existing `AGENTS.md` at the project root or in the home directory — the
+  cross-tool standard read by Codex, Cursor, Zed and a growing set of agents. An
+  `AGENTS.md` is honored only when it already exists; one is never created
+  unprompted (the same policy as the Cursor/Windsurf flat files).
+- **Relevance-based rule selection.** When `get_guardrail_rules` is given task
+  context, a user's own rules are ranked by relevance to it (via a dependency-free
+  TF-IDF cosine) instead of a flat priority cap, so a large rule set no longer
+  starves the rules that matter for the current task. Critical rules are always
+  kept and priority is the tiebreak; with no context, behaviour is unchanged.
+
 ### Fixed
 
 - **Cross-environment injection for Cursor/Windsurf flat files (M02):** rules now
