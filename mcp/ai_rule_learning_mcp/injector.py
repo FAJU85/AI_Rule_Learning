@@ -371,12 +371,42 @@ class _CodexTarget(_Target):
         return (Path.home() / ".codex").exists() or (Path.cwd() / ".codex").exists()
 
 
+class _AgentsmdTarget(_Target):
+    """The cross-tool `AGENTS.md` standard (agents.md), read by Codex, Cursor,
+    Zed, and a growing set of agents. We honor an existing AGENTS.md at the
+    project root or in the home directory rather than creating one unprompted,
+    the same policy applied to the Cursor/Windsurf flat files.
+    """
+
+    name = "AGENTS.md"
+
+    def config_path(self) -> Path:
+        if (Path.cwd() / "AGENTS.md").exists():
+            return Path.cwd() / "AGENTS.md"
+        return Path.home() / "AGENTS.md"
+
+    def _all_paths(self) -> list[Path]:
+        if type(self).config_path is not _AgentsmdTarget.config_path:
+            return [self.config_path()]
+        paths: list[Path] = []
+        if (Path.cwd() / "AGENTS.md").exists():
+            paths.append(Path.cwd() / "AGENTS.md")
+        home_agents = Path.home() / "AGENTS.md"
+        if home_agents.exists() and home_agents != (Path.cwd() / "AGENTS.md"):
+            paths.append(home_agents)
+        return paths or [self.config_path()]
+
+    def is_detected(self) -> bool:
+        return (Path.cwd() / "AGENTS.md").exists() or (Path.home() / "AGENTS.md").exists()
+
+
 _ALL_TARGETS: list[_Target] = [
     _ClaudeCodeTarget(),
     _CursorTarget(),
     _WindsurfTarget(),
     _CopilotTarget(),
     _CodexTarget(),
+    _AgentsmdTarget(),
 ]
 
 

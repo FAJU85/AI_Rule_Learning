@@ -11,6 +11,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from ai_rule_learning_mcp.injector import (
     _ALL_TARGETS,
+    _AgentsmdTarget,
     _ClaudeCodeTarget,
     _CursorTarget,
     _WindsurfTarget,
@@ -215,3 +216,57 @@ class TestHomeFlatFileInjection:
 
         target.write([_RULE])
         assert "test-rule" in (home / ".windsurfrules").read_text()
+
+
+class TestAgentsmdTarget:
+    """Phase 2: AGENTS.md (the cross-tool standard) is a first-class target —
+    honored when present at the project root or in the home directory."""
+
+    def test_project_root_agents_md_detected_and_written(self, tmp_path, monkeypatch):
+        home = tmp_path / "home"
+        proj = tmp_path / "proj"
+        home.mkdir()
+        proj.mkdir()
+        (proj / "AGENTS.md").write_text("# Project agent instructions\n")
+        monkeypatch.setenv("HOME", str(home))
+        monkeypatch.setattr(Path, "home", classmethod(lambda cls: home))
+        monkeypatch.chdir(proj)
+
+        target = _AgentsmdTarget()
+        assert target.is_detected()
+        assert (proj / "AGENTS.md") in target._all_paths()
+
+        target.write([_RULE])
+        text = (proj / "AGENTS.md").read_text()
+        assert "test-rule" in text
+        # User content is preserved.
+        assert "Project agent instructions" in text
+
+    def test_home_agents_md_detected_from_foreign_cwd(self, tmp_path, monkeypatch):
+        home = tmp_path / "home"
+        work = tmp_path / "work"
+        home.mkdir()
+        work.mkdir()
+        (home / "AGENTS.md").write_text("# Global agent instructions\n")
+        monkeypatch.setenv("HOME", str(home))
+        monkeypatch.setattr(Path, "home", classmethod(lambda cls: home))
+        monkeypatch.chdir(work)
+
+        target = _AgentsmdTarget()
+        assert target.is_detected()
+        assert (home / "AGENTS.md") in target._all_paths()
+
+        target.write([_RULE])
+        assert "test-rule" in (home / "AGENTS.md").read_text()
+
+    def test_not_detected_when_absent(self, tmp_path, monkeypatch):
+        home = tmp_path / "home"
+        work = tmp_path / "work"
+        home.mkdir()
+        work.mkdir()
+        monkeypatch.setenv("HOME", str(home))
+        monkeypatch.setattr(Path, "home", classmethod(lambda cls: home))
+        monkeypatch.chdir(work)
+
+        # No AGENTS.md anywhere -> not detected, so nothing is created unprompted.
+        assert not _AgentsmdTarget().is_detected()
