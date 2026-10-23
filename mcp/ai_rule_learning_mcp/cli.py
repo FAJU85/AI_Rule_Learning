@@ -603,6 +603,30 @@ def cmd_why(args: list[str]) -> None:
         print(f"   Instruction: {exp['instruction']}\n")
 
 
+def cmd_export(args: list[str]) -> None:
+    """Export the learned rules corpus as a fine-tuning dataset (SFT JSONL).
+
+    Training is external and opt-in — this only writes the dataset. See
+    docs/fine-tuning.md for the Unsloth recipe.
+    """
+    out = "arl_dataset.jsonl"
+    rest = list(args)
+    for i, token in enumerate(rest):
+        if token in ("--out", "-o") and i + 1 < len(rest):
+            out = rest[i + 1]
+        elif token.startswith("--out="):
+            out = token.split("=", 1)[1]
+
+    from .dataset import export_sft_jsonl
+
+    count = export_sft_jsonl(out)
+    if count == 0:
+        print("ℹ️  No rules with a usable directive to export yet. Run sync or record_feedback first.")
+        return
+    print(f"✅ Exported {count} SFT example(s) to {out}")
+    print("Training is external and opt-in — see docs/fine-tuning.md for the Unsloth recipe.")
+
+
 def main(argv: list[str] | None = None) -> int:
     if argv is None:
         argv = sys.argv[1:]
@@ -634,6 +658,8 @@ def main(argv: list[str] | None = None) -> int:
         "scheduler-status": cmd_cron_status,
         "metrics": cmd_metrics,
         "why": cmd_why,
+        "export-dataset": cmd_export,
+        "export": cmd_export,
     }
 
     fn = dispatch.get(cmd)

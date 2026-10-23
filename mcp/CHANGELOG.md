@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Fine-tuning dataset exporter (Phase 4, optional/opt-in).** A new
+  `ai-rule-learning export-dataset` command (and `dataset.export_sft_jsonl`)
+  turns the learned rules corpus into a standard SFT JSONL file for external,
+  opt-in fine-tuning (e.g. Unsloth on a GPU/Colab). Pure data transformation —
+  no `torch`/`transformers`/`unsloth` dependency, no training in CI. The export
+  is instruction-style (directive + grounded correction); a true DPO/preference
+  dataset is intentionally not fabricated, as the corpus does not store
+  before/after transcripts. See `docs/fine-tuning.md` for scope, limits, and the
+  training recipe.
 - **Semantic clustering of community signals (Phase 3).** A new dependency-free
   clustering module (single-linkage TF-IDF cosine, built on the Phase 1
   similarity module) groups near-duplicate correction signals, so community
