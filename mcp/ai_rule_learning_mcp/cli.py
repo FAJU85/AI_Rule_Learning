@@ -603,6 +603,18 @@ def cmd_why(args: list[str]) -> None:
         print(f"   Instruction: {exp['instruction']}\n")
 
 
+def cmd_kpi(args: list[str]) -> None:
+    """Print a KPI snapshot computed from local state. `--json` for machine output."""
+    from .kpi import compute_kpis, format_kpis
+
+    if "--json" in args:
+        import json
+
+        print(json.dumps(compute_kpis(), indent=2, sort_keys=True))
+        return
+    print(format_kpis())
+
+
 def cmd_export(args: list[str]) -> None:
     """Export the learned rules corpus as a fine-tuning dataset (SFT JSONL).
 
@@ -660,6 +672,8 @@ def main(argv: list[str] | None = None) -> int:
         "why": cmd_why,
         "export-dataset": cmd_export,
         "export": cmd_export,
+        "kpi": cmd_kpi,
+        "kpis": cmd_kpi,
     }
 
     fn = dispatch.get(cmd)
