@@ -399,6 +399,7 @@ def fetch_community_patterns() -> dict[str, dict]:
 
 def build_community_templates(min_sources: int = 3) -> list[dict]:
     """Build enhanced rule templates from community patterns (k-anonymity threshold)."""
+    from .clustering import dedupe_similar
     from .gap_detector import _TEMPLATES
 
     freq = fetch_community_patterns()
@@ -416,7 +417,9 @@ def build_community_templates(min_sources: int = 3) -> list[dict]:
         if builtin:
             existing_triggers = set(builtin.get("triggers", []))
             new_signals = [s for s in community_signals if s not in existing_triggers]
-            merged_triggers = list(existing_triggers) + new_signals
+            # Collapse near-duplicate signals ("add type hints" / "include type
+            # hints") to one canonical trigger each; distinct signals are kept.
+            merged_triggers = dedupe_similar(list(existing_triggers) + new_signals)
             templates.append(
                 {
                     "gap_type": gap_type,
@@ -444,7 +447,7 @@ def build_community_templates(min_sources: int = 3) -> list[dict]:
                     "priority": 2,
                     "failure_layer": 1,
                     "failure_category": "output_quality",
-                    "triggers": community_signals,
+                    "triggers": dedupe_similar(community_signals),
                     "source": "community_new",
                     "unique_sources": stats["unique_sources"],
                 }
