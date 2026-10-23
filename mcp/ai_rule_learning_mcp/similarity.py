@@ -68,6 +68,16 @@ def _tfidf_vector(tokens: list[str], idf: dict[str, float]) -> dict[str, float]:
     return {term: freq * idf.get(term, 0.0) for term, freq in tf.items()}
 
 
+def tfidf_vectors(texts: list[str]) -> list[dict[str, float]]:
+    """TF-IDF vectors for a corpus, with IDF computed over that same corpus.
+
+    Exposed for clustering, which needs every document in a shared vector space.
+    """
+    doc_tokens = [tokenize(t) for t in texts]
+    idf = compute_idf(doc_tokens)
+    return [_tfidf_vector(tokens, idf) for tokens in doc_tokens]
+
+
 def cosine(vec_a: dict[str, float], vec_b: dict[str, float]) -> float:
     """Cosine similarity between two sparse term-weight vectors, in [0, 1]."""
     if not vec_a or not vec_b:

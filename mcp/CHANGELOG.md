@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Semantic clustering of community signals (Phase 3).** A new dependency-free
+  clustering module (single-linkage TF-IDF cosine, built on the Phase 1
+  similarity module) groups near-duplicate correction signals, so community
+  aggregation collapses variants like "add type hints" / "include type hints" /
+  "type hints missing" into one canonical trigger instead of listing them
+  separately. Wired into `build_community_templates` for both enhanced-builtin
+  and newly-discovered patterns; distinct signals are always preserved. (The
+  deeper per-cluster k-anonymity would need per-source signal attribution from
+  the aggregator, which the Cloudflare Worker does not yet emit.)
+
 - **`AGENTS.md` as a first-class injection target.** Rules are now written to an
   existing `AGENTS.md` at the project root or in the home directory — the
   cross-tool standard read by Codex, Cursor, Zed and a growing set of agents. An
