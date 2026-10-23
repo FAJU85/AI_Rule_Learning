@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **KPI snapshot.** A new `ai-rule-learning kpi` command (`--json` for machine
+  output, `kpi` module) reports key indicators computed from local state only —
+  rule counts, duplicate/stale/needs-review quality, average effectiveness,
+  cross-agent injection coverage, and opt-in usage success rate. Targets are
+  documented in `docs/KPIs.md`. Behavioural lift stays with the external
+  benchmark harness, not this snapshot.
+- **Smoke test.** A fast `test_smoke.py` critical-path check (imports, version,
+  CLI entry point, record→store→load→inject loop, dataset export) that runs in
+  milliseconds and fails loudly if anything fundamental is broken.
 - **Fine-tuning dataset exporter (Phase 4, optional/opt-in).** A new
   `ai-rule-learning export-dataset` command (and `dataset.export_sft_jsonl`)
   turns the learned rules corpus into a standard SFT JSONL file for external,
