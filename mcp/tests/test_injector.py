@@ -9,10 +9,14 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+import pytest
+
 from ai_rule_learning_mcp.injector import (
     _ALL_TARGETS,
     _AgentsmdTarget,
     _ClaudeCodeTarget,
+    _CodexTarget,
+    _CopilotTarget,
     _CursorTarget,
     _WindsurfTarget,
     _build_section,
@@ -270,3 +274,45 @@ class TestAgentsmdTarget:
 
         # No AGENTS.md anywhere -> not detected, so nothing is created unprompted.
         assert not _AgentsmdTarget().is_detected()
+
+
+# Minimal home-side artifact that should make each target detect + write under
+# $HOME regardless of the current working directory. This is the regression
+# guard for the M02 class of bug (config present in HOME, server cwd elsewhere).
+_HOME_SETUPS = [
+    ("claude", _ClaudeCodeTarget, lambda h: (h / ".claude").mkdir()),
+    ("cursor", _CursorTarget, lambda h: (h / ".cursorrules").write_text("x\n")),
+    ("windsurf", _WindsurfTarget, lambda h: (h / ".windsurfrules").write_text("x\n")),
+    ("copilot", _CopilotTarget, lambda h: (h / ".github").mkdir()),
+    ("codex", _CodexTarget, lambda h: (h / ".codex").mkdir()),
+    ("agents", _AgentsmdTarget, lambda h: (h / "AGENTS.md").write_text("x\n")),
+]
+
+
+class TestHomeCoverageAudit:
+    """Phase 2 audit guard: every target must reach a HOME config even when the
+    server runs from an unrelated working directory. Locks in the home/cwd
+    coverage so the M02 class of bug cannot silently return for any target.
+    """
+
+    @pytest.mark.parametrize(
+        "label,target_cls,setup",
+        _HOME_SETUPS,
+        ids=[s[0] for s in _HOME_SETUPS],
+    )
+    def test_target_reaches_home_from_foreign_cwd(self, label, target_cls, setup, tmp_path, monkeypatch):
+        home = tmp_path / "home"
+        work = tmp_path / "work"
+        home.mkdir()
+        work.mkdir()
+        setup(home)
+        monkeypatch.setenv("HOME", str(home))
+        monkeypatch.setattr(Path, "home", classmethod(lambda cls: home))
+        monkeypatch.chdir(work)
+
+        target = target_cls()
+        assert target.is_detected(), f"{label}: not detected from a foreign cwd"
+        target.write([_RULE])
+
+        hits = [p for p in home.rglob("*") if p.is_file() and "test-rule" in p.read_text(encoding="utf-8")]
+        assert hits, f"{label}: no HOME file received the rule"
