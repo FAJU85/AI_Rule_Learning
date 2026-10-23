@@ -172,3 +172,46 @@ class TestFormatRulesBlock:
 
     def test_empty_rules_message(self):
         assert "No active" in format_rules_block([])
+
+
+class TestHomeFlatFileInjection:
+    """M02: ~/.cursorrules and ~/.windsurfrules must be detected and updated even
+    when the server's working directory is a different, unrelated folder. Before
+    the fix the flat files were only ever looked for in Path.cwd(), so they were
+    silently skipped while the home-based configs (CLAUDE.md, copilot) updated —
+    the "injected across 2/4 environments" failure.
+    """
+
+    def test_cursor_home_flat_file_detected_and_written(self, tmp_path, monkeypatch):
+        home = tmp_path / "home"
+        work = tmp_path / "work"
+        home.mkdir()
+        work.mkdir()
+        (home / ".cursorrules").write_text("my cursor rules\n")
+        monkeypatch.setenv("HOME", str(home))
+        monkeypatch.setattr(Path, "home", classmethod(lambda cls: home))
+        monkeypatch.chdir(work)
+
+        target = _CursorTarget()
+        assert target.is_detected()
+        assert (home / ".cursorrules") in target._all_paths()
+
+        target.write([_RULE])
+        assert "test-rule" in (home / ".cursorrules").read_text()
+
+    def test_windsurf_home_flat_file_detected_and_written(self, tmp_path, monkeypatch):
+        home = tmp_path / "home"
+        work = tmp_path / "work"
+        home.mkdir()
+        work.mkdir()
+        (home / ".windsurfrules").write_text("my windsurf rules\n")
+        monkeypatch.setenv("HOME", str(home))
+        monkeypatch.setattr(Path, "home", classmethod(lambda cls: home))
+        monkeypatch.chdir(work)
+
+        target = _WindsurfTarget()
+        assert target.is_detected()
+        assert (home / ".windsurfrules") in target._all_paths()
+
+        target.write([_RULE])
+        assert "test-rule" in (home / ".windsurfrules").read_text()

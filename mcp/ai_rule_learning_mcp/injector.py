@@ -200,6 +200,12 @@ class _CursorTarget(_Target):
         cwd_cursor = Path.cwd() / ".cursor"
         if cwd_cursor.exists():
             return cwd_cursor / "rules" / "ai-rule-learning.mdc"
+        if (Path.home() / ".cursor").exists():
+            return Path.home() / ".cursor" / "rules" / "ai-rule-learning.mdc"
+        # A global ~/.cursorrules is a valid flat config too; honor it when no
+        # .cursor/ directory exists (M02: flat files were cwd-only before).
+        if (Path.home() / ".cursorrules").exists():
+            return Path.home() / ".cursorrules"
         return Path.home() / ".cursor" / "rules" / "ai-rule-learning.mdc"
 
     def _all_paths(self) -> list[Path]:
@@ -215,6 +221,11 @@ class _CursorTarget(_Target):
             paths.append(cwd_cursor / "rules" / "ai-rule-learning.mdc")
         if (Path.cwd() / ".cursorrules").exists():
             paths.append(Path.cwd() / ".cursorrules")
+        # Also update a global ~/.cursorrules so rules reach Cursor even when the
+        # server's cwd is not the project that holds the flat file (M02).
+        home_flat = Path.home() / ".cursorrules"
+        if home_flat.exists() and home_flat != (Path.cwd() / ".cursorrules"):
+            paths.append(home_flat)
         return paths or [self.config_path()]
 
     def is_detected(self) -> bool:
@@ -222,6 +233,7 @@ class _CursorTarget(_Target):
             (Path.home() / ".cursor").exists()
             or (Path.cwd() / ".cursor").exists()
             or (Path.cwd() / ".cursorrules").exists()
+            or (Path.home() / ".cursorrules").exists()
         )
 
 
@@ -234,6 +246,12 @@ class _WindsurfTarget(_Target):
         cwd_ws = Path.cwd() / ".windsurf"
         if cwd_ws.exists():
             return cwd_ws / "rules" / "ai-rule-learning.md"
+        if (Path.home() / ".windsurf").exists():
+            return Path.home() / ".windsurf" / "rules" / "ai-rule-learning.md"
+        # A global ~/.windsurfrules is a valid flat config too; honor it when no
+        # .windsurf/ directory exists (M02: flat files were cwd-only before).
+        if (Path.home() / ".windsurfrules").exists():
+            return Path.home() / ".windsurfrules"
         return Path.home() / ".windsurf" / "rules" / "ai-rule-learning.md"
 
     def _all_paths(self) -> list[Path]:
@@ -251,6 +269,11 @@ class _WindsurfTarget(_Target):
             paths.append(cwd_ws / "ai-guardrails.md")
         if (Path.cwd() / ".windsurfrules").exists():
             paths.append(Path.cwd() / ".windsurfrules")
+        # Also update a global ~/.windsurfrules so rules reach Windsurf even when
+        # the server's cwd is not the project that holds the flat file (M02).
+        home_flat = Path.home() / ".windsurfrules"
+        if home_flat.exists() and home_flat != (Path.cwd() / ".windsurfrules"):
+            paths.append(home_flat)
         return paths or [self.config_path()]
 
     def is_detected(self) -> bool:
@@ -258,6 +281,7 @@ class _WindsurfTarget(_Target):
             (Path.home() / ".windsurf").exists()
             or (Path.cwd() / ".windsurf").exists()
             or (Path.cwd() / ".windsurfrules").exists()
+            or (Path.home() / ".windsurfrules").exists()
         )
 
 

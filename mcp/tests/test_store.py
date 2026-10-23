@@ -116,6 +116,29 @@ def test_local_load_skips_blank_lines(isolated_store):
     assert len(loaded) == 2
 
 
+def test_store_path_is_file_self_heals(tmp_path, monkeypatch):
+    """R05: a regular file at the store path must not cause silent read/write
+    failure. The store moves the stray file aside (preserving it) and recreates
+    the directory, so reads return empty and writes succeed."""
+    store_file = tmp_path / "store_as_file"
+    store_file.write_text("i am a file, not a directory\n", encoding="utf-8")
+    monkeypatch.setattr("ai_rule_learning_mcp.store.LOCAL_DIR", store_file)
+
+    # Read must not raise (previously raised FileExistsError, swallowed upstream).
+    assert _local_load("rules.jsonl") == []
+
+    # Write must succeed and be readable back.
+    _local_save("rules.jsonl", [{"name": "r", "instruction": "do x"}])
+    loaded = _local_load("rules.jsonl")
+    assert loaded and loaded[0]["name"] == "r"
+
+    # The path is now a directory; the displaced file is preserved, never deleted.
+    assert store_file.is_dir()
+    backups = list(tmp_path.glob("store_as_file.corrupt-*"))
+    assert len(backups) == 1
+    assert backups[0].read_text(encoding="utf-8") == "i am a file, not a directory\n"
+
+
 # ── is_already_processed / mark_processed ─────────────────────────────────
 
 

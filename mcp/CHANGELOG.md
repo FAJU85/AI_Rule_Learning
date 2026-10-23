@@ -5,6 +5,23 @@ All notable changes to `ai-rule-learning-mcp` are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **Cross-environment injection for Cursor/Windsurf flat files (M02):** rules now
+  reach `~/.cursorrules` and `~/.windsurfrules` even when the server's working
+  directory is not the project that holds them. Previously the flat files were
+  only ever looked for in the current working directory, so on a machine where
+  the server ran from an unrelated cwd they were silently skipped while the
+  home-based configs (`CLAUDE.md`, Copilot) still updated — the "injected across
+  2/4 environments" result.
+- **Store self-heals when its path is a regular file (R05):** if
+  `~/.ai-rule-learning` exists as a file instead of a directory, the store now
+  moves the stray file aside (preserved as `<name>.corrupt-<timestamp>`),
+  recreates the directory, and logs a loud warning, instead of failing silently
+  on every read and write (`FileExistsError` was swallowed upstream).
+
 ## [0.2.6] - 2026-10-22
 
 ### Changed
