@@ -39,18 +39,45 @@ def _effective_local_dir() -> Path:
     return Path.home() / ".ai-rule-learning"
 
 
+def _ensure_dir(d: Path) -> Path:
+    """Ensure *d* exists as a directory, self-healing when a file occupies the path.
+
+    ``Path.mkdir(exist_ok=True)`` still raises ``FileExistsError`` when the path
+    is an existing *non-directory* file, which previously surfaced as silent
+    read-returns-nothing / write-fails behaviour (R05). Detect that case, move
+    the stray file aside with a loud warning, and recreate the directory so the
+    store self-heals instead of failing silently. The displaced file is never
+    deleted — it is preserved as ``<name>.corrupt-<timestamp>``.
+    """
+    if d.exists() and not d.is_dir():
+        backup = d.with_name(f"{d.name}.corrupt-{datetime.now(UTC).strftime('%Y%m%d%H%M%S')}")
+        try:
+            os.replace(d, backup)
+            _log.warning(
+                "Storage path %s was a regular file, not a directory; moved it to %s "
+                "and recreated the directory.",
+                d,
+                backup,
+            )
+        except Exception as exc:
+            _log.error("Storage path %s is a file and could not be moved aside: %s", d, exc)
+            raise
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
 def _local_path(filename: str) -> Path:
     if filename == "rules.jsonl":
         if RULES_FILE != _INITIAL_HOME / ".ai-rule-learning" / "rules.jsonl":
             p = Path(RULES_FILE)
-            p.parent.mkdir(parents=True, exist_ok=True)
+            _ensure_dir(p.parent)
             return p
         if LOCAL_RULES != _INITIAL_HOME / ".ai-rule-learning" / "rules.jsonl":
             p = Path(LOCAL_RULES)
-            p.parent.mkdir(parents=True, exist_ok=True)
+            _ensure_dir(p.parent)
             return p
     d = _effective_local_dir()
-    d.mkdir(parents=True, exist_ok=True)
+    _ensure_dir(d)
     return d / filename
 
 
@@ -197,7 +224,7 @@ def _local_save(filename: str, records: list[dict]) -> None:
     if filename != "processed.jsonl":
         records = [scrub_record(r) for r in records]
     target = _local_path(filename)
-    target.parent.mkdir(parents=True, exist_ok=True)
+    _ensure_dir(target.parent)
     tmp_path = target.with_suffix(f".tmp.{uuid.uuid4().hex[:8]}")
     payload = "\n".join(json.dumps(r, ensure_ascii=False) for r in records) + "\n"
     tmp_path.write_text(payload, encoding="utf-8")
