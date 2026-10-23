@@ -855,6 +855,41 @@ async def call_tool(
         return [TextContent(type="text", text=f"❌ {name} failed: {type(exc).__name__}: {exc}")], True
 
 
+_PRIORITY_NUM = {"critical": 5, "high": 4, "medium": 3, "low": 2}
+
+
+def _rule_priority(rule: dict[str, Any]) -> int:
+    """Numeric priority for a rule, tolerating int or label ('HIGH') forms."""
+    p = rule.get("priority", 3)
+    if isinstance(p, str):
+        return _PRIORITY_NUM.get(p.lower(), 3)
+    try:
+        return int(p)
+    except (TypeError, ValueError):
+        return 3
+
+
+def _rule_text(rule: dict[str, Any]) -> str:
+    """The text of a rule used for relevance matching: name plus instruction."""
+    name = str(rule.get("name") or rule.get("slot") or rule.get("rule_id") or "")
+    instruction = str((rule.get("action") or {}).get("instruction") or rule.get("instruction") or "")
+    return f"{name} {instruction}".strip()
+
+
+def _relevance_query(context: dict[str, Any] | None, conversation: Any = None) -> str:
+    """Build a free-text query from the caller's task context for rule ranking."""
+    parts: list[str] = []
+    if isinstance(context, dict):
+        for value in context.values():
+            if isinstance(value, str):
+                parts.append(value)
+            elif isinstance(value, (list, tuple)):
+                parts.extend(str(x) for x in value)
+    if isinstance(conversation, str):
+        parts.append(conversation)
+    return " ".join(p for p in parts if p).strip()
+
+
 async def _get_guardrail_rules(
     dry_run: bool | dict[str, Any] = False,
     context: dict[str, Any] | None = None,
@@ -872,10 +907,26 @@ async def _get_guardrail_rules(
     from .catalog import detect_context
 
     cat = RuleCatalog()
+    had_context = context is not None or conversation is not None
     if context is None and conversation is not None:
         context = detect_context(conversation)
     if context is None:
         context = {"language": "any", "task_type": "code_generation", "user_style": "concise"}
+
+    # Relevance selection (Phase 1): when the caller supplies task context, rank
+    # the user's own rules by relevance to it rather than taking the flat
+    # priority cap, so a large rule set does not starve the rules that matter for
+    # this task. Critical rules are always kept; priority is the tiebreak
+    # (load_active_rules returns priority order and rank_by_relevance is stable).
+    # With no caller context the original priority order is preserved exactly.
+    if had_context and len(local_rules) > 10:
+        from .similarity import rank_by_relevance
+
+        query = _relevance_query(context, conversation)
+        if query:
+            critical = [r for r in local_rules if _rule_priority(r) >= 5]
+            rest = [r for r in local_rules if _rule_priority(r) < 5]
+            local_rules = critical + rank_by_relevance(query, rest, text_of=_rule_text)
 
     selected_catalog_rules = cat.select(context, budget_tokens=500, max_rules=10)
 
