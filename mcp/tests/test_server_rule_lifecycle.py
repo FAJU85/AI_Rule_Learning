@@ -21,11 +21,15 @@ def isolated_store(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
 
 def _rule(rule_id: str, status: str = "pending") -> dict:
+    # A well-formed rule: carries gap_type + provenance so it clears the Tier-A
+    # structural-hygiene gate at approval (a real learned rule always does).
     return {
         "rule_id": rule_id,
         "name": f"Rule {rule_id}",
         "instruction": "Use tests.",
         "action": {"instruction": "Use tests."},
+        "gap_type": "testing_discipline",
+        "source_session_id": "sess_fixture",
         "status": status,
         "is_active": status == "active",
         "priority": 5,
@@ -114,6 +118,62 @@ def test_call_tool_routes_rule_lifecycle() -> None:
 
     assert "Approved" in result[0].text
     assert get_rule("rule-1")["status"] == "active"
+
+
+def test_approve_rule_blocked_by_tier_a_hygiene() -> None:
+    # A malformed candidate (no gap_type/provenance, non-directive) must not activate.
+    bad = _rule("bad-1")
+    bad["gap_type"] = ""
+    bad["source_session_id"] = ""
+    bad["instruction"] = "the code is messy"
+    bad["action"] = {"instruction": "the code is messy"}
+    _local_save("rules.jsonl", [bad])
+
+    result = asyncio.run(server._approve_rule("bad-1"))
+
+    assert "Tier-A" in result[0].text
+    assert get_rule("bad-1")["status"] == "pending"
+    assert get_rule("bad-1")["is_active"] is False
+
+
+def test_approve_rule_logs_review_decision() -> None:
+    from ai_rule_learning_mcp import review_log
+
+    _local_save("rules.jsonl", [_rule("rule-1")])
+    asyncio.run(server._approve_rule("rule-1"))
+
+    log = review_log.read_review_log()
+    assert len(log) == 1
+    assert log[0]["decision"] == "approve"
+    assert log[0]["rule_id"] == "rule-1"
+    assert log[0]["edit_distance"] == 0
+
+
+def test_approve_with_corrected_instruction_logs_edit_without_mutating_rule() -> None:
+    from ai_rule_learning_mcp import review_log
+
+    _local_save("rules.jsonl", [_rule("rule-1")])
+    asyncio.run(
+        server._approve_rule("rule-1", approved_instruction="Use tests thoroughly before merging.")
+    )
+
+    log = review_log.read_review_log()
+    assert log[0]["decision"] == "edit"
+    assert log[0]["edit_distance"] > 0
+    # Anti-injection control holds: the stored instruction is NOT changed.
+    assert get_rule("rule-1")["instruction"] == "Use tests."
+
+
+def test_reject_rule_logs_review_decision() -> None:
+    from ai_rule_learning_mcp import review_log
+
+    _local_save("rules.jsonl", [_rule("rule-1")])
+    asyncio.run(server._reject_rule("rule-1", note="not useful"))
+
+    log = review_log.read_review_log()
+    assert len(log) == 1
+    assert log[0]["decision"] == "reject"
+    assert log[0]["edit_distance"] is None
 
 
 def test_review_rule_health_tool_dry_run_does_not_write() -> None:

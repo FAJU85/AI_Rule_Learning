@@ -18,6 +18,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import logging
 import os
 import signal
 import sys
@@ -30,6 +31,8 @@ from pathlib import Path
 from typing import Any
 
 from . import __version__
+from . import review_log
+from . import rule_schema
 from .analyzer import run_analyze
 from .community import contribute_gaps
 from .gap_detector import analyze_conversations
@@ -54,6 +57,7 @@ from .store import _local_save
 from .store import append_conversations
 from .store import auto_activate_pending_rules
 from .store import edit_rule_metadata
+from .store import get_rule as store_get_rule
 from .store import remote_enabled
 from .store import is_already_processed
 from .store import list_rules as store_list_rules
@@ -65,6 +69,8 @@ from .store import review_rule_health
 from .store import scrub_pii
 from .store import suggest_duplicate_rules
 from .store import update_rule_status
+
+logger = logging.getLogger(__name__)
 
 # ── Lightweight MCP types & Server (CH05 CPU throttle resilience) ──────────
 # Avoids importing ~100 Pydantic models from mcp.types at module import time,
@@ -516,6 +522,14 @@ async def list_tools() -> list[Tool]:
                 "type": "object",
                 "properties": {
                     "rule_id": {"type": "string", "description": "Rule id to approve."},
+                    "approved_instruction": {
+                        "type": "string",
+                        "description": (
+                            "Optional corrected instruction the reviewer settled on. Logged for "
+                            "edit-distance measurement only; it is NOT written to the rule "
+                            "(instruction mutation stays prohibited). Leave empty to approve as-is."
+                        ),
+                    },
                     "dry_run": {
                         "type": "boolean",
                         "description": "Preview approval without changing the rule store.",
@@ -539,6 +553,15 @@ async def list_tools() -> list[Tool]:
                 },
                 "required": ["rule_id"],
             },
+        ),
+        Tool(
+            name="review_stats",
+            description=(
+                "Summarise the review-decision log: approve/edit/reject counts, approval rate, and "
+                "the edit distance between proposed and approved rule text. Measurements with N "
+                "attached, not a quality score. Low edit distance = learner; high = suggestion engine."
+            ),
+            inputSchema={"type": "object", "properties": {}, "required": []},
         ),
         Tool(
             name="edit_rule",
@@ -799,8 +822,11 @@ async def call_tool(
         if name == "approve_rule":
             return await _approve_rule(
                 rule_id=arguments.get("rule_id", ""),
+                approved_instruction=arguments.get("approved_instruction", ""),
                 dry_run=bool(arguments.get("dry_run", False)),
             )
+        if name == "review_stats":
+            return await _review_stats()
         if name == "reject_rule":
             return await _reject_rule(
                 rule_id=arguments.get("rule_id", ""),
@@ -1590,15 +1616,57 @@ async def _list_rules(status: str = "active") -> list[TextContent]:
     return [TextContent(type="text", text=_format_rule_summary(rules, title))]
 
 
-async def _approve_rule(rule_id: str, dry_run: bool = False) -> list[TextContent]:
+async def _approve_rule(
+    rule_id: str,
+    approved_instruction: str = "",
+    dry_run: bool = False,
+) -> list[TextContent]:
     if not rule_id.strip():
         return [TextContent(type="text", text="❌ Rule id cannot be empty.")]
+    # Capture the candidate (pre-activation) record so the review log keeps the
+    # proposed text and provenance even though approval does not change them.
+    candidate = store_get_rule(rule_id)
+    if candidate is None:
+        return [TextContent(type="text", text=f"❌ Rule not found: {rule_id}")]
+    # Tier-A structural-hygiene gate: zero tolerance on what gets injected. A
+    # malformed candidate is never activated — it stays pending until the
+    # extractor produces a well-formed one (that failure is itself a quality
+    # signal, read via review_stats / the dogfood log).
+    violations = rule_schema.check_rule(candidate)
+    if violations:
+        bullets = "\n".join(f"   • {v}" for v in violations)
+        return [
+            TextContent(
+                type="text",
+                text=(
+                    f"❌ Rule {rule_id} fails Tier-A structural hygiene and will not be activated:\n"
+                    f"{bullets}\n"
+                    "   The candidate stays pending. Fix the extractor or the directive, not the gate."
+                ),
+            )
+        ]
     if dry_run:
         return [TextContent(type="text", text=f"🔎 Dry run: would approve and activate rule {rule_id!r}.")]
     rule = update_rule_status(rule_id, "active")
     if rule is None:
         return [TextContent(type="text", text=f"❌ Rule not found: {rule_id}")]
-    return [TextContent(type="text", text=f"✅ Approved and activated rule: {rule_id}")]
+    # Instrument: log the decision + edit distance to any corrected instruction.
+    # This is measurement only — the corrected text is NOT written to the rule
+    # (the anti-injection prohibition on instruction mutation stays intact).
+    try:
+        entry = review_log.log_review_decision(
+            candidate, "approve", approved_instruction=approved_instruction
+        )
+    except Exception as exc:  # logging must never block a review decision
+        logger.warning("review-log write failed for %s: %s", rule_id, exc)
+        entry = None
+    suffix = ""
+    if entry and entry["decision"] == "edit":
+        suffix = (
+            f" (logged as edit; distance {entry['edit_distance']}, "
+            f"normalized {entry['normalized_edit_distance']} — corrected text logged, not applied)"
+        )
+    return [TextContent(type="text", text=f"✅ Approved and activated rule: {rule_id}{suffix}")]
 
 
 async def _reject_rule(rule_id: str, note: str = "", dry_run: bool = False) -> list[TextContent]:
@@ -1606,10 +1674,19 @@ async def _reject_rule(rule_id: str, note: str = "", dry_run: bool = False) -> l
         return [TextContent(type="text", text="❌ Rule id cannot be empty.")]
     if dry_run:
         return [TextContent(type="text", text=f"🔎 Dry run: would reject rule {rule_id!r}.")]
+    candidate = store_get_rule(rule_id)
     rule = update_rule_status(rule_id, "rejected", note=note)
-    if rule is None:
+    if rule is None or candidate is None:
         return [TextContent(type="text", text=f"❌ Rule not found: {rule_id}")]
+    try:
+        review_log.log_review_decision(candidate, "reject", note=note)
+    except Exception as exc:
+        logger.warning("review-log write failed for %s: %s", rule_id, exc)
     return [TextContent(type="text", text=f"✅ Rejected rule: {rule_id}")]
+
+
+async def _review_stats() -> list[TextContent]:
+    return [TextContent(type="text", text=review_log.format_review_stats())]
 
 
 async def _edit_rule(

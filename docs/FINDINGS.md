@@ -36,6 +36,33 @@ contributor — or any "let's just…" proposal — has to answer to.
    human-in-the-loop curation, where the human is the validation layer and the review
    log is the ground-truth factory.
 
+## Instrumentation / schema (2026-10-24)
+
+1. **Edit distance is captured without relaxing the anti-injection control.** The
+   dogfood metric needs the distance between the proposed rule and the one the
+   reviewer approves, but `_edit_rule` prohibits instruction mutation (catalog
+   rules are static, to block prompt injection and drift). These are reconciled by
+   keeping the review log _pure instrumentation_: `approve_rule` accepts an optional
+   `approved_instruction` that is logged (candidate vs. approved edit distance) but
+   **never written back to the rule**. Whether a reviewer's corrected text is ever
+   _applied_ to a stored rule is a separate product decision, deliberately left out
+   of the measurement path. The log is the ground-truth factory, not an edit channel.
+
+2. **Tier-A is a structural gate, not a quality score.** The Pydantic validator
+   (`rule_schema.py`) checks shape only — well-formed, directive, non-trivial,
+   traceable — with zero tolerance at the approval/injection boundary: a malformed
+   candidate is refused activation and stays pending. It deliberately does **not**
+   score specificity (the earlier specificity classifier was discarded for
+   miscalibration) and we do not report "% passing schema" as a quality number —
+   that would invite Goodharting the validator instead of improving rules. The
+   directive-head set is calibrated to the 130-rule verified catalog (which passes
+   100%, enforced by a test) plus the deterministic `distill_directive` outputs.
+
+3. **The skill-unit shape is a schema-in-waiting.** `SkillUnit` is defined with a
+   nullable `verification_step` but is not populated. Promotion from Tier-A rule to
+   skill-unit stays data-triggered: the field fills in only when real rules start
+   carrying a checkable verification step, rather than being invented now.
+
 ## Bugs fixed (2026-10-24)
 
 - **Traceability:** `source_session_id` was `hash(gap_type:slot)` — identical across
