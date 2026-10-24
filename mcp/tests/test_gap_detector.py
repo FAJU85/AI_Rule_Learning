@@ -197,9 +197,10 @@ class TestGenerateRules:
         rules = generate_rules(gaps)
         assert rules[0]["evidence"] == [snippet]
 
-    def test_evidence_scoped_to_single_session(self):
-        # Two sessions trigger the same gap type with distinct corrections; the
-        # generated rule's evidence must come from one session, not a mix.
+    def test_distinct_corrections_become_distinct_traceable_rules(self):
+        # Output unit is the individual correction, not the coarse gap type: two
+        # DIFFERENT corrections of the same gap type must become two DISTINCT rules,
+        # each traceable to its own originating session (never merged/co-mingled).
         convs = [
             {
                 "conversation_id": "sess-a",
@@ -212,14 +213,17 @@ class TestGenerateRules:
         ]
         rules = analyze_conversations(convs)
         corr = [r for r in rules if r["gap_type"] == "explicit_correction"]
-        assert corr, "an explicit_correction rule should be generated"
-        joined = " ".join(corr[0]["evidence"])
-        assert corr[0]["evidence"], "evidence should not be empty"
-        assert not ("type hints" in joined and "parameterized queries" in joined), (
-            f"evidence co-mingled sessions: {corr[0]['evidence']}"
-        )
-        # Counts still aggregate across both sessions.
-        assert corr[0]["instance_count"] == 2
+        # Two distinct corrections -> two distinct rules.
+        assert len(corr) == 2, f"expected two distinct rules, got {len(corr)}"
+        # Each rule carries exactly one session's correction, never both.
+        for r in corr:
+            joined = " ".join(r["evidence"])
+            assert not ("type hints" in joined and "parameterized queries" in joined)
+            assert r["instance_count"] == 1
+        # Traceability (bug fix): the two rules trace to two DIFFERENT real sessions,
+        # and source_session_id is no longer a gap_type hash shared across rules.
+        assert len({r["source_session_id"] for r in corr}) == 2
+        assert len({r["rule_id"] for r in corr}) == 2
 
 
 # ── analyze_conversations ──────────────────────────────────────────────────
@@ -294,6 +298,26 @@ class TestDistillDirective:
         assert distill_directive("that's wrong") == ""
         assert distill_directive("") == ""
         assert distill_directive("   ") == ""
+
+    def test_forgot_to_verb_is_grammatical(self):
+        # Regression: "forgot to <verb>" must not become "Always include <verb>".
+        assert distill_directive("you forgot to handle the empty-list case") == (
+            "Always handle the empty-list case."
+        )
+
+    def test_noise_is_rejected(self):
+        # Pure acknowledgements carry no directive and must not become rules
+        # (root cause of catalog bloat).
+        assert distill_directive("thanks") == ""
+        assert distill_directive("ok cool") == ""
+        assert distill_directive("got it") == ""
+        assert distill_directive("makes sense") == ""
+
+    def test_preference_becomes_imperative(self):
+        assert distill_directive("I prefer pytest fixtures over unittest setUp") == (
+            "Prefer pytest fixtures over unittest setUp."
+        )
+        assert distill_directive("we use tabs not spaces") == "Use tabs not spaces."
 
 
 class TestFaithfulRuleInstruction:

@@ -605,6 +605,25 @@ def _cap(text: str) -> str:
     return text if text.endswith((".", "!", "?")) else text + "."
 
 
+# Pure-acknowledgement / filler tokens: an utterance made only of these carries no
+# directive and must be rejected, or conversational noise becomes rules and the
+# catalog bloats (e.g. "thanks" -> "Thanks.").
+_ACK_ONLY = frozenset(
+    {
+        "thanks", "thank", "thx", "ty", "ok", "okay", "k", "cool", "nice", "great",
+        "good", "got", "it", "sure", "yes", "yep", "yeah", "yup", "no", "nope",
+        "lol", "lmao", "haha", "hmm", "fine", "perfect", "awesome", "done",
+        "cheers", "np", "right", "gotcha", "understood", "makes", "sense",
+    }
+)
+
+
+def _is_noise(low: str) -> bool:
+    """True when an utterance is only acknowledgement/filler, with no directive."""
+    toks = re.findall(r"[a-z']+", low)
+    return all(t in _ACK_ONLY for t in toks) if toks else True
+
+
 def distill_directive(snippet: str) -> str:
     """Turn a user's correction utterance into a short imperative directive using
     the user's OWN words with minimal, deterministic normalisation.
@@ -628,121 +647,159 @@ def distill_directive(snippet: str) -> str:
     if len(s) < 3:
         return ""
     low = s.lower()
-    m = re.match(r"you(?:'?ve)?\s+(?:forgot|missed|skipped|left\s+out)\s+(?:to\s+)?(\S.*)", low)
+    # Noise-rejection gate: a pure acknowledgement ("thanks", "ok", "got it")
+    # carries no directive and must not become a rule.
+    if _is_noise(low):
+        return ""
+    # "you forgot to <verb> X" -> "Always <verb> X"; "you forgot <noun>" ->
+    # "Always include <noun>" (the "to" distinguishes a verb phrase from a noun).
+    m = re.match(r"you(?:'?ve)?\s+(?:forgot|missed|skipped|left\s+out)\s+(to\s+)?(\S.*)", low)
     if m:
-        return _cap("Always include " + s[m.start(1):])
+        prefix = "Always " if m.group(1) else "Always include "
+        return _cap(prefix + s[m.start(2):])
     m = re.match(r"you\s+did\s*n'?t\s+(\S.*)", low)
     if m:
         return _cap("Always " + s[m.start(1):])
+    # Preference phrasing -> imperative: "I prefer X" -> "Prefer X"; "we use X" -> "Use X".
+    m = re.match(r"i(?:'?d| would| really)?\s+(?:prefer|like)\s+(\S.*)", low)
+    if m:
+        return _cap("Prefer " + s[m.start(1):])
+    m = re.match(r"(?:i|we)\s+(?:always\s+)?(?:use|prefer\s+to\s+use)\s+(\S.*)", low)
+    if m:
+        return _cap("Use " + s[m.start(1):])
     if _IMPERATIVE_START.match(low):
         return _cap(s)
     # Fallback: the user's cleaned words, preserved verbatim as the directive.
     return _cap(s)
 
 
+def _build_rule(
+    gap_type: str,
+    tpl: dict,
+    instruction: str,
+    insts: list[dict],
+    now: str,
+    distinct_key: str = "",
+) -> dict:
+    """Assemble one rule dict from a template and the instances backing it.
+
+    ``distinct_key`` (the distilled directive) gives per-correction rules their own
+    stable slot/rule_id so distinct corrections are not merged; the template
+    fallback leaves it empty and keeps the base slot/id for stability.
+    """
+    layer = tpl.get("failure_layer", 1)
+    category = tpl.get("failure_category", "output_quality")
+    base_slot = tpl.get("slot", tpl["name"])
+    if distinct_key:
+        suffix = hashlib.sha256(distinct_key.encode()).hexdigest()[:8]
+        slot = f"{base_slot}-{suffix}"
+        rule_id = "rul_" + hashlib.sha256(f"{gap_type}:{base_slot}:{distinct_key}".encode()).hexdigest()[:12]
+    else:
+        slot = base_slot
+        rule_id = "rul_" + hashlib.sha256(f"{gap_type}:{tpl['name']}".encode()).hexdigest()[:12]
+    # Pseudonymous rule/user id (stable per slot) — not a session identifier.
+    anon_hash = hashlib.sha256(f"{gap_type}:{base_slot}".encode()).hexdigest()[:16]
+    # Bug fix: source_session_id anchors to the REAL originating session
+    # (anonymised), not a gap_type hash, so the review log is traceable to the
+    # session/utterance that produced the rule. Deterministic choice: the session
+    # contributing the most instances, ties broken by id.
+    sessions = [str(i.get("_session", "local")) for i in insts]
+    chosen_sid = max(sorted(set(sessions)), key=sessions.count) if sessions else "local"
+    session_anon = hashlib.sha256(chosen_sid.encode()).hexdigest()[:16]
+    # Evidence stays scoped to that one session (no cross-session co-mingling);
+    # instance_count still aggregates across all sessions.
+    observed: list[str] = []
+    for i in insts:
+        if str(i.get("_session", "local")) != chosen_sid:
+            continue
+        snip = scrub_pii(str(i.get("snippet", ""))).strip()
+        if snip and snip not in observed:
+            observed.append(snip)
+    clean_triggers = [scrub_pii(str(t)) for t in tpl.get("triggers", [])]
+    return {
+        "rule_id": rule_id,
+        "name": tpl["name"],
+        "slot": slot,
+        "instruction": instruction,
+        "action": {"instruction": instruction},
+        "trigger": {"keywords": clean_triggers},
+        "pattern": clean_triggers[0] if clean_triggers else gap_type,
+        "example": instruction,
+        "evidence": observed[:5],
+        "category": category,
+        "confidence": round(min(0.95, 0.5 + 0.1 * len(insts)), 2),
+        "user_id": f"anon_{anon_hash[:12]}",
+        "anonymous_id": f"anon_{anon_hash[:12]}",
+        "source_hash": anon_hash,
+        "ttl_days": int(os.environ.get("ARL_RULE_TTL_DAYS", "365")),
+        "priority": tpl["priority"],
+        "priority_label": {5: "CRITICAL", 4: "HIGH", 3: "MEDIUM", 2: "LOW", 1: "LOW"}.get(
+            tpl["priority"], "MEDIUM"
+        ),
+        "failure_layer": layer,
+        "failure_layer_label": _LAYER_LABELS.get(layer, "Model Behaviour"),
+        "failure_category": category,
+        "failure_category_label": _CATEGORY_LABELS.get(category, category),
+        "gap_type": gap_type,
+        "instance_count": len(insts),
+        # Review-before-trust: autonomously-learned rules start inactive and pending
+        # review. They activate only via approve_rule (or an opt-in ARL_AUTO_ACTIVATE
+        # sync). Explicit record_feedback overrides this.
+        "is_active": False,
+        "status": "pending_review",
+        "source": "local_detector",
+        "created_at": now,
+        "source_session_id": session_anon,
+        "extraction_version": "0.3.0",
+        "extracted_at": now,
+        "review_status": "pending",
+        "reviewed_by": None,
+        "reviewed_at": None,
+        "qa_report_id": f"qa_{anon_hash[:8]}",
+        "effectiveness_score": 0.5,
+        "times_triggered": 0,
+        "suppression_count": 0,
+        "last_fired_at": None,
+    }
+
+
 def generate_rules(gaps: dict[str, list[dict]]) -> list[dict]:
-    """Convert gap findings into rule dicts, one per gap type (with PII scrubbing and unified schema)."""
+    """Convert gap findings into rule dicts (PII-scrubbed, unified schema).
+
+    For user-correction gaps the unit of extraction is the *individual distilled
+    directive*, not the coarse gap type: distinct corrections become distinct
+    rules (one per directive), so two different preferences are never collapsed
+    into one. Instances whose snippet distils to nothing fall back to a single
+    template rule for that gap type. Code-smell and other non-preference gaps
+    carry no user utterance and stay one-rule-per-gap-type.
+    """
     rules = []
     now = datetime.now(UTC).replace(tzinfo=None).isoformat()
 
     for gap_type, instances in gaps.items():
         if not instances:
             continue
-        tpl = _TEMPLATES.get(gap_type)
-        if not tpl:
-            tpl = _community_extra.get(gap_type)
+        tpl = _TEMPLATES.get(gap_type) or _community_extra.get(gap_type)
         if not tpl:
             continue
-        rule_id = "rul_" + hashlib.sha256(f"{gap_type}:{tpl['name']}".encode()).hexdigest()[:12]
-        layer = tpl.get("failure_layer", 1)
-        category = tpl.get("failure_category", "output_quality")
-        slot = tpl.get("slot", tpl["name"])
-        anon_hash = hashlib.sha256(f"{gap_type}:{slot}".encode()).hexdigest()[:16]
-        ttl_days = int(os.environ.get("ARL_RULE_TTL_DAYS", "365"))
         base_instruction = scrub_pii(str(tpl.get("instruction", "")))
-        # Ground the rule in the specific correction(s) actually observed this
-        # session rather than emitting only the generic template text. Template-only
-        # instructions produced behaviourally inert "auto" rules (2026-10-21 decision
-        # record: auto == cold); surfacing the user's own words makes the rule name
-        # the concrete constraint the user cared about.
-        # Scope evidence to a single session for provenance: a rule's evidence must
-        # not co-mingle snippets from different sessions (counts still aggregate
-        # across sessions via instance_count). Deterministic choice: the session
-        # contributing the most instances, ties broken by session id.
-        by_session: dict[str, list[dict]] = {}
-        for inst in instances:
-            by_session.setdefault(str(inst.get("_session", "local")), []).append(inst)
-        if by_session:
-            chosen_sid = max(by_session, key=lambda s: (len(by_session[s]), s))
-            chosen = by_session[chosen_sid]
-        else:
-            chosen = instances
-        observed: list[str] = []
-        for inst in chosen:
-            snippet = scrub_pii(str(inst.get("snippet", ""))).strip()
-            if snippet and snippet not in observed:
-                observed.append(snippet)
-        # Faithful capture: for user-correction gaps the rule instruction IS the
-        # user's own correction, distilled to an imperative (deterministic, no LLM),
-        # not a generic meta-template. Falls back to the template when nothing
-        # usable can be extracted, and for code-smell gaps that carry no utterance.
-        # The template name/slot are kept so dedup and review stay stable; only the
-        # injected instruction becomes the user's concrete directive.
-        clean_instruction = base_instruction
+
         if gap_type in _PREFERENCE_GAPS:
-            for snip in observed:
-                directive = distill_directive(snip)
+            by_directive: dict[str, list[dict]] = {}
+            fallback: list[dict] = []
+            for inst in instances:
+                snippet = scrub_pii(str(inst.get("snippet", ""))).strip()
+                directive = distill_directive(snippet) if snippet else ""
                 if directive:
-                    clean_instruction = directive
-                    break
-        clean_triggers = [scrub_pii(str(t)) for t in tpl.get("triggers", [])]
-        rules.append(
-            {
-                "rule_id": rule_id,
-                "name": tpl["name"],
-                "slot": slot,
-                "instruction": clean_instruction,
-                "action": {"instruction": clean_instruction},
-                "trigger": {"keywords": clean_triggers},
-                "pattern": clean_triggers[0] if clean_triggers else gap_type,
-                "example": clean_instruction,
-                "evidence": observed[:5],
-                "category": category,
-                "confidence": round(min(0.95, 0.5 + 0.1 * len(instances)), 2),
-                "user_id": f"anon_{anon_hash[:12]}",
-                "anonymous_id": f"anon_{anon_hash[:12]}",
-                "source_hash": anon_hash,
-                "ttl_days": ttl_days,
-                "priority": tpl["priority"],
-                "priority_label": {5: "CRITICAL", 4: "HIGH", 3: "MEDIUM", 2: "LOW", 1: "LOW"}.get(
-                    tpl["priority"], "MEDIUM"
-                ),
-                "failure_layer": layer,
-                "failure_layer_label": _LAYER_LABELS.get(layer, "Model Behaviour"),
-                "failure_category": category,
-                "failure_category_label": _CATEGORY_LABELS.get(category, category),
-                "gap_type": gap_type,
-                "instance_count": len(instances),
-                # Review-before-trust: autonomously-learned rules start inactive and
-                # pending review. They activate only via approve_rule (or an opt-in
-                # ARL_AUTO_ACTIVATE sync). Explicit record_feedback overrides this.
-                "is_active": False,
-                "status": "pending_review",
-                "source": "local_detector",
-                "created_at": now,
-                "source_session_id": anon_hash[:16],
-                "extraction_version": "0.2.2",
-                "extracted_at": now,
-                "review_status": "pending",
-                "reviewed_by": None,
-                "reviewed_at": None,
-                "qa_report_id": f"qa_{anon_hash[:8]}",
-                "effectiveness_score": 0.5,
-                "times_triggered": 0,
-                "suppression_count": 0,
-                "last_fired_at": None,
-            }
-        )
+                    by_directive.setdefault(directive, []).append(inst)
+                else:
+                    fallback.append(inst)
+            for directive, insts in by_directive.items():
+                rules.append(_build_rule(gap_type, tpl, directive, insts, now, distinct_key=directive))
+            if fallback:
+                rules.append(_build_rule(gap_type, tpl, base_instruction, fallback, now))
+        else:
+            rules.append(_build_rule(gap_type, tpl, base_instruction, instances, now))
 
     # Sort by priority descending then by instance count
     return sorted(rules, key=lambda r: (r["priority"], r["instance_count"]), reverse=True)
