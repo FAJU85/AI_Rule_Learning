@@ -26,11 +26,34 @@ contributor — or any "let's just…" proposal — has to answer to.
 4. **`record_feedback` creates rules `active` immediately**, bypassing both the review queue and
    the Tier-A approve-time gate (#292). The feedback path is not review-gated at all.
 
-5. **Verdict:** the learner is largely vestigial for realistic feedback (a cosmetic reformatter
-   for already-imperative phrasing). The demonstrated value remains auto-injection of _authored_
-   rules (pilot B ≈ D). This supports the enforcement + authored-injection pivot (Rec 4) over
-   investing further in natural-language rule learning. A paid re-run of E is low-value until
-   distill is either fixed to extract directives or the claim is scoped to imperative feedback.
+5. **Verdict (corrected 2026-10-28 — framing fix).** The right question is not "does distill
+   reproduce the text" but "what fraction of extracted rules are _enforceable_". The 28% ceiling
+   is the **text-injection channel only**; it does not bound rules routed to a deterministic
+   channel. So the conclusion is neither "fix distill" (a) nor "deprecate learning" (b) but
+   **(c): learning that feeds enforcement** — distill extracts, a classifier labels the rule
+   structural/soft, and it is routed to the channel that enforces it (AST/linter/constrained
+   decoding ≈ 100%, or text injection ≈ 28%). The moat is the pipeline
+   `feedback → distill → classify → route`, which no competitor builds (linters and editor-rules
+   require humans to author the rule). distill's weak text quality is secondary: routing keys off
+   the `gap_type` taxonomy the detector already assigns, not off distill's prose.
+
+## Enforceability (Block 1, corrected question — 2026-10-28)
+
+For the 10-family coding-rule set, classified by enforcement channel (grounded in the harness's
+own AST/tokenize checkers and existing `ruff` coverage):
+
+- **~9/10 are structural** — mechanically enforceable via AST/tokenize, a `ruff` rule, or
+  constrained decoding (no-comments, type-hints, snake_case, no-print, no-else, short-funcs,
+  pathlib [`PTH`], f-strings [`UP032`], single-block). Enforcement mode varies: autofix
+  (no-comments, f-strings), gate/regenerate (most), or constrain (single-block output format).
+- **1/10 is mixed** — ValueError _presence_ is structural (AST), but "raises on the _right_
+  invalid input" is semantic → the soft channel.
+- **0/10 are purely soft** in this set.
+
+Blended ceiling for this set is ~90%+, not 28%. **Caveat:** the fraction is high because these
+are code-style rules; prose/tone domains carry more soft rules. Scope the claim to the coding
+use case. This is the measurement that justifies (c); a paid behavioural re-run is only warranted
+once the classifier + a real enforcement channel exist to measure the blended number end-to-end.
 
 ## Gate reconciliation (2026-10-28, maintenance Block 5)
 
@@ -57,21 +80,23 @@ Review Queue. → Integrate edit-distance into the dashboard queue; do not ship 
 
 ## Next-window backlog (evidence-backed, prioritised)
 
-- **P0 — strategy decision.** The learner is vestigial for realistic feedback; demonstrated
-  value is enforcement + injection of authored rules (Rec 4). Decide: (a) fix `distill` to
-  extract directives, or (b) deprecate natural-language learning and scope the claim to
-  "captures imperative feedback as well as manual entry." Everything below depends on this.
-- **P1 — canonicalise content-safety.** One shared function for the unsafe-phrase/injection
-  check; have the Space import it instead of re-declaring `_UNSAFE_PHRASES`. Pick one
-  conflict-detector (dashboard keyword vs Tier-A polarity).
-- **P1 — decide `record_feedback` gating.** It writes rules active immediately, bypassing the
-  review queue and Tier-A. Decide whether the trusted path should pass structural hygiene.
-- **P2 — integrate edit-distance into the dashboard review queue** (not a parallel CLI).
-- **P2 — re-wire or retire `arl-community-rules`** (unwired bucket); confirm live bucket roles.
-- **P3 (only if P0=keep learner) — fix `distill`:** dotted-token truncation and first-sentence
-  selection (choose the directive sentence, not the complaint).
-- **Deferred:** EPIC-02/03 (retrieval/JIT) are premature at one published template; the paid
-  900-call study is gated on a valid condition E (reframed to imperative, or `distill` fixed).
+- **P0 — DECIDED: (c) learning feeds enforcement.** Build the pipeline
+  `feedback → distill → classify → route`. Not "fix distill" and not "deprecate learning".
+- **P1 — rule classifier.** Label each extracted rule structural / soft / mixed, keyed off the
+  existing `gap_type` taxonomy (not distill prose). This is the pivot.
+- **P1 — AST enforcement channel v1 (behind a flag).** The structural channel: given a rule and
+  code, deterministically check (and where safe, autofix). Start with the clearest families
+  (no-comments, f-strings) plus gate-mode for the rest. This is the proof.
+- **P2 — canonicalise content-safety.** One shared function; the Space imports it instead of
+  re-declaring `_UNSAFE_PHRASES`. Pick one conflict-detector (dashboard keyword vs Tier-A polarity).
+- **P2 — decide `record_feedback` gating** (writes rules active immediately, bypassing review +
+  Tier-A) and **integrate edit-distance into the dashboard review queue** (not a parallel CLI).
+- **P3 — fix `distill`** (dotted-token truncation, directive-sentence selection) — now a
+  text-channel quality improvement, no longer a strategic gate.
+- **P3 — re-wire or retire `arl-community-rules`** (unwired bucket); confirm live bucket roles.
+- **Done:** M02 (Cursor/Windsurf injection) and R05 (store self-heal) verified fixed with tests.
+- **Deferred:** EPIC-02/03 (retrieval/JIT) premature at one published template; the paid study is
+  gated on the classifier + a real enforcement channel existing to measure the blended number.
 
 ## Strategy / architecture
 
