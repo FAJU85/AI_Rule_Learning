@@ -6,6 +6,46 @@
 
 ---
 
+## 0. As-deployed reality (verified 2026-10-28)
+
+This section records what the live Workers and buckets actually do, verified from deployed
+worker source (`workers_get_worker_code`) and the live `/templates.jsonl` endpoint. Where it
+disagrees with the spec below, this section is correct and the spec is aspirational.
+
+### Verified data flow
+
+- **Relay** (`ai-rule-learning-relay`): `POST /api/contribute` validates (64 KB cap, 30/min
+  rate limit, schema, prompt-injection + PII scans) and writes raw telemetry to the binding
+  `RAW_CONTRIBUTIONS_BUCKET` → bucket **`arl-contributions`** at `raw/<date>/<hash>-<ts>.json`.
+- **Aggregator** (`ai-rule-learning-aggregator`, hourly cron): reads `RAW_CONTRIBUTIONS_BUCKET`
+  (`arl-contributions`), enforces k-anonymity (≥5 distinct sources) + content safety
+  (`isValidSignal`), synthesises templates, and writes `templates.jsonl` + `manifest.json` to
+  `PUBLIC_TEMPLATES_BUCKET` → bucket **`arl-templates`**, served at
+  `.../ai-rule-learning-aggregator.ee-ee455.workers.dev/templates.jsonl`.
+- **Client** (`mcp/.../community.py`) reads `COMMUNITY_RULES_URL` (empty by default) then
+  `COMMUNITY_CDN_URL` → the aggregator's `arl-templates`. So the client's effective community
+  source is **`arl-templates`**, not `arl-contributions`.
+
+**`arl-community-rules` is unwired.** A binding `COMMUNITY_RULES_BUCKET` → `arl-community-rules`
+is declared in `wrangler.aggregator.toml` as a "promoted, QA'd catalog", but no deployed worker
+reads or writes it, and the client URL for it is empty. The bucket exists; nothing populates it.
+
+**Live state (2026-10-28):** `/templates.jsonl` serves one published template
+(`explicit_correction`, 11 unique sources, 272 occurrences).
+
+**Open discrepancy (needs owner confirmation):** this flow inverts the description that
+`arl-community-rules` is the raw collect-all and `arl-contributions` is the filtered primary
+source. The available tooling cannot read live R2 bindings or object contents to settle it; the
+deployed worker _code_ and the live endpoint are the evidence used here. Confirm the intended
+roles, then either re-wire the aggregator to populate `arl-community-rules` or retire that bucket.
+
+**Known limitation:** the aggregator's Stage-4 synthesis emits generic filler instructions
+(e.g. `"Address detected explicit correction pattern consistently across all interactions."`),
+not specific directives — the same low-specificity problem seen in the local learner (see
+`FINDINGS.md`, "Learner validity").
+
+---
+
 ## 1. Overview & Architectural Philosophy
 
 The AI Rule Learning Community Governance Pipeline establishes an end-to-end, zero-trust lifecycle for crowd-sourced AI friction telemetry. To prevent indirect prompt injection, data poisoning, and personal identifiable information (PII) leakage, the architecture strictly decouples raw client contributions from the published catalog.
