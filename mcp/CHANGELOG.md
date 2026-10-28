@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Tier-A structural-hygiene schema (`rule_schema.py`).** A deterministic, post-hoc
+  validator (well-formed, directive, non-trivial, traceable) applied with zero tolerance at
+  the approve boundary, plus a `SkillUnit` schema-in-waiting with a nullable
+  `verification_step`. Not a quality score.
+- **Review-decision log (`review_log.py`) + `review-stats`.** Logs approve/edit/reject with
+  context and the Levenshtein edit distance between proposed and approved rule text.
+
 - **KPI snapshot.** A new `ai-rule-learning kpi` command (`--json` for machine
   output, `kpi` module) reports key indicators computed from local state only —
   rule counts, duplicate/stale/needs-review quality, average effectiveness,
@@ -62,6 +69,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   moves the stray file aside (preserved as `<name>.corrupt-<timestamp>`),
   recreates the directory, and logs a loud warning, instead of failing silently
   on every read and write (`FileExistsError` was swallowed upstream).
+
+### Changed
+
+- **Learner (`distill_directive`) hardening (#291):** per-correction rules, real-session
+  traceability, grammar fix, noise-rejection gate, and preference→imperative conversion.
+- **Version hygiene:** bumped to 0.2.7 so `main` no longer collides with the published 0.2.6.
+
+### Known limitations
+
+- **`distill_directive` does not extract directives from realistic corrective feedback** — it
+  returns the complaint sentence and truncates dotted code tokens (`os.path`→"os."). It only
+  reformats already-imperative phrasing. See `docs/FINDINGS.md` (Learner validity).
+- **`record_feedback` writes rules active immediately**, bypassing the review queue and the
+  Tier-A gate.
 
 ## [0.2.6] - 2026-10-22
 
