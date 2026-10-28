@@ -610,10 +610,41 @@ def _cap(text: str) -> str:
 # catalog bloats (e.g. "thanks" -> "Thanks.").
 _ACK_ONLY = frozenset(
     {
-        "thanks", "thank", "thx", "ty", "ok", "okay", "k", "cool", "nice", "great",
-        "good", "got", "it", "sure", "yes", "yep", "yeah", "yup", "no", "nope",
-        "lol", "lmao", "haha", "hmm", "fine", "perfect", "awesome", "done",
-        "cheers", "np", "right", "gotcha", "understood", "makes", "sense",
+        "thanks",
+        "thank",
+        "thx",
+        "ty",
+        "ok",
+        "okay",
+        "k",
+        "cool",
+        "nice",
+        "great",
+        "good",
+        "got",
+        "it",
+        "sure",
+        "yes",
+        "yep",
+        "yeah",
+        "yup",
+        "no",
+        "nope",
+        "lol",
+        "lmao",
+        "haha",
+        "hmm",
+        "fine",
+        "perfect",
+        "awesome",
+        "done",
+        "cheers",
+        "np",
+        "right",
+        "gotcha",
+        "understood",
+        "makes",
+        "sense",
     }
 )
 
@@ -622,6 +653,21 @@ def _is_noise(low: str) -> bool:
     """True when an utterance is only acknowledgement/filler, with no directive."""
     toks = re.findall(r"[a-z']+", low)
     return all(t in _ACK_ONLY for t in toks) if toks else True
+
+
+def _split_sentences(text: str) -> list[str]:
+    parts = re.split(r"(?<=[.?!])\s+|\n+", text)
+    return [p.strip() for p in parts if p.strip()]
+
+
+_DIRECTIVE_HINT = re.compile(
+    r"\b(always|never|want|need|prefer|should|must|use|instead|avoid|don'?t|do\s+not|stop)\b",
+    re.I,
+)
+
+
+def _looks_directive(text: str) -> bool:
+    return bool(_IMPERATIVE_START.match(text) or _DIRECTIVE_HINT.search(text))
 
 
 def distill_directive(snippet: str) -> str:
@@ -642,7 +688,9 @@ def distill_directive(snippet: str) -> str:
         prev = s
         s = _FRICTION_PREFIX.sub("", s).strip()
     s = _MIDNOISE.sub("", s)
-    s = re.split(r"[.\n?!]", s)[0]
+    sentences = _split_sentences(s)
+    if sentences:
+        s = next((x for x in sentences if _looks_directive(x)), sentences[0])
     s = re.sub(r"\s*,\s*,", ",", s).strip(" ,.;:-")
     if len(s) < 3:
         return ""
@@ -656,17 +704,23 @@ def distill_directive(snippet: str) -> str:
     m = re.match(r"you(?:'?ve)?\s+(?:forgot|missed|skipped|left\s+out)\s+(to\s+)?(\S.*)", low)
     if m:
         prefix = "Always " if m.group(1) else "Always include "
-        return _cap(prefix + s[m.start(2):])
+        return _cap(prefix + s[m.start(2) :])
     m = re.match(r"you\s+did\s*n'?t\s+(\S.*)", low)
     if m:
-        return _cap("Always " + s[m.start(1):])
+        return _cap("Always " + s[m.start(1) :])
     # Preference phrasing -> imperative: "I prefer X" -> "Prefer X"; "we use X" -> "Use X".
     m = re.match(r"i(?:'?d| would| really)?\s+(?:prefer|like)\s+(\S.*)", low)
     if m:
-        return _cap("Prefer " + s[m.start(1):])
+        return _cap("Prefer " + s[m.start(1) :])
     m = re.match(r"(?:i|we)\s+(?:always\s+)?(?:use|prefer\s+to\s+use)\s+(\S.*)", low)
     if m:
-        return _cap("Use " + s[m.start(1):])
+        return _cap("Use " + s[m.start(1) :])
+    m = re.match(r"i\s+(?:never|do\s*n'?t|don'?t)\s+want\s+(\S.*)", low)
+    if m:
+        return _cap("Avoid " + s[m.start(1) :])
+    m = re.match(r"i(?:'?d)?\s+(?:really\s+|always\s+|only\s+)?(?:want|need)\s+(\S.*)", low)
+    if m:
+        return _cap("Use " + s[m.start(1) :])
     if _IMPERATIVE_START.match(low):
         return _cap(s)
     # Fallback: the user's cleaned words, preserved verbatim as the directive.
@@ -733,9 +787,7 @@ def _build_rule(
         "source_hash": anon_hash,
         "ttl_days": int(os.environ.get("ARL_RULE_TTL_DAYS", "365")),
         "priority": tpl["priority"],
-        "priority_label": {5: "CRITICAL", 4: "HIGH", 3: "MEDIUM", 2: "LOW", 1: "LOW"}.get(
-            tpl["priority"], "MEDIUM"
-        ),
+        "priority_label": {5: "CRITICAL", 4: "HIGH", 3: "MEDIUM", 2: "LOW", 1: "LOW"}.get(tpl["priority"], "MEDIUM"),
         "failure_layer": layer,
         "failure_layer_label": _LAYER_LABELS.get(layer, "Model Behaviour"),
         "failure_category": category,

@@ -76,6 +76,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   moves the stray file aside (preserved as `<name>.corrupt-<timestamp>`),
   recreates the directory, and logs a loud warning, instead of failing silently
   on every read and write (`FileExistsError` was swallowed upstream).
+- **`distill_directive` sentence handling (P3).** No longer truncates dotted code tokens
+  (`os.path`, `.format()`); splits on real sentence boundaries, selects the directive-bearing
+  sentence instead of always the first (complaint), and converts `I (always/only) want X` → `Use X`
+  and `I never want X` → `Avoid X`. Realistic corrective feedback now distills to a usable directive.
 
 ### Changed
 
@@ -85,9 +89,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Known limitations
 
-- **`distill_directive` does not extract directives from realistic corrective feedback** — it
-  returns the complaint sentence and truncates dotted code tokens (`os.path`→"os."). It only
-  reformats already-imperative phrasing. See `docs/FINDINGS.md` (Learner validity).
 - **`record_feedback` writes rules active immediately**, bypassing the review queue and the
   Tier-A gate.
 
