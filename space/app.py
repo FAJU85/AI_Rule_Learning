@@ -2570,20 +2570,43 @@ def run_validate_and_evolve():
 # Rule safety check
 # ---------------------------------------------------------------------------
 
-_UNSAFE_PHRASES = [
-    "never refuse",
-    "ignore safety",
-    "bypass",
-    "override your",
-    "disregard",
-    "do not refuse",
-    "don't refuse",
-    "ignore your instructions",
-    "ignore all",
-    "forget your",
-    "you must always comply",
-    "no matter what",
-]
+try:
+    from ai_rule_learning_mcp.safety import UNSAFE_PHRASES as _UNSAFE_PHRASES
+except Exception:
+    _UNSAFE_PHRASES = [
+        "never refuse",
+        "do not refuse",
+        "don't refuse",
+        "bypass",
+        "override your",
+        "override safety",
+        "override rules",
+        "override guidelines",
+        "ignore safety",
+        "ignore all",
+        "ignore previous",
+        "ignore prior",
+        "ignore earlier",
+        "ignore your instructions",
+        "disregard",
+        "forget your",
+        "forget all",
+        "forget everything",
+        "forget earlier",
+        "forget prior",
+        "jailbreak",
+        "developer mode",
+        "god mode",
+        "dan mode",
+        "sudo mode",
+        "unrestricted",
+        "no restrictions",
+        "without restrictions",
+        "exfiltrate",
+        "exfiltration",
+        "you must always comply",
+        "no matter what",
+    ]
 
 _CONFLICT_SIMILARITY_THRESHOLD = 0.6
 

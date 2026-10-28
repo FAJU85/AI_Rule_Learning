@@ -633,6 +633,81 @@ def cmd_review_stats(args: list[str]) -> None:
     print(format_review_stats(stats))
 
 
+def cmd_enforce(args: list[str]) -> None:
+    import json as _json
+    from pathlib import Path as _Path
+
+    from .enforcement import SOFT, STRUCTURAL, enforce_all, enforcement_enabled
+    from .store import load_active_rules
+
+    want_json = "--json" in args
+    apply_fix = "--fix" in args
+    paths = [a for a in args if not a.startswith("--")]
+    if not paths:
+        print("usage: ai-rule-learning enforce <file.py> [--fix] [--json]")
+        sys.exit(1)
+    target = _Path(paths[0])
+    if not target.is_file():
+        print(f"❌ file not found: {target}")
+        sys.exit(1)
+    code = target.read_text(encoding="utf-8")
+    rules = load_active_rules()
+    results, fixed_code = enforce_all(rules, code, apply_fix=apply_fix)
+
+    structural = [r for r in results if r.channel == STRUCTURAL]
+    soft = [r for r in results if r.channel == SOFT]
+    enforced = [r for r in structural if r.status in ("pass", "fixed", "fail")]
+
+    if want_json:
+        print(
+            _json.dumps(
+                {
+                    "file": str(target),
+                    "flag_ARL_ENFORCE": enforcement_enabled(),
+                    "total_rules": len(results),
+                    "structural": len(structural),
+                    "soft": len(soft),
+                    "results": [
+                        {
+                            "rule_id": r.rule_id,
+                            "channel": r.channel,
+                            "check_id": r.check_id,
+                            "mode": r.mode,
+                            "status": r.status,
+                            "violations": r.violations,
+                            "note": r.note,
+                        }
+                        for r in results
+                    ],
+                },
+                indent=2,
+                sort_keys=True,
+            )
+        )
+    else:
+        if not results:
+            print("ℹ️  No active rules to enforce. Approve rules first.")
+            return
+        print(f"🔧 Enforcement over {target} — {len(results)} active rule(s)")
+        print(f"   channels: {len(structural)} structural, {len(soft)} soft (text-injection ~28% ceiling)")
+        for r in results:
+            icon = {"pass": "✅", "fixed": "🛠", "fail": "❌", "pending": "⋯", "soft": "·", "parse_error": "⚠️"}.get(
+                r.status, "?"
+            )
+            label = r.check_id or r.channel
+            extra = f" — {r.note}" if r.note and r.status in ("pending", "soft") else ""
+            print(f"   {icon} {label} [{r.status}]{extra}")
+            for v in r.violations[:3]:
+                print(f"        · {v}")
+        print(
+            f"   enforceable (structural, implemented): {len(enforced)}/{len(results)} — the rest are soft or pending."
+        )
+
+    if apply_fix and fixed_code != code:
+        target.write_text(fixed_code, encoding="utf-8")
+        print(f"🛠  Applied autofixes to {target}")
+
+
 def cmd_export(args: list[str]) -> None:
     """Export the learned rules corpus as a fine-tuning dataset (SFT JSONL).
 
@@ -694,6 +769,7 @@ def main(argv: list[str] | None = None) -> int:
         "kpis": cmd_kpi,
         "review-stats": cmd_review_stats,
         "review": cmd_review_stats,
+        "enforce": cmd_enforce,
     }
 
     fn = dispatch.get(cmd)

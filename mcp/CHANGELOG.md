@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Enforcement channel v1 (`enforcement.py`) + `ai-rule-learning enforce` (P1).** The
+  learning-to-enforcement bridge: `classify()` labels each rule structural/soft (keyed off the
+  `gap_type` taxonomy, not distill prose) and routes it. The structural channel checks code
+  deterministically via AST — `no-comments` (detect + autofix) and `f-strings` (detect + `ruff`
+  autofix) end-to-end, with gate stubs for the other structural families. Autofix never emits
+  broken code (parse-verified, falls back to the original). Library + CLI only; not wired into any
+  model loop; `ARL_ENFORCE` (default off) is reserved for future auto-wiring.
 - **Tier-A structural-hygiene schema (`rule_schema.py`).** A deterministic, post-hoc
   validator (well-formed, directive, non-trivial, traceable) applied with zero tolerance at
   the approve boundary, plus a `SkillUnit` schema-in-waiting with a nullable

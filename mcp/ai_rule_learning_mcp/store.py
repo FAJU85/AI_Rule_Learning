@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any
 
 from .injection import is_prompt_injection
+from .safety import UNSAFE_PHRASES as _UNSAFE_PHRASES
 
 _log = logging.getLogger(__name__)
 
@@ -330,37 +331,6 @@ def _upload(filename: str, records: list[dict]) -> bool:
     except Exception:
         pass
     return False
-
-
-_UNSAFE_PHRASES = [
-    "never refuse",
-    "bypass",
-    "override your",
-    "override safety",
-    "override rules",
-    "override guidelines",
-    "ignore safety",
-    "ignore all",
-    "ignore previous",
-    "ignore prior",
-    "ignore earlier",
-    "disregard",
-    "forget your",
-    "forget all",
-    "forget everything",
-    "forget earlier",
-    "forget prior",
-    "jailbreak",
-    "developer mode",
-    "god mode",
-    "dan mode",
-    "sudo mode",
-    "unrestricted",
-    "no restrictions",
-    "without restrictions",
-    "exfiltrate",
-    "exfiltration",
-]
 
 
 def _is_safe_rule(rule: dict) -> bool:
