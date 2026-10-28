@@ -4,6 +4,25 @@ Short, load-bearing conclusions that must survive even while larger write-ups
 (e.g. the competitive analysis) stay frozen. These are the constraints any future
 contributor — or any "let's just…" proposal — has to answer to.
 
+## Human review retired for an automated gate (2026-10-28, P2b)
+
+The product relies on **automated filtering**, not human review: the community path is filtered
+server-side by the aggregator (quorum + content safety), and the local path is filtered by an
+automated gate. So the human-in-the-loop machinery was retired.
+
+- **Autonomous-learned rules** now auto-activate on passing the **automated gate** (content-safety
+  `safety.rule_safety_issues` + Tier-A `rule_schema.check_rule`) and are **rejected** otherwise —
+  no `pending_review` wait for a person. `auto_activate_pending_rules` runs by default (the
+  `ARL_AUTO_ACTIVATE` opt-in gate is gone).
+- **`record_feedback`** (user-authored, trusted) applies **content-safety only** (unsafe-phrase +
+  injection); the full Tier-A gate over-rejects legitimate short/non-directive corrections, so it
+  belongs on the machine-generated path, not here.
+- **Removed:** `review_log`, the `review_stats` tool, and the `review-stats` CLI (never released).
+- **Kept:** `approve_rule`/`reject_rule` as manual overrides (the `approve` path still runs Tier-A).
+- **Deferred:** the HF Space **Review Queue** teardown (separate deployment) — follow-up.
+- **Note:** `pending_review` survives as a _transient_ pre-gate state (so community-propagation
+  suppression still holds), not a human-wait state.
+
 ## Learner validity (2026-10-28, maintenance Block 1)
 
 1. **The effectiveness pilot's condition E was invalid: it ran on `0.2.4`, which contains

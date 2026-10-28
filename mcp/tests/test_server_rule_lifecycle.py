@@ -120,8 +120,7 @@ def test_call_tool_routes_rule_lifecycle() -> None:
     assert get_rule("rule-1")["status"] == "active"
 
 
-def test_approve_rule_blocked_by_tier_a_hygiene() -> None:
-    # A malformed candidate (no gap_type/provenance, non-directive) must not activate.
+def test_approve_rule_blocked_by_automated_gate() -> None:
     bad = _rule("bad-1")
     bad["gap_type"] = ""
     bad["source_session_id"] = ""
@@ -131,49 +130,9 @@ def test_approve_rule_blocked_by_tier_a_hygiene() -> None:
 
     result = asyncio.run(server._approve_rule("bad-1"))
 
-    assert "Tier-A" in result[0].text
+    assert "automated structural gate" in result[0].text
     assert get_rule("bad-1")["status"] == "pending"
     assert get_rule("bad-1")["is_active"] is False
-
-
-def test_approve_rule_logs_review_decision() -> None:
-    from ai_rule_learning_mcp import review_log
-
-    _local_save("rules.jsonl", [_rule("rule-1")])
-    asyncio.run(server._approve_rule("rule-1"))
-
-    log = review_log.read_review_log()
-    assert len(log) == 1
-    assert log[0]["decision"] == "approve"
-    assert log[0]["rule_id"] == "rule-1"
-    assert log[0]["edit_distance"] == 0
-
-
-def test_approve_with_corrected_instruction_logs_edit_without_mutating_rule() -> None:
-    from ai_rule_learning_mcp import review_log
-
-    _local_save("rules.jsonl", [_rule("rule-1")])
-    asyncio.run(
-        server._approve_rule("rule-1", approved_instruction="Use tests thoroughly before merging.")
-    )
-
-    log = review_log.read_review_log()
-    assert log[0]["decision"] == "edit"
-    assert log[0]["edit_distance"] > 0
-    # Anti-injection control holds: the stored instruction is NOT changed.
-    assert get_rule("rule-1")["instruction"] == "Use tests."
-
-
-def test_reject_rule_logs_review_decision() -> None:
-    from ai_rule_learning_mcp import review_log
-
-    _local_save("rules.jsonl", [_rule("rule-1")])
-    asyncio.run(server._reject_rule("rule-1", note="not useful"))
-
-    log = review_log.read_review_log()
-    assert len(log) == 1
-    assert log[0]["decision"] == "reject"
-    assert log[0]["edit_distance"] is None
 
 
 def test_review_rule_health_tool_dry_run_does_not_write() -> None:

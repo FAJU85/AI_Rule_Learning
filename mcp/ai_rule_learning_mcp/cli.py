@@ -615,24 +615,6 @@ def cmd_kpi(args: list[str]) -> None:
     print(format_kpis())
 
 
-def cmd_review_stats(args: list[str]) -> None:
-    """Print the review-decision log summary. `--json` for machine output.
-
-    Reports approve/edit/reject counts and the edit distance between proposed and
-    approved rule text — the dogfood read-out that decides learner vs. suggestion
-    engine. Measurements with N attached, not a quality score.
-    """
-    from .review_log import format_review_stats, review_stats
-
-    stats = review_stats()
-    if "--json" in args:
-        import json
-
-        print(json.dumps(stats, indent=2, sort_keys=True))
-        return
-    print(format_review_stats(stats))
-
-
 def cmd_enforce(args: list[str]) -> None:
     import json as _json
     from pathlib import Path as _Path
@@ -767,8 +749,6 @@ def main(argv: list[str] | None = None) -> int:
         "export": cmd_export,
         "kpi": cmd_kpi,
         "kpis": cmd_kpi,
-        "review-stats": cmd_review_stats,
-        "review": cmd_review_stats,
         "enforce": cmd_enforce,
     }
 
