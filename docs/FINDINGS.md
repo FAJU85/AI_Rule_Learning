@@ -4,6 +4,75 @@ Short, load-bearing conclusions that must survive even while larger write-ups
 (e.g. the competitive analysis) stay frozen. These are the constraints any future
 contributor — or any "let's just…" proposal — has to answer to.
 
+## Learner validity (2026-10-28, maintenance Block 1)
+
+1. **The effectiveness pilot's condition E was invalid: it ran on `0.2.4`, which contains
+   no `distill_directive` at all.** Verified by pulling `0.2.4` from PyPI. So "E ≈ B0 ⇒ the
+   tool doesn't learn" is not evidence about the learning algorithm — that version has none.
+   PyPI timeline: `0.2.4` (2026-10-19) and latest `0.2.6` (2026-10-22) both predate the distill
+   hardening (#291, 2026-10-24) and Tier-A (#292); neither is published.
+
+2. **Even with distill (0.2.6 / `main`), the learner does not extract usable rules from
+   realistic natural feedback.** Full `record_feedback` round-trip on `main` for corrective
+   feedback ("You added comments again. I never want comments…") injects the _complaint
+   sentence_ as an active rule ("You added comments and docstrings again.") — not an imperative
+   directive. distill only works on feedback that is already near-imperative
+   ("you forgot to X" → "Always X", "I prefer X" → "Prefer X", "we use X" → "Use X"). On this
+   realistic corpus, true directive-extraction ≈ 0/10, so a re-run of E would still ≈ B0.
+
+3. **distill bug:** truncates on dotted code tokens — "You used os.path again" → "You used os.",
+   "You used .format()" → "You used." (splits on the first period, including inside identifiers).
+
+4. **`record_feedback` creates rules `active` immediately**, bypassing both the review queue and
+   the Tier-A approve-time gate (#292). The feedback path is not review-gated at all.
+
+5. **Verdict:** the learner is largely vestigial for realistic feedback (a cosmetic reformatter
+   for already-imperative phrasing). The demonstrated value remains auto-injection of _authored_
+   rules (pilot B ≈ D). This supports the enforcement + authored-injection pivot (Rec 4) over
+   investing further in natural-language rule learning. A paid re-run of E is low-value until
+   distill is either fixed to extract directives or the claim is scoped to imperative feedback.
+
+## Gate reconciliation (2026-10-28, maintenance Block 5)
+
+The system has three rule-vetting gates on **different axes** — not three copies of one gate:
+
+- **Content-safety** (injection / exec / unsafe phrases) is genuinely duplicated in three places:
+  `store._is_safe_rule` (`_UNSAFE_PHRASES` + `is_prompt_injection`), the dashboard's
+  `_check_rule_safety` (`_UNSAFE_PHRASES` + length floor), and the aggregator's `isValidSignal`
+  (exec/url/base64 regex). The `_UNSAFE_PHRASES` list is copied across client and Space. →
+  **Canonicalise one content-safety function; have the Space import it rather than re-declare.**
+- **Structural hygiene** (directive / traceable / non-trivial / length) lives only in Tier-A
+  (`rule_schema.py`). It is **net-new**, complementary to the safety gates, and is the right home
+  for the Rec-4 "inspectable / AST" enforcement channel. Keep it; reposition it as enforcement,
+  not a learning-quality score.
+- **Conflict detection** exists twice: dashboard `_detect_rule_conflicts` (keyword Jaccard) and
+  Tier-A `find_conflicts` (opposite-polarity + shared terms). → **Pick one method.**
+
+**Coverage gap:** `record_feedback` writes rules `active` immediately (trusted path), so they
+bypass the dashboard review queue _and_ the Tier-A approve-time gate. Only the autonomous-learn
+path is review-gated. Decide whether the feedback path should also pass structural hygiene.
+
+**review_log** (edit-distance, #292) is the only net-new piece versus the dashboard's existing
+Review Queue. → Integrate edit-distance into the dashboard queue; do not ship a parallel CLI.
+
+## Next-window backlog (evidence-backed, prioritised)
+
+- **P0 — strategy decision.** The learner is vestigial for realistic feedback; demonstrated
+  value is enforcement + injection of authored rules (Rec 4). Decide: (a) fix `distill` to
+  extract directives, or (b) deprecate natural-language learning and scope the claim to
+  "captures imperative feedback as well as manual entry." Everything below depends on this.
+- **P1 — canonicalise content-safety.** One shared function for the unsafe-phrase/injection
+  check; have the Space import it instead of re-declaring `_UNSAFE_PHRASES`. Pick one
+  conflict-detector (dashboard keyword vs Tier-A polarity).
+- **P1 — decide `record_feedback` gating.** It writes rules active immediately, bypassing the
+  review queue and Tier-A. Decide whether the trusted path should pass structural hygiene.
+- **P2 — integrate edit-distance into the dashboard review queue** (not a parallel CLI).
+- **P2 — re-wire or retire `arl-community-rules`** (unwired bucket); confirm live bucket roles.
+- **P3 (only if P0=keep learner) — fix `distill`:** dotted-token truncation and first-sentence
+  selection (choose the directive sentence, not the complaint).
+- **Deferred:** EPIC-02/03 (retrieval/JIT) are premature at one published template; the paid
+  900-call study is gated on a valid condition E (reframed to imperative, or `distill` fixed).
+
 ## Strategy / architecture
 
 1. **Per-rule behavioural validation is structurally unreachable for single-user
