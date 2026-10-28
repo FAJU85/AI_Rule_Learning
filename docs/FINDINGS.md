@@ -55,6 +55,24 @@ path is review-gated. Decide whether the feedback path should also pass structur
 **review_log** (edit-distance, #292) is the only net-new piece versus the dashboard's existing
 Review Queue. → Integrate edit-distance into the dashboard queue; do not ship a parallel CLI.
 
+## Next-window backlog (evidence-backed, prioritised)
+
+- **P0 — strategy decision.** The learner is vestigial for realistic feedback; demonstrated
+  value is enforcement + injection of authored rules (Rec 4). Decide: (a) fix `distill` to
+  extract directives, or (b) deprecate natural-language learning and scope the claim to
+  "captures imperative feedback as well as manual entry." Everything below depends on this.
+- **P1 — canonicalise content-safety.** One shared function for the unsafe-phrase/injection
+  check; have the Space import it instead of re-declaring `_UNSAFE_PHRASES`. Pick one
+  conflict-detector (dashboard keyword vs Tier-A polarity).
+- **P1 — decide `record_feedback` gating.** It writes rules active immediately, bypassing the
+  review queue and Tier-A. Decide whether the trusted path should pass structural hygiene.
+- **P2 — integrate edit-distance into the dashboard review queue** (not a parallel CLI).
+- **P2 — re-wire or retire `arl-community-rules`** (unwired bucket); confirm live bucket roles.
+- **P3 (only if P0=keep learner) — fix `distill`:** dotted-token truncation and first-sentence
+  selection (choose the directive sentence, not the complaint).
+- **Deferred:** EPIC-02/03 (retrieval/JIT) are premature at one published template; the paid
+  900-call study is gated on a valid condition E (reframed to imperative, or `distill` fixed).
+
 ## Strategy / architecture
 
 1. **Per-rule behavioural validation is structurally unreachable for single-user
