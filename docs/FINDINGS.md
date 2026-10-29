@@ -19,7 +19,12 @@ automated gate. So the human-in-the-loop machinery was retired.
   belongs on the machine-generated path, not here.
 - **Removed:** `review_log`, the `review_stats` tool, and the `review-stats` CLI (never released).
 - **Kept:** `approve_rule`/`reject_rule` as manual overrides (the `approve` path still runs Tier-A).
-- **Deferred:** the HF Space **Review Queue** teardown (separate deployment) — follow-up.
+- **Done (2026-10-29):** the HF Space **Review Queue** teardown. The dashboard's pending-rule
+  approve/reject/bulk UI and its helper functions (`build_pending_rules_table`,
+  `get_pending_rule_ids`, `get_pending_rule_detail`, `approve_rule`/`reject_rule`,
+  `bulk_approve_safe_pending_rules`, `_check_rule_safety`, `_detect_rule_conflicts`) are removed;
+  owner-created A/B variants now auto-activate; the pending-alert and onboarding copy no longer
+  direct users to a queue. Ships on the next Space deployment (separate from the MCP package).
 - **Note:** `pending_review` survives as a _transient_ pre-gate state (so community-propagation
   suppression still holds), not a human-wait state.
 
