@@ -31,17 +31,12 @@ _log = logging.getLogger(__name__)
 # requires a token for read or contribution.
 #   arl-contributions   raw contributions (relay writes; private)
 #   arl-templates       derived templates (aggregator serves; public read)
-#   arl-community-rules promoted, QA'd catalog (aggregator serves; public read)
-# Read path: COMMUNITY_RULES_URL (promoted catalog) -> COMMUNITY_CDN_URL (templates)
-# -> local cache -> bundled rules. Write path: COMMUNITY_RELAY_URL.
+# Read path: COMMUNITY_CDN_URL (templates) -> local cache -> bundled rules.
+# Write path: COMMUNITY_RELAY_URL.
 COMMUNITY_CDN_URL = os.environ.get(
     "COMMUNITY_CDN_URL",
     "https://ai-rule-learning-aggregator.ee-ee455.workers.dev/templates.jsonl",
 )
-# Promoted community-rules catalog (R2 bucket: arl-community-rules). Empty by
-# default so the client stays non-breaking until the aggregator route and bucket
-# are deployed; set it to the aggregator's community-rules endpoint to activate.
-COMMUNITY_RULES_URL = os.environ.get("COMMUNITY_RULES_URL", "")
 COMMUNITY_RELAY_URL = os.environ.get(
     "COMMUNITY_RELAY_URL",
     "https://ai-rule-learning-relay.ee-ee455.workers.dev/api/contribute",
@@ -304,11 +299,10 @@ def fetch_community_patterns() -> dict[str, dict]:
             except Exception:
                 pass
 
-    # Fetch over HTTP from the R2-backed Workers: the promoted community-rules
-    # catalog first (arl-community-rules), then derived templates (arl-templates).
+    # Fetch derived templates (arl-templates) over HTTP from the aggregator Worker.
     # No token required; successful reads are cached locally. Skipped entirely
     # when the offline override is active.
-    for url in (COMMUNITY_RULES_URL, COMMUNITY_CDN_URL):
+    for url in (COMMUNITY_CDN_URL,):
         if local_override_active or records or not url:
             continue
         try:

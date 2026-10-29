@@ -95,6 +95,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Human-review instrumentation:** `review_log` module, the `review_stats` MCP tool, and the
   `ai-rule-learning review-stats` CLI (added earlier this cycle, never released) — superseded by
   the automated gate. The HF Space Review Queue teardown is tracked separately.
+- **Unwired `arl-community-rules` read path (P3):** the `COMMUNITY_RULES_URL` environment override
+  and its dead fetch branch in `community.py` are removed. It was empty by default and pointed at a
+  "promoted catalog" bucket that no deployed worker populated; the client's community source is and
+  remains `arl-templates` via `COMMUNITY_CDN_URL`. No behaviour change (the branch never ran).
 
 ## [0.2.6] - 2026-10-22
 
