@@ -1,6 +1,6 @@
 # Protocol: Effectiveness of AI Rule Learning MCP on instruction adherence (DeepSeek)
 
-**Status:** FROZEN FOR REGISTRATION — §1 hashes filled; checker selftest reproduced (27/27) at freeze. Not yet registered. Registration = commit + git tag (or OSF upload) of this file together with `arl_study.py` BEFORE running `MODE="main"`. The timestamp of that tag/upload is the registration date; do not edit dates by hand.
+**Status:** REGISTERED on OSF — **osf.io/hy5a6** (the OSF submission timestamp is the authoritative registration date; dates are not hand-edited). §1 hashes filled; checker selftest reproduced (27/27) at freeze. The `MODE="main"` run was executed after registration; results are in `RESULTS.md` and deviations in §9.
 **Draft date:** 2026-10-29
 **Conflict of interest:** the author developed the tool under test. Task suite, checkers and this protocol were fixed before main-study data exist. An independent reviewer of the task suite and checkers is recommended and, if obtained, named here: ________ (none obtained as of this freeze)
 
@@ -15,6 +15,7 @@
 | Runnable wrapper       | COLAB_ONE_CELL.py (one-cell Colab runner that emits `arl_study.py` from its `SRC` literal), sha256: d83607c96413b949fbfbe1406ec1947a1f0e10d8ab661b6ec9b868610b1baaea            |
 | Model                  | DeepSeek API, requested `deepseek-chat`, temperature 0, max_tokens 2500; the model name the API returns is logged per call (pilot returned `deepseek-flash`)                    |
 | Seed for task sampling | 20261028                                                                                                                                                                        |
+| Registration           | OSF osf.io/hy5a6 (submission timestamp authoritative)                                                                                                                           |
 
 Any change to the above after registration = deviation, logged in §9; a new tool version = new study.
 
@@ -59,7 +60,27 @@ Functional/security findings observed so far with 0.2.4/0.2.7 (data files create
 
 ## 9. Deviation log
 
-(empty — fill during and after the run)
+Filled after the registered `MODE="main"` run (DeepSeek, 900 calls). See `RESULTS.md` for the
+analysis these refer to.
+
+1. **Model alias.** `deepseek-chat` was requested but the API returned `deepseek-flash` on all
+   900 calls (`model_returned` logged per record). Results describe **deepseek-flash**. This is
+   the alias risk declared in §1/§7, now realised; not a protocol breach.
+2. **Analysis under-implemented in the frozen script.** The registered `arl_study.py analyze`
+   computes only each-condition-vs-A McNemar (Holm over those), not the §4 confirmatory family
+   (H1 E>A, H2 E>C, H3 E>B0) nor the equivalence TOSTs. The pre-registered §4 tests were computed
+   separately by `analyze_prereg.py` (added post-registration, in the repo) directly from the
+   released raw data; it does not alter the data or the harness. All §4 hypotheses are supported
+   (see `RESULTS.md`).
+3. **Reliability subset not collected.** §2 specifies a 30-task rep-1 subset (`--reps 2`) for
+   run-to-run variability; the Colab runner invoked `run` with the default `--reps 1`, so only
+   rep 0 exists. The reliability analysis is therefore not available for this run.
+4. **Checker-confound note (not a change, recorded for transparency).** F07 (pathlib) and F09
+   (ValueError) pass-rates are inflated by over-application; a pre-specified-style robustness
+   recomputation excluding those two families is reported in `RESULTS.md` and leaves all
+   confirmatory conclusions intact.
+5. **Human-validation (κ) and the rep-1 reliability read from §3/§2 remain outstanding** for a
+   complete report.
 
 ## 10. Paper outline (no results)
 
