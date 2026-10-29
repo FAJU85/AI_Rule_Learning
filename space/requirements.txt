@@ -5,7 +5,7 @@ pydantic>=2.0.0
 huggingface_hub>=0.24.0
 # Pinned exactly for reproducible Space builds — this is the showcased package
 # whose version drives the dashboard. Bump deliberately when a new release ships.
-ai-rule-learning-mcp==0.2.6
+ai-rule-learning-mcp==0.2.7
 mcp>=1.0.0,<2.0.0
 # S3 client for the Cloudflare R2 remote sync backend (store.py).
 boto3>=1.34.0
