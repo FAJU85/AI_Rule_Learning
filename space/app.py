@@ -2566,229 +2566,6 @@ def run_validate_and_evolve():
         yield emit(f"\n❌ Failed to save evolved rules: {exc}")
 
 
-# ---------------------------------------------------------------------------
-# Rule safety check
-# ---------------------------------------------------------------------------
-
-try:
-    from ai_rule_learning_mcp.safety import UNSAFE_PHRASES as _UNSAFE_PHRASES
-except Exception:
-    _UNSAFE_PHRASES = [
-        "never refuse",
-        "do not refuse",
-        "don't refuse",
-        "bypass",
-        "override your",
-        "override safety",
-        "override rules",
-        "override guidelines",
-        "ignore safety",
-        "ignore all",
-        "ignore previous",
-        "ignore prior",
-        "ignore earlier",
-        "ignore your instructions",
-        "disregard",
-        "forget your",
-        "forget all",
-        "forget everything",
-        "forget earlier",
-        "forget prior",
-        "jailbreak",
-        "developer mode",
-        "god mode",
-        "dan mode",
-        "sudo mode",
-        "unrestricted",
-        "no restrictions",
-        "without restrictions",
-        "exfiltrate",
-        "exfiltration",
-        "you must always comply",
-        "no matter what",
-    ]
-
-_CONFLICT_SIMILARITY_THRESHOLD = 0.6
-
-
-def _check_rule_safety(rule: dict) -> list[str]:
-    """Return a list of safety issues found in the rule. Empty list = safe."""
-    issues = []
-    instruction = (rule.get("action") or {}).get("instruction", "").lower()
-    description = rule.get("description", "").lower()
-    combined = instruction + " " + description
-
-    for phrase in _UNSAFE_PHRASES:
-        if phrase in combined:
-            issues.append(f'Contains unsafe phrase: "{phrase}"')
-
-    if instruction and len(instruction) < 10:
-        issues.append("Instruction too vague (< 10 characters)")
-
-    return issues
-
-
-def _detect_rule_conflicts(new_rule: dict, existing_rules: list[dict]) -> list[str]:
-    """Return names of active rules whose keywords heavily overlap with the new rule."""
-    new_kws = set(kw.lower() for kw in (new_rule.get("trigger") or {}).get("keywords", []))
-    if not new_kws:
-        return []
-    conflicts = []
-    for r in existing_rules:
-        if not r.get("is_active"):
-            continue
-        if r.get("rule_id") == new_rule.get("rule_id"):
-            continue
-        existing_kws = set(kw.lower() for kw in (r.get("trigger") or {}).get("keywords", []))
-        if not existing_kws:
-            continue
-        overlap = len(new_kws & existing_kws) / max(len(new_kws | existing_kws), 1)
-        if overlap >= _CONFLICT_SIMILARITY_THRESHOLD:
-            conflicts.append(r.get("name", r.get("rule_id", "?")))
-    return conflicts
-
-
-# ---------------------------------------------------------------------------
-# Review gate — approve / reject pending rules
-# ---------------------------------------------------------------------------
-
-
-def build_pending_rules_table(query: str = "") -> str:
-    rules = load_rules()
-    pending = [r for r in rules if r.get("status") == "pending_review"]
-    if not pending:
-        return '<div class="rl-empty">No rules pending review — run <em>▶ Run Analysis</em> in <strong>🔄 Sessions → Step 2</strong> to generate new rules for review.</div>'
-    q = query.strip().lower()
-    matched = []
-    for r in pending:
-        name = r.get("name", "?")
-        priority = str(r.get("priority", "?"))
-        gap_type = r.get("empirical_basis", "")
-        instruction = (r.get("action") or {}).get("instruction", "")
-        if q and not any(q in s.lower() for s in (name, priority, gap_type, instruction)):
-            continue
-        matched.append(r)
-    if not matched:
-        return f'<div class="rl-empty">No pending rules match "<b>{query}</b>".</div>'
-    _pri_cls = {"1": "rl-pri-low", "2": "rl-pri-low", "3": "rl-pri-medium", "4": "rl-pri-high", "5": "rl-pri-critical"}
-    rows_html = ""
-    for r in matched:
-        issues = _check_rule_safety(r)
-        if issues:
-            safety_html = f'<span class="rl-badge rl-badge-deprecated" title="{"; ".join(issues)}">⚠ issues</span>'
-        else:
-            safety_html = '<span class="rl-badge rl-badge-active">safe</span>'
-        pri = str(r.get("priority", "?"))
-        pri_cls = _pri_cls.get(pri, "rl-pri-medium")
-        instruction = (r.get("action") or {}).get("instruction", "")
-        rows_html += (
-            f"<tr>"
-            f"<td style='font-family:monospace;font-size:0.75rem;color:#6b6892'>{r.get('rule_id', '?')[:16]}</td>"
-            f"<td style='font-weight:600'>{r.get('name', '?')[:40]}</td>"
-            f"<td class='{pri_cls}'>{pri}</td>"
-            f"<td style='font-size:0.78rem;color:#475569' title='{r.get('empirical_basis', '')}'>{r.get('empirical_basis', '')[:60]}</td>"
-            f"<td style='font-size:0.78rem;color:#6b6892' title='{instruction}'>{instruction[:80]}</td>"
-            f"<td>{safety_html}</td>"
-            f"</tr>"
-        )
-    return (
-        f'<div class="rl-table-wrap"><table class="rl-table">'
-        f"<thead><tr><th>Rule ID</th><th>Name</th><th>Priority</th><th>Gap Type</th><th>Instruction</th><th>Safety</th></tr></thead>"
-        f"<tbody>{rows_html}</tbody></table></div>"
-    )
-
-
-def get_pending_rule_ids() -> list[str]:
-    rules = load_rules()
-    return [r.get("rule_id", "?") for r in rules if r.get("status") == "pending_review"]
-
-
-def get_pending_rule_detail(rule_id: str) -> str:
-    if not rule_id:
-        return "Select a pending rule to review."
-    rules = load_rules()
-    rule = next((r for r in rules if r.get("rule_id") == rule_id), None)
-    if not rule:
-        return "Rule not found."
-    issues = _check_rule_safety(rule)
-    active_rules = [r for r in rules if r.get("is_active")]
-    conflicts = _detect_rule_conflicts(rule, active_rules)
-    safety_block = (
-        "✅ **No safety issues detected**"
-        if not issues
-        else ("⚠️ **Safety issues:**\n" + "\n".join(f"- {i}" for i in issues))
-    )
-    conflict_block = (
-        "✅ **No conflicts with active rules**"
-        if not conflicts
-        else ("⚠️ **Conflicts with active rules:**\n" + "\n".join(f"- {c}" for c in conflicts))
-    )
-    return f"""### {rule.get("name", "?")}
-
-**ID:** `{rule.get("rule_id", "?")}`
-**Priority:** {rule.get("priority", "?")} / 5
-**Empirical basis:** {rule.get("empirical_basis", "—")}
-
-**Description:**
-{rule.get("description", "—")}
-
-**Trigger keywords:** {(rule.get("trigger") or {}).get("keywords", [])}
-
-**Instruction to AI:**
-> {(rule.get("action") or {}).get("instruction", "—")}
-
----
-
-{safety_block}
-
-{conflict_block}
-
----
-_Approve to activate this rule. Reject to discard it._
-"""
-
-
-def approve_rule(rule_id: str) -> str:
-    if not rule_id:
-        return "No rule selected."
-    rules = load_rules()
-    rule = next((r for r in rules if r.get("rule_id") == rule_id), None)
-    if not rule:
-        return f"Rule `{rule_id}` not found."
-    issues = _check_rule_safety(rule)
-    if issues:
-        return "❌ Cannot approve — rule has safety issues:\n" + "\n".join(f"- {i}" for i in issues)
-    rule["is_active"] = True
-    rule["status"] = "active"
-    rule["approved_at"] = datetime.utcnow().isoformat()
-    rule.setdefault("score_history", [])
-    try:
-        _upload_jsonl("rules.jsonl", rules)
-        _snapshot_rule_version(rule, "approved")
-        return f"✅ Rule **{rule.get('name', rule_id)}** approved and activated."
-    except Exception as exc:
-        return f"❌ Failed to save: {exc}"
-
-
-def reject_rule(rule_id: str) -> str:
-    if not rule_id:
-        return "No rule selected."
-    rules = load_rules()
-    rule = next((r for r in rules if r.get("rule_id") == rule_id), None)
-    if not rule:
-        return f"Rule `{rule_id}` not found."
-    rule["is_active"] = False
-    rule["status"] = "rejected"
-    rule["rejected_at"] = datetime.utcnow().isoformat()
-    try:
-        _upload_jsonl("rules.jsonl", rules)
-        _snapshot_rule_version(rule, "rejected_by_user")
-        _save_to_rejected_memory(rule, "rejected by user during review")
-        return f"🗑️ Rule **{rule.get('name', rule_id)}** rejected — stored in memory so it won't be recreated."
-    except Exception as exc:
-        return f"❌ Failed to save: {exc}"
-
-
 def _rule_status(rule: dict) -> str:
     if rule.get("status"):
         return str(rule.get("status"))
@@ -2968,42 +2745,6 @@ def build_duplicate_rules_table(min_similarity: float = 0.7) -> str:
     )
 
 
-def bulk_approve_safe_pending_rules(dry_run: bool = True) -> str:
-    """Approve all pending_review rules that pass the dashboard safety check."""
-    rules = load_rules()
-    pending = [rule for rule in rules if _rule_status(rule) == "pending_review"]
-    safe_rules: list[dict] = []
-    blocked: list[tuple[dict, list[str]]] = []
-    for rule in pending:
-        issues = _check_rule_safety(rule)
-        if issues:
-            blocked.append((rule, issues))
-        else:
-            safe_rules.append(rule)
-
-    if dry_run:
-        return (
-            f"🔎 Preview: {len(safe_rules)} safe pending rule(s) would be approved; "
-            f"{len(blocked)} rule(s) blocked by safety checks."
-        )
-    if not HF_TOKEN:
-        return "❌ HF_TOKEN not set — cannot update the owner dataset."
-    if not safe_rules:
-        return f"✅ No safe pending rules to approve. {len(blocked)} rule(s) remain blocked."
-
-    now = datetime.utcnow().isoformat()
-    for rule in safe_rules:
-        rule["is_active"] = True
-        rule["status"] = "active"
-        rule["approved_at"] = now
-        rule.setdefault("score_history", [])
-    try:
-        _upload_jsonl("rules.jsonl", rules)
-        for rule in safe_rules:
-            _snapshot_rule_version(rule, "bulk_approved")
-        return f"✅ Bulk approved {len(safe_rules)} safe pending rule(s). {len(blocked)} blocked by safety checks."
-    except Exception as exc:
-        return f"❌ Failed to bulk approve pending rules: {exc}"
 def _snapshot_rules_after_write(rules: list[dict], event: str) -> str:
     failed: list[str] = []
     for rule in rules:
@@ -3029,44 +2770,6 @@ def get_rule_choices() -> list[tuple[str, str]]:
         label = str(rule.get("name", rule_id))
         choices.append((label, str(rule_id)))
     return choices
-
-
-def bulk_approve_safe_pending_rules(dry_run: bool = True) -> str:
-    """Approve all pending_review rules that pass the dashboard safety check."""
-    with _RULE_WRITE_LOCK:
-        rules = load_rules()
-        pending = [rule for rule in rules if _rule_status(rule) == "pending_review"]
-        safe_rules: list[dict] = []
-        blocked: list[tuple[dict, list[str]]] = []
-        for rule in pending:
-            issues = _check_rule_safety(rule)
-            if issues:
-                blocked.append((rule, issues))
-            else:
-                safe_rules.append(rule)
-
-        if dry_run:
-            return (
-                f"🔎 Preview: {len(safe_rules)} safe pending rule(s) would be approved; "
-                f"{len(blocked)} rule(s) blocked by safety checks."
-            )
-        if not HF_TOKEN:
-            return "❌ HF_TOKEN not set — cannot update the owner dataset."
-        if not safe_rules:
-            return f"✅ No safe pending rules to approve. {len(blocked)} rule(s) remain blocked."
-
-        now = datetime.utcnow().isoformat()
-        for rule in safe_rules:
-            rule["is_active"] = True
-            rule["status"] = "active"
-            rule["approved_at"] = now
-            rule.setdefault("score_history", [])
-        try:
-            _upload_jsonl("rules.jsonl", rules)
-        except Exception as exc:
-            return f"❌ Failed to bulk approve pending rules: {exc}"
-        warning = _snapshot_rules_after_write(safe_rules, "bulk_approved")
-        return f"✅ Bulk approved {len(safe_rules)} safe pending rule(s). {len(blocked)} blocked by safety checks.{warning}"
 
 
 def build_review_audit_table(limit: int = 25) -> str:
@@ -9348,8 +9051,8 @@ def build_action_items_html(severity: str = "All") -> str:
                 "<span>In <em>Step 2</em>, click <em>🌱 Load Starter Rules</em> then <em>▶ Run Analysis</em> to detect gaps and generate rules.</span>"
                 "</div></div>"
                 '<div class="rl-onboard-step"><span class="rl-onboard-num">3</span><div>'
-                "<strong>Review &amp; activate rules</strong>"
-                "<span>Open <em>📋 Rules → Review Queue</em> and approve the rules you want to activate. The dashboard will update automatically.</span>"
+                "<strong>Rules activate automatically</strong>"
+                "<span>Rules that pass the automated gate (content-safety + structural hygiene) activate on their own. Open <em>📋 Rules</em> to see the active ruleset; the dashboard updates automatically.</span>"
                 "</div></div>"
                 "</div></div>"
             )
@@ -9426,11 +9129,8 @@ def build_control_panel_status_html() -> str:
 
 
 def build_pending_alert_html(health_warn: int = 40) -> str:
-    rules = load_rules()
-    pending = [r for r in rules if r.get("status") == "pending_review"]
     parts: list[str] = []
 
-    # Health threshold alert (driven by cp_health_warn slider)
     try:
         health = compute_compliance_health()
         health_score = health.get("overall", 0.0)
@@ -9444,20 +9144,9 @@ def build_pending_alert_html(health_warn: int = 40) -> str:
     except Exception:
         pass
 
-    if pending:
-        names = ", ".join(f"<em>{r.get('name', '?')}</em>" for r in pending[:3])
-        more = f" +{len(pending) - 3} more" if len(pending) > 3 else ""
-        parts.append(
-            f'<div class="pending-alert">'
-            f"<strong>⚠️ {len(pending)} rule{'s' if len(pending) != 1 else ''} require your decision</strong> — "
-            f"{names}{more}. "
-            f"Open the <strong>Rules → Pending Review</strong> tab to approve or reject."
-            f"</div>"
-        )
-
     if parts:
         return "".join(parts)
-    return '<div class="pending-alert none">✅ All rules reviewed — no pending decisions.</div>'
+    return '<div class="pending-alert none">✅ Nothing needs attention right now.</div>'
 
 
 def build_effectiveness_chart(min_eff: float = 0.0) -> Any:
@@ -9659,8 +9348,8 @@ Only output the JSON. No markdown fences."""
             **rule,
             "rule_id": f"{rule.get('rule_id', 'rule')}_v{uuid.uuid4().hex[:6]}",
             "name": f"{rule.get('name', '?')} (Variant)",
-            "is_active": False,
-            "status": "pending_review",
+            "is_active": True,
+            "status": "active",
             "ab_original_id": rule.get("rule_id"),
             "effectiveness_score": 0.5,
             "times_triggered": 0,
@@ -9678,7 +9367,7 @@ Only output the JSON. No markdown fences."""
             f"✅ A/B variant created: **{variant['name']}**\n\n"
             f"**Original keywords:** {original_kws}\n\n"
             f"**Variant keywords:** {new_kws}\n\n"
-            f"Go to **Review Queue** to approve the variant, then run "
+            f"The variant is now active — run "
             f"**Score Effectiveness** after sessions to compare performance."
         )
     except Exception as exc:
@@ -13003,7 +12692,7 @@ updates the block without duplicating it.
 """)
             rules_stat_bar = gr.HTML()
             gr.HTML(
-                '<div class="rl-section-nav"><strong>Sections:</strong> Active Rules · 📋 Review Queue & A/B Testing · 👥 Ownership & Lifecycle · 🔗 Dependencies, Conflicts & Export</div>'
+                '<div class="rl-section-nav"><strong>Sections:</strong> Active Rules · 🛠️ Rule Lifecycle, Rollback & Emergency · 👥 Ownership & Lifecycle · 🔗 Dependencies, Conflicts & Export</div>'
             )
             gr.HTML('<div class="section-title">Active Rules</div>')
             gr.Markdown("All rules currently in force — search by name, layer, or status.")
@@ -13048,68 +12737,7 @@ updates the block without duplicating it.
             rule_selector.change(build_rule_score_trend, inputs=rule_selector, outputs=score_trend_chart)
             rule_selector.change(build_rule_version_history, inputs=rule_selector, outputs=version_history_table)
 
-            with gr.Accordion("📋 Review Queue & A/B Testing", open=True):
-                gr.HTML('<div class="section-title">Review Queue</div>')
-                gr.Markdown(
-                    "Rules proposed by the analyser but not yet approved — review each one and accept or reject."
-                )
-                with gr.Row(elem_classes=["search-row-wrapper"]):
-                    pending_search = gr.Textbox(
-                        label="Search queue", placeholder="Filter by name, priority, gap type, or instruction…", scale=4
-                    )
-                    refresh_pending_btn = gr.Button("↻ Refresh queue", variant="secondary", size="sm", scale=1)
-                pending_table = gr.HTML()
-                gr.HTML('<div class="rl-group-label" style="margin-top:10px">Approve or reject a rule</div>')
-                with gr.Row():
-                    pending_selector = gr.Dropdown(
-                        label="Select pending rule",
-                        choices=[],
-                        scale=4,
-                        info="Rules awaiting governance board review — select one to approve or reject below",
-                    )
-                    pending_refresh_btn2 = gr.Button("↻", variant="secondary", size="sm", scale=0)
-                pending_detail = gr.Markdown(min_height=28)
-
-                with gr.Row():
-                    approve_btn = gr.Button("✅ Approve & Activate", variant="primary")
-                    reject_btn = gr.Button("🗑️ Reject", variant="stop")
-                review_status = gr.Markdown(min_height=28)
-
-                def refresh_pending():
-                    return build_pending_rules_table(), gr.update(choices=get_pending_rule_ids())
-
-                refresh_pending_btn.click(refresh_pending, outputs=[pending_table, pending_selector])
-                pending_search.change(build_pending_rules_table, inputs=[pending_search], outputs=[pending_table])
-                rules_tab.select(refresh_pending, outputs=[pending_table, pending_selector])
-                pending_refresh_btn2.click(lambda: gr.update(choices=get_pending_rule_ids()), outputs=pending_selector)
-                pending_selector.change(get_pending_rule_detail, inputs=pending_selector, outputs=pending_detail)
-                approve_btn.click(approve_rule, inputs=pending_selector, outputs=review_status).then(
-                    refresh_pending,
-                    outputs=[pending_table, pending_selector],
-                ).then(
-                    refresh_rules,
-                    outputs=[rules_table, rule_selector],
-                )
-                reject_btn.click(reject_rule, inputs=pending_selector, outputs=review_status).then(
-                    refresh_pending,
-                    outputs=[pending_table, pending_selector],
-                )
-
-                gr.HTML('<div class="section-title">Bulk Review</div>')
-                gr.Markdown("Preview and approve all pending rules that pass dashboard safety checks.")
-                with gr.Row():
-                    bulk_preview_btn = gr.Button("🔎 Preview Bulk Approval", variant="secondary", size="sm")
-                    bulk_approve_btn = gr.Button("✅ Approve All Safe Pending", variant="primary", size="sm")
-                bulk_review_status = gr.Markdown(min_height=28)
-                bulk_preview_btn.click(
-                    lambda: bulk_approve_safe_pending_rules(dry_run=True), outputs=bulk_review_status
-                )
-                bulk_approve_btn.click(
-                    lambda: bulk_approve_safe_pending_rules(dry_run=False), outputs=bulk_review_status
-                ).then(refresh_pending, outputs=[pending_table, pending_selector]).then(
-                    refresh_rules, outputs=[rules_table, rule_selector]
-                )
-
+            with gr.Accordion("🛠️ Rule Lifecycle, Rollback & Emergency", open=True):
                 gr.HTML('<div class="section-title">Rule Review Audit History</div>')
                 gr.Markdown("Recent approve/reject/bulk review snapshots recorded for owner auditability.")
                 review_audit_table = gr.HTML()
@@ -13565,7 +13193,7 @@ updates the block without duplicating it.
 """)
             sessions_stat_bar = gr.HTML()
             gr.HTML(
-                '<div class="rl-section-nav"><strong>Sections:</strong> Step 1 — Import Sessions · Step 2 — Analyse · Step 3 — Review New Rules</div>'
+                '<div class="rl-section-nav"><strong>Sections:</strong> Step 1 — Import Sessions · Step 2 — Analyse · Step 3 — New Rules</div>'
             )
             gr.HTML('<div class="section-title">Step 1 — Import Sessions</div>')
             gr.Markdown("Upload Claude Code session files (.jsonl) to feed the rule analyser.")
@@ -13656,9 +13284,11 @@ updates the block without duplicating it.
             redteam_btn.click(run_red_team, outputs=analysis_log)
             risk_compute_btn.click(run_update_risk_scores, outputs=analysis_log)
 
-            gr.HTML('<div class="section-title">Step 3 — Review New Rules</div>')
+            gr.HTML('<div class="section-title">Step 3 — New Rules</div>')
             gr.Markdown(
-                "New rules generated by analysis appear in the **Rules** tab → Review Queue. Approve each one to activate it."
+                "New rules generated by analysis are gated automatically: those that pass the "
+                "automated gate (content-safety + structural hygiene) activate on their own and "
+                "appear in the **Rules** tab; the rest are rejected."
             )
 
         # ── Insights ─────────────────────────────────────────────────────────
