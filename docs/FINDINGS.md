@@ -117,7 +117,14 @@ Review Queue. → Integrate edit-distance into the dashboard queue; do not ship 
   Tier-A) and **integrate edit-distance into the dashboard review queue** (not a parallel CLI).
 - **P3 — fix `distill`** (dotted-token truncation, directive-sentence selection) — now a
   text-channel quality improvement, no longer a strategic gate.
-- **P3 — re-wire or retire `arl-community-rules`** (unwired bucket); confirm live bucket roles.
+- **P3 — DONE (2026-10-29): retired `arl-community-rules`.** Verified unwired against deployed worker
+  code (aggregator reads `arl-contributions`, writes `arl-templates`, never touches it) and the
+  client (`COMMUNITY_RULES_URL` empty by default, dead branch). Removed the `COMMUNITY_RULES_BUCKET`
+  binding from `wrangler.aggregator.toml` and the dead client branch from `community.py`; config now
+  matches the single `arl-contributions → arl-templates` pipeline. The empty R2 bucket is left for
+  the owner to delete (irreversible; harmless dormant). The two-tier "promoted catalog" design is
+  deferred with explicit trigger conditions (see `governance-pipeline.md`, §0); an editorial
+  promotion gate is out of scope as it would reverse P2b.
 - **Done:** M02 (Cursor/Windsurf injection) and R05 (store self-heal) verified fixed with tests.
 - **Deferred:** EPIC-02/03 (retrieval/JIT) premature at one published template; the paid study is
   gated on the classifier + a real enforcement channel existing to measure the blended number.

@@ -22,22 +22,31 @@ disagrees with the spec below, this section is correct and the spec is aspiratio
   (`isValidSignal`), synthesises templates, and writes `templates.jsonl` + `manifest.json` to
   `PUBLIC_TEMPLATES_BUCKET` → bucket **`arl-templates`**, served at
   `.../ai-rule-learning-aggregator.ee-ee455.workers.dev/templates.jsonl`.
-- **Client** (`mcp/.../community.py`) reads `COMMUNITY_RULES_URL` (empty by default) then
-  `COMMUNITY_CDN_URL` → the aggregator's `arl-templates`. So the client's effective community
-  source is **`arl-templates`**, not `arl-contributions`.
+- **Client** (`mcp/.../community.py`) reads `COMMUNITY_CDN_URL` → the aggregator's `arl-templates`.
+  So the client's effective community source is **`arl-templates`**.
 
-**`arl-community-rules` is unwired.** A binding `COMMUNITY_RULES_BUCKET` → `arl-community-rules`
-is declared in `wrangler.aggregator.toml` as a "promoted, QA'd catalog", but no deployed worker
-reads or writes it, and the client URL for it is empty. The bucket exists; nothing populates it.
+**`arl-community-rules` is retired (2026-10-29).** It was declared as a binding
+`COMMUNITY_RULES_BUCKET` → `arl-community-rules` in `wrangler.aggregator.toml` and had a dead
+client branch (`COMMUNITY_RULES_URL`, empty by default), but no deployed worker ever read or wrote
+it and the client never consumed it. The binding and the client branch have been removed so config
+matches the deployed single pipeline (`arl-contributions` → `arl-templates`). The R2 bucket itself
+is left for the owner to delete (irreversible; harmless while dormant).
 
 **Live state (2026-10-28):** `/templates.jsonl` serves one published template
 (`explicit_correction`, 11 unique sources, 272 occurrences).
 
-**Open discrepancy (needs owner confirmation):** this flow inverts the description that
-`arl-community-rules` is the raw collect-all and `arl-contributions` is the filtered primary
-source. The available tooling cannot read live R2 bindings or object contents to settle it; the
-deployed worker _code_ and the live endpoint are the evidence used here. Confirm the intended
-roles, then either re-wire the aggregator to populate `arl-community-rules` or retire that bucket.
+**Resolved (2026-10-29): retire, not re-wire.** The earlier description had the roles inverted —
+the deployed flow is `arl-contributions` (raw staging) → `arl-templates` (filtered public source),
+and `arl-community-rules` was wired to nothing. Rather than build a second "promoted catalog" tier
+on top of a near-empty source, the unwired bucket is retired (see above).
+
+**Deferred two-tier design.** A curated/promoted catalog distinct from the auto-generated
+`templates.jsonl` remains a valid future option, but only once (1) `arl-templates` publishes enough
+templates to have quality variance worth sorting, (2) an _automatable_ promotion signal exists
+beyond the current k≥5 + content-safety gate — concretely, community effectiveness/outcome feedback,
+which the aggregator does not receive today — and (3) there is user demand for a trusted subset. An
+editorial (human-curated) promotion gate is out of scope: it would reverse the automated gate
+adopted in P2b (see `FINDINGS.md`). Until those conditions hold, build nothing.
 
 **Known limitation:** the aggregator's Stage-4 synthesis emits generic filler instructions
 (e.g. `"Address detected explicit correction pattern consistently across all interactions."`),
