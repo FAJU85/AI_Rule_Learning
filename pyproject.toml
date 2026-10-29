@@ -23,7 +23,7 @@ markers = [
 [tool.ruff]
 line-length = 120
 target-version = "py311"
-exclude = ["space/", "mcp/", "node_modules/"]
+exclude = ["space/", "mcp/", "node_modules/", "study/"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP"]
