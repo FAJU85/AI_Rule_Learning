@@ -5,11 +5,15 @@ study of `ai-rule-learning-mcp` 0.2.7.
 
 ## Contents
 
-| File                | Role                                                                                                                                                                                                  |
-| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `PROTOCOL.md`       | The pre-registered protocol (design, hypotheses, analysis, limitations, COI).                                                                                                                         |
-| `arl_study.py`      | The frozen study harness (selftest, build-tasks, learn, run, analyze). Hashed in `PROTOCOL.md` §1.                                                                                                    |
-| `COLAB_ONE_CELL.py` | The one-cell Colab runner actually executed. It embeds `arl_study.py` as its `SRC` literal and writes it out with `SRC.lstrip("\n")`, so `arl_study.py` here is byte-identical to what the cell runs. |
+| File                | Role                                                                                                                                                                                                    |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PROTOCOL.md`       | The pre-registered protocol (design, hypotheses, analysis, limitations, COI).                                                                                                                           |
+| `arl_study.py`      | The frozen study harness (selftest, build-tasks, learn, run, analyze). Hashed in `PROTOCOL.md` §1.                                                                                                      |
+| `COLAB_ONE_CELL.py` | The one-cell Colab runner actually executed. It embeds `arl_study.py` as its `SRC` literal and writes it out with `SRC.lstrip("\n")`, so `arl_study.py` here is byte-identical to what the cell runs.   |
+| `data/`             | Released raw run data: `raw_results.jsonl` (900 calls), `tasks.jsonl`, `learn_log*.json`.                                                                                                               |
+| `analyze_prereg.py` | Post-registration analyzer implementing §4 (H1–H3 McNemar + Holm, equivalence TOSTs, robustness, over-application) on the released data. See `PROTOCOL.md` §9.2. Run: `python study/analyze_prereg.py`. |
+| `RESULTS.md`        | Computed results of the registered `MODE="main"` run (deepseek-flash).                                                                                                                                  |
+| `PAPER_DRAFT.md`    | Draft Results / Over-application / Threats sections.                                                                                                                                                    |
 
 `arl_study.py` was extracted from `COLAB_ONE_CELL.py`'s `SRC` literal, not edited by hand, so the two
 cannot drift. Regenerate/verify:

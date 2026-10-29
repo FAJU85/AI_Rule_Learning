@@ -1,0 +1,150 @@
+{"task_id": "F01_no_comments_00", "family": "F01_no_comments", "spec_id": "f2076864", "prompt": "Write a function that returns the k most frequent items of a list."}
+{"task_id": "F01_no_comments_01", "family": "F01_no_comments", "spec_id": "84010cd2", "prompt": "Write a function that converts a decimal number to binary text."}
+{"task_id": "F01_no_comments_02", "family": "F01_no_comments", "spec_id": "5936467c", "prompt": "Write a function that capitalises the first letter of every word in a sentence."}
+{"task_id": "F01_no_comments_03", "family": "F01_no_comments", "spec_id": "2fd87cd9", "prompt": "Write a function that finds two numbers in a list that sum to a target."}
+{"task_id": "F01_no_comments_04", "family": "F01_no_comments", "spec_id": "e4e4f5e9", "prompt": "Write a function that computes the Levenshtein distance between two strings."}
+{"task_id": "F01_no_comments_05", "family": "F01_no_comments", "spec_id": "6f96aeae", "prompt": "Write a function that checks whether a string is a palindrome, ignoring case and spaces."}
+{"task_id": "F01_no_comments_06", "family": "F01_no_comments", "spec_id": "2ba873d5", "prompt": "Write a function that reverses the words in a sentence."}
+{"task_id": "F01_no_comments_07", "family": "F01_no_comments", "spec_id": "407114d6", "prompt": "Write a function that chunks a list into pieces of size n."}
+{"task_id": "F01_no_comments_08", "family": "F01_no_comments", "spec_id": "9276d7a3", "prompt": "Write a function that removes duplicates from a list while keeping order."}
+{"task_id": "F01_no_comments_09", "family": "F01_no_comments", "spec_id": "60452109", "prompt": "Write a function that returns the intersection of two lists without duplicates."}
+{"task_id": "F01_no_comments_10", "family": "F01_no_comments", "spec_id": "8b6d76d7", "prompt": "Write a function that returns the second largest distinct number in a list."}
+{"task_id": "F01_no_comments_11", "family": "F01_no_comments", "spec_id": "683ab548", "prompt": "Write a function that returns the digits of an integer as a list."}
+{"task_id": "F01_no_comments_12", "family": "F01_no_comments", "spec_id": "4c5f07d6", "prompt": "Write a function that flattens a nested list of integers."}
+{"task_id": "F01_no_comments_13", "family": "F01_no_comments", "spec_id": "325d7c06", "prompt": "Write a function that returns the greatest common divisor of two integers."}
+{"task_id": "F01_no_comments_14", "family": "F01_no_comments", "spec_id": "25a233bb", "prompt": "Write a function that returns the n-th Fibonacci number."}
+{"task_id": "F02_type_hints_00", "family": "F02_type_hints", "spec_id": "b3d67e7b", "prompt": "Write a function that computes the running average of a list."}
+{"task_id": "F02_type_hints_01", "family": "F02_type_hints", "spec_id": "c60badb2", "prompt": "Write a function that rotates a list by k positions to the right."}
+{"task_id": "F02_type_hints_02", "family": "F02_type_hints", "spec_id": "f2076864", "prompt": "Write a function that returns the k most frequent items of a list."}
+{"task_id": "F02_type_hints_03", "family": "F02_type_hints", "spec_id": "f907982f", "prompt": "Write a function that computes factorial iteratively."}
+{"task_id": "F02_type_hints_04", "family": "F02_type_hints", "spec_id": "9276d7a3", "prompt": "Write a function that removes duplicates from a list while keeping order."}
+{"task_id": "F02_type_hints_05", "family": "F02_type_hints", "spec_id": "e4e4f5e9", "prompt": "Write a function that computes the Levenshtein distance between two strings."}
+{"task_id": "F02_type_hints_06", "family": "F02_type_hints", "spec_id": "407114d6", "prompt": "Write a function that chunks a list into pieces of size n."}
+{"task_id": "F02_type_hints_07", "family": "F02_type_hints", "spec_id": "6f96aeae", "prompt": "Write a function that checks whether a string is a palindrome, ignoring case and spaces."}
+{"task_id": "F02_type_hints_08", "family": "F02_type_hints", "spec_id": "60452109", "prompt": "Write a function that returns the intersection of two lists without duplicates."}
+{"task_id": "F02_type_hints_09", "family": "F02_type_hints", "spec_id": "25a233bb", "prompt": "Write a function that returns the n-th Fibonacci number."}
+{"task_id": "F02_type_hints_10", "family": "F02_type_hints", "spec_id": "2ba873d5", "prompt": "Write a function that reverses the words in a sentence."}
+{"task_id": "F02_type_hints_11", "family": "F02_type_hints", "spec_id": "d6c70223", "prompt": "Write a function that finds the index of the maximum value in a list."}
+{"task_id": "F02_type_hints_12", "family": "F02_type_hints", "spec_id": "df8df62f", "prompt": "Write a function that finds the longest common prefix of a list of strings."}
+{"task_id": "F02_type_hints_13", "family": "F02_type_hints", "spec_id": "1592a8c0", "prompt": "Write a function that transposes a matrix given as a list of lists."}
+{"task_id": "F02_type_hints_14", "family": "F02_type_hints", "spec_id": "1a3915ed", "prompt": "Write a function that checks if a number is a perfect square."}
+{"task_id": "F03_snake_case_00", "family": "F03_snake_case", "spec_id": "9276d7a3", "prompt": "Write a function that removes duplicates from a list while keeping order."}
+{"task_id": "F03_snake_case_01", "family": "F03_snake_case", "spec_id": "b3d67e7b", "prompt": "Write a function that computes the running average of a list."}
+{"task_id": "F03_snake_case_02", "family": "F03_snake_case", "spec_id": "15e23431", "prompt": "Write a function that merges two sorted lists into one sorted list."}
+{"task_id": "F03_snake_case_03", "family": "F03_snake_case", "spec_id": "f2076864", "prompt": "Write a function that returns the k most frequent items of a list."}
+{"task_id": "F03_snake_case_04", "family": "F03_snake_case", "spec_id": "d6c70223", "prompt": "Write a function that finds the index of the maximum value in a list."}
+{"task_id": "F03_snake_case_05", "family": "F03_snake_case", "spec_id": "6f96aeae", "prompt": "Write a function that checks whether a string is a palindrome, ignoring case and spaces."}
+{"task_id": "F03_snake_case_06", "family": "F03_snake_case", "spec_id": "407114d6", "prompt": "Write a function that chunks a list into pieces of size n."}
+{"task_id": "F03_snake_case_07", "family": "F03_snake_case", "spec_id": "1a3915ed", "prompt": "Write a function that checks if a number is a perfect square."}
+{"task_id": "F03_snake_case_08", "family": "F03_snake_case", "spec_id": "2ba873d5", "prompt": "Write a function that reverses the words in a sentence."}
+{"task_id": "F03_snake_case_09", "family": "F03_snake_case", "spec_id": "8b6d76d7", "prompt": "Write a function that returns the second largest distinct number in a list."}
+{"task_id": "F03_snake_case_10", "family": "F03_snake_case", "spec_id": "60452109", "prompt": "Write a function that returns the intersection of two lists without duplicates."}
+{"task_id": "F03_snake_case_11", "family": "F03_snake_case", "spec_id": "84010cd2", "prompt": "Write a function that converts a decimal number to binary text."}
+{"task_id": "F03_snake_case_12", "family": "F03_snake_case", "spec_id": "1592a8c0", "prompt": "Write a function that transposes a matrix given as a list of lists."}
+{"task_id": "F03_snake_case_13", "family": "F03_snake_case", "spec_id": "4c5f07d6", "prompt": "Write a function that flattens a nested list of integers."}
+{"task_id": "F03_snake_case_14", "family": "F03_snake_case", "spec_id": "fcf3d9d1", "prompt": "Write a function that checks whether brackets in a string are balanced."}
+{"task_id": "F04_no_print_00", "family": "F04_no_print", "spec_id": "60452109", "prompt": "Write a function that returns the intersection of two lists without duplicates."}
+{"task_id": "F04_no_print_01", "family": "F04_no_print", "spec_id": "4c5f07d6", "prompt": "Write a function that flattens a nested list of integers."}
+{"task_id": "F04_no_print_02", "family": "F04_no_print", "spec_id": "d6c70223", "prompt": "Write a function that finds the index of the maximum value in a list."}
+{"task_id": "F04_no_print_03", "family": "F04_no_print", "spec_id": "2fd87cd9", "prompt": "Write a function that finds two numbers in a list that sum to a target."}
+{"task_id": "F04_no_print_04", "family": "F04_no_print", "spec_id": "5712c694", "prompt": "Write a function that returns all prime numbers up to n."}
+{"task_id": "F04_no_print_05", "family": "F04_no_print", "spec_id": "5936467c", "prompt": "Write a function that capitalises the first letter of every word in a sentence."}
+{"task_id": "F04_no_print_06", "family": "F04_no_print", "spec_id": "cccf3c2b", "prompt": "Write a function that returns the median of a list of numbers."}
+{"task_id": "F04_no_print_07", "family": "F04_no_print", "spec_id": "c60badb2", "prompt": "Write a function that rotates a list by k positions to the right."}
+{"task_id": "F04_no_print_08", "family": "F04_no_print", "spec_id": "8b6d76d7", "prompt": "Write a function that returns the second largest distinct number in a list."}
+{"task_id": "F04_no_print_09", "family": "F04_no_print", "spec_id": "f907982f", "prompt": "Write a function that computes factorial iteratively."}
+{"task_id": "F04_no_print_10", "family": "F04_no_print", "spec_id": "1a3915ed", "prompt": "Write a function that checks if a number is a perfect square."}
+{"task_id": "F04_no_print_11", "family": "F04_no_print", "spec_id": "39611b7b", "prompt": "Write a function that converts a Roman numeral to an integer."}
+{"task_id": "F04_no_print_12", "family": "F04_no_print", "spec_id": "2ba873d5", "prompt": "Write a function that reverses the words in a sentence."}
+{"task_id": "F04_no_print_13", "family": "F04_no_print", "spec_id": "df8df62f", "prompt": "Write a function that finds the longest common prefix of a list of strings."}
+{"task_id": "F04_no_print_14", "family": "F04_no_print", "spec_id": "e4e4f5e9", "prompt": "Write a function that computes the Levenshtein distance between two strings."}
+{"task_id": "F05_no_else_00", "family": "F05_no_else", "spec_id": "5936467c", "prompt": "Write a function that capitalises the first letter of every word in a sentence."}
+{"task_id": "F05_no_else_01", "family": "F05_no_else", "spec_id": "1592a8c0", "prompt": "Write a function that transposes a matrix given as a list of lists."}
+{"task_id": "F05_no_else_02", "family": "F05_no_else", "spec_id": "2ba873d5", "prompt": "Write a function that reverses the words in a sentence."}
+{"task_id": "F05_no_else_03", "family": "F05_no_else", "spec_id": "cccf3c2b", "prompt": "Write a function that returns the median of a list of numbers."}
+{"task_id": "F05_no_else_04", "family": "F05_no_else", "spec_id": "c60badb2", "prompt": "Write a function that rotates a list by k positions to the right."}
+{"task_id": "F05_no_else_05", "family": "F05_no_else", "spec_id": "ec09e7dc", "prompt": "Write a function that groups words by their sorted letters (anagram groups)."}
+{"task_id": "F05_no_else_06", "family": "F05_no_else", "spec_id": "62bd4276", "prompt": "Write a function that counts word frequencies in a text."}
+{"task_id": "F05_no_else_07", "family": "F05_no_else", "spec_id": "60452109", "prompt": "Write a function that returns the intersection of two lists without duplicates."}
+{"task_id": "F05_no_else_08", "family": "F05_no_else", "spec_id": "8b6d76d7", "prompt": "Write a function that returns the second largest distinct number in a list."}
+{"task_id": "F05_no_else_09", "family": "F05_no_else", "spec_id": "df8df62f", "prompt": "Write a function that finds the longest common prefix of a list of strings."}
+{"task_id": "F05_no_else_10", "family": "F05_no_else", "spec_id": "2fd87cd9", "prompt": "Write a function that finds two numbers in a list that sum to a target."}
+{"task_id": "F05_no_else_11", "family": "F05_no_else", "spec_id": "15e23431", "prompt": "Write a function that merges two sorted lists into one sorted list."}
+{"task_id": "F05_no_else_12", "family": "F05_no_else", "spec_id": "407114d6", "prompt": "Write a function that chunks a list into pieces of size n."}
+{"task_id": "F05_no_else_13", "family": "F05_no_else", "spec_id": "fcf3d9d1", "prompt": "Write a function that checks whether brackets in a string are balanced."}
+{"task_id": "F05_no_else_14", "family": "F05_no_else", "spec_id": "39611b7b", "prompt": "Write a function that converts a Roman numeral to an integer."}
+{"task_id": "F06_short_funcs_00", "family": "F06_short_funcs", "spec_id": "42473222", "prompt": "Write a function that computes the dot product of two vectors."}
+{"task_id": "F06_short_funcs_01", "family": "F06_short_funcs", "spec_id": "4c5f07d6", "prompt": "Write a function that flattens a nested list of integers."}
+{"task_id": "F06_short_funcs_02", "family": "F06_short_funcs", "spec_id": "6f96aeae", "prompt": "Write a function that checks whether a string is a palindrome, ignoring case and spaces."}
+{"task_id": "F06_short_funcs_03", "family": "F06_short_funcs", "spec_id": "d6c70223", "prompt": "Write a function that finds the index of the maximum value in a list."}
+{"task_id": "F06_short_funcs_04", "family": "F06_short_funcs", "spec_id": "2ba873d5", "prompt": "Write a function that reverses the words in a sentence."}
+{"task_id": "F06_short_funcs_05", "family": "F06_short_funcs", "spec_id": "25a233bb", "prompt": "Write a function that returns the n-th Fibonacci number."}
+{"task_id": "F06_short_funcs_06", "family": "F06_short_funcs", "spec_id": "39611b7b", "prompt": "Write a function that converts a Roman numeral to an integer."}
+{"task_id": "F06_short_funcs_07", "family": "F06_short_funcs", "spec_id": "cccf3c2b", "prompt": "Write a function that returns the median of a list of numbers."}
+{"task_id": "F06_short_funcs_08", "family": "F06_short_funcs", "spec_id": "fcf3d9d1", "prompt": "Write a function that checks whether brackets in a string are balanced."}
+{"task_id": "F06_short_funcs_09", "family": "F06_short_funcs", "spec_id": "1592a8c0", "prompt": "Write a function that transposes a matrix given as a list of lists."}
+{"task_id": "F06_short_funcs_10", "family": "F06_short_funcs", "spec_id": "683ab548", "prompt": "Write a function that returns the digits of an integer as a list."}
+{"task_id": "F06_short_funcs_11", "family": "F06_short_funcs", "spec_id": "2fd87cd9", "prompt": "Write a function that finds two numbers in a list that sum to a target."}
+{"task_id": "F06_short_funcs_12", "family": "F06_short_funcs", "spec_id": "60452109", "prompt": "Write a function that returns the intersection of two lists without duplicates."}
+{"task_id": "F06_short_funcs_13", "family": "F06_short_funcs", "spec_id": "62bd4276", "prompt": "Write a function that counts word frequencies in a text."}
+{"task_id": "F06_short_funcs_14", "family": "F06_short_funcs", "spec_id": "325d7c06", "prompt": "Write a function that returns the greatest common divisor of two integers."}
+{"task_id": "F07_pathlib_00", "family": "F07_pathlib", "spec_id": "ce0a86c5", "prompt": "Write a function that returns the file name without its extension."}
+{"task_id": "F07_pathlib_01", "family": "F07_pathlib", "spec_id": "fd580533", "prompt": "Write a function that finds the newest file in a directory."}
+{"task_id": "F07_pathlib_02", "family": "F07_pathlib", "spec_id": "271a0476", "prompt": "Write a function that returns all subdirectory names of a directory."}
+{"task_id": "F07_pathlib_03", "family": "F07_pathlib", "spec_id": "02188620", "prompt": "Write a function that checks whether a file exists and is non-empty."}
+{"task_id": "F07_pathlib_04", "family": "F07_pathlib", "spec_id": "88c82c06", "prompt": "Write a function that writes a list of strings to a file, one per line."}
+{"task_id": "F07_pathlib_05", "family": "F07_pathlib", "spec_id": "0310a3b1", "prompt": "Write a function that returns the absolute path of a relative file path."}
+{"task_id": "F07_pathlib_06", "family": "F07_pathlib", "spec_id": "b264f920", "prompt": "Write a function that returns the total size in bytes of all files in a directory."}
+{"task_id": "F07_pathlib_07", "family": "F07_pathlib", "spec_id": "0430cdb3", "prompt": "Write a function that returns the parent directory name of a file path."}
+{"task_id": "F07_pathlib_08", "family": "F07_pathlib", "spec_id": "b8198800", "prompt": "Write a function that replaces the extension of a path with .bak."}
+{"task_id": "F07_pathlib_09", "family": "F07_pathlib", "spec_id": "45ddfdbb", "prompt": "Write a function that creates a directory (including parents) if missing."}
+{"task_id": "F07_pathlib_10", "family": "F07_pathlib", "spec_id": "2fdccbf0", "prompt": "Write a function that lists all .txt files in a directory."}
+{"task_id": "F07_pathlib_11", "family": "F07_pathlib", "spec_id": "ae36da5b", "prompt": "Write a function that reads a text file and returns its lines."}
+{"task_id": "F07_pathlib_12", "family": "F07_pathlib", "spec_id": "eb1c31fa", "prompt": "Write a function that joins a base directory and a filename into a full path."}
+{"task_id": "F07_pathlib_13", "family": "F07_pathlib", "spec_id": "b616218c", "prompt": "Write a function that returns the file extension of a given path string."}
+{"task_id": "F07_pathlib_14", "family": "F07_pathlib", "spec_id": "b09078dc", "prompt": "Write a function that copies a file's text content to a new file."}
+{"task_id": "F08_fstrings_00", "family": "F08_fstrings", "spec_id": "7e4d8fa9", "prompt": "Write a function that builds an error message including a field name and a bad value."}
+{"task_id": "F08_fstrings_01", "family": "F08_fstrings", "spec_id": "9f72761b", "prompt": "Write a function that formats a temperature reading with unit, e.g. '21.5 C'."}
+{"task_id": "F08_fstrings_02", "family": "F08_fstrings", "spec_id": "5c6cba84", "prompt": "Write a function that builds a log line with a timestamp string, level and message."}
+{"task_id": "F08_fstrings_03", "family": "F08_fstrings", "spec_id": "ae5a4c54", "prompt": "Write a function that returns a user summary string from name, email and role."}
+{"task_id": "F08_fstrings_04", "family": "F08_fstrings", "spec_id": "39acb07d", "prompt": "Write a function that formats a percentage with one decimal and a percent sign."}
+{"task_id": "F08_fstrings_05", "family": "F08_fstrings", "spec_id": "44817c76", "prompt": "Write a function that formats a price in dollars with two decimals, e.g. 'Total: $12.50'."}
+{"task_id": "F08_fstrings_06", "family": "F08_fstrings", "spec_id": "78a9c6e3", "prompt": "Write a function that formats a duration in seconds as 'HH:MM:SS'."}
+{"task_id": "F08_fstrings_07", "family": "F08_fstrings", "spec_id": "b75d5938", "prompt": "Write a function that returns a greeting message containing a name and an age."}
+{"task_id": "F08_fstrings_08", "family": "F08_fstrings", "spec_id": "ad30c5da", "prompt": "Write a function that produces a progress string like '45/100 (45%)'."}
+{"task_id": "F08_fstrings_09", "family": "F08_fstrings", "spec_id": "afc24c2f", "prompt": "Write a function that builds a filename like 'report_2024_03.csv' from a year and month."}
+{"task_id": "F08_fstrings_10", "family": "F08_fstrings", "spec_id": "1ae2c255", "prompt": "Write a function that builds a URL from host, port and path."}
+{"task_id": "F08_fstrings_11", "family": "F08_fstrings", "spec_id": "d698b564", "prompt": "Write a function that builds a SQL-like display string 'SELECT cols FROM table' from a table and columns (for display only)."}
+{"task_id": "F08_fstrings_12", "family": "F08_fstrings", "spec_id": "0d4ab709", "prompt": "Write a function that returns 'Item X of Y' for given integers."}
+{"task_id": "F08_fstrings_13", "family": "F08_fstrings", "spec_id": "5c2bfabb", "prompt": "Write a function that renders a 2D point as '(x, y)'."}
+{"task_id": "F08_fstrings_14", "family": "F08_fstrings", "spec_id": "a4169665", "prompt": "Write a function that returns a header line padded to a given width with the title centered."}
+{"task_id": "F09_valueerror_00", "family": "F09_valueerror", "spec_id": "24aa1bbc", "prompt": "Write a function that takes an RGB triple and must reject components outside 0-255."}
+{"task_id": "F09_valueerror_01", "family": "F09_valueerror", "spec_id": "90f5c1fc", "prompt": "Write a function that parses an integer age and must reject values outside 0-150."}
+{"task_id": "F09_valueerror_02", "family": "F09_valueerror", "spec_id": "776f4b00", "prompt": "Write a function that converts a hex string to an integer and must reject non-hex characters."}
+{"task_id": "F09_valueerror_03", "family": "F09_valueerror", "spec_id": "eea2c2b1", "prompt": "Write a function that returns the last k items of a list and must reject negative k."}
+{"task_id": "F09_valueerror_04", "family": "F09_valueerror", "spec_id": "fc082fb5", "prompt": "Write a function that computes a discount price and must reject discounts outside 0-100."}
+{"task_id": "F09_valueerror_05", "family": "F09_valueerror", "spec_id": "03efb10e", "prompt": "Write a function that divides two numbers and must reject a zero divisor."}
+{"task_id": "F09_valueerror_06", "family": "F09_valueerror", "spec_id": "f540647d", "prompt": "Write a function that computes compound interest and must reject a negative principal."}
+{"task_id": "F09_valueerror_07", "family": "F09_valueerror", "spec_id": "1ca252cf", "prompt": "Write a function that takes a month number and must reject values outside 1-12."}
+{"task_id": "F09_valueerror_08", "family": "F09_valueerror", "spec_id": "f753182c", "prompt": "Write a function that computes BMI and must reject non-positive height or weight."}
+{"task_id": "F09_valueerror_09", "family": "F09_valueerror", "spec_id": "0772e7ed", "prompt": "Write a function that converts a percentage string to a float and must reject malformed input."}
+{"task_id": "F09_valueerror_10", "family": "F09_valueerror", "spec_id": "a52bf4d5", "prompt": "Write a function that returns the average of a list and must reject an empty list."}
+{"task_id": "F09_valueerror_11", "family": "F09_valueerror", "spec_id": "f07107ea", "prompt": "Write a function that returns the n-th element of a sequence and must reject negative n."}
+{"task_id": "F09_valueerror_12", "family": "F09_valueerror", "spec_id": "2849702f", "prompt": "Write a function that computes the square root of a number and must reject negative input."}
+{"task_id": "F09_valueerror_13", "family": "F09_valueerror", "spec_id": "8a1fa6d4", "prompt": "Write a function that returns the n-th prime and must reject n < 1."}
+{"task_id": "F09_valueerror_14", "family": "F09_valueerror", "spec_id": "c5ccba3f", "prompt": "Write a function that creates a slug from a title and must reject an empty title."}
+{"task_id": "F10_single_block_00", "family": "F10_single_block", "spec_id": "c60badb2", "prompt": "Write a function that rotates a list by k positions to the right."}
+{"task_id": "F10_single_block_01", "family": "F10_single_block", "spec_id": "ec09e7dc", "prompt": "Write a function that groups words by their sorted letters (anagram groups)."}
+{"task_id": "F10_single_block_02", "family": "F10_single_block", "spec_id": "62bd4276", "prompt": "Write a function that counts word frequencies in a text."}
+{"task_id": "F10_single_block_03", "family": "F10_single_block", "spec_id": "fcf3d9d1", "prompt": "Write a function that checks whether brackets in a string are balanced."}
+{"task_id": "F10_single_block_04", "family": "F10_single_block", "spec_id": "84010cd2", "prompt": "Write a function that converts a decimal number to binary text."}
+{"task_id": "F10_single_block_05", "family": "F10_single_block", "spec_id": "25a233bb", "prompt": "Write a function that returns the n-th Fibonacci number."}
+{"task_id": "F10_single_block_06", "family": "F10_single_block", "spec_id": "42473222", "prompt": "Write a function that computes the dot product of two vectors."}
+{"task_id": "F10_single_block_07", "family": "F10_single_block", "spec_id": "5712c694", "prompt": "Write a function that returns all prime numbers up to n."}
+{"task_id": "F10_single_block_08", "family": "F10_single_block", "spec_id": "1a3915ed", "prompt": "Write a function that checks if a number is a perfect square."}
+{"task_id": "F10_single_block_09", "family": "F10_single_block", "spec_id": "39611b7b", "prompt": "Write a function that converts a Roman numeral to an integer."}
+{"task_id": "F10_single_block_10", "family": "F10_single_block", "spec_id": "4c5f07d6", "prompt": "Write a function that flattens a nested list of integers."}
+{"task_id": "F10_single_block_11", "family": "F10_single_block", "spec_id": "9276d7a3", "prompt": "Write a function that removes duplicates from a list while keeping order."}
+{"task_id": "F10_single_block_12", "family": "F10_single_block", "spec_id": "15e23431", "prompt": "Write a function that merges two sorted lists into one sorted list."}
+{"task_id": "F10_single_block_13", "family": "F10_single_block", "spec_id": "325d7c06", "prompt": "Write a function that returns the greatest common divisor of two integers."}
+{"task_id": "F10_single_block_14", "family": "F10_single_block", "spec_id": "b3d67e7b", "prompt": "Write a function that computes the running average of a list."}
