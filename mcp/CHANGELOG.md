@@ -16,12 +16,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   autofix) end-to-end, with gate stubs for the other structural families. Autofix never emits
   broken code (parse-verified, falls back to the original). Library + CLI only; not wired into any
   model loop; `ARL_ENFORCE` (default off) is reserved for future auto-wiring.
-- **Tier-A structural-hygiene schema (`rule_schema.py`).** A deterministic, post-hoc
-  validator (well-formed, directive, non-trivial, traceable) applied with zero tolerance at
-  the approve boundary, plus a `SkillUnit` schema-in-waiting with a nullable
-  `verification_step`. Not a quality score.
-- **Review-decision log (`review_log.py`) + `review-stats`.** Logs approve/edit/reject with
-  context and the Levenshtein edit distance between proposed and approved rule text.
+- **Tier-A structural-hygiene schema (`rule_schema.py`).** A deterministic validator
+  (well-formed, directive, non-trivial, traceable) plus `auto_gate_issues()` combining it with
+  content-safety; applied automatically at rule activation, and a `SkillUnit` schema-in-waiting
+  with a nullable `verification_step`. Not a quality score.
 
 - **KPI snapshot.** A new `ai-rule-learning kpi` command (`--json` for machine
   output, `kpi` module) reports key indicators computed from local state only —
@@ -83,14 +81,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Automated gate replaces human review (P2b).** Learned rules now activate automatically when
+  they pass the automated gate (content-safety + Tier-A structural hygiene) and are rejected
+  otherwise — no `pending_review` wait for a human. The feedback path (`record_feedback`) applies
+  content-safety (unsafe-phrase + injection). Community rules keep their own server-side filter
+  (aggregator quorum + content safety). `approve_rule`/`reject_rule` remain as manual overrides.
 - **Learner (`distill_directive`) hardening (#291):** per-correction rules, real-session
   traceability, grammar fix, noise-rejection gate, and preference→imperative conversion.
 - **Version hygiene:** bumped to 0.2.7 so `main` no longer collides with the published 0.2.6.
 
-### Known limitations
+### Removed
 
-- **`record_feedback` writes rules active immediately**, bypassing the review queue and the
-  Tier-A gate.
+- **Human-review instrumentation:** `review_log` module, the `review_stats` MCP tool, and the
+  `ai-rule-learning review-stats` CLI (added earlier this cycle, never released) — superseded by
+  the automated gate. The HF Space Review Queue teardown is tracked separately.
 
 ## [0.2.6] - 2026-10-22
 

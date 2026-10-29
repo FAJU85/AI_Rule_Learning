@@ -3,8 +3,8 @@
 This is the *structural* gate, not a quality score. It answers one yes/no
 question about a rule's *shape*: is this a well-formed, directive, traceable,
 non-trivial instruction? It says nothing about whether the rule is *good* — that
-is the human reviewer's job (see :mod:`review_log`) and, eventually, a
-behavioural gate once a real corpus exists.
+is handled by the automated gate (content-safety + this schema) applied at
+activation, and, eventually, a behavioural gate once a real corpus exists.
 
 Two deliberate boundaries, both load-bearing:
 
@@ -242,6 +242,16 @@ def validate_injected_rules(rules: list[dict[str, Any]]) -> tuple[bool, dict[str
             key = str(rule.get("rule_id") or f"#{idx}")
             failures[key] = problems
     return (not failures, failures)
+
+
+def auto_gate_issues(rule: dict[str, Any]) -> list[str]:
+    from .safety import rule_safety_issues
+
+    return check_rule(rule) + rule_safety_issues(rule)
+
+
+def passes_auto_gate(rule: dict[str, Any]) -> bool:
+    return not auto_gate_issues(rule)
 
 
 def _coerce(rule: dict[str, Any]) -> dict[str, Any]:

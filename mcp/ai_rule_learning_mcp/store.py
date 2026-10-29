@@ -55,8 +55,7 @@ def _ensure_dir(d: Path) -> Path:
         try:
             os.replace(d, backup)
             _log.warning(
-                "Storage path %s was a regular file, not a directory; moved it to %s "
-                "and recreated the directory.",
+                "Storage path %s was a regular file, not a directory; moved it to %s and recreated the directory.",
                 d,
                 backup,
             )
@@ -153,13 +152,9 @@ _FILE_PATH_RE = re.compile(
 )
 _WIN_PATH_RE = re.compile(r"\b[a-zA-Z]:[\\/][^\s,;\"']+", re.IGNORECASE)
 _IPV4_RE = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
-_IPV6_RE = re.compile(
-    r"\b(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}\b|\b(?:[0-9a-fA-F]{1,4}:){1,7}:[0-9a-fA-F]{0,4}\b"
-)
+_IPV6_RE = re.compile(r"\b(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}\b|\b(?:[0-9a-fA-F]{1,4}:){1,7}:[0-9a-fA-F]{0,4}\b")
 _SSN_RE = re.compile(r"\b\d{3}-\d{2}-\d{4}\b")
-_PHONE_RE = re.compile(
-    r"(?:\+\d{1,3}[\s.-]?)?(?:\(\d{2,4}\)|\b\d{2,4})[\s.-]\d{3,4}[\s.-]\d{3,4}\b|\b\+\d{10,14}\b"
-)
+_PHONE_RE = re.compile(r"(?:\+\d{1,3}[\s.-]?)?(?:\(\d{2,4}\)|\b\d{2,4})[\s.-]\d{3,4}[\s.-]\d{3,4}\b|\b\+\d{10,14}\b")
 _BEARER_PASSWORD_RE = re.compile(
     r"\bBearer\s+[A-Za-z0-9._\-~+/=]{8,}\b|\b(?:password|passwd|pwd|secret|api_key|apikey|access_token|auth_token)\s*[:=]\s*(?:['\"][^'\"]*['\"]|[^\s,;]+)",
     re.IGNORECASE,
@@ -235,9 +230,7 @@ def _local_save(filename: str, records: list[dict]) -> None:
 def _r2_config() -> dict[str, str]:
     """Resolve Cloudflare R2 connection settings from the environment (call time)."""
     account = os.environ.get("R2_ACCOUNT_ID", "") or os.environ.get("CLOUDFLARE_ACCOUNT_ID", "")
-    endpoint = os.environ.get("R2_ENDPOINT", "") or (
-        f"https://{account}.r2.cloudflarestorage.com" if account else ""
-    )
+    endpoint = os.environ.get("R2_ENDPOINT", "") or (f"https://{account}.r2.cloudflarestorage.com" if account else "")
     return {
         "bucket": os.environ.get("R2_BUCKET", ""),
         "access_key": os.environ.get("R2_ACCESS_KEY_ID", ""),
@@ -357,16 +350,27 @@ def auto_activate_pending_rules() -> int:
     rules = _download("rules.jsonl")
     if not rules:
         return 0
+    from .rule_schema import passes_auto_gate
+
     activated = 0
+    changed = False
     now = datetime.now(UTC).replace(tzinfo=None).isoformat()
     for rule in rules:
         if rule.get("status") == "pending_review" and not rule.get("is_active", False):
-            if _is_safe_rule(rule):
+            if _is_safe_rule(rule) and passes_auto_gate(rule):
                 rule["is_active"] = True
                 rule["status"] = "active"
                 rule["approved_at"] = now
                 activated += 1
-    if activated:
+                changed = True
+            else:
+                rule["is_active"] = False
+                rule["status"] = "rejected"
+                rule["review_status"] = "rejected"
+                rule["reviewed_by"] = "auto_gate"
+                rule["reviewed_at"] = now
+                changed = True
+    if changed:
         _upload("rules.jsonl", rules)
     return activated
 
