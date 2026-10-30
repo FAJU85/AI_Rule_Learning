@@ -79,8 +79,9 @@ analysis these refer to.
    (ValueError) pass-rates are inflated by over-application; a pre-specified-style robustness
    recomputation excluding those two families is reported in `RESULTS.md` and leaves all
    confirmatory conclusions intact.
-5. **Human-validation (κ) and the rep-1 reliability read from §3/§2 remain outstanding** for a
-   complete report.
+5. **Human-validation (κ):** the blind review sheet is prepared (`study/kappa/`, seeded 10% =
+   88/878 responses); human labelling and the Cohen's κ computation are still outstanding. The
+   **rep-1 reliability** read from §2 also remains outstanding (not collected; see §9.3).
 
 ## 10. Paper outline (no results)
 
