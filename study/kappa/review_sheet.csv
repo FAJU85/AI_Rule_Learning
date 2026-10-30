@@ -1,0 +1,2621 @@
+sample_id,family,rule,prompt,response,human_label
+S000,F02_type_hints,Annotate every function parameter and return type.,Write a function that reverses the words in a sentence.,"Here's a Python function that reverses the words in a sentence:
+
+```python
+def reverse_words(sentence):
+    """"""
+    Reverses the order of words in a sentence.
+    
+    Args:
+        sentence (str): The input sentence.
+    
+    Returns:
+        str: The sentence with words in reversed order.
+    """"""
+    return ' '.join(sentence.split()[::-1])
+
+
+# Example usage
+if __name__ == ""__main__"":
+    print(reverse_words(""Hello world""))              # ""world Hello""
+    print(reverse_words(""The quick brown fox""))      # ""fox brown quick The""
+    print(reverse_words(""  multiple   spaces  ""))    # ""spaces multiple""
+    print(reverse_words(""""))                         # """"
+```
+
+**How it works:**
+1. `sentence.split()` splits the string on any whitespace, automatically handling multiple spaces and trimming leading/trailing whitespace.
+2. `[::-1]` reverses the resulting list of words.
+3. `' '.join(...)` joins the reversed words back into a single string with single spaces.
+
+**Note:** This reverses the *order of words* but keeps each word's characters intact (e.g., `""Hello world""` → `""world Hello""`). If you instead want to reverse the characters within each word while keeping word order, use:
+
+```python
+def reverse_each_word(sentence):
+    return ' '.join(word[::-1] for word in sentence.split())
+```",
+S001,F02_type_hints,Annotate every function parameter and return type.,Write a function that checks if a number is a perfect square.,"Here's a function that checks if a number is a perfect square:
+
+```python
+import math
+
+def is_perfect_square(n):
+    """"""
+    Check if a number is a perfect square.
+    
+    Args:
+        n: The number to check (should be a non-negative integer)
+    
+    Returns:
+        True if n is a perfect square, False otherwise
+    """"""
+    if n < 0:
+        return False
+    
+    root = math.isqrt(n)  # integer square root (Python 3.8+)
+    return root * root == n
+```
+
+### How it works
+
+- **Negative numbers** can't be perfect squares (in the reals), so we return `False` immediately.
+- **`math.isqrt(n)`** computes the integer square root (floor of the true square root) exactly, without floating-point rounding errors.
+- We then check whether squaring that integer root gives back `n`.
+
+### Examples
+
+```python
+print(is_perfect_square(16))   # True
+print(is_perfect_square(17))   # False
+print(is_perfect_square(0))    # True
+print(is_perfect_square(1))    # True
+print(is_perfect_square(-4))   # False
+print(is_perfect_square(10**20))  # True (exact, no float issues)
+```
+
+### Alternative (for Python < 3.8)
+
+If you need to support older Python versions, use `int(math.sqrt(n))` instead of `math.isqrt`:
+
+```python
+def is_perfect_square(n):
+    if n < 0:
+        return False
+    root = int(math.sqrt(n))
+    return root * root == n
+```
+
+Note that `math.isqrt` is preferred because it avoids floating-point precision issues for very large numbers.",
+S002,F03_snake_case,"Use snake_case for all function, parameter and variable names.",Write a function that returns the k most frequent items of a list.,"# K Most Frequent Items
+
+```python
+from collections import Counter
+import heapq
+
+
+def k_most_frequent(items, k):
+    """"""
+    Return the k most frequent items in `items`, ordered from most to least frequent.
+
+    Ties are broken by first occurrence in the input (stable, deterministic).
+
+    Args:
+        items: An iterable of hashable items.
+        k: Number of top items to return.
+
+    Returns:
+        A list of up to k items (fewer if the input has fewer distinct items).
+    """"""
+    if k <= 0:
+        return []
+
+    counts = Counter(items)
+
+    # heapq.nlargest is O(n log k) and stable for ties when we use a
+    # secondary key based on first-occurrence order.
+    first_seen = {}
+    for i, item in enumerate(items):
+        if item not in first_seen:
+            first_seen[item] = i
+
+    top = heapq.nlargest(
+        k,
+        counts.items(),
+        key=lambda kv: (kv[1], -first_seen[kv[0]]),
+    )
+    return [item for item, _ in top]
+```
+
+## Example
+
+```python
+data = [""a"", ""b"", ""a"", ""c"", ""b"", ""a"", ""d"", ""c"", ""c""]
+print(k_most_frequent(data, 2))  # ['a', 'c']
+print(k_most_frequent(data, 10)) # ['a', 'c', 'b', 'd']
+print(k_most_frequent(data, 0))  # []
+```
+
+## Notes
+
+- **Complexity:** `O(n + n log k)` time, `O(n)` space — better than sorting all distinct items (`O(n log n)`) when `k` is small.
+- **Ties:** When two items have the same count, the one that appeared first in the input wins. Remove the `first_seen` logic if you don't care about tie order.
+- **Unhashable items:** If your list contains unhashable items (e.g., lists), convert them to tuples or use a different counting strategy.
+- **Simpler alternative** (if `k` is close to the number of distinct items):
+
+```python
+def k_most_frequent_simple(items, k):
+    return [item for item, _ in Counter(items).most_common(k)]
+```",
+S003,F03_snake_case,"Use snake_case for all function, parameter and variable names.",Write a function that chunks a list into pieces of size n.,"Here's a Python function that chunks a list into pieces of size `n`:
+
+```python
+def chunk_list(lst, n):
+    """"""
+    Split a list into chunks of size n.
+    
+    Args:
+        lst: The list to be chunked.
+        n: The maximum size of each chunk (must be positive).
+    
+    Returns:
+        A list of lists, each of size n (except possibly the last).
+    
+    Raises:
+        ValueError: If n is not a positive integer.
+    """"""
+    if n <= 0:
+        raise ValueError(""Chunk size n must be a positive integer."")
+    
+    return [lst[i:i + n] for i in range(0, len(lst), n)]
+```
+
+### Example usage
+
+```python
+print(chunk_list([1, 2, 3, 4, 5, 6, 7], 3))
+# [[1, 2, 3], [4, 5, 6], [7]]
+
+print(chunk_list([1, 2, 3, 4], 2))
+# [[1, 2], [3, 4]]
+
+print(chunk_list([], 5))
+# []
+
+print(chunk_list([1, 2, 3], 10))
+# [[1, 2, 3]]
+```
+
+### How it works
+
+- `range(0, len(lst), n)` produces the starting index of each chunk: `0, n, 2n, ...`
+- Slicing `lst[i:i + n]` grabs up to `n` elements from each start index.
+- Python slicing gracefully handles the final partial chunk (it just returns fewer elements), so no special-casing is needed.
+
+### Alternative: generator version (memory-friendly for large lists)
+
+If you're working with very large lists and don't want to build the whole result in memory at once, use a generator:
+
+```python
+def chunk_list_iter(lst, n):
+    if n <= 0:
+        raise ValueError(""Chunk size n must be a positive integer."")
+    for i in range(0, len(lst), n):
+        yield lst[i:i + n]
+```
+
+```python
+for chunk in chunk_list_iter(range(10), 3):
+    print(chunk)
+# [0, 1, 2]
+# [3, 4, 5]
+# [6, 7, 8]
+# [9]
+```",
+S004,F03_snake_case,"Use snake_case for all function, parameter and variable names.",Write a function that reverses the words in a sentence.,"Here's a Python function that reverses the words in a sentence:
+
+```python
+def reverse_words(sentence):
+    """"""
+    Reverses the order of words in a sentence.
+    
+    Args:
+        sentence (str): The input sentence.
+    
+    Returns:
+        str: The sentence with words in reversed order.
+    """"""
+    return ' '.join(sentence.split()[::-1])
+
+
+# Example usage
+if __name__ == ""__main__"":
+    print(reverse_words(""Hello world this is Python""))
+    # Output: ""Python is this world Hello""
+    
+    print(reverse_words(""The quick brown fox""))
+    # Output: ""fox brown quick The""
+```
+
+### How it works
+
+1. **`sentence.split()`** — splits the string on whitespace, automatically handling multiple spaces, tabs, and newlines, and discarding empty strings.
+2. **`[::-1]`** — reverses the resulting list of words.
+3. **`' '.join(...)`** — joins the reversed words back into a single string with single spaces.
+
+### Alternative: preserving original spacing
+
+If you need to preserve the exact whitespace between words, use a regex-based approach:
+
+```python
+import re
+
+def reverse_words_preserve_spacing(sentence):
+    words = re.findall(r'\S+', sentence)
+    reversed_words = iter(words[::-1])
+    return re.sub(r'\S+', lambda _: next(reversed_words), sentence)
+
+
+print(reverse_words_preserve_spacing(""Hello   world  this is Python""))
+# Output: ""Python   is  this world Hello""
+```
+
+The first version is simpler and works well for most cases; the second is useful when exact whitespace matters.",
+S005,F03_snake_case,"Use snake_case for all function, parameter and variable names.",Write a function that returns the intersection of two lists without duplicates.,"Here's a Python function that returns the intersection of two lists without duplicates:
+
+```python
+def intersection_no_duplicates(list1, list2):
+    """"""
+    Return the intersection of two lists without duplicates.
+    
+    Args:
+        list1: First list
+        list2: Second list
+    
+    Returns:
+        A list of unique elements present in both input lists.
+    """"""
+    return list(set(list1) & set(list2))
+```
+
+### How it works
+- `set(list1)` and `set(list2)` convert each list into a set, automatically removing duplicates.
+- `&` computes the set intersection (elements present in both sets).
+- `list(...)` converts the result back to a list.
+
+### Example
+
+```python
+a = [1, 2, 2, 3, 4, 5]
+b = [2, 3, 3, 6, 7]
+
+print(intersection_no_duplicates(a, b))
+# Output: [2, 3]  (order may vary)
+```
+
+### Preserving order (optional)
+
+If you want to keep the original order of elements from `list1`, use this version:
+
+```python
+def intersection_no_duplicates_ordered(list1, list2):
+    set2 = set(list2)
+    seen = set()
+    result = []
+    for item in list1:
+        if item in set2 and item not in seen:
+            seen.add(item)
+            result.append(item)
+    return result
+```
+
+```python
+print(intersection_no_duplicates_ordered([3, 1, 2, 2, 4], [2, 3, 5]))
+# Output: [3, 2]
+```
+
+### Notes
+- Elements must be **hashable** (e.g., numbers, strings, tuples) since sets are used.
+- If your lists contain unhashable items (like lists or dicts), you'd need a different approach using equality checks.",
+S006,F03_snake_case,"Use snake_case for all function, parameter and variable names.",Write a function that flattens a nested list of integers.,"Here's a function that flattens a nested list of integers:
+
+```python
+def flatten(nested):
+    """"""Flatten a nested list of integers into a single flat list.""""""
+    result = []
+    for item in nested:
+        if isinstance(item, list):
+            result.extend(flatten(item))
+        else:
+            result.append(item)
+    return result
+```
+
+**How it works:**
+- Iterates over each item in the list.
+- If the item is itself a list, it recursively flattens it and extends the result.
+- Otherwise, it appends the integer directly.
+
+**Example usage:**
+
+```python
+print(flatten([1, [2, 3], [4, [5, 6]], 7]))
+# [1, 2, 3, 4, 5, 6, 7]
+
+print(flatten([]))
+# []
+
+print(flatten([[[[1]]], 2]))
+# [1, 2]
+```
+
+**Alternative (generator-based)** — useful for large inputs since it yields lazily:
+
+```python
+def flatten_gen(nested):
+    for item in nested:
+        if isinstance(item, list):
+            yield from flatten_gen(item)
+        else:
+            yield item
+
+# Usage: list(flatten_gen([1, [2, [3, 4]], 5]))  ->  [1, 2, 3, 4, 5]
+```
+
+Both versions handle arbitrarily deep nesting. The recursive approach is clean and readable; the generator version avoids building intermediate lists.",
+S007,F04_no_print,Never call print(); return values instead.,Write a function that finds two numbers in a list that sum to a target.,"# Two Sum
+
+Here's a function that finds two numbers in a list that sum to a target:
+
+```python
+def two_sum(nums, target):
+    """"""
+    Find two numbers in `nums` that add up to `target`.
+    
+    Returns a tuple of (index1, index2) if found, otherwise None.
+    Uses a hash map for O(n) time complexity.
+    """"""
+    seen = {}  # value -> index
+    for i, num in enumerate(nums):
+        complement = target - num
+        if complement in seen:
+            return (seen[complement], i)
+        seen[num] = i
+    return None
+
+
+# Example usage
+if __name__ == ""__main__"":
+    nums = [2, 7, 11, 15]
+    target = 9
+    result = two_sum(nums, target)
+    print(result)  # (0, 1)  -> 2 + 7 = 9
+
+    # Return the actual values instead of indices
+    if result:
+        i, j = result
+        print(f""{nums[i]} + {nums[j]} = {target}"")
+```
+
+## How it works
+
+1. Iterate through the list once.
+2. For each number, compute its **complement** (`target - num`).
+3. If the complement has already been seen, we've found our pair.
+4. Otherwise, store the current number and its index in a dictionary.
+
+**Time complexity:** O(n) — single pass through the list.  
+**Space complexity:** O(n) — for the hash map.
+
+## Variant: return the values instead of indices
+
+```python
+def two_sum_values(nums, target):
+    seen = set()
+    for num in nums:
+        complement = target - num
+        if complement in seen:
+            return (complement, num)
+        seen.add(num)
+    return None
+
+print(two_sum_values([3, 5, 2, 8, 11], 10))  # (2, 8)
+```
+
+## Notes
+
+- This finds the **first** valid pair encountered. If you need **all** pairs, collect them in a list instead of returning early.
+- If the same element can't be used twice, the hash-map approach above already handles that correctly (we check `seen` before adding the current number).
+- If the list may contain duplicates and you want all unique pairs, use a `set` of results to deduplicate.",
+S008,F04_no_print,Never call print(); return values instead.,Write a function that returns the median of a list of numbers.,"Here's a Python function that returns the median of a list of numbers:
+
+```python
+def median(numbers):
+    """"""
+    Return the median of a list of numbers.
+    
+    The median is the middle value when the numbers are sorted.
+    For an even number of values, it's the average of the two middle values.
+    """"""
+    if not numbers:
+        raise ValueError(""Cannot compute the median of an empty list"")
+    
+    sorted_nums = sorted(numbers)
+    n = len(sorted_nums)
+    mid = n // 2
+    
+    if n % 2 == 1:
+        # Odd number of elements: return the middle one
+        return sorted_nums[mid]
+    else:
+        # Even number of elements: average the two middle ones
+        return (sorted_nums[mid - 1] + sorted_nums[mid]) / 2
+```
+
+**Example usage:**
+
+```python
+print(median([3, 1, 4, 1, 5]))        # 3   (odd count)
+print(median([7, 2, 10, 4]))          # 5.5 (even count)
+print(median([5]))                    # 5
+print(median([1.5, 2.5, 3.5, 4.5]))   # 3.0
+```
+
+**How it works:**
+1. It raises an error for an empty list (median is undefined).
+2. It sorts a copy of the list (so the original isn't mutated).
+3. For an odd-length list, it returns the middle element.
+4. For an even-length list, it returns the average of the two middle elements.
+
+If you'd prefer to avoid sorting (e.g., for very large lists), you can use `statistics.median` from the standard library, which handles this efficiently:
+
+```python
+import statistics
+
+def median(numbers):
+    return statistics.median(numbers)
+```",
+S009,F05_no_else,"Never use the else keyword, including conditional expressions; use early returns.",Write a function that groups words by their sorted letters (anagram groups).,"Here's a function that groups words by their sorted letters (anagram groups):
+
+```python
+from collections import defaultdict
+
+
+def group_anagrams(words):
+    """"""
+    Group words that are anagrams of each other.
+
+    Two words are anagrams if they contain the same letters in the same
+    quantities. Using the sorted letters as a key naturally groups them.
+
+    Args:
+        words: An iterable of strings.
+
+    Returns:
+        A list of lists, where each inner list contains words that are
+        anagrams of each other.
+    """"""
+    groups = defaultdict(list)
+
+    for word in words:
+        # Sorting the letters gives a canonical key for the anagram group.
+        key = """".join(sorted(word))
+        groups[key].append(word)
+
+    return list(groups.values())
+
+
+# Example usage
+if __name__ == ""__main__"":
+    words = [""listen"", ""silent"", ""enlist"", ""google"", ""gooegl"", ""cat"", ""act"", ""tac""]
+    for group in group_anagrams(words):
+        print(group)
+```
+
+**Output:**
+```
+['listen', 'silent', 'enlist']
+['google', 'gooegl']
+['cat', 'act', 'tac']
+```
+
+### How it works
+- For each word, `sorted(word)` produces the letters in alphabetical order. All anagrams of a word share the same sorted form, so it serves as a canonical key.
+- A `defaultdict(list)` maps each key to the list of words that produce it.
+- Finally, we return the values (the groups).
+
+### Notes
+- **Case sensitivity:** `""Listen""` and `""listen""` would be treated as different. If you want case-insensitive grouping, use `key = """".join(sorted(word.lower()))`.
+- **Complexity:** O(n · k log k) time, where n is the number of words and k is the max word length (from sorting each word), and O(n · k) space.
+- **Alternative key:** For very long words, you could use a character-count tuple (e.g., `tuple(sorted(Counter(word).items()))`) to avoid the sort, giving O(n · k) time.",
+S010,F05_no_else,"Never use the else keyword, including conditional expressions; use early returns.",Write a function that converts a Roman numeral to an integer.,"```python
+def roman_to_int(s: str) -> int:
+    """"""
+    Convert a Roman numeral string to an integer.
+
+    Handles both additive (e.g. VI = 6) and subtractive (e.g. IV = 4)
+    notation. Input is assumed to be a valid Roman numeral.
+    """"""
+    values = {
+        'I': 1,
+        'V': 5,
+        'X': 10,
+        'L': 50,
+        'C': 100,
+        'D': 500,
+        'M': 1000,
+    }
+
+    total = 0
+    prev = 0
+
+    # Process from right to left: if the current value is less than the
+    # previous (right-hand) value, it's a subtractive pair.
+    for ch in reversed(s.upper()):
+        val = values[ch]
+        if val < prev:
+            total -= val
+        else:
+            total += val
+            prev = val
+
+    return total
+
+
+if __name__ == ""__main__"":
+    tests = {
+        ""III"": 3,
+        ""IV"": 4,
+        ""IX"": 9,
+        ""LVIII"": 58,
+        ""MCMXCIV"": 1994,
+        ""MMXXIV"": 2024,
+    }
+    for roman, expected in tests.items():
+        result = roman_to_int(roman)
+        status = ""OK"" if result == expected else ""FAIL""
+        print(f""{roman:>8} -> {result:<5} (expected {expected}) [{status}]"")
+```
+
+**How it works**
+
+- Iterate the numeral from right to left, tracking the previous (right-hand) value.
+- If the current value is smaller than the previous one, it's a subtractive case (e.g. `I` before `V`), so subtract it.
+- Otherwise add it and update `prev`.
+- This runs in O(n) time and O(1) extra space.",
+S011,F06_short_funcs,Keep every function at most 10 non-blank lines including the def line.,Write a function that reverses the words in a sentence.,"Here's a Python function that reverses the words in a sentence:
+
+```python
+def reverse_words(sentence):
+    """"""
+    Reverses the order of words in a sentence.
+    
+    Args:
+        sentence (str): The input sentence.
+    
+    Returns:
+        str: The sentence with words in reversed order.
+    """"""
+    return ' '.join(sentence.split()[::-1])
+
+
+# Example usage
+if __name__ == ""__main__"":
+    print(reverse_words(""Hello world this is Python""))
+    # Output: ""Python is this world Hello""
+    
+    print(reverse_words(""The quick brown fox""))
+    # Output: ""fox brown quick The""
+```
+
+### How it works
+
+1. **`sentence.split()`** — splits the string on whitespace, automatically handling multiple spaces, tabs, and newlines, and discarding empty strings.
+2. **`[::-1]`** — reverses the resulting list of words.
+3. **`' '.join(...)`** — joins the reversed words back into a single string with single spaces.
+
+### Alternative: preserving original spacing
+
+If you need to preserve the exact whitespace between words, use a regex-based approach:
+
+```python
+import re
+
+def reverse_words_preserve_spacing(sentence):
+    words = re.findall(r'\S+', sentence)
+    reversed_words = iter(words[::-1])
+    return re.sub(r'\S+', lambda _: next(reversed_words), sentence)
+
+
+print(reverse_words_preserve_spacing(""Hello   world  this is Python""))
+# Output: ""Python   is  this world Hello""
+```
+
+The first version is simpler and works well for most cases; the second is useful when whitespace formatting matters.",
+S012,F06_short_funcs,Keep every function at most 10 non-blank lines including the def line.,Write a function that returns the n-th Fibonacci number.,"Here's a Python function that returns the n-th Fibonacci number, using an efficient iterative approach:
+
+```python
+def fibonacci(n: int) -> int:
+    """"""
+    Return the n-th Fibonacci number.
+
+    Uses 0-based indexing: fibonacci(0) == 0, fibonacci(1) == 1,
+    fibonacci(2) == 1, fibonacci(3) == 2, ...
+
+    Args:
+        n: A non-negative integer.
+
+    Returns:
+        The n-th Fibonacci number.
+
+    Raises:
+        ValueError: If n is negative.
+        TypeError: If n is not an integer.
+    """"""
+    if not isinstance(n, int) or isinstance(n, bool):
+        raise TypeError(""n must be an integer"")
+    if n < 0:
+        raise ValueError(""n must be non-negative"")
+
+    a, b = 0, 1
+    for _ in range(n):
+        a, b = b, a + b
+    return a
+```
+
+**How it works:**
+- It keeps two consecutive Fibonacci numbers, `a` and `b`, starting at `F(0) = 0` and `F(1) = 1`.
+- Each iteration advances the pair by one step (`a, b = b, a + b`).
+- After `n` iterations, `a` holds `F(n)`.
+
+**Why iterative?** It runs in O(n) time and O(1) space, and avoids the exponential blowup of naive recursion and the recursion-depth limits of memoized recursion.
+
+**Example usage:**
+
+```python
+print(fibonacci(0))   # 0
+print(fibonacci(1))   # 1
+print(fibonacci(10))  # 55
+print(fibonacci(50))  # 12586269025
+```
+
+If you need very large `n` (e.g., thousands of digits), you can swap in fast doubling for O(log n) time:
+
+```python
+def fibonacci_fast(n: int) -> int:
+    def _fib(k):
+        if k == 0:
+            return (0, 1)
+        a, b = _fib(k >> 1)
+        c = a * (2 * b - a)
+        d = a * a + b * b
+        return (d, c + d) if k & 1 else (c, d)
+    return _fib(n)[0]
+```",
+S013,F06_short_funcs,Keep every function at most 10 non-blank lines including the def line.,Write a function that transposes a matrix given as a list of lists.,"Here's a function that transposes a matrix given as a list of lists:
+
+```python
+def transpose(matrix):
+    """"""
+    Transpose a matrix represented as a list of lists.
+    
+    Args:
+        matrix: A list of lists representing a 2D matrix.
+    
+    Returns:
+        A new list of lists representing the transposed matrix.
+    """"""
+    if not matrix:
+        return []
+    
+    # Use zip to group elements by column, then convert each tuple to a list
+    return [list(row) for row in zip(*matrix)]
+```
+
+### How it works
+
+- `zip(*matrix)` unpacks the rows and groups elements by their column index, producing tuples of each column.
+- The list comprehension converts each tuple back into a list.
+
+### Example usage
+
+```python
+m = [
+    [1, 2, 3],
+    [4, 5, 6],
+]
+
+print(transpose(m))
+# [[1, 4], [2, 5], [3, 6]]
+```
+
+### Notes
+
+- The function handles empty input by returning `[]`.
+- It works for rectangular matrices. If rows have different lengths, `zip` truncates to the shortest row — if you need to preserve ragged data, use `itertools.zip_longest` instead:
+
+```python
+from itertools import zip_longest
+
+def transpose_ragged(matrix):
+    return [list(col) for col in zip_longest(*matrix, fillvalue=None)]
+```",
+S014,F07_pathlib,Use pathlib.Path for file paths; never use os.path.,"Write a function that writes a list of strings to a file, one per line.","Here's a Python function that writes a list of strings to a file, one per line:
+
+```python
+def write_lines_to_file(strings, filename, encoding=""utf-8""):
+    """"""
+    Write a list of strings to a file, one string per line.
+
+    Args:
+        strings (list[str]): The strings to write.
+        filename (str): Path to the output file.
+        encoding (str): Text encoding to use (default: utf-8).
+    """"""
+    with open(filename, ""w"", encoding=encoding) as f:
+        for line in strings:
+            f.write(line + ""\n"")
+```
+
+### Usage
+
+```python
+lines = [""first line"", ""second line"", ""third line""]
+write_lines_to_file(lines, ""output.txt"")
+```
+
+### Notes
+
+- **`with open(...)`** ensures the file is closed automatically, even if an error occurs.
+- **`""w""` mode** truncates the file if it already exists. Use `""a""` to append instead.
+- **`encoding=""utf-8""`** is explicit so behavior is consistent across platforms (Windows defaults to a locale-specific encoding otherwise).
+- **`line + ""\n""`** adds a newline after each string. This means the file ends with a trailing newline, which is standard for text files. If you'd rather avoid a trailing newline on the last line, use `""\n"".join(strings)` instead:
+
+```python
+def write_lines_to_file(strings, filename, encoding=""utf-8""):
+    with open(filename, ""w"", encoding=encoding) as f:
+        f.write(""\n"".join(strings))
+```
+
+- If any element might not be a `str`, convert it first with `str(line)` or use `f.write(f""{line}\n"")`.",
+S015,F09_valueerror,Reject invalid input by raising ValueError.,Write a function that takes an RGB triple and must reject components outside 0-255.,"Here's a function that validates an RGB triple, rejecting any component outside the 0–255 range:
+
+```python
+def validate_rgb(rgb):
+    """"""Validate an RGB triple.
+
+    Args:
+        rgb: A sequence of three integers (R, G, B).
+
+    Returns:
+        A tuple of three ints (R, G, B) if valid.
+
+    Raises:
+        TypeError: If rgb is not a sequence of exactly 3 items,
+                   or if any component is not an integer.
+        ValueError: If any component is outside the range 0-255.
+    """"""
+    if not isinstance(rgb, (tuple, list)):
+        raise TypeError(f""RGB must be a tuple or list, got {type(rgb).__name__}"")
+
+    if len(rgb) != 3:
+        raise ValueError(f""RGB must have exactly 3 components, got {len(rgb)}"")
+
+    for i, component in enumerate(rgb):
+        # bool is a subclass of int; reject it explicitly
+        if isinstance(component, bool) or not isinstance(component, int):
+            raise TypeError(
+                f""RGB component {i} must be an int, got {type(component).__name__}""
+            )
+        if not 0 <= component <= 255:
+            raise ValueError(
+                f""RGB component {i} ({component}) is outside the range 0-255""
+            )
+
+    return tuple(rgb)
+```
+
+Example usage:
+
+```python
+validate_rgb((255, 0, 128))   # (255, 0, 128)
+validate_rgb((256, 0, 0))     # ValueError: component 0 (256) is outside 0-255
+validate_rgb((-1, 0, 0))      # ValueError: component 0 (-1) is outside 0-255
+validate_rgb((1, 2))          # ValueError: must have exactly 3 components
+validate_rgb((1.0, 2, 3))     # TypeError: component 0 must be an int
+```
+
+Key points:
+- **Range check** (`0 <= component <= 255`) is the core requirement and raises `ValueError` for out-of-range values.
+- **Type check** rejects non-integers (including `bool`, which is technically an `int` subclass) with `TypeError`.
+- **Length check** ensures exactly three components.
+- Returns a normalized `tuple` so callers get a consistent type.
+
+If you'd prefer a boolean-returning validator instead of raising exceptions, let me know and I can adapt it.",
+S016,F09_valueerror,Reject invalid input by raising ValueError.,Write a function that converts a hex string to an integer and must reject non-hex characters.,"```python
+def hex_to_int(hex_str: str) -> int:
+    """"""
+    Convert a hexadecimal string to an integer.
+
+    Accepts an optional leading '+' or '-' sign and an optional '0x'/'0X' prefix.
+    Raises ValueError if the string is empty or contains any non-hex characters.
+    """"""
+    if not isinstance(hex_str, str):
+        raise TypeError(""Input must be a string"")
+
+    s = hex_str.strip()
+    if not s:
+        raise ValueError(""Empty string is not a valid hex number"")
+
+    sign = 1
+    if s[0] in ""+-"":
+        if s[0] == ""-"":
+            sign = -1
+        s = s[1:]
+
+    if s[:2].lower() == ""0x"":
+        s = s[2:]
+
+    if not s:
+        raise ValueError(f""Invalid hex string: {hex_str!r}"")
+
+    # Validate every character is a hex digit.
+    valid_digits = set(""0123456789abcdefABCDEF"")
+    for ch in s:
+        if ch not in valid_digits:
+            raise ValueError(f""Invalid hex character {ch!r} in {hex_str!r}"")
+
+    return sign * int(s, 16)
+
+
+if __name__ == ""__main__"":
+    # Valid cases
+    assert hex_to_int(""ff"") == 255
+    assert hex_to_int(""0xFF"") == 255
+    assert hex_to_int(""-0x1A"") == -26
+    assert hex_to_int(""+10"") == 16
+    assert hex_to_int(""DEADBEEF"") == 0xDEADBEEF
+
+    # Invalid cases
+    for bad in ["""", ""0x"", ""xyz"", ""12g4"", ""0x1G"", ""  "", ""1.5"", ""0b101""]:
+        try:
+            hex_to_int(bad)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError(f""Expected ValueError for {bad!r}"")
+
+    print(""All tests passed."")
+```
+
+Key points:
+
+- **Validation first**: every character after stripping the sign and `0x` prefix is checked against the set of hex digits, so inputs like `""12g4""` or `""0x1G""` raise `ValueError` instead of being silently accepted.
+- **Sign and prefix handling**: supports `+`/`-` and optional `0x`/`0X`, matching common conventions.
+- **No reliance on `int(s, 16)` alone** for validation, since `int` would accept things like underscores (`""1_0""`) or surrounding whitespace in some cases; the explicit check keeps the contract strict.",
+S017,F09_valueerror,Reject invalid input by raising ValueError.,Write a function that creates a slug from a title and must reject an empty title.,"```python
+import re
+import unicodedata
+
+
+def slugify(title: str) -> str:
+    """"""
+    Create a URL-friendly slug from a title.
+
+    Raises:
+        ValueError: If the title is empty or contains no slug-able characters.
+    """"""
+    if not isinstance(title, str):
+        raise TypeError(""title must be a string"")
+
+    # Reject empty (or whitespace-only) titles
+    if not title.strip():
+        raise ValueError(""title must not be empty"")
+
+    # Normalize unicode and strip accents (e.g. ""café"" -> ""cafe"")
+    normalized = unicodedata.normalize(""NFKD"", title)
+    ascii_text = normalized.encode(""ascii"", ""ignore"").decode(""ascii"")
+
+    # Lowercase, replace non-alphanumeric runs with a single hyphen
+    slug = re.sub(r""[^a-z0-9]+"", ""-"", ascii_text.lower()).strip(""-"")
+
+    if not slug:
+        raise ValueError(""title does not contain any slug-able characters"")
+
+    return slug
+```
+
+Example usage:
+
+```python
+slugify(""Hello, World!"")        # 'hello-world'
+slugify(""  Café au lait  "")     # 'cafe-au-lait'
+slugify("""")                     # raises ValueError
+slugify(""   "")                  # raises ValueError
+```",
+S018,F10_single_block,Respond with exactly one fenced python code block and no text outside it.,Write a function that flattens a nested list of integers.,"Here's a function that flattens a nested list of integers:
+
+```python
+def flatten(nested):
+    """"""Flatten a nested list of integers into a single flat list.""""""
+    result = []
+    for item in nested:
+        if isinstance(item, list):
+            result.extend(flatten(item))
+        else:
+            result.append(item)
+    return result
+```
+
+**How it works:**
+- Iterates over each item in the list.
+- If the item is itself a list, it recursively flattens it and extends the result.
+- Otherwise, it appends the integer directly.
+
+**Example usage:**
+
+```python
+print(flatten([1, [2, 3], [4, [5, 6]], 7]))
+# [1, 2, 3, 4, 5, 6, 7]
+
+print(flatten([]))
+# []
+
+print(flatten([[[[1]]], 2]))
+# [1, 2]
+```
+
+**Alternative (generator-based)** — useful for large inputs since it yields lazily:
+
+```python
+def flatten_gen(nested):
+    for item in nested:
+        if isinstance(item, list):
+            yield from flatten_gen(item)
+        else:
+            yield item
+
+# list(flatten_gen([1, [2, [3, 4]], 5])) -> [1, 2, 3, 4, 5]
+```
+
+Note: `isinstance(item, list)` handles only `list` subclasses. If you need to support tuples or other iterables, use `isinstance(item, (list, tuple))` or check for `collections.abc.Iterable` (being careful to exclude strings).",
+S019,F02_type_hints,Annotate every function parameter and return type.,Write a function that returns the n-th Fibonacci number.,"```python
+from pathlib import Path
+
+
+def fibonacci(n: int) -> int:
+    if not isinstance(n, int) or isinstance(n, bool):
+        raise ValueError(""n must be an integer"")
+    if n < 0:
+        raise ValueError(""n must be non-negative"")
+    if n < 2:
+        return n
+    previous, current = 0, 1
+    for _ in range(n - 1):
+        previous, current = current, previous + current
+    return current
+
+
+def fibonacci_from_file(path: Path, n: int) -> int:
+    if not path.exists():
+        raise ValueError(f""file not found: {path}"")
+    return fibonacci(n)
+```",
+S020,F03_snake_case,"Use snake_case for all function, parameter and variable names.",Write a function that finds the index of the maximum value in a list.,"```python
+from typing import List
+
+def find_max_index(values: List[float]) -> int:
+    if not values:
+        raise ValueError(""values must not be empty"")
+    max_index = 0
+    for index in range(1, len(values)):
+        if values[index] > values[max_index]:
+            max_index = index
+    return max_index
+```",
+S021,F03_snake_case,"Use snake_case for all function, parameter and variable names.",Write a function that converts a decimal number to binary text.,"```python
+from pathlib import Path
+
+def decimal_to_binary(decimal_number: int) -> str:
+    if not isinstance(decimal_number, int):
+        raise ValueError(""Input must be an integer"")
+    if decimal_number < 0:
+        raise ValueError(""Input must be non-negative"")
+    if decimal_number == 0:
+        return ""0""
+    digits: list[str] = []
+    remaining: int = decimal_number
+    while remaining > 0:
+        digits.append(f""{remaining % 2}"")
+        remaining //= 2
+    return """".join(reversed(digits))
+```",
+S022,F04_no_print,Never call print(); return values instead.,Write a function that computes the Levenshtein distance between two strings.,"```python
+from pathlib import Path
+
+def levenshtein_distance(first_string: str, second_string: str) -> int:
+    if not isinstance(first_string, str) or not isinstance(second_string, str):
+        raise ValueError(""Both inputs must be strings"")
+    previous_row = list(range(len(second_string) + 1))
+    for i, first_char in enumerate(first_string, start=1):
+        current_row = [i]
+        for j, second_char in enumerate(second_string, start=1):
+            cost = 0 if first_char == second_char else 1
+            current_row.append(min(previous_row[j] + 1, current_row[j - 1] + 1, previous_row[j - 1] + cost))
+        previous_row = current_row
+    return previous_row[-1]
+```",
+S023,F07_pathlib,Use pathlib.Path for file paths; never use os.path.,Write a function that finds the newest file in a directory.,"```python
+from pathlib import Path
+
+def find_newest_file(directory: str) -> Path:
+    path = Path(directory)
+    if not path.is_dir():
+        raise ValueError(f""Not a directory: {directory}"")
+    files = [p for p in path.iterdir() if p.is_file()]
+    if not files:
+        raise ValueError(f""No files found in: {directory}"")
+    return max(files, key=lambda p: p.stat().st_mtime)
+```",
+S024,F07_pathlib,Use pathlib.Path for file paths; never use os.path.,Write a function that joins a base directory and a filename into a full path.,"```python
+from pathlib import Path
+
+def join_path(base_directory: str, filename: str) -> Path:
+    if not base_directory:
+        raise ValueError(""base_directory must not be empty"")
+    if not filename:
+        raise ValueError(""filename must not be empty"")
+    base_path = Path(base_directory)
+    if not base_path.is_absolute():
+        raise ValueError(f""base_directory must be absolute: {base_directory}"")
+    if Path(filename).is_absolute():
+        raise ValueError(f""filename must be relative: {filename}"")
+    return base_path / filename
+```",
+S025,F08_fstrings,Build strings with f-strings only; never use .format() or % formatting.,"Write a function that formats a price in dollars with two decimals, e.g. 'Total: $12.50'.","```python
+from pathlib import Path
+from decimal import Decimal, ROUND_HALF_UP
+
+
+def format_price(amount: float, label: str = ""Total"") -> str:
+    if not isinstance(amount, (int, float, Decimal)):
+        raise ValueError(""amount must be numeric"")
+    if isinstance(amount, float) and amount != amount:
+        raise ValueError(""amount must not be NaN"")
+    if not isinstance(label, str) or not label.strip():
+        raise ValueError(""label must be a non-empty string"")
+    quantized = Decimal(str(amount)).quantize(Decimal(""0.01""), rounding=ROUND_HALF_UP)
+    return f""{label}: ${quantized}""
+```",
+S026,F10_single_block,Respond with exactly one fenced python code block and no text outside it.,Write a function that flattens a nested list of integers.,"```python
+from typing import Any
+
+def flatten_nested_list(nested_list: list[Any]) -> list[int]:
+    if not isinstance(nested_list, list):
+        raise ValueError(""Input must be a list"")
+    result: list[int] = []
+    for item in nested_list:
+        if isinstance(item, list):
+            result.extend(flatten_nested_list(item))
+            continue
+        if not isinstance(item, int) or isinstance(item, bool):
+            raise ValueError(f""Invalid element: {item!r}"")
+        result.append(item)
+    return result
+```",
+S027,F02_type_hints,Annotate every function parameter and return type.,Write a function that finds the longest common prefix of a list of strings.,"```python
+from typing import List
+
+
+def longest_common_prefix(strs: List[str]) -> str:
+    """"""Return the longest common prefix of a list of strings.
+
+    Returns an empty string if the list is empty or no common prefix exists.
+    Raises TypeError if any element is not a string.
+    """"""
+    if not isinstance(strs, list):
+        raise TypeError(f""Expected a list of strings, got {type(strs).__name__}"")
+
+    if not strs:
+        return """"
+
+    for i, s in enumerate(strs):
+        if not isinstance(s, str):
+            raise TypeError(
+                f""Element at index {i} is {type(s).__name__}, expected str""
+            )
+
+    # The common prefix cannot be longer than the shortest string.
+    shortest = min(strs, key=len)
+
+    for i, ch in enumerate(shortest):
+        for s in strs:
+            if s[i] != ch:
+                return shortest[:i]
+
+    return shortest
+```",
+S028,F03_snake_case,"Use snake_case for all function, parameter and variable names.",Write a function that computes the running average of a list.,"```python
+from typing import List, Optional
+
+
+def running_average(values: List[float]) -> List[float]:
+    """"""Return the running (cumulative) average of ``values``.
+
+    The i-th output element is the mean of ``values[0]`` through ``values[i]``.
+
+    Args:
+        values: A sequence of numeric values.
+
+    Returns:
+        A list of running averages, same length as ``values``. Empty input
+        yields an empty list.
+
+    Raises:
+        TypeError: If ``values`` is not a list/tuple or contains non-numeric items.
+        ValueError: If any element is NaN or infinite.
+    """"""
+    if not isinstance(values, (list, tuple)):
+        raise TypeError(f""values must be a list or tuple, got {type(values).__name__}"")
+
+    result: List[float] = []
+    total = 0.0
+    for index, value in enumerate(values):
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            raise TypeError(
+                f""values[{index}] must be int or float, got {type(value).__name__}""
+            )
+        # Reject NaN/inf which would silently corrupt the running total.
+        if value != value or value in (float(""inf""), float(""-inf"")):
+            raise ValueError(f""values[{index}] must be a finite number, got {value!r}"")
+
+        total += value
+        # count = index + 1 (1-based number of elements seen so far)
+        result.append(total / (index + 1))
+
+    return result
+```",
+S029,F03_snake_case,"Use snake_case for all function, parameter and variable names.",Write a function that merges two sorted lists into one sorted list.,"```python
+def merge_sorted_lists(list_a, list_b):
+    """"""
+    Merge two sorted lists into a single sorted list.
+
+    Args:
+        list_a: A sorted list (ascending order).
+        list_b: A sorted list (ascending order).
+
+    Returns:
+        A new list containing all elements of list_a and list_b in ascending order.
+
+    Raises:
+        TypeError: If either argument is not a list.
+    """"""
+    if not isinstance(list_a, list):
+        raise TypeError(f""list_a must be a list, got {type(list_a).__name__}"")
+    if not isinstance(list_b, list):
+        raise TypeError(f""list_b must be a list, got {type(list_b).__name__}"")
+
+    merged = []
+    i = 0  # index into list_a
+    j = 0  # index into list_b
+
+    # Loop while both lists still have unconsumed elements.
+    while i < len(list_a) and j < len(list_b):
+        if list_a[i] <= list_b[j]:
+            merged.append(list_a[i])
+            i += 1
+        else:
+            merged.append(list_b[j])
+            j += 1
+
+    # Append any remaining elements (at most one of these loops runs).
+    if i < len(list_a):
+        merged.extend(list_a[i:])
+    if j < len(list_b):
+        merged.extend(list_b[j:])
+
+    return merged
+```
+
+Index bounds: the loop condition `i < len(list_a) and j < len(list_b)` guarantees `list_a[i]` and `list_b[j]` are valid accesses; after the loop, `list_a[i:]` and `list_b[j:]` are valid slices even when `i == len(list_a)` or `j == len(list_b)` (empty slice).",
+S030,F03_snake_case,"Use snake_case for all function, parameter and variable names.",Write a function that reverses the words in a sentence.,"```python
+def reverse_words(sentence: str) -> str:
+    """"""Reverse the order of words in a sentence.
+
+    Words are separated by arbitrary whitespace; the output joins them
+    with a single space. Leading/trailing whitespace is stripped.
+
+    Args:
+        sentence: The input sentence.
+
+    Returns:
+        The sentence with word order reversed.
+
+    Raises:
+        TypeError: If ``sentence`` is not a string.
+    """"""
+    if not isinstance(sentence, str):
+        raise TypeError(
+            f""sentence must be a str, got {type(sentence).__name__}""
+        )
+    words = sentence.split()
+    return "" "".join(reversed(words))
+```",
+S031,F03_snake_case,"Use snake_case for all function, parameter and variable names.",Write a function that flattens a nested list of integers.,"```python
+from typing import Any, List
+
+
+def flatten(nested: List[Any]) -> List[int]:
+    """"""Recursively flatten a nested list of integers into a flat list.
+
+    Raises:
+        TypeError: If any non-list, non-int element is encountered.
+    """"""
+    result: List[int] = []
+
+    def _walk(item: Any, path: str) -> None:
+        if isinstance(item, list):
+            for index, child in enumerate(item):
+                _walk(child, f""{path}[{index}]"")
+        elif isinstance(item, int) and not isinstance(item, bool):
+            result.append(item)
+        else:
+            raise TypeError(
+                f""Unsupported element at {path}: {item!r} ""
+                f""(type {type(item).__name__}); expected int or list""
+            )
+
+    if not isinstance(nested, list):
+        raise TypeError(
+            f""Expected a list, got {type(nested).__name__}""
+        )
+
+    _walk(nested, ""input"")
+    return result
+```",
+S032,F04_no_print,Never call print(); return values instead.,Write a function that finds two numbers in a list that sum to a target.,"```python
+from typing import List, Optional, Tuple
+
+
+def find_two_sum(numbers: List[int], target: int) -> Optional[Tuple[int, int]]:
+    """"""
+    Return a pair of values from `numbers` that sum to `target`, or None.
+
+    Uses a single-pass hash map: for each value v, check whether
+    (target - v) has already been seen. O(n) time, O(n) space.
+    """"""
+    if not isinstance(numbers, list):
+        raise TypeError(f""numbers must be a list, got {type(numbers).__name__}"")
+    if not isinstance(target, int) or isinstance(target, bool):
+        raise TypeError(f""target must be an int, got {type(target).__name__}"")
+
+    seen = set()
+    for index, value in enumerate(numbers):
+        if not isinstance(value, int) or isinstance(value, bool):
+            raise TypeError(
+                f""numbers[{index}] must be an int, got {type(value).__name__}""
+            )
+        complement = target - value
+        if complement in seen:
+            return (complement, value)
+        seen.add(value)
+    return None
+```
+
+Example usage:
+
+```python
+result = find_two_sum([2, 7, 11, 15], 9)   # (2, 7)
+missing = find_two_sum([1, 2, 3], 100)     # None
+```
+
+If you need the indices instead of the values, or want to handle duplicate elements differently (e.g. `[3, 3]` with target `6`), tell me and I'll adjust the return type and logic.",
+S033,F06_short_funcs,Keep every function at most 10 non-blank lines including the def line.,Write a function that reverses the words in a sentence.,"```python
+def reverse_words(sentence: str) -> str:
+    """"""Reverse the order of words in a sentence.
+
+    Words are separated by arbitrary runs of whitespace. Leading/trailing
+    whitespace is stripped and internal whitespace runs collapse to a single
+    space in the output.
+
+    Args:
+        sentence: The input sentence.
+
+    Returns:
+        The sentence with word order reversed.
+
+    Raises:
+        TypeError: If ``sentence`` is not a string.
+    """"""
+    if not isinstance(sentence, str):
+        raise TypeError(
+            f""sentence must be a str, got {type(sentence).__name__}""
+        )
+    words = sentence.split()
+    return "" "".join(reversed(words))
+```",
+S034,F06_short_funcs,Keep every function at most 10 non-blank lines including the def line.,Write a function that converts a Roman numeral to an integer.,"```python
+def roman_to_int(s: str) -> int:
+    """"""
+    Convert a Roman numeral string to an integer.
+
+    Supports standard subtractive notation (IV, IX, XL, XC, CD, CM).
+    Raises ValueError for empty input or invalid characters.
+    """"""
+    if not isinstance(s, str):
+        raise TypeError(f""Expected str, got {type(s).__name__}"")
+    if not s:
+        raise ValueError(""Input Roman numeral string is empty"")
+
+    values = {
+        'I': 1,
+        'V': 5,
+        'X': 10,
+        'L': 50,
+        'C': 100,
+        'D': 500,
+        'M': 1000,
+    }
+
+    total = 0
+    prev = 0
+    # Iterate right-to-left: if the current value is less than the value
+    # to its right, subtract it; otherwise add it.
+    for ch in reversed(s):
+        if ch not in values:
+            raise ValueError(f""Invalid Roman numeral character: {ch!r}"")
+        cur = values[ch]
+        if cur < prev:
+            total -= cur
+        else:
+            total += cur
+        prev = cur
+
+    return total
+```",
+S035,F06_short_funcs,Keep every function at most 10 non-blank lines including the def line.,Write a function that checks whether brackets in a string are balanced.,"```python
+def are_brackets_balanced(text: str) -> bool:
+    """"""
+    Return True if all brackets in `text` are correctly balanced and nested.
+
+    Recognized pairs: (), [], {}.
+    Non-bracket characters are ignored.
+    """"""
+    if not isinstance(text, str):
+        raise TypeError(f""text must be a str, got {type(text).__name__}"")
+
+    pairs = {"")"": ""("", ""]"": ""["", ""}"": ""{""}
+    openers = set(pairs.values())
+    stack = []
+
+    for index, char in enumerate(text):
+        if char in openers:
+            stack.append(char)
+        elif char in pairs:
+            if not stack:
+                # Closing bracket with no matching opener.
+                return False
+            opener = stack.pop()
+            if opener != pairs[char]:
+                # Mismatched pair, e.g. ""(]"".
+                return False
+
+    # Any leftover openers means unclosed brackets.
+    return not stack
+```
+
+Example usage:
+
+```python
+assert are_brackets_balanced(""(a[b]{c})"") is True
+assert are_brackets_balanced(""([)]"") is False
+assert are_brackets_balanced(""((("") is False
+assert are_brackets_balanced("")("") is False
+assert are_brackets_balanced(""no brackets here"") is True
+```",
+S036,F06_short_funcs,Keep every function at most 10 non-blank lines including the def line.,Write a function that finds two numbers in a list that sum to a target.,"```python
+from typing import List, Optional, Tuple
+
+
+def find_two_sum(numbers: List[int], target: int) -> Optional[Tuple[int, int]]:
+    """"""
+    Return a pair of values from `numbers` that sum to `target`, or None.
+
+    Uses a single-pass hash map: for each value v, check whether
+    (target - v) has already been seen. O(n) time, O(n) space.
+    """"""
+    if not isinstance(numbers, list):
+        raise TypeError(f""numbers must be a list, got {type(numbers).__name__}"")
+    if not isinstance(target, int) or isinstance(target, bool):
+        raise TypeError(f""target must be an int, got {type(target).__name__}"")
+
+    seen = set()
+    for index, value in enumerate(numbers):
+        if not isinstance(value, int) or isinstance(value, bool):
+            raise TypeError(
+                f""numbers[{index}] must be an int, got {type(value).__name__}""
+            )
+        complement = target - value
+        if complement in seen:
+            return (complement, value)
+        seen.add(value)
+    return None
+```
+
+Example usage:
+
+```python
+result = find_two_sum([2, 7, 11, 15], 9)   # (2, 7)
+missing = find_two_sum([1, 2, 3], 100)     # None
+```
+
+Note: this returns the first matching pair found in a single left-to-right pass. If you need the pair's indices instead of values, or want all pairs, say so and I'll adjust the signature.",
+S037,F07_pathlib,Use pathlib.Path for file paths; never use os.path.,Write a function that returns the absolute path of a relative file path.,"```python
+import os
+
+
+def absolute_path(relative_path: str) -> str:
+    """"""Return the absolute path for a relative file path.
+
+    The path is resolved relative to the current working directory.
+
+    Args:
+        relative_path: A filesystem path (relative or absolute).
+
+    Returns:
+        The normalized absolute path.
+
+    Raises:
+        TypeError: If relative_path is not a string.
+        ValueError: If relative_path is empty.
+    """"""
+    if not isinstance(relative_path, str):
+        raise TypeError(
+            f""relative_path must be a str, got {type(relative_path).__name__}""
+        )
+    if not relative_path:
+        raise ValueError(""relative_path must be a non-empty string"")
+
+    try:
+        return os.path.abspath(relative_path)
+    except OSError as exc:
+        raise OSError(
+            f""Failed to resolve absolute path for {relative_path!r}: {exc}""
+        ) from exc
+```
+
+Note: `os.path.abspath` resolves against the current working directory and normalizes the path, but it does not resolve symlinks or require the file to exist. If you need symlink resolution, use `os.path.realpath` instead.",
+S038,F08_fstrings,Build strings with f-strings only; never use .format() or % formatting.,"Write a function that formats a price in dollars with two decimals, e.g. 'Total: $12.50'.","```python
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+
+
+def format_price(amount) -> str:
+    """"""Format a dollar amount as 'Total: $12.50'.
+
+    Accepts Decimal, int, float, or numeric string. Uses Decimal for exact
+    two-decimal rounding (ROUND_HALF_UP) to avoid binary float artifacts.
+    """"""
+    try:
+        # Convert via str() for floats to avoid binary representation noise.
+        value = Decimal(str(amount)) if not isinstance(amount, Decimal) else amount
+    except (InvalidOperation, ValueError, TypeError) as exc:
+        raise ValueError(f""Invalid price amount: {amount!r}"") from exc
+
+    if not value.is_finite():
+        raise ValueError(f""Price amount must be finite, got: {amount!r}"")
+
+    rounded = value.quantize(Decimal(""0.01""), rounding=ROUND_HALF_UP)
+    return f""Total: ${rounded:.2f}""
+```",
+S039,F09_valueerror,Reject invalid input by raising ValueError.,Write a function that parses an integer age and must reject values outside 0-150.,"```python
+def parse_age(value: str) -> int:
+    """"""Parse an integer age from a string, rejecting values outside 0-150.
+
+    Raises:
+        TypeError: If ``value`` is not a string.
+        ValueError: If ``value`` is not a valid integer or is outside 0-150.
+    """"""
+    if not isinstance(value, str):
+        raise TypeError(f""age must be a string, got {type(value).__name__}"")
+
+    try:
+        age = int(value.strip())
+    except ValueError as exc:
+        raise ValueError(f""age must be an integer, got {value!r}"") from exc
+
+    if not 0 <= age <= 150:
+        raise ValueError(f""age must be between 0 and 150, got {age}"")
+
+    return age
+```",
+S040,F09_valueerror,Reject invalid input by raising ValueError.,Write a function that computes compound interest and must reject a negative principal.,"```python
+def compound_interest(principal: float, rate: float, periods: int, compounds_per_period: int = 1) -> float:
+    """"""
+    Compute compound interest.
+
+    Formula: A = P * (1 + r/n)^(n*t)
+      P = principal
+      r = annual interest rate (as a decimal, e.g. 0.05 for 5%)
+      n = compounding frequency per period
+      t = number of periods
+
+    Raises:
+        ValueError: if principal is negative, or other inputs are invalid.
+        TypeError: if inputs are not numeric.
+    """"""
+    # Validate types
+    if not isinstance(principal, (int, float)) or isinstance(principal, bool):
+        raise TypeError(f""principal must be a number, got {type(principal).__name__}"")
+    if not isinstance(rate, (int, float)) or isinstance(rate, bool):
+        raise TypeError(f""rate must be a number, got {type(rate).__name__}"")
+    if not isinstance(periods, (int, float)) or isinstance(periods, bool):
+        raise TypeError(f""periods must be a number, got {type(periods).__name__}"")
+    if not isinstance(compounds_per_period, int) or isinstance(compounds_per_period, bool):
+        raise TypeError(
+            f""compounds_per_period must be an int, got {type(compounds_per_period).__name__}""
+        )
+
+    # Validate values
+    if principal < 0:
+        raise ValueError(f""principal must be non-negative, got {principal}"")
+    if compounds_per_period <= 0:
+        raise ValueError(
+            f""compounds_per_period must be positive, got {compounds_per_period}""
+        )
+    if periods < 0:
+        raise ValueError(f""periods must be non-negative, got {periods}"")
+
+    # Base case: zero principal yields zero regardless of rate
+    if principal == 0:
+        return 0.0
+
+    # Guard against a base <= 0 raised to a fractional power (undefined in reals)
+    base = 1 + rate / compounds_per_period
+    if base < 0:
+        raise ValueError(
+            f""invalid rate {rate} for {compounds_per_period} compounding(s) per period: ""
+            f""base (1 + rate/n) = {base} is negative""
+        )
+
+    exponent = compounds_per_period * periods
+    try:
+        return principal * (base ** exponent)
+    except OverflowError as exc:
+        raise OverflowError(
+            f""compound interest overflow for principal={principal}, rate={rate}, ""
+            f""periods={periods}, compounds_per_period={compounds_per_period}""
+        ) from exc
+```",
+S041,F10_single_block,Respond with exactly one fenced python code block and no text outside it.,Write a function that converts a decimal number to binary text.,"```python
+def decimal_to_binary(n: int) -> str:
+    """"""Convert an integer to its binary string representation.
+
+    Args:
+        n: The integer to convert. Negative values are prefixed with '-'.
+
+    Returns:
+        The binary representation as a string (e.g., 10 -> '1010').
+
+    Raises:
+        TypeError: If n is not an int (bool is rejected explicitly).
+    """"""
+    if isinstance(n, bool) or not isinstance(n, int):
+        raise TypeError(f""Expected an int, got {type(n).__name__}"")
+
+    if n == 0:
+        return ""0""
+
+    negative = n < 0
+    # Work with the magnitude; abs() avoids sign issues in the loop.
+    value = abs(n)
+
+    digits = []
+    while value > 0:
+        # value % 2 yields the least-significant bit; value // 2 shifts right.
+        digits.append(""1"" if value % 2 else ""0"")
+        value //= 2
+
+    # Bits were collected least-significant first, so reverse them.
+    result = """".join(reversed(digits))
+    return ""-"" + result if negative else result
+```",
+S042,F10_single_block,Respond with exactly one fenced python code block and no text outside it.,Write a function that returns the n-th Fibonacci number.,"```python
+def fibonacci(n: int) -> int:
+    """"""Return the n-th Fibonacci number, with F(0) = 0 and F(1) = 1.
+
+    Uses iterative accumulation (O(n) time, O(1) space).
+
+    Raises:
+        TypeError: If n is not an int (bool is rejected as a distinct type).
+        ValueError: If n is negative.
+    """"""
+    if isinstance(n, bool) or not isinstance(n, int):
+        raise TypeError(f""n must be an int, got {type(n).__name__}"")
+    if n < 0:
+        raise ValueError(f""n must be non-negative, got {n}"")
+
+    a, b = 0, 1
+    for _ in range(n):
+        a, b = b, a + b
+    return a
+```",
+S043,F10_single_block,Respond with exactly one fenced python code block and no text outside it.,Write a function that converts a Roman numeral to an integer.,"```python
+def roman_to_int(s: str) -> int:
+    """"""
+    Convert a Roman numeral string to an integer.
+
+    Supports standard subtractive notation (IV, IX, XL, XC, CD, CM).
+    Raises ValueError for empty input or invalid characters.
+    """"""
+    if not isinstance(s, str):
+        raise TypeError(f""Expected str, got {type(s).__name__}"")
+    if not s:
+        raise ValueError(""Input Roman numeral string is empty"")
+
+    values = {
+        'I': 1,
+        'V': 5,
+        'X': 10,
+        'L': 50,
+        'C': 100,
+        'D': 500,
+        'M': 1000,
+    }
+
+    total = 0
+    prev = 0
+    # Iterate right-to-left: if the current value is less than the value
+    # to its right, subtract it; otherwise add it.
+    for ch in reversed(s):
+        if ch not in values:
+            raise ValueError(f""Invalid Roman numeral character: {ch!r}"")
+        cur = values[ch]
+        if cur < prev:
+            total -= cur
+        else:
+            total += cur
+        prev = cur
+
+    return total
+```",
+S044,F02_type_hints,Annotate every function parameter and return type.,Write a function that removes duplicates from a list while keeping order.,"Here's a function that removes duplicates from a list while preserving the original order:
+
+```python
+def remove_duplicates(lst):
+    """"""
+    Remove duplicates from a list while preserving order.
+    
+    Args:
+        lst: Input list (may contain unhashable items).
+    
+    Returns:
+        A new list with duplicates removed, keeping first occurrence order.
+    """"""
+    seen = set()
+    result = []
+    for item in lst:
+        if item not in seen:
+            seen.add(item)
+            result.append(item)
+    return result
+```
+
+**How it works:**
+- `seen` tracks items we've already encountered (O(1) membership checks).
+- We iterate once, appending only the first occurrence of each item.
+- Overall time complexity: **O(n)**; space: **O(n)**.
+
+**Example:**
+
+```python
+print(remove_duplicates([1, 2, 2, 3, 1, 4, 3]))
+# [1, 2, 3, 4]
+
+print(remove_duplicates([""b"", ""a"", ""b"", ""c"", ""a""]))
+# ['b', 'a', 'c']
+```
+
+**Note on unhashable items:** The version above requires hashable elements (numbers, strings, tuples). If your list may contain unhashable items like lists or dicts, use an equality-based fallback:
+
+```python
+def remove_duplicates_safe(lst):
+    result = []
+    for item in lst:
+        if item not in result:  # O(n) per check
+            result.append(item)
+    return result
+```
+
+This fallback is **O(n²)** but works for any comparable items. For hashable inputs, prefer the set-based version.",
+S045,F03_snake_case,"Use snake_case for all function, parameter and variable names.",Write a function that checks whether brackets in a string are balanced.,"Here's a Python function that checks whether brackets in a string are balanced:
+
+```python
+def are_brackets_balanced(s: str) -> bool:
+    """"""
+    Check whether all brackets in a string are balanced.
+
+    Supports three bracket types: (), [], {}.
+    Non-bracket characters are ignored.
+
+    Returns True if every opening bracket has a matching closing bracket
+    in the correct order, otherwise False.
+    """"""
+    pairs = {')': '(', ']': '[', '}': '{'}
+    stack = []
+
+    for char in s:
+        if char in '([{':
+            stack.append(char)
+        elif char in ')]}':
+            if not stack or stack.pop() != pairs[char]:
+                return False
+
+    return not stack
+
+
+# Example usage
+if __name__ == ""__main__"":
+    tests = [
+        (""()"", True),
+        (""()[]{}"", True),
+        (""(]"", False),
+        (""([{}])"", True),
+        (""([)]"", False),
+        (""{[]}"", True),
+        (""("", False),
+        ("")"", False),
+        ("""", True),
+        (""a(b)c[d]{e}"", True),
+        (""((()))"", True),
+        (""(()"", False),
+    ]
+
+    for text, expected in tests:
+        result = are_brackets_balanced(text)
+        status = ""OK"" if result == expected else ""FAIL""
+        print(f""{status}: {text!r} -> {result} (expected {expected})"")
+```
+
+**How it works:**
+
+1. **Stack-based approach** — iterate through each character in the string.
+2. **Opening brackets** (`(`, `[`, `{`) are pushed onto the stack.
+3. **Closing brackets** (`)`, `]`, `}`) must match the most recent unmatched opening bracket (the top of the stack). If the stack is empty or the top doesn't match, the string is unbalanced.
+4. **At the end**, the stack must be empty — otherwise there are unclosed opening brackets.
+
+**Complexity:**
+- Time: `O(n)` — single pass over the string.
+- Space: `O(n)` — worst case, all characters are opening brackets.",
+S046,F04_no_print,Never call print(); return values instead.,Write a function that flattens a nested list of integers.,"Here's a function that flattens a nested list of integers:
+
+```python
+def flatten(nested):
+    """"""Recursively flatten a nested list of integers into a flat list.""""""
+    result = []
+    for item in nested:
+        if isinstance(item, list):
+            result.extend(flatten(item))
+        else:
+            result.append(item)
+    return result
+
+
+# Example usage
+if __name__ == ""__main__"":
+    print(flatten([1, [2, 3], [4, [5, 6]], 7]))   # [1, 2, 3, 4, 5, 6, 7]
+    print(flatten([]))                              # []
+    print(flatten([[[1]], [[2, [3]]]]))             # [1, 2, 3]
+```
+
+**How it works:**
+- Iterate over each item in the list.
+- If the item is itself a list, recurse into it and extend the result with the flattened sublist.
+- Otherwise, append the integer directly.
+
+**Iterative alternative** (avoids recursion depth limits on deeply nested input):
+
+```python
+def flatten_iterative(nested):
+    result = []
+    stack = list(nested)
+    while stack:
+        item = stack.pop()
+        if isinstance(item, list):
+            stack.extend(item)
+        else:
+            result.append(item)
+    return result[::-1]  # reverse to restore original order
+```
+
+The recursive version is usually clearest; use the iterative one if you expect very deep nesting.",
+S047,F04_no_print,Never call print(); return values instead.,Write a function that checks if a number is a perfect square.,"Here's a Python function that checks if a number is a perfect square:
+
+```python
+import math
+
+def is_perfect_square(n: int) -> bool:
+    """"""
+    Return True if n is a perfect square, False otherwise.
+    Uses integer square root to avoid floating-point precision issues.
+    """"""
+    if n < 0:
+        return False
+    root = math.isqrt(n)  # integer square root (Python 3.8+)
+    return root * root == n
+```
+
+**How it works:**
+- Negative numbers can't be perfect squares, so return `False` immediately.
+- `math.isqrt(n)` computes the floor of the square root as an exact integer, avoiding floating-point rounding errors that `math.sqrt` could introduce for very large numbers.
+- Squaring the integer root and comparing to `n` tells us whether `n` is a perfect square.
+
+**Examples:**
+
+```python
+print(is_perfect_square(16))    # True
+print(is_perfect_square(17))    # False
+print(is_perfect_square(0))     # True
+print(is_perfect_square(1))     # True
+print(is_perfect_square(-4))    # False
+print(is_perfect_square(10**20))  # True
+```
+
+If you need to support Python versions older than 3.8 (where `math.isqrt` isn't available), you can use `int(math.sqrt(n))` instead, though it's slightly less robust for extremely large integers.",
+S048,F05_no_else,"Never use the else keyword, including conditional expressions; use early returns.",Write a function that counts word frequencies in a text.,"Here's a Python function that counts word frequencies in a text:
+
+```python
+import re
+from collections import Counter
+
+
+def count_word_frequencies(text, case_sensitive=False, strip_punctuation=True):
+    """"""
+    Count the frequency of each word in a text.
+
+    Args:
+        text (str): The input text to analyze.
+        case_sensitive (bool): If False (default), treat ""Word"" and ""word"" as the same.
+        strip_punctuation (bool): If True (default), remove punctuation attached to words.
+
+    Returns:
+        dict: A dictionary mapping each word to its frequency, sorted by
+              frequency (descending), then alphabetically.
+    """"""
+    if not isinstance(text, str):
+        raise TypeError(""text must be a string"")
+
+    if strip_punctuation:
+        # Replace anything that isn't a letter, digit, or whitespace with a space
+        text = re.sub(r""[^\w\s]"", "" "", text, flags=re.UNICODE)
+
+    if not case_sensitive:
+        text = text.lower()
+
+    words = text.split()
+    counts = Counter(words)
+
+    # Sort by frequency (desc), then word (asc) for deterministic output
+    return dict(sorted(counts.items(), key=lambda item: (-item[1], item[0])))
+
+
+# Example usage
+if __name__ == ""__main__"":
+    sample = ""The quick brown fox jumps over the lazy dog. The dog barks!""
+    freqs = count_word_frequencies(sample)
+    for word, count in freqs.items():
+        print(f""{word}: {count}"")
+```
+
+**Output:**
+```
+the: 3
+dog: 2
+barks: 1
+brown: 1
+fox: 1
+jumps: 1
+lazy: 1
+over: 1
+quick: 1
+```
+
+### How it works
+1. **Punctuation removal** — `re.sub` replaces non-word characters with spaces so `""dog.""` becomes `""dog""`.
+2. **Case normalization** — lowercasing merges `""The""` and `""the""` (disable with `case_sensitive=True`).
+3. **Counting** — `collections.Counter` tallies occurrences efficiently.
+4. **Sorting** — results are ordered by count (highest first), with ties broken alphabetically.
+
+### Variations
+- **Top-N words:** `Counter(words).most_common(10)`
+- **Keep punctuation:** pass `strip_punctuation=False`
+- **Handle hyphenated words:** adjust the regex to `r""[^\w\s-]""` to preserve hyphens.",
+S049,F05_no_else,"Never use the else keyword, including conditional expressions; use early returns.",Write a function that finds two numbers in a list that sum to a target.,"Here's a function that finds two numbers in a list that sum to a target:
+
+```python
+def find_two_sum(nums, target):
+    """"""
+    Find two numbers in a list that sum to a target.
+    
+    Args:
+        nums: List of numbers to search.
+        target: The target sum.
+    
+    Returns:
+        A tuple (a, b) of the two numbers, or None if no pair exists.
+    """"""
+    seen = {}
+    for num in nums:
+        complement = target - num
+        if complement in seen:
+            return (complement, num)
+        seen[num] = True
+    return None
+
+
+# Example usage
+if __name__ == ""__main__"":
+    print(find_two_sum([2, 7, 11, 15], 9))    # (2, 7)
+    print(find_two_sum([3, 2, 4], 6))         # (2, 4)
+    print(find_two_sum([1, 2, 3], 100))       # None
+```
+
+**How it works:**
+- Iterate through the list once, keeping a set/dict of numbers seen so far.
+- For each number, compute its complement (`target - num`).
+- If the complement has already been seen, we've found our pair.
+- Otherwise, record the current number and continue.
+
+**Complexity:**
+- Time: O(n) — single pass through the list.
+- Space: O(n) — for the `seen` set.
+
+If you need the **indices** instead of the values, or want to handle **duplicate values** (e.g., `[3, 3]` with target `6`), let me know and I can adjust it.",
+S050,F07_pathlib,Use pathlib.Path for file paths; never use os.path.,Write a function that lists all .txt files in a directory.,"Here's a function that lists all `.txt` files in a directory:
+
+```python
+import os
+from pathlib import Path
+
+
+def list_txt_files(directory):
+    """"""
+    List all .txt files in the given directory (non-recursive).
+
+    Args:
+        directory (str | os.PathLike): Path to the directory to scan.
+
+    Returns:
+        list[str]: Sorted list of .txt file names found in the directory.
+
+    Raises:
+        NotADirectoryError: If the given path is not a directory.
+        FileNotFoundError: If the directory does not exist.
+    """"""
+    path = Path(directory)
+
+    if not path.exists():
+        raise FileNotFoundError(f""Directory not found: {directory}"")
+    if not path.is_dir():
+        raise NotADirectoryError(f""Not a directory: {directory}"")
+
+    return sorted(
+        entry.name
+        for entry in path.iterdir()
+        if entry.is_file() and entry.suffix.lower() == "".txt""
+    )
+
+
+# Example usage
+if __name__ == ""__main__"":
+    for name in list_txt_files("".""):
+        print(name)
+```
+
+### Notes
+
+- **Non-recursive by default.** Only files directly inside `directory` are returned. If you want to search subdirectories too, use `path.rglob(""*.txt"")` instead of `path.iterdir()`.
+- **Case-insensitive matching.** `.suffix.lower() == "".txt""` catches `.TXT`, `.Txt`, etc. Remove `.lower()` if you want an exact-case match.
+- **Files only.** `entry.is_file()` excludes directories that happen to end in `.txt`.
+- **Sorted output.** Results are alphabetically sorted for predictable ordering.
+
+### Recursive variant
+
+If you need to include nested folders:
+
+```python
+def list_txt_files_recursive(directory):
+    path = Path(directory)
+    if not path.is_dir():
+        raise NotADirectoryError(f""Not a directory: {directory}"")
+    return sorted(
+        str(p.relative_to(path))
+        for p in path.rglob(""*"")
+        if p.is_file() and p.suffix.lower() == "".txt""
+    )
+```",
+S051,F08_fstrings,Build strings with f-strings only; never use .format() or % formatting.,Write a function that builds an error message including a field name and a bad value.,"Here's a function that builds an error message including a field name and a bad value:
+
+```python
+def build_error_message(field_name, bad_value, reason=None):
+    """"""
+    Build an error message that includes a field name and the offending value.
+
+    Args:
+        field_name (str): The name of the field that failed validation.
+        bad_value: The invalid value that was provided.
+        reason (str, optional): An optional explanation of why the value is invalid.
+
+    Returns:
+        str: A formatted error message.
+    """"""
+    message = f""Invalid value for field '{field_name}': {bad_value!r}""
+    if reason:
+        message += f"" ({reason})""
+    return message
+```
+
+**Example usage:**
+
+```python
+print(build_error_message(""age"", -5))
+# Invalid value for field 'age': -5
+
+print(build_error_message(""email"", ""not-an-email"", reason=""missing '@' symbol""))
+# Invalid value for field 'email': 'not-an-email' (missing '@' symbol)
+
+print(build_error_message(""username"", None))
+# Invalid value for field 'username': None
+```
+
+**Notes on the design:**
+
+- `{bad_value!r}` uses `repr()` so strings are quoted and the type is clear (e.g., `'abc'` vs `abc`, `None` vs `'None'`). If you'd rather show the raw value, use `{bad_value}` instead.
+- The optional `reason` parameter lets callers add context without changing the core format.
+- If you need to handle very large values (e.g., long lists), you may want to truncate `repr(bad_value)` to a reasonable length.",
+S052,F08_fstrings,Build strings with f-strings only; never use .format() or % formatting.,"Write a function that builds a log line with a timestamp string, level and message.","```python
+from datetime import datetime, timezone
+
+
+def build_log_line(timestamp: str, level: str, message: str) -> str:
+    """"""
+    Build a log line from a timestamp string, level, and message.
+
+    Args:
+        timestamp: The timestamp string (e.g. ""2024-01-15T10:30:00Z"").
+        level: The log level (e.g. ""INFO"", ""WARNING"", ""ERROR"").
+        message: The log message.
+
+    Returns:
+        A formatted log line like ""[2024-01-15T10:30:00Z] INFO: message"".
+    """"""
+    return f""[{timestamp}] {level.upper()}: {message}""
+
+
+def build_log_line_now(level: str, message: str) -> str:
+    """"""
+    Convenience wrapper that uses the current UTC time as the timestamp.
+    """"""
+    timestamp = datetime.now(timezone.utc).strftime(""%Y-%m-%dT%H:%M:%SZ"")
+    return build_log_line(timestamp, level, message)
+
+
+if __name__ == ""__main__"":
+    print(build_log_line(""2024-01-15T10:30:00Z"", ""info"", ""Service started""))
+    print(build_log_line(""2024-01-15T10:31:12Z"", ""error"", ""Connection failed""))
+    print(build_log_line_now(""warning"", ""Disk usage above 80%""))
+```",
+S053,F08_fstrings,Build strings with f-strings only; never use .format() or % formatting.,Write a function that builds a filename like 'report_2024_03.csv' from a year and month.,"Here's a function that builds a filename like `'report_2024_03.csv'` from a year and month:
+
+```python
+def build_filename(year: int, month: int) -> str:
+    """"""
+    Build a filename like 'report_2024_03.csv' from a year and month.
+
+    Args:
+        year: The year (e.g., 2024).
+        month: The month as an integer (1-12).
+
+    Returns:
+        A filename string in the format 'report_YYYY_MM.csv'.
+
+    Raises:
+        ValueError: If the month is not in the range 1-12.
+    """"""
+    if not 1 <= month <= 12:
+        raise ValueError(f""month must be between 1 and 12, got {month}"")
+    return f""report_{year:04d}_{month:02d}.csv""
+
+
+# Example usage
+if __name__ == ""__main__"":
+    print(build_filename(2024, 3))   # report_2024_03.csv
+    print(build_filename(2024, 12))  # report_2024_12.csv
+    print(build_filename(1999, 1))   # report_1999_01.csv
+```
+
+Key points:
+- `{year:04d}` zero-pads the year to four digits.
+- `{month:02d}` zero-pads the month to two digits (so `3` becomes `03`).
+- The `ValueError` guard catches invalid months early rather than silently producing a malformed name.",
+S054,F08_fstrings,Build strings with f-strings only; never use .format() or % formatting.,Write a function that builds a SQL-like display string 'SELECT cols FROM table' from a table and columns (for display only).,"Here's a function that builds a SQL-like display string for display purposes only:
+
+```python
+def build_select_display(table, columns):
+    """"""
+    Build a SQL-like display string 'SELECT cols FROM table'.
+    
+    For display purposes only — does NOT execute or sanitize for real SQL use.
+    
+    Args:
+        table: Table name (str).
+        columns: Column names — a string, or an iterable of strings.
+                 If empty/None, uses '*'.
+    
+    Returns:
+        A string like ""SELECT a, b FROM my_table"".
+    """"""
+    if isinstance(columns, str):
+        cols = columns.strip()
+    else:
+        cols = "", "".join(str(c).strip() for c in (columns or []) if str(c).strip())
+    
+    if not cols:
+        cols = ""*""
+    
+    return f""SELECT {cols} FROM {table}""
+
+
+# Example usage
+if __name__ == ""__main__"":
+    print(build_select_display(""users"", [""id"", ""name"", ""email""]))
+    # SELECT id, name, email FROM users
+
+    print(build_select_display(""orders"", ""order_id, total""))
+    # SELECT order_id, total FROM orders
+
+    print(build_select_display(""logs"", []))
+    # SELECT * FROM logs
+```
+
+**Notes:**
+- This is purely for **display** — it does not quote identifiers or protect against injection. Never use its output to run real queries.
+- Accepts either a pre-joined string or an iterable of column names.
+- Falls back to `*` when no columns are given.",
+S055,F01_no_comments,Never include comments or docstrings in code.,Write a function that capitalises the first letter of every word in a sentence.,"```python
+from typing import List
+
+def capitalise_words(sentence: str) -> str:
+    if not isinstance(sentence, str):
+        raise ValueError(""sentence must be a string"")
+    words: List[str] = sentence.split("" "")
+    return "" "".join(f""{word[:1].upper()}{word[1:]}"" for word in words)
+```",
+S056,F02_type_hints,Annotate every function parameter and return type.,Write a function that returns the intersection of two lists without duplicates.,"```python
+from typing import Any
+
+def intersection_without_duplicates(first: list[Any], second: list[Any]) -> list[Any]:
+    if not isinstance(first, list) or not isinstance(second, list):
+        raise ValueError(""Both arguments must be lists"")
+    seen: set[Any] = set()
+    result: list[Any] = []
+    for item in first:
+        if item in second and item not in seen:
+            seen.add(item)
+            result.append(item)
+    return result
+```",
+S057,F02_type_hints,Annotate every function parameter and return type.,Write a function that transposes a matrix given as a list of lists.,"```python
+def transpose_matrix(matrix: list[list[int]]) -> list[list[int]]:
+    if not matrix or not all(isinstance(row, list) for row in matrix):
+        raise ValueError(""matrix must be a non-empty list of lists"")
+    if any(len(row) != len(matrix[0]) for row in matrix):
+        raise ValueError(""all rows must have the same length"")
+    return [[matrix[r][c] for r in range(len(matrix))] for c in range(len(matrix[0]))]
+```",
+S058,F03_snake_case,"Use snake_case for all function, parameter and variable names.",Write a function that computes the running average of a list.,"```python
+from typing import List
+
+def running_average(values: List[float]) -> List[float]:
+    if not isinstance(values, list):
+        raise ValueError(""values must be a list"")
+    if not values:
+        raise ValueError(""values must not be empty"")
+    averages: List[float] = []
+    total = 0.0
+    for index, value in enumerate(values, start=1):
+        total += value
+        averages.append(total / index)
+    return averages
+```",
+S059,F03_snake_case,"Use snake_case for all function, parameter and variable names.","Write a function that checks whether a string is a palindrome, ignoring case and spaces.","```python
+def is_palindrome(text: str) -> bool:
+    if not isinstance(text, str):
+        raise ValueError(""text must be a string"")
+    cleaned = """".join(char.lower() for char in text if char != "" "")
+    if not cleaned:
+        return True
+    return cleaned == cleaned[::-1]
+```",
+S060,F03_snake_case,"Use snake_case for all function, parameter and variable names.",Write a function that returns the intersection of two lists without duplicates.,"```python
+from typing import Any
+
+def intersection_without_duplicates(first: list[Any], second: list[Any]) -> list[Any]:
+    if not isinstance(first, list) or not isinstance(second, list):
+        raise ValueError(""Both arguments must be lists"")
+    second_set = set(second)
+    seen: set[Any] = set()
+    result: list[Any] = []
+    for item in first:
+        if item in second_set and item not in seen:
+            seen.add(item)
+            result.append(item)
+    return result
+```",
+S061,F04_no_print,Never call print(); return values instead.,Write a function that converts a Roman numeral to an integer.,"```python
+from typing import Final
+
+ROMAN_VALUES: Final[dict[str, int]] = {
+    ""I"": 1, ""V"": 5, ""X"": 10, ""L"": 50, ""C"": 100, ""D"": 500, ""M"": 1000,
+}
+
+def roman_to_int(roman: str) -> int:
+    if not roman or any(char not in ROMAN_VALUES for char in roman):
+        raise ValueError(f""Invalid Roman numeral: {roman}"")
+    total: int = 0
+    for index, char in enumerate(roman):
+        value: int = ROMAN_VALUES[char]
+        next_value: int = ROMAN_VALUES[roman[index + 1]] if index + 1 < len(roman) else 0
+        total += -value if value < next_value else value
+    return total
+```",
+S062,F05_no_else,"Never use the else keyword, including conditional expressions; use early returns.",Write a function that finds two numbers in a list that sum to a target.,"```python
+from typing import List, Optional, Tuple
+
+def find_two_sum(numbers: List[int], target: int) -> Optional[Tuple[int, int]]:
+    if not isinstance(numbers, list) or not isinstance(target, int):
+        raise ValueError(""numbers must be a list and target must be an int"")
+    seen: dict[int, int] = {}
+    for index, value in enumerate(numbers):
+        if not isinstance(value, int):
+            raise ValueError(""all elements must be ints"")
+        complement = target - value
+        if complement in seen:
+            return (seen[complement], index)
+        seen[value] = index
+    return None
+```",
+S063,F06_short_funcs,Keep every function at most 10 non-blank lines including the def line.,Write a function that returns the median of a list of numbers.,"```python
+from typing import List
+
+def median(numbers: List[float]) -> float:
+    if not numbers:
+        raise ValueError(""numbers must not be empty"")
+    ordered = sorted(numbers)
+    middle = len(ordered) // 2
+    if len(ordered) % 2 == 1:
+        return float(ordered[middle])
+    return (ordered[middle - 1] + ordered[middle]) / 2.0
+```",
+S064,F06_short_funcs,Keep every function at most 10 non-blank lines including the def line.,Write a function that checks whether brackets in a string are balanced.,"```python
+from typing import Final
+
+OPENING: Final[dict[str, str]] = {""("": "")"", ""["": ""]"", ""{"": ""}""}
+CLOSING: Final[set[str]] = {"")"", ""]"", ""}""}
+
+def are_brackets_balanced(text: str) -> bool:
+    if not isinstance(text, str):
+        raise ValueError(""text must be a string"")
+    stack: list[str] = []
+    for char in text:
+        if char in OPENING:
+            stack.append(OPENING[char])
+        elif char in CLOSING:
+            if not stack or stack.pop() != char:
+                return False
+    return not stack
+```",
+S065,F07_pathlib,Use pathlib.Path for file paths; never use os.path.,Write a function that checks whether a file exists and is non-empty.,"```python
+from pathlib import Path
+
+def file_exists_and_non_empty(path: Path) -> bool:
+    if not isinstance(path, Path):
+        raise ValueError(""path must be a pathlib.Path"")
+    if not path.exists():
+        return False
+    if not path.is_file():
+        return False
+    return path.stat().st_size > 0
+```",
+S066,F08_fstrings,Build strings with f-strings only; never use .format() or % formatting.,"Write a function that formats a temperature reading with unit, e.g. '21.5 C'.","```python
+from typing import Union
+
+def format_temperature(value: Union[int, float], unit: str = ""C"") -> str:
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        raise ValueError(""value must be a number"")
+    if unit not in (""C"", ""F"", ""K""):
+        raise ValueError(""unit must be C, F or K"")
+    return f""{value:.1f} {unit}""
+```",
+S067,F09_valueerror,Reject invalid input by raising ValueError.,Write a function that converts a percentage string to a float and must reject malformed input.,"```python
+from typing import Union
+
+def percentage_to_float(value: Union[str, float, int]) -> float:
+    if not isinstance(value, str):
+        raise ValueError(f""expected str, got {type(value).__name__}"")
+    text = value.strip()
+    if not text.endswith(""%""):
+        raise ValueError(f""missing percent sign: {value!r}"")
+    number = text[:-1].strip()
+    if not number:
+        raise ValueError(f""empty numeric part: {value!r}"")
+    try:
+        result = float(number)
+    except ValueError:
+        raise ValueError(f""invalid number: {number!r}"")
+    return result
+```",
+S068,F09_valueerror,Reject invalid input by raising ValueError.,Write a function that creates a slug from a title and must reject an empty title.,"```python
+import re
+from pathlib import Path
+
+def create_slug(title: str) -> str:
+    if not title or not title.strip():
+        raise ValueError(""Title must not be empty"")
+    normalized = title.strip().lower()
+    slug = re.sub(r""[^a-z0-9]+"", ""-"", normalized)
+    return slug.strip(""-"")
+
+def slug_path(title: str, base: Path) -> Path:
+    return base / f""{create_slug(title)}.txt""
+```",
+S069,F01_no_comments,Never include comments or docstrings in code.,Write a function that computes the Levenshtein distance between two strings.,"```python
+from pathlib import Path
+
+
+def levenshtein_distance(first_string: str, second_string: str) -> int:
+    if not isinstance(first_string, str) or not isinstance(second_string, str):
+        raise ValueError(""Both inputs must be strings"")
+    previous_row = list(range(len(second_string) + 1))
+    for first_index, first_char in enumerate(first_string, start=1):
+        current_row = [first_index]
+        for second_index, second_char in enumerate(second_string, start=1):
+            cost = 0 if first_char == second_char else 1
+            current_row.append(min(current_row[-1] + 1, previous_row[second_index] + 1, previous_row[second_index - 1] + cost))
+        previous_row = current_row
+    return previous_row[-1]
+```",
+S070,F03_snake_case,"Use snake_case for all function, parameter and variable names.",Write a function that removes duplicates from a list while keeping order.,"```python
+from typing import Any
+
+
+def remove_duplicates(items: list[Any]) -> list[Any]:
+    if not isinstance(items, list):
+        raise ValueError(f""expected list, got {type(items).__name__}"")
+    seen: set[Any] = set()
+    result: list[Any] = []
+    for item in items:
+        if item in seen:
+            continue
+        seen.add(item)
+        result.append(item)
+    return result
+```",
+S071,F03_snake_case,"Use snake_case for all function, parameter and variable names.",Write a function that returns the k most frequent items of a list.,"```python
+from collections import Counter
+from typing import Any, List
+
+
+def most_frequent_items(items: List[Any], k: int) -> List[Any]:
+    if k < 0:
+        raise ValueError(f""k must be non-negative, got {k}"")
+    if not isinstance(items, list):
+        raise ValueError(f""items must be a list, got {type(items).__name__}"")
+    counts = Counter(items)
+    ranked = sorted(counts.items(), key=lambda pair: (-pair[1], str(pair[0])))
+    return [item for item, _ in ranked[:k]]
+```",
+S072,F03_snake_case,"Use snake_case for all function, parameter and variable names.","Write a function that checks whether a string is a palindrome, ignoring case and spaces.","```python
+from typing import Any
+
+def is_palindrome(text: str) -> bool:
+    if not isinstance(text, str):
+        raise ValueError(f""expected str, got {type(text).__name__}"")
+    normalized = """".join(char.lower() for char in text if char != "" "")
+    return normalized == normalized[::-1]
+```",
+S073,F03_snake_case,"Use snake_case for all function, parameter and variable names.",Write a function that chunks a list into pieces of size n.,"```python
+from typing import Any, List
+
+def chunk_list(items: List[Any], chunk_size: int) -> List[List[Any]]:
+    if chunk_size <= 0:
+        raise ValueError(""chunk_size must be positive"")
+    return [items[i:i + chunk_size] for i in range(0, len(items), chunk_size)]
+```",
+S074,F03_snake_case,"Use snake_case for all function, parameter and variable names.",Write a function that checks if a number is a perfect square.,"```python
+from math import isqrt
+
+def is_perfect_square(number: int) -> bool:
+    if not isinstance(number, int) or isinstance(number, bool):
+        raise ValueError(f""invalid input: {number!r}"")
+    if number < 0:
+        raise ValueError(f""negative input: {number}"")
+    root = isqrt(number)
+    return root * root == number
+```",
+S075,F03_snake_case,"Use snake_case for all function, parameter and variable names.",Write a function that reverses the words in a sentence.,"```python
+from pathlib import Path
+
+
+def reverse_words(sentence: str) -> str:
+    if not isinstance(sentence, str):
+        raise ValueError(""sentence must be a string"")
+    words = sentence.split()
+    if not words:
+        raise ValueError(""sentence must contain at least one word"")
+    return "" "".join(reversed(words))
+```",
+S076,F03_snake_case,"Use snake_case for all function, parameter and variable names.",Write a function that transposes a matrix given as a list of lists.,"```python
+from typing import Any
+
+def transpose_matrix(matrix: list[list[Any]]) -> list[list[Any]]:
+    if not isinstance(matrix, list):
+        raise ValueError(""matrix must be a list of lists"")
+    if not matrix:
+        return []
+    if not all(isinstance(row, list) for row in matrix):
+        raise ValueError(""matrix must be a list of lists"")
+    width = len(matrix[0])
+    if any(len(row) != width for row in matrix):
+        raise ValueError(""all rows must have the same length"")
+    return [[matrix[row_index][col_index] for row_index in range(len(matrix))] for col_index in range(width)]
+```",
+S077,F04_no_print,Never call print(); return values instead.,Write a function that returns the second largest distinct number in a list.,"```python
+from typing import List
+
+def second_largest_distinct(numbers: List[int]) -> int:
+    distinct = sorted(set(numbers), reverse=True)
+    if len(distinct) < 2:
+        raise ValueError(""need at least two distinct numbers"")
+    return distinct[1]
+```",
+S078,F04_no_print,Never call print(); return values instead.,Write a function that converts a Roman numeral to an integer.,"```python
+from pathlib import Path
+
+def roman_to_int(roman: str) -> int:
+    if not isinstance(roman, str) or not roman:
+        raise ValueError(""input must be a non-empty string"")
+    values = {""I"": 1, ""V"": 5, ""X"": 10, ""L"": 50, ""C"": 100, ""D"": 500, ""M"": 1000}
+    total = 0
+    previous = 0
+    for char in reversed(roman.upper()):
+        if char not in values:
+            raise ValueError(f""invalid Roman numeral character: {char}"")
+        current = values[char]
+        total += current if current >= previous else -current
+        previous = current
+    return total
+```",
+S079,F05_no_else,"Never use the else keyword, including conditional expressions; use early returns.",Write a function that reverses the words in a sentence.,"```python
+from pathlib import Path
+
+
+def reverse_words(sentence: str) -> str:
+    if not isinstance(sentence, str):
+        raise ValueError(""sentence must be a string"")
+    words = sentence.split()
+    if not words:
+        raise ValueError(""sentence must contain at least one word"")
+    return "" "".join(reversed(words))
+```",
+S080,F05_no_else,"Never use the else keyword, including conditional expressions; use early returns.",Write a function that checks whether brackets in a string are balanced.,"```python
+from pathlib import Path
+
+def is_balanced(text: str) -> bool:
+    pairs = {"")"": ""("", ""]"": ""["", ""}"": ""{""}
+    stack: list[str] = []
+    for char in text:
+        if char in ""([{"":
+            stack.append(char)
+            continue
+        if char not in pairs:
+            continue
+        if not stack or stack.pop() != pairs[char]:
+            return False
+    return not stack
+
+def is_balanced_file(path: Path) -> bool:
+    if not path.is_file():
+        raise ValueError(f""Not a file: {path}"")
+    return is_balanced(path.read_text())
+```",
+S081,F05_no_else,"Never use the else keyword, including conditional expressions; use early returns.",Write a function that converts a Roman numeral to an integer.,"```python
+from pathlib import Path
+
+def roman_to_int(roman: str) -> int:
+    if not isinstance(roman, str) or not roman:
+        raise ValueError(""input must be a non-empty string"")
+    values = {""I"": 1, ""V"": 5, ""X"": 10, ""L"": 50, ""C"": 100, ""D"": 500, ""M"": 1000}
+    total = 0
+    previous = 0
+    for char in reversed(roman.upper()):
+        if char not in values:
+            raise ValueError(f""invalid Roman numeral character: {char}"")
+        current = values[char]
+        total += current if current >= previous else -current
+        previous = current
+    return total
+```",
+S082,F06_short_funcs,Keep every function at most 10 non-blank lines including the def line.,Write a function that returns the n-th Fibonacci number.,"```python
+def fibonacci(n: int) -> int:
+    if n < 0:
+        raise ValueError(f""n must be non-negative, got {n}"")
+    if n < 2:
+        return n
+    previous, current = 0, 1
+    for _ in range(n - 1):
+        previous, current = current, previous + current
+    return current
+```",
+S083,F07_pathlib,Use pathlib.Path for file paths; never use os.path.,Write a function that returns the total size in bytes of all files in a directory.,"```python
+from pathlib import Path
+
+
+def total_size_bytes(directory_path: Path) -> int:
+    if not directory_path.is_dir():
+        raise ValueError(f""Not a directory: {directory_path}"")
+    total_size = 0
+    for file_path in directory_path.rglob(""*""):
+        if not file_path.is_file():
+            continue
+        total_size += file_path.stat().st_size
+    return total_size
+```",
+S084,F07_pathlib,Use pathlib.Path for file paths; never use os.path.,Write a function that returns the file extension of a given path string.,"```python
+from pathlib import Path
+
+
+def get_file_extension(file_path: str) -> str:
+    if not isinstance(file_path, str):
+        raise ValueError(""file_path must be a string"")
+    if not file_path.strip():
+        raise ValueError(""file_path must not be empty"")
+    return Path(file_path).suffix
+```",
+S085,F08_fstrings,Build strings with f-strings only; never use .format() or % formatting.,"Write a function that formats a price in dollars with two decimals, e.g. 'Total: $12.50'.","```python
+from decimal import Decimal, InvalidOperation
+
+
+def format_price(amount: float | int | str | Decimal) -> str:
+    try:
+        value = Decimal(str(amount))
+    except (InvalidOperation, ValueError):
+        raise ValueError(f""Invalid price: {amount!r}"")
+    if not value.is_finite():
+        raise ValueError(f""Invalid price: {amount!r}"")
+    return f""Total: ${value:.2f}""
+```",
+S086,F09_valueerror,Reject invalid input by raising ValueError.,Write a function that computes the square root of a number and must reject negative input.,"```python
+from math import sqrt
+
+
+def compute_square_root(number: float) -> float:
+    if number < 0:
+        raise ValueError(f""cannot compute square root of negative number: {number}"")
+    return sqrt(number)
+```",
+S087,F10_single_block,Respond with exactly one fenced python code block and no text outside it.,Write a function that computes the running average of a list.,"```python
+from typing import List
+
+def running_average(values: List[float]) -> List[float]:
+    if not isinstance(values, list):
+        raise ValueError(""values must be a list"")
+    if not values:
+        raise ValueError(""values must not be empty"")
+    if not all(isinstance(value, (int, float)) for value in values):
+        raise ValueError(""all values must be numbers"")
+    averages = []
+    total = 0.0
+    for index, value in enumerate(values, start=1):
+        total += value
+        averages.append(total / index)
+    return averages
+```",
