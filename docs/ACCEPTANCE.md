@@ -2,7 +2,7 @@
 
 - **Status:** PROPOSED — pre-registration draft. To be frozen (git tag + hashes) before the
   Tier-1 build begins. Nothing in this file may be relaxed after freeze without a logged
-  deviation (§10).
+  deviation (§11).
 - **Draft date:** 2026-10-30
 - **Owner:** repository owner (tool author)
 - **Conflict of interest:** the author built the tool under test. Every gate below is written
@@ -240,12 +240,15 @@ If, after the build, any gate cannot be made green, the honest outcome is to nar
 
 The first increment is scoped so its acceptance is a strict subset of the gates above.
 
-1. **Phase 1 — Tier 1 for real.** Implement the detectors already registered as `pending`
+1. **Phase 1 — Tier 1 for real.** Two parts, because the inventory (`docs/INVENTORY.md`) found
+   the enforcement path is a disconnected CLI dead-end: (a) **wire enforcement into the live
+   loop** (`server.py` currently never calls `classify`/`enforce`) and retire the CLI-only
+   `cmd_enforce` in the same change; (b) implement the detectors already registered as `pending`
    (`no_print`, `no_else`, `type_hints`, `snake_case`, `short_funcs`, `pathlib`, `single_block`),
    mostly thin wrappers over `ruff`/`mypy` already in the dependency set. Add validate-before-
    activate (G4.2) and the routing-invariant guarantee (G4.1). Target: deterministic coverage
-   from 2/10 → 8/10 families. Acceptance subset: G4.1, G4.2, G4.4, G3.1, and G2.3 on the newly
-   implemented families.
+   from 2/10 → 8/10 families, actually reachable from the agent flow. Acceptance subset: G4.1,
+   G4.2, G4.4, G3.1, and G2.3 on the newly implemented families.
 2. **Phase 2 — Extraction rebuild.** Decomposition of multi-part feedback, the negative-set
    gate, and faithful distillation. Acceptance subset: G1.*.
 3. **Phase 3 — Tier 2 + generality.** Regex classifiers, then learned ones only where outcome
@@ -255,7 +258,35 @@ Each phase is merged only when its acceptance subset is green and reproduced by 
 
 ---
 
-## 10. Deviation log
+## 10. Complexity budget
+
+The rebuild must be subtractive. These are hard constraints, checked per phase alongside the
+gates, and exist to prevent layer accretion, token growth and dead code (`docs/INVENTORY.md`
+holds the keep/replace/delete map this budget enforces).
+
+- **CB1 — No net new runtime module without a deletion.** A phase may not add a shipped runtime
+  module unless it removes one of equal-or-greater role, or the owner grants a written
+  exception. The one pre-approved exception is wiring enforcement into the loop, which retires
+  the CLI-only `cmd_enforce` in the same change.
+- **CB2 — Per-session tokens must not rise.** Total per-session cost (MCP tool-list schemas +
+  injected rule text) is measured before and after each phase. It must trend **down**; any
+  increase fails the phase. Tiering moves rules out of the prompt, so the expected direction is
+  strictly negative.
+- **CB3 — No rule left inert.** The routing invariant (G4.1) is also a dead-code law: a rule
+  enforces, injects, or is explicitly declined — never a silent stub. Count of inert
+  stubs/pending detectors must reach **0**.
+- **CB4 — Delete-on-replace.** When a path is marked REPLACE in `docs/INVENTORY.md`, the old
+  path is removed in the same PR that lands its replacement — not left alongside it.
+- **CB5 — Satellite audit.** Before Phase 3, each satellite subsystem in `docs/INVENTORY.md`
+  gets an explicit owner keep / defer / delete decision; anything unreachable from the live
+  path or tests is a deletion candidate. The goal is a smaller tool surface than the current 21
+  MCP tools, not a larger one.
+
+Every phase PR includes a short "what this deletes" section and a before/after token count.
+
+---
+
+## 11. Deviation log
 
 Filled after freeze. Any change to §4–§6 after the pre-registration tag is recorded here with
 date and rationale; a new tool major version is a new acceptance run, not an edit to this one.
