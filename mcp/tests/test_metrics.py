@@ -18,7 +18,8 @@ def metrics_store(tmp_path, monkeypatch):
 
 
 def test_metrics_disabled_by_default(metrics_store):
-    from ai_rule_learning_mcp.metrics import metrics_enabled, record_metric_event
+    from ai_rule_learning_mcp.metrics import metrics_enabled
+    from ai_rule_learning_mcp.metrics import record_metric_event
     from ai_rule_learning_mcp.store import _local_load
 
     assert metrics_enabled() is False
@@ -27,7 +28,9 @@ def test_metrics_disabled_by_default(metrics_store):
 
 
 def test_metrics_enable_records_only_safe_labels(metrics_store):
-    from ai_rule_learning_mcp.metrics import build_metrics_payload, record_metric_event, set_metrics_enabled
+    from ai_rule_learning_mcp.metrics import build_metrics_payload
+    from ai_rule_learning_mcp.metrics import record_metric_event
+    from ai_rule_learning_mcp.metrics import set_metrics_enabled
     from ai_rule_learning_mcp.store import _local_load
 
     set_metrics_enabled(True)
@@ -58,7 +61,8 @@ def test_metrics_enable_records_only_safe_labels(metrics_store):
 
 
 def test_metrics_env_var_can_disable_local_opt_in(metrics_store, monkeypatch):
-    from ai_rule_learning_mcp.metrics import metrics_enabled, set_metrics_enabled
+    from ai_rule_learning_mcp.metrics import metrics_enabled
+    from ai_rule_learning_mcp.metrics import set_metrics_enabled
 
     set_metrics_enabled(True)
     assert metrics_enabled() is True
@@ -92,7 +96,9 @@ def test_metrics_cli_enable_disable(metrics_store, capsys):
 
 
 def test_metrics_status_reports_source_counts_path_and_endpoint(metrics_store, monkeypatch):
-    from ai_rule_learning_mcp.metrics import metrics_status, record_metric_event, set_metrics_enabled
+    from ai_rule_learning_mcp.metrics import metrics_status
+    from ai_rule_learning_mcp.metrics import record_metric_event
+    from ai_rule_learning_mcp.metrics import set_metrics_enabled
 
     monkeypatch.setenv("ARL_METRICS_ENDPOINT", "https://metrics.example.test/ingest")
     set_metrics_enabled(True)

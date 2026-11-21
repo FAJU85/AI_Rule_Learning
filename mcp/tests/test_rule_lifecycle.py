@@ -5,7 +5,6 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-
 from ai_rule_learning_mcp import store as store_module
 from ai_rule_learning_mcp.cli import cmd_rules
 from ai_rule_learning_mcp.store import _local_load

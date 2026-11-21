@@ -16,7 +16,7 @@ from __future__ import annotations
 import math
 import re
 from collections import Counter
-from typing import Callable
+from collections.abc import Callable
 
 _TOKEN_RE = re.compile(r"[a-z0-9]+")
 
@@ -25,12 +25,59 @@ _TOKEN_RE = re.compile(r"[a-z0-9]+")
 # otherwise inflate cosine scores between unrelated rules.
 _STOPWORDS = frozenset(
     {
-        "a", "an", "the", "and", "or", "but", "if", "then", "else", "of", "to",
-        "in", "on", "for", "with", "without", "at", "by", "from", "into", "as",
-        "is", "are", "be", "been", "being", "was", "were", "do", "does", "did",
-        "not", "no", "never", "always", "this", "that", "these", "those", "it",
-        "its", "your", "you", "use", "using", "used", "when", "while", "should",
-        "must", "can", "will", "please",
+        "a",
+        "an",
+        "the",
+        "and",
+        "or",
+        "but",
+        "if",
+        "then",
+        "else",
+        "of",
+        "to",
+        "in",
+        "on",
+        "for",
+        "with",
+        "without",
+        "at",
+        "by",
+        "from",
+        "into",
+        "as",
+        "is",
+        "are",
+        "be",
+        "been",
+        "being",
+        "was",
+        "were",
+        "do",
+        "does",
+        "did",
+        "not",
+        "no",
+        "never",
+        "always",
+        "this",
+        "that",
+        "these",
+        "those",
+        "it",
+        "its",
+        "your",
+        "you",
+        "use",
+        "using",
+        "used",
+        "when",
+        "while",
+        "should",
+        "must",
+        "can",
+        "will",
+        "please",
     }
 )
 

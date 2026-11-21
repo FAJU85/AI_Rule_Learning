@@ -7,19 +7,22 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from ai_rule_learning_mcp.gap_detector import (
-    _LAYER_LABELS,
-    _TEMPLATES,
-    generate_rules,
-)
+from ai_rule_learning_mcp.gap_detector import _LAYER_LABELS
+from ai_rule_learning_mcp.gap_detector import _TEMPLATES
+from ai_rule_learning_mcp.gap_detector import generate_rules
 
 _ALL_GAP_TYPES = list(_TEMPLATES.keys())
 
 _VALID_LAYERS = {1, 2, 3, 4}
 _VALID_CATEGORIES = {
-    "knowledge_factual", "reasoning_logic", "behavioral_alignment",
-    "safety_security", "robustness_consistency", "output_quality",
-    "tool_agentic", "human_trust",
+    "knowledge_factual",
+    "reasoning_logic",
+    "behavioral_alignment",
+    "safety_security",
+    "robustness_consistency",
+    "output_quality",
+    "tool_agentic",
+    "human_trust",
 }
 
 
@@ -34,9 +37,7 @@ class TestTemplatesTaxonomy:
 
     def test_all_layers_are_valid(self):
         for gap_type, tpl in _TEMPLATES.items():
-            assert tpl["failure_layer"] in _VALID_LAYERS, (
-                f"{gap_type} has invalid layer {tpl['failure_layer']}"
-            )
+            assert tpl["failure_layer"] in _VALID_LAYERS, f"{gap_type} has invalid layer {tpl['failure_layer']}"
 
     def test_all_categories_are_valid(self):
         for gap_type, tpl in _TEMPLATES.items():
@@ -59,9 +60,7 @@ class TestGeneratedRulesTaxonomy:
         for gap_type in _ALL_GAP_TYPES:
             rules = generate_rules(self._gaps_for(gap_type))
             label = rules[0].get("failure_layer_label", "")
-            assert label in _LAYER_LABELS.values(), (
-                f"{gap_type} has unknown layer label: {label!r}"
-            )
+            assert label in _LAYER_LABELS.values(), f"{gap_type} has unknown layer label: {label!r}"
 
     def test_generated_rule_has_failure_category(self):
         for gap_type in _ALL_GAP_TYPES:
@@ -71,12 +70,8 @@ class TestGeneratedRulesTaxonomy:
     def test_generated_rule_has_failure_category_label(self):
         for gap_type in _ALL_GAP_TYPES:
             rules = generate_rules(self._gaps_for(gap_type))
-            assert "failure_category_label" in rules[0], (
-                f"{gap_type} rule missing failure_category_label"
-            )
-            assert rules[0]["failure_category_label"], (
-                f"{gap_type} failure_category_label is empty"
-            )
+            assert "failure_category_label" in rules[0], f"{gap_type} rule missing failure_category_label"
+            assert rules[0]["failure_category_label"], f"{gap_type} failure_category_label is empty"
 
     def test_layer_grouping_counts(self):
         """Each defined layer should have at least one template."""
@@ -84,22 +79,15 @@ class TestGeneratedRulesTaxonomy:
         assert layers_used == {1, 2, 3, 4}
 
     def test_security_rules_are_layer_1_or_4(self):
-        security_gap_types = ["code_bare_except", "code_eval_usage",
-                               "code_hardcoded_secret", "prompt_injection"]
+        security_gap_types = ["code_bare_except", "code_eval_usage", "code_hardcoded_secret", "prompt_injection"]
         for gap_type in security_gap_types:
             tpl = _TEMPLATES[gap_type]
-            assert tpl["failure_layer"] in (1, 4), (
-                f"{gap_type} expected layer 1 or 4, got {tpl['failure_layer']}"
-            )
+            assert tpl["failure_layer"] in (1, 4), f"{gap_type} expected layer 1 or 4, got {tpl['failure_layer']}"
 
     def test_context_gaps_are_layer_2(self):
         for gap_type in ["repeated_context", "context_rot"]:
-            assert _TEMPLATES[gap_type]["failure_layer"] == 2, (
-                f"{gap_type} should be layer 2"
-            )
+            assert _TEMPLATES[gap_type]["failure_layer"] == 2, f"{gap_type} should be layer 2"
 
     def test_orchestration_gaps_are_layer_3(self):
         for gap_type in ["cascading_retry", "format_failure"]:
-            assert _TEMPLATES[gap_type]["failure_layer"] == 3, (
-                f"{gap_type} should be layer 3"
-            )
+            assert _TEMPLATES[gap_type]["failure_layer"] == 3, f"{gap_type} should be layer 3"

@@ -1,9 +1,8 @@
 import asyncio
-import json
-from pathlib import Path
-import pytest
 
-from ai_rule_learning_mcp import server, store
+import pytest
+from ai_rule_learning_mcp import server
+from ai_rule_learning_mcp import store
 
 
 def _run(coro):
@@ -133,5 +132,5 @@ def test_v11_no_args_install_scheduler_does_not_write_cron(test_env, tmp_path):
     if cron_file.exists():
         cron_file.unlink()
 
-    res = _run(server._install_scheduler(action="", dry_run=False))
+    _run(server._install_scheduler(action="", dry_run=False))
     assert not cron_file.exists(), "scheduler.cron should NOT be created when no action is passed"

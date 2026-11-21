@@ -2,12 +2,10 @@
 
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 
-import asyncio
-
 import pytest
-
 from ai_rule_learning_mcp import server
 from ai_rule_learning_mcp.store import _local_load
 from ai_rule_learning_mcp.store import _local_save

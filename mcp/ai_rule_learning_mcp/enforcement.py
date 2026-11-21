@@ -75,14 +75,14 @@ def _fix_comments(code: str) -> str:
         for node in ast.walk(tree):
             if isinstance(node, (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
                 body = getattr(node, "body", [])
+                first = body[0] if body else None
                 if (
-                    body
-                    and isinstance(body[0], ast.Expr)
-                    and isinstance(getattr(body[0], "value", None), ast.Constant)
-                    and isinstance(body[0].value.value, str)
+                    isinstance(first, ast.Expr)
+                    and isinstance(first.value, ast.Constant)
+                    and isinstance(first.value.value, str)
                 ):
-                    start = body[0].lineno - 1
-                    end = (body[0].end_lineno or body[0].lineno) - 1
+                    start = first.lineno - 1
+                    end = (first.end_lineno or first.lineno) - 1
                     for i in range(start, end + 1):
                         doc_lines.add(i)
 

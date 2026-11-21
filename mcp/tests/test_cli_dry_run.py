@@ -27,7 +27,8 @@ def test_memory_add_dry_run_does_not_write(store_dir, capsys):
 
 def test_memory_clear_dry_run_does_not_clear(store_dir, capsys):
     from ai_rule_learning_mcp.cli import cmd_memory
-    from ai_rule_learning_mcp.memory import add_memory, load_memory
+    from ai_rule_learning_mcp.memory import add_memory
+    from ai_rule_learning_mcp.memory import load_memory
 
     add_memory("preference", "Keep tests focused")
     cmd_memory(["clear", "--dry-run"])

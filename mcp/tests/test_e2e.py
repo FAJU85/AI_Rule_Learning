@@ -12,7 +12,6 @@ Each test exercises a complete pipeline from input to observable output:
 from __future__ import annotations
 
 import json
-from pathlib import Path
 
 import pytest
 
@@ -50,56 +49,91 @@ def session_file(tmp_path):
     """Write a realistic Claude Code session JSONL with friction patterns."""
     lines = []
     # Turn 1 — user corrects the agent
-    lines.append(json.dumps({
-        "sessionId": "e2e-session-1",
-        "slug": "e2e-test",
-        "cwd": "/home/user/project",
-        "timestamp": "2026-06-21T10:00:00",
-        "message": {"role": "user", "content": "Write a function to parse dates"},
-    }))
-    lines.append(json.dumps({
-        "sessionId": "e2e-session-1",
-        "message": {
-            "role": "assistant",
-            "content": "Here is a date parser: def parse(s): return s",
-        },
-    }))
+    lines.append(
+        json.dumps(
+            {
+                "sessionId": "e2e-session-1",
+                "slug": "e2e-test",
+                "cwd": "/home/user/project",
+                "timestamp": "2026-06-21T10:00:00",
+                "message": {"role": "user", "content": "Write a function to parse dates"},
+            }
+        )
+    )
+    lines.append(
+        json.dumps(
+            {
+                "sessionId": "e2e-session-1",
+                "message": {
+                    "role": "assistant",
+                    "content": "Here is a date parser: def parse(s): return s",
+                },
+            }
+        )
+    )
     # Turn 2 — explicit correction
-    lines.append(json.dumps({
-        "sessionId": "e2e-session-1",
-        "message": {
-            "role": "user",
-            "content": "No that's wrong, actually I need it to handle ISO format",
-        },
-    }))
-    lines.append(json.dumps({
-        "sessionId": "e2e-session-1",
-        "message": {
-            "role": "assistant",
-            "content": "from datetime import datetime; def parse(s): return datetime.fromisoformat(s)",
-        },
-    }))
+    lines.append(
+        json.dumps(
+            {
+                "sessionId": "e2e-session-1",
+                "message": {
+                    "role": "user",
+                    "content": "No that's wrong, actually I need it to handle ISO format",
+                },
+            }
+        )
+    )
+    lines.append(
+        json.dumps(
+            {
+                "sessionId": "e2e-session-1",
+                "message": {
+                    "role": "assistant",
+                    "content": "from datetime import datetime; def parse(s): return datetime.fromisoformat(s)",
+                },
+            }
+        )
+    )
     # Turn 3 — repeated context
-    lines.append(json.dumps({
-        "sessionId": "e2e-session-1",
-        "message": {
-            "role": "user",
-            "content": "As I mentioned before, I'm using Python 3.10",
-        },
-    }))
-    lines.append(json.dumps({
-        "sessionId": "e2e-session-1",
-        "message": {"role": "assistant", "content": "Got it, Python 3.10 compatible solution:"},
-    }))
+    lines.append(
+        json.dumps(
+            {
+                "sessionId": "e2e-session-1",
+                "message": {
+                    "role": "user",
+                    "content": "As I mentioned before, I'm using Python 3.10",
+                },
+            }
+        )
+    )
+    lines.append(
+        json.dumps(
+            {
+                "sessionId": "e2e-session-1",
+                "message": {"role": "assistant", "content": "Got it, Python 3.10 compatible solution:"},
+            }
+        )
+    )
     # Turn 4 — more turns to meet minimum
-    lines.append(json.dumps({
-        "sessionId": "e2e-session-1",
-        "message": {"role": "user", "content": "Add error handling please"},
-    }))
-    lines.append(json.dumps({
-        "sessionId": "e2e-session-1",
-        "message": {"role": "assistant", "content": "def parse(s):\n    try:\n        return datetime.fromisoformat(s)\n    except ValueError:\n        return None"},
-    }))
+    lines.append(
+        json.dumps(
+            {
+                "sessionId": "e2e-session-1",
+                "message": {"role": "user", "content": "Add error handling please"},
+            }
+        )
+    )
+    lines.append(
+        json.dumps(
+            {
+                "sessionId": "e2e-session-1",
+                "message": {
+                    "role": "assistant",
+                    "content": "def parse(s):\n    try:\n        return datetime.fromisoformat(s)\n    except ValueError:\n        return None",
+                },
+            }
+        )
+    )
 
     p = tmp_path / "e2e-session-1.jsonl"
     p.write_text("\n".join(lines), encoding="utf-8")
@@ -115,9 +149,12 @@ def test_sync_journey_end_to_end(session_file, store_dir, agent_config, monkeypa
     The config file must contain an active guardrails block with at least one rule.
     """
     from ai_rule_learning_mcp.gap_detector import analyze_conversations
-    from ai_rule_learning_mcp.injector import _START, _END, _build_section
+    from ai_rule_learning_mcp.injector import _END
+    from ai_rule_learning_mcp.injector import _START
+    from ai_rule_learning_mcp.injector import _build_section
     from ai_rule_learning_mcp.providers import parse_any
-    from ai_rule_learning_mcp.store import _local_load, _local_save, load_active_rules
+    from ai_rule_learning_mcp.store import _local_save
+    from ai_rule_learning_mcp.store import load_active_rules
 
     # Step 1: parse the session
     conversations = parse_any(session_file)
@@ -151,7 +188,8 @@ def test_sync_journey_end_to_end(session_file, store_dir, agent_config, monkeypa
 
 def test_sync_deduplicates_processed_files(session_file, store_dir, monkeypatch):
     """A session file processed once should not be counted again on re-run."""
-    from ai_rule_learning_mcp.store import is_already_processed, mark_processed
+    from ai_rule_learning_mcp.store import is_already_processed
+    from ai_rule_learning_mcp.store import mark_processed
 
     assert not is_already_processed(session_file)
     mark_processed(session_file)
@@ -160,13 +198,17 @@ def test_sync_deduplicates_processed_files(session_file, store_dir, monkeypatch)
     # Marking again must not create duplicate entries
     mark_processed(session_file)
     from ai_rule_learning_mcp.store import _local_load
+
     processed = _local_load("processed.jsonl")
     assert len([r for r in processed if r["path"] == str(session_file.resolve())]) == 1
 
 
 def test_sync_rules_are_idempotent(store_dir, agent_config):
     """Writing the same rules twice must not duplicate the guardrails block."""
-    from ai_rule_learning_mcp.injector import _START, _upsert, _build_section, _SECTION_RE
+    from ai_rule_learning_mcp.injector import _SECTION_RE
+    from ai_rule_learning_mcp.injector import _START
+    from ai_rule_learning_mcp.injector import _build_section
+    from ai_rule_learning_mcp.injector import _upsert
 
     rules = [{"rule_id": "r1", "name": "Use type hints", "priority": 3, "is_active": True}]
     section = _build_section(rules)
@@ -186,19 +228,29 @@ def test_feedback_journey_creates_rule_in_config(store_dir, agent_config, monkey
     record_feedback equivalent: gap + rule generation → write to config.
     Simulates what the MCP tool does in real time.
     """
-    from ai_rule_learning_mcp.gap_detector import generate_rules
-    from ai_rule_learning_mcp.injector import _START, write_rules_all
-    from ai_rule_learning_mcp.store import _local_load, _local_save, load_active_rules
-
     # Patch detected_targets to use our temp config
     from ai_rule_learning_mcp import injector
+    from ai_rule_learning_mcp.gap_detector import generate_rules
+    from ai_rule_learning_mcp.injector import _START
+    from ai_rule_learning_mcp.injector import write_rules_all
+    from ai_rule_learning_mcp.store import _local_load
+    from ai_rule_learning_mcp.store import _local_save
+    from ai_rule_learning_mcp.store import load_active_rules
 
     class _FakeTarget:
         name = "Claude Code"
-        def config_path(self): return agent_config
-        def is_detected(self): return True
+
+        def config_path(self):
+            return agent_config
+
+        def is_detected(self):
+            return True
+
         def write(self, rules, memory_block="", skills_block=""):
-            from ai_rule_learning_mcp.injector import _upsert, _build_section, _SECTION_RE
+            from ai_rule_learning_mcp.injector import _SECTION_RE
+            from ai_rule_learning_mcp.injector import _build_section
+            from ai_rule_learning_mcp.injector import _upsert
+
             _upsert(agent_config, _build_section(rules), _SECTION_RE, _START)
             return agent_config
 
@@ -232,13 +284,14 @@ def test_memory_journey_remember_recall(store_dir, agent_config, monkeypatch):
     remember: add entries → write block to config.
     recall: load entries → formatted display.
     """
-    from ai_rule_learning_mcp.memory import (
-        add_memory,
-        build_memory_block,
-        format_memory_for_display,
-        load_memory,
-    )
-    from ai_rule_learning_mcp.injector import _MEM_START, _MEM_END, _upsert, _MEM_RE
+    from ai_rule_learning_mcp.injector import _MEM_END
+    from ai_rule_learning_mcp.injector import _MEM_RE
+    from ai_rule_learning_mcp.injector import _MEM_START
+    from ai_rule_learning_mcp.injector import _upsert
+    from ai_rule_learning_mcp.memory import add_memory
+    from ai_rule_learning_mcp.memory import build_memory_block
+    from ai_rule_learning_mcp.memory import format_memory_for_display
+    from ai_rule_learning_mcp.memory import load_memory
 
     # Remember two facts
     add_memory("preference", "Always use type hints in Python")
@@ -270,7 +323,9 @@ def test_memory_journey_remember_recall(store_dir, agent_config, monkeypatch):
 
 def test_memory_is_grouped_by_type(store_dir):
     """Memory entries should be grouped by type in the display output."""
-    from ai_rule_learning_mcp.memory import add_memory, format_memory_for_display, load_memory
+    from ai_rule_learning_mcp.memory import add_memory
+    from ai_rule_learning_mcp.memory import format_memory_for_display
+    from ai_rule_learning_mcp.memory import load_memory
 
     add_memory("preference", "Dark mode")
     add_memory("preference", "Tabs not spaces")
@@ -288,8 +343,12 @@ def test_memory_is_grouped_by_type(store_dir):
 
 def test_memory_block_updates_idempotently(store_dir, agent_config):
     """Writing memory twice must not duplicate the memory block."""
-    from ai_rule_learning_mcp.memory import add_memory, build_memory_block, load_memory
-    from ai_rule_learning_mcp.injector import _MEM_START, _upsert, _MEM_RE
+    from ai_rule_learning_mcp.injector import _MEM_RE
+    from ai_rule_learning_mcp.injector import _MEM_START
+    from ai_rule_learning_mcp.injector import _upsert
+    from ai_rule_learning_mcp.memory import add_memory
+    from ai_rule_learning_mcp.memory import build_memory_block
+    from ai_rule_learning_mcp.memory import load_memory
 
     add_memory("preference", "Use black for formatting")
     entries = load_memory()
@@ -309,13 +368,14 @@ def test_skills_journey_save_index_retrieve(skills_dir, agent_config):
     """
     save_skill → build index → write to config → get_skill returns steps.
     """
-    from ai_rule_learning_mcp.skills import (
-        build_skills_index,
-        get_skill,
-        list_skills,
-        save_skill,
-    )
-    from ai_rule_learning_mcp.injector import _SKILLS_START, _SKILLS_END, _upsert, _SKILLS_RE
+    from ai_rule_learning_mcp.injector import _SKILLS_END
+    from ai_rule_learning_mcp.injector import _SKILLS_RE
+    from ai_rule_learning_mcp.injector import _SKILLS_START
+    from ai_rule_learning_mcp.injector import _upsert
+    from ai_rule_learning_mcp.skills import build_skills_index
+    from ai_rule_learning_mcp.skills import get_skill
+    from ai_rule_learning_mcp.skills import list_skills
+    from ai_rule_learning_mcp.skills import save_skill
 
     # Save two skills
     save_skill(
@@ -360,8 +420,12 @@ def test_skills_journey_save_index_retrieve(skills_dir, agent_config):
 
 def test_skills_index_updates_idempotently(skills_dir, agent_config):
     """Writing skills index twice must not duplicate the block."""
-    from ai_rule_learning_mcp.skills import build_skills_index, list_skills, save_skill
-    from ai_rule_learning_mcp.injector import _SKILLS_START, _upsert, _SKILLS_RE
+    from ai_rule_learning_mcp.injector import _SKILLS_RE
+    from ai_rule_learning_mcp.injector import _SKILLS_START
+    from ai_rule_learning_mcp.injector import _upsert
+    from ai_rule_learning_mcp.skills import build_skills_index
+    from ai_rule_learning_mcp.skills import list_skills
+    from ai_rule_learning_mcp.skills import save_skill
 
     save_skill("Skill A", "desc", "steps")
     skills = list_skills()
@@ -382,16 +446,24 @@ def test_all_pillars_write_to_single_config(store_dir, skills_dir, agent_config,
     All three sections (memory, skills, rules) written to one config file
     in the correct order: memory → skills → rules.
     """
-    from ai_rule_learning_mcp.memory import add_memory, build_memory_block, load_memory
-    from ai_rule_learning_mcp.skills import build_skills_index, list_skills, save_skill
+    from ai_rule_learning_mcp.injector import _END
+    from ai_rule_learning_mcp.injector import _MEM_END
+    from ai_rule_learning_mcp.injector import _MEM_RE
+    from ai_rule_learning_mcp.injector import _MEM_START
+    from ai_rule_learning_mcp.injector import _SECTION_RE
+    from ai_rule_learning_mcp.injector import _SKILLS_END
+    from ai_rule_learning_mcp.injector import _SKILLS_RE
+    from ai_rule_learning_mcp.injector import _SKILLS_START
+    from ai_rule_learning_mcp.injector import _START
+    from ai_rule_learning_mcp.injector import _build_section
+    from ai_rule_learning_mcp.injector import _upsert
+    from ai_rule_learning_mcp.memory import add_memory
+    from ai_rule_learning_mcp.memory import build_memory_block
+    from ai_rule_learning_mcp.memory import load_memory
+    from ai_rule_learning_mcp.skills import build_skills_index
+    from ai_rule_learning_mcp.skills import list_skills
+    from ai_rule_learning_mcp.skills import save_skill
     from ai_rule_learning_mcp.store import _local_save
-    from ai_rule_learning_mcp.injector import (
-        _MEM_START, _MEM_END,
-        _SKILLS_START, _SKILLS_END,
-        _START, _END,
-        _upsert, _MEM_RE, _SKILLS_RE, _SECTION_RE,
-        _build_section,
-    )
 
     # Memory
     add_memory("preference", "Use ruff for linting")
@@ -404,8 +476,15 @@ def test_all_pillars_write_to_single_config(store_dir, skills_dir, agent_config,
     _upsert(agent_config, skills_block, _SKILLS_RE, _SKILLS_START)
 
     # Rules
-    rules = [{"rule_id": "r1", "name": "Always use ruff", "priority": 4, "is_active": True,
-               "instruction": "Run ruff check before committing"}]
+    rules = [
+        {
+            "rule_id": "r1",
+            "name": "Always use ruff",
+            "priority": 4,
+            "is_active": True,
+            "instruction": "Run ruff check before committing",
+        }
+    ]
     _local_save("rules.jsonl", rules)
     _upsert(agent_config, _build_section(rules), _SECTION_RE, _START)
 
@@ -433,14 +512,21 @@ def test_all_pillars_write_to_single_config(store_dir, skills_dir, agent_config,
 
 def test_e2e_remove_clears_all_sections(store_dir, skills_dir, agent_config):
     """After writing all sections, remove() must leave the file clean."""
-    from ai_rule_learning_mcp.memory import add_memory, build_memory_block, load_memory
-    from ai_rule_learning_mcp.skills import build_skills_index, list_skills, save_skill
-    from ai_rule_learning_mcp.injector import (
-        _MEM_START, _SKILLS_START, _START,
-        _upsert, _remove,
-        _MEM_RE, _SKILLS_RE, _SECTION_RE,
-        _build_section,
-    )
+    from ai_rule_learning_mcp.injector import _MEM_RE
+    from ai_rule_learning_mcp.injector import _MEM_START
+    from ai_rule_learning_mcp.injector import _SECTION_RE
+    from ai_rule_learning_mcp.injector import _SKILLS_RE
+    from ai_rule_learning_mcp.injector import _SKILLS_START
+    from ai_rule_learning_mcp.injector import _START
+    from ai_rule_learning_mcp.injector import _build_section
+    from ai_rule_learning_mcp.injector import _remove
+    from ai_rule_learning_mcp.injector import _upsert
+    from ai_rule_learning_mcp.memory import add_memory
+    from ai_rule_learning_mcp.memory import build_memory_block
+    from ai_rule_learning_mcp.memory import load_memory
+    from ai_rule_learning_mcp.skills import build_skills_index
+    from ai_rule_learning_mcp.skills import list_skills
+    from ai_rule_learning_mcp.skills import save_skill
 
     # Write all three sections
     add_memory("preference", "Use black")

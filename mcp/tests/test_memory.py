@@ -9,19 +9,16 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from ai_rule_learning_mcp.memory import (
-    add_memory,
-    build_memory_block,
-    clear_memory,
-    forget,
-    load_memory,
-    format_memory_for_display,
-)
+from ai_rule_learning_mcp.memory import add_memory
+from ai_rule_learning_mcp.memory import build_memory_block
+from ai_rule_learning_mcp.memory import clear_memory
+from ai_rule_learning_mcp.memory import forget
+from ai_rule_learning_mcp.memory import format_memory_for_display
+from ai_rule_learning_mcp.memory import load_memory
 
 
 def _tmp_store(tmp: Path):
     """Patch LOCAL_DIR to a temp directory."""
-    from ai_rule_learning_mcp import store
     from ai_rule_learning_mcp import memory as mem_mod
 
     class _FakeStore:

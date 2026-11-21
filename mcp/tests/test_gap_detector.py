@@ -282,9 +282,7 @@ class TestDistillDirective:
     def test_behavioural_correction_keeps_user_words(self):
         # The sycophancy-style case: no fixed taxonomy, no LLM — the user's own
         # phrasing is preserved as the rule.
-        assert distill_directive("stop being so verbose and sycophantic") == (
-            "Stop being so verbose and sycophantic."
-        )
+        assert distill_directive("stop being so verbose and sycophantic") == ("Stop being so verbose and sycophantic.")
 
     def test_pii_scrubbed_and_tail_cut(self):
         out = distill_directive("you forgot the type hints. my email is bob@x.com, token sk-abc123def456")
@@ -301,9 +299,7 @@ class TestDistillDirective:
 
     def test_forgot_to_verb_is_grammatical(self):
         # Regression: "forgot to <verb>" must not become "Always include <verb>".
-        assert distill_directive("you forgot to handle the empty-list case") == (
-            "Always handle the empty-list case."
-        )
+        assert distill_directive("you forgot to handle the empty-list case") == ("Always handle the empty-list case.")
 
     def test_noise_is_rejected(self):
         # Pure acknowledgements carry no directive and must not become rules

@@ -9,12 +9,10 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from ai_rule_learning_mcp.similarity import (
-    cosine,
-    rank_by_relevance,
-    rank_documents,
-    tokenize,
-)
+from ai_rule_learning_mcp.similarity import cosine
+from ai_rule_learning_mcp.similarity import rank_by_relevance
+from ai_rule_learning_mcp.similarity import rank_documents
+from ai_rule_learning_mcp.similarity import tokenize
 
 
 class TestTokenize:

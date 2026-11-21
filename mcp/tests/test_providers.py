@@ -5,22 +5,17 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import pytest
-
-from ai_rule_learning_mcp.providers import (
-    _pair_messages,
-    parse_any,
-    parse_claude_code_session,
-    parse_generic_jsonl,
-    parse_openai_export,
-)
-
+from ai_rule_learning_mcp.providers import _pair_messages
+from ai_rule_learning_mcp.providers import parse_any
+from ai_rule_learning_mcp.providers import parse_claude_code_session
+from ai_rule_learning_mcp.providers import parse_generic_jsonl
+from ai_rule_learning_mcp.providers import parse_openai_export
 
 # ── helpers ────────────────────────────────────────────────────────────────
 
 
 def _write_jsonl(path: Path, lines: list[dict]) -> None:
-    path.write_text("\n".join(json.dumps(l) for l in lines), encoding="utf-8")
+    path.write_text("\n".join(json.dumps(line) for line in lines), encoding="utf-8")
 
 
 def _claude_line(role: str, text: str, session_id: str = "sess123") -> dict:
@@ -133,9 +128,7 @@ def test_parse_claude_code_scrubs_pii(tmp_path):
     _write_jsonl(p, lines)
     result = parse_claude_code_session(p)
     if result:
-        all_text = " ".join(
-            t["user_input"] + t["agent_response"] for t in result["turns"]
-        )
+        all_text = " ".join(t["user_input"] + t["agent_response"] for t in result["turns"])
         assert "user@example.com" not in all_text
         assert "hf_abc1234567890" not in all_text
 

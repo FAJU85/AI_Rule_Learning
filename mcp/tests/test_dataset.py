@@ -8,7 +8,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from ai_rule_learning_mcp.dataset import build_sft_examples, export_sft_jsonl
+from ai_rule_learning_mcp.dataset import build_sft_examples
+from ai_rule_learning_mcp.dataset import export_sft_jsonl
 
 
 def _rule(name, instruction, evidence=None, priority=3):

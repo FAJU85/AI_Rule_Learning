@@ -44,7 +44,7 @@ jobs:
         run: ruff check .
 
       - name: Run type checks
-        run: mypy src
+        run: mypy
 
       - name: Run repository tests
         run: pytest

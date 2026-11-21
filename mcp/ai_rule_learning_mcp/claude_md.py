@@ -11,9 +11,7 @@ from pathlib import Path
 
 _START = "<!-- AI-Rule-Learning:start -->"
 _END = "<!-- AI-Rule-Learning:end -->"
-_SECTION_RE = re.compile(
-    rf"{re.escape(_START)}.*?{re.escape(_END)}", re.DOTALL
-)
+_SECTION_RE = re.compile(rf"{re.escape(_START)}.*?{re.escape(_END)}", re.DOTALL)
 
 _PRIORITY_LABEL = {5: "CRITICAL", 4: "HIGH", 3: "MEDIUM", 2: "LOW", 1: "LOW"}
 
@@ -76,8 +74,7 @@ def _build_section(rules: list[dict]) -> str:
     lines += [
         "## Active AI Guardrails",
         "",
-        "These rules were learned from your past sessions."
-        " Apply them to every response:",
+        "These rules were learned from your past sessions. Apply them to every response:",
         "",
     ]
     for rule in rules:
@@ -87,10 +84,7 @@ def _build_section(rules: list[dict]) -> str:
         else:
             label = _PRIORITY_LABEL.get(int(priority), "MEDIUM")
         name = rule.get("name", rule.get("rule_id", "rule"))
-        instruction = (
-            rule.get("action", {}).get("instruction")
-            or rule.get("instruction", "")
-        ).strip()
+        instruction = (rule.get("action", {}).get("instruction") or rule.get("instruction", "")).strip()
         line = f"- **[{label}] {name}**"
         if instruction:
             line += f": {instruction}"

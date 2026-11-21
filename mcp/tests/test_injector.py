@@ -10,21 +10,17 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import pytest
-
-from ai_rule_learning_mcp.injector import (
-    _ALL_TARGETS,
-    _AgentsmdTarget,
-    _ClaudeCodeTarget,
-    _CodexTarget,
-    _CopilotTarget,
-    _CursorTarget,
-    _WindsurfTarget,
-    _build_section,
-    format_rules_block,
-    read_injected_rules,
-    remove_rules_all,
-    write_rules_all,
-)
+from ai_rule_learning_mcp.injector import _AgentsmdTarget
+from ai_rule_learning_mcp.injector import _build_section
+from ai_rule_learning_mcp.injector import _ClaudeCodeTarget
+from ai_rule_learning_mcp.injector import _CodexTarget
+from ai_rule_learning_mcp.injector import _CopilotTarget
+from ai_rule_learning_mcp.injector import _CursorTarget
+from ai_rule_learning_mcp.injector import _WindsurfTarget
+from ai_rule_learning_mcp.injector import format_rules_block
+from ai_rule_learning_mcp.injector import read_injected_rules
+from ai_rule_learning_mcp.injector import remove_rules_all
+from ai_rule_learning_mcp.injector import write_rules_all
 
 _RULE = {
     "rule_id": "rul_test",

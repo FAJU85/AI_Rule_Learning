@@ -14,7 +14,10 @@ discipline as `similarity`.
 
 from __future__ import annotations
 
-from .similarity import cosine, tfidf_vectors
+from typing import cast
+
+from .similarity import cosine
+from .similarity import tfidf_vectors
 
 
 def cluster_texts(texts: list[str], threshold: float = 0.5) -> list[list[int]]:
@@ -92,7 +95,7 @@ def cluster_signals(signals: list[str], threshold: float = 0.5) -> list[dict]:
         }
         for cluster in clusters
     ]
-    out.sort(key=lambda c: c["size"], reverse=True)
+    out.sort(key=lambda c: cast(int, c["size"]), reverse=True)
     return out
 
 

@@ -83,7 +83,13 @@ def test_core_loop_record_load_inject(isolated):
 def test_dataset_export_runs(isolated, tmp_path):
     from ai_rule_learning_mcp.dataset import export_sft_jsonl
 
-    rules = [{"name": "r", "instruction": "Always include type hints.", "action": {"instruction": "Always include type hints."}}]
+    rules = [
+        {
+            "name": "r",
+            "instruction": "Always include type hints.",
+            "action": {"instruction": "Always include type hints."},
+        }
+    ]
     out = tmp_path / "ds.jsonl"
     assert export_sft_jsonl(out, rules=rules) == 1
     assert out.read_text(encoding="utf-8").strip() != ""

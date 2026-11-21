@@ -605,7 +605,8 @@ def cmd_why(args: list[str]) -> None:
 
 def cmd_kpi(args: list[str]) -> None:
     """Print a KPI snapshot computed from local state. `--json` for machine output."""
-    from .kpi import compute_kpis, format_kpis
+    from .kpi import compute_kpis
+    from .kpi import format_kpis
 
     if "--json" in args:
         import json
@@ -619,7 +620,10 @@ def cmd_enforce(args: list[str]) -> None:
     import json as _json
     from pathlib import Path as _Path
 
-    from .enforcement import SOFT, STRUCTURAL, enforce_all, enforcement_enabled
+    from .enforcement import SOFT
+    from .enforcement import STRUCTURAL
+    from .enforcement import enforce_all
+    from .enforcement import enforcement_enabled
     from .store import load_active_rules
 
     want_json = "--json" in args

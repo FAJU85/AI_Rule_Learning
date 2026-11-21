@@ -23,7 +23,7 @@ markers = [
 [tool.ruff]
 line-length = 120
 target-version = "py311"
-exclude = ["space/", "mcp/", "node_modules/", "study/"]
+exclude = ["space/", "node_modules/", "study/"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP"]
@@ -40,3 +40,9 @@ target-version = ["py311"]
 python_version = "3.11"
 ignore_missing_imports = true
 strict = false
+files = ["src", "mcp/ai_rule_learning_mcp"]
+
+[[tool.mypy.overrides]]
+module = ["numpy", "numpy.*"]
+follow_imports = "skip"
+follow_imports_for_stubs = true
