@@ -32,3 +32,6 @@ coverage.xml
 active_rules.json
 data/active_rules.json
 .ai-rule-learning/
+
+# Serena MCP server local cache/memories
+.serena/
