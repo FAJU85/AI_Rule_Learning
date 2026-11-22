@@ -50,7 +50,7 @@ jobs:
         run: pytest
 
       - name: Run MCP tests
-        run: python -m pytest -c /dev/null mcp/tests -q
+        run: python -m pytest -c /dev/null mcp/tests -q --cov=ai_rule_learning_mcp --cov-report=term-missing --cov-fail-under=73
 
       - name: Validate Python build importability
         run: python -m compileall src mcp/ai_rule_learning_mcp
