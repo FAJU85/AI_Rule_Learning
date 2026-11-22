@@ -2,23 +2,15 @@
 
 from __future__ import annotations
 
-import re
-from pathlib import Path
-from unittest.mock import patch
-
 import pytest
-
-from ai_rule_learning_mcp.skills import (
-    _slug,
-    _skill_path,
-    build_skills_index,
-    delete_skill,
-    format_skill_detail,
-    format_skills_for_display,
-    get_skill,
-    list_skills,
-    save_skill,
-)
+from ai_rule_learning_mcp.skills import _slug
+from ai_rule_learning_mcp.skills import build_skills_index
+from ai_rule_learning_mcp.skills import delete_skill
+from ai_rule_learning_mcp.skills import format_skill_detail
+from ai_rule_learning_mcp.skills import format_skills_for_display
+from ai_rule_learning_mcp.skills import get_skill
+from ai_rule_learning_mcp.skills import list_skills
+from ai_rule_learning_mcp.skills import save_skill
 
 _SKILLS_START = "<!-- AI-Rule-Learning:skills:start -->"
 _SKILLS_END = "<!-- AI-Rule-Learning:skills:end -->"

@@ -10,7 +10,6 @@ from __future__ import annotations
 import io
 
 import pytest
-
 from ai_rule_learning_mcp import store
 
 
@@ -55,9 +54,7 @@ def test_explicit_endpoint_overrides_derived(r2_env: pytest.MonkeyPatch) -> None
     assert store._r2_config()["endpoint"] == "https://custom.example.com"
 
 
-def test_upload_then_download_roundtrips_via_r2(
-    r2_env: pytest.MonkeyPatch, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_upload_then_download_roundtrips_via_r2(r2_env: pytest.MonkeyPatch, monkeypatch: pytest.MonkeyPatch) -> None:
     fake = _FakeClient()
     monkeypatch.setattr(store, "_r2_client", lambda: fake)
     records = [{"rule_id": "r1", "name": "a"}, {"rule_id": "r2", "name": "b"}]
@@ -66,9 +63,7 @@ def test_upload_then_download_roundtrips_via_r2(
     assert store._download("rules.jsonl") == records
 
 
-def test_prefix_is_applied_to_keys(
-    r2_env: pytest.MonkeyPatch, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_prefix_is_applied_to_keys(r2_env: pytest.MonkeyPatch, monkeypatch: pytest.MonkeyPatch) -> None:
     r2_env.setenv("R2_PREFIX", "backups/")
     fake = _FakeClient()
     monkeypatch.setattr(store, "_r2_client", lambda: fake)
@@ -100,9 +95,7 @@ def test_disabled_when_credentials_missing(monkeypatch: pytest.MonkeyPatch, tmp_
     assert store._download("rules.jsonl") == [{"rule_id": "x"}]
 
 
-def test_upload_reports_success_and_failure(
-    r2_env: pytest.MonkeyPatch, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_upload_reports_success_and_failure(r2_env: pytest.MonkeyPatch, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(store, "_r2_client", lambda: _FakeClient())
     assert store._upload("rules.jsonl", [{"rule_id": "r1"}]) is True
 
@@ -116,9 +109,7 @@ def test_upload_reports_success_and_failure(
     assert store._local_load("rules.jsonl") == [{"rule_id": "r2"}]
 
 
-def test_r2_upload_scrubs_pii_like_local(
-    r2_env: pytest.MonkeyPatch, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_r2_upload_scrubs_pii_like_local(r2_env: pytest.MonkeyPatch, monkeypatch: pytest.MonkeyPatch) -> None:
     fake = _FakeClient()
     monkeypatch.setattr(store, "_r2_client", lambda: fake)
     store._upload("rules.jsonl", [{"rule_id": "r1", "text": "mail me at alice@example.com"}])

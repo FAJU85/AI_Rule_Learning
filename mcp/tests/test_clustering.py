@@ -7,11 +7,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from ai_rule_learning_mcp.clustering import (
-    cluster_signals,
-    cluster_texts,
-    dedupe_similar,
-)
+from ai_rule_learning_mcp.clustering import cluster_signals
+from ai_rule_learning_mcp.clustering import cluster_texts
+from ai_rule_learning_mcp.clustering import dedupe_similar
 
 
 class TestClusterTexts:

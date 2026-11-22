@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import sys
-import tempfile
 from pathlib import Path
 
 import pytest
@@ -14,14 +13,12 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 import ai_rule_learning_mcp.store as store_module
 from ai_rule_learning_mcp.gap_detector import generate_rules
 
-
 # ── helpers ───────────────────────────────────────────────────────────────
+
 
 def _seed_rules(tmp_dir: Path, rules: list[dict]) -> None:
     rules_file = tmp_dir / "rules.jsonl"
-    rules_file.write_text(
-        "\n".join(json.dumps(r) for r in rules) + "\n", encoding="utf-8"
-    )
+    rules_file.write_text("\n".join(json.dumps(r) for r in rules) + "\n", encoding="utf-8")
 
 
 @pytest.fixture()
@@ -34,6 +31,7 @@ def isolated_store(tmp_path, monkeypatch):
 
 
 # ── initial rule fields ───────────────────────────────────────────────────
+
 
 class TestInitialRuleFields:
     def test_new_rule_has_effectiveness_score(self):
@@ -54,6 +52,7 @@ class TestInitialRuleFields:
 
 
 # ── record_rule_outcome ───────────────────────────────────────────────────
+
 
 class TestRecordRuleOutcome:
     def _rule(self, rule_id: str = "rul_test123") -> dict:

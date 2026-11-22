@@ -1,6 +1,7 @@
 """Tests for Maximum-Capacity Rule Catalog in MCP test suite (ARL-REM-2026-005)."""
 
 from pathlib import Path
+
 import pytest
 
 from src.core.catalog import RuleCatalog

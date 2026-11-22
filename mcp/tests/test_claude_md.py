@@ -9,14 +9,12 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from ai_rule_learning_mcp.claude_md import (
-    _START,
-    _END,
-    _build_section,
-    remove_rules,
-    write_rules,
-    read_injected_rules,
-)
+from ai_rule_learning_mcp.claude_md import _END
+from ai_rule_learning_mcp.claude_md import _START
+from ai_rule_learning_mcp.claude_md import _build_section
+from ai_rule_learning_mcp.claude_md import read_injected_rules
+from ai_rule_learning_mcp.claude_md import remove_rules
+from ai_rule_learning_mcp.claude_md import write_rules
 
 _RULE = {
     "rule_id": "rul_abc",

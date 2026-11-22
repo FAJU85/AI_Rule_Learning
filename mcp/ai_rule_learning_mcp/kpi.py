@@ -17,22 +17,17 @@ def _avg(values: list[float]) -> float:
 def compute_kpis() -> dict[str, Any]:
     """Return a structured KPI snapshot computed from local data only."""
     from .injector import detected_targets
-    from .metrics import build_metrics_payload, metrics_enabled
-    from .store import (
-        _download,
-        find_rule_health_candidates,
-        load_active_rules,
-        suggest_duplicate_rules,
-    )
+    from .metrics import build_metrics_payload
+    from .metrics import metrics_enabled
+    from .store import _download
+    from .store import find_rule_health_candidates
+    from .store import load_active_rules
+    from .store import suggest_duplicate_rules
 
     all_rules = _download("rules.jsonl")
     active = load_active_rules()
 
-    pending = [
-        r
-        for r in all_rules
-        if r.get("review_status") == "pending" or r.get("status") == "pending_review"
-    ]
+    pending = [r for r in all_rules if r.get("review_status") == "pending" or r.get("status") == "pending_review"]
 
     # Rule corpus
     total = len(all_rules)
@@ -50,9 +45,7 @@ def compute_kpis() -> dict[str, Any]:
 
     # Effectiveness over rules with real trigger history.
     scored = [
-        float(r.get("effectiveness_score", 0.0) or 0.0)
-        for r in all_rules
-        if int(r.get("times_triggered", 0) or 0) > 0
+        float(r.get("effectiveness_score", 0.0) or 0.0) for r in all_rules if int(r.get("times_triggered", 0) or 0) > 0
     ]
     avg_effectiveness = round(_avg(scored), 3)
 

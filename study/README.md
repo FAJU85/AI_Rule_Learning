@@ -16,6 +16,8 @@ study of `ai-rule-learning-mcp` 0.2.7.
 | `PAPER_DRAFT.md`       | Draft Results / Over-application / Threats sections.                                                                                                                                                                                                 |
 | `kappa/`               | §3 checker-validation: blind review sheet, hidden key, and `compute_kappa.py`. See `kappa/README.md`.                                                                                                                                                |
 | `COLAB_RELIABILITY.py` | §2 reliability variant: one Colab cell that embeds the exact frozen harness (runtime sha256-asserted) and runs `run --reps 2 --limit 30` (rep0+rep1 on the seeded 30-task subset), then prints rep0-vs-rep1 agreement. See "Reliability (§2)" below. |
+| `make_figures.py`      | Generates the result figures from `study/data/` (matplotlib, Okabe–Ito palette). Run: `python study/make_figures.py`.                                                                                                                                |
+| `figures/`             | Rendered result figures: adherence, confirmatory tests, over-application, per-rule heatmap.                                                                                                                                                          |
 
 `arl_study.py` was extracted from `COLAB_ONE_CELL.py`'s `SRC` literal, not edited by hand, so the two
 cannot drift. Regenerate/verify:

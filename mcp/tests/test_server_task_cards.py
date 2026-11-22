@@ -6,7 +6,6 @@ import asyncio
 from pathlib import Path
 
 import pytest
-
 from ai_rule_learning_mcp import server
 from ai_rule_learning_mcp.skills import get_skill
 

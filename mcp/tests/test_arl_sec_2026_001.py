@@ -10,16 +10,14 @@ Covers:
 from __future__ import annotations
 
 from pathlib import Path
-import pytest
 
+import pytest
 from ai_rule_learning_mcp import server
-from ai_rule_learning_mcp.injection import (
-    detect_stage1,
-    detect_stage2,
-    is_prompt_injection,
-    scan_injection,
-)
-from ai_rule_learning_mcp.store import _local_load, _local_save
+from ai_rule_learning_mcp.injection import detect_stage2
+from ai_rule_learning_mcp.injection import is_prompt_injection
+from ai_rule_learning_mcp.injection import scan_injection
+from ai_rule_learning_mcp.store import _local_load
+from ai_rule_learning_mcp.store import _local_save
 
 
 @pytest.fixture

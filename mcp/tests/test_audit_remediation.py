@@ -18,17 +18,20 @@ from __future__ import annotations
 import asyncio
 import json
 import os
-from pathlib import Path
 import resource
 import signal
 import subprocess
 import sys
 import time
-
-import pytest
+from pathlib import Path
 
 import ai_rule_learning_mcp
-from ai_rule_learning_mcp import cli, community, injection, injector, scheduler, server, store
+from ai_rule_learning_mcp import cli
+from ai_rule_learning_mcp import community
+from ai_rule_learning_mcp import injection
+from ai_rule_learning_mcp import injector
+from ai_rule_learning_mcp import server
+from ai_rule_learning_mcp import store
 
 
 def _run(coro):
@@ -178,7 +181,9 @@ def test_f12b_all_feedback_slots_block_paraphrased_injection(tmp_path, monkeypat
             )
         )
         active = store.load_active_rules()
-        leak[slot] = any("unrestricted" in json.dumps(r).lower() or "disregard" in json.dumps(r).lower() for r in active)
+        leak[slot] = any(
+            "unrestricted" in json.dumps(r).lower() or "disregard" in json.dumps(r).lower() for r in active
+        )
 
     assert leak == {"preference": False, "correction": False, "incomplete_response": False}
 
@@ -252,7 +257,11 @@ def test_f11b_distinct_feedback_slots_and_no_silent_drop(tmp_path, monkeypatch):
     monkeypatch.setattr(store, "RULES_FILE", rules_file)
 
     calls = [
-        ("incomplete_response", "You missed the second part of my question", "Answer all parts of multi-part questions"),
+        (
+            "incomplete_response",
+            "You missed the second part of my question",
+            "Answer all parts of multi-part questions",
+        ),
         ("repeated_context", "As I mentioned earlier, we use Python 3.11", "Retain stated Python version across turns"),
         ("correction", "That is wrong, ruff check uses --fix", "Verify CLI flags before suggesting commands"),
         ("preference", "Always use pytest fixtures instead of unittest", "Use pytest fixtures for all new tests"),
@@ -357,7 +366,9 @@ def test_i_multi_agent_injection_and_preservation(tmp_path, monkeypatch):
         "copilot": copilot_file.exists() and "complete-all-parts" in copilot_file.read_text(encoding="utf-8"),
         "codex": codex_file.exists() and "complete-all-parts" in codex_file.read_text(encoding="utf-8"),
     }
-    assert status == {"cursor": True, "windsurf": True, "copilot": True, "codex": True}, f"Got {status}, written={written}"
+    assert status == {"cursor": True, "windsurf": True, "copilot": True, "codex": True}, (
+        f"Got {status}, written={written}"
+    )
 
     # Verify pre-existing user content survived injection
     assert "Always write docstrings." in copilot_file.read_text(encoding="utf-8")
@@ -524,7 +535,13 @@ def test_x04a_concurrent_read_write_reliability(tmp_path, monkeypatch):
 
     # Seed initial rules
     initial = [
-        {"rule_id": f"seed-{i}", "name": f"rule-{i}", "is_active": True, "priority": 1, "action": {"instruction": f"Inst {i}"}}
+        {
+            "rule_id": f"seed-{i}",
+            "name": f"rule-{i}",
+            "is_active": True,
+            "priority": 1,
+            "action": {"instruction": f"Inst {i}"},
+        }
         for i in range(5)
     ]
     store._local_save("rules.jsonl", initial)
@@ -614,7 +631,7 @@ def test_ol01_opentelemetry_clean_initialization():
         provider.add_span_processor(SimpleSpanProcessor(exporter))
 
         # Should not throw 'Overriding of current TracerProvider is not allowed'
-        current = trace.get_tracer_provider()
+        trace.get_tracer_provider()
         tracer = trace.get_tracer("test_harness")
         with tracer.start_as_current_span("test_span"):
             pass
@@ -713,4 +730,3 @@ def test_rule_hint_updates_existing_rule_in_place(tmp_path, monkeypatch):
     active2 = store.load_active_rules()
     assert len(active2) == 1
     assert active2[0]["instruction"] == "CUSTOM HINT XYZ UPDATED"
-

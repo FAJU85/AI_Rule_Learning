@@ -75,14 +75,14 @@ def _fix_comments(code: str) -> str:
         for node in ast.walk(tree):
             if isinstance(node, (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
                 body = getattr(node, "body", [])
+                first = body[0] if body else None
                 if (
-                    body
-                    and isinstance(body[0], ast.Expr)
-                    and isinstance(getattr(body[0], "value", None), ast.Constant)
-                    and isinstance(body[0].value.value, str)
+                    isinstance(first, ast.Expr)
+                    and isinstance(first.value, ast.Constant)
+                    and isinstance(first.value.value, str)
                 ):
-                    start = body[0].lineno - 1
-                    end = (body[0].end_lineno or body[0].lineno) - 1
+                    start = first.lineno - 1
+                    end = (first.end_lineno or first.lineno) - 1
                     for i in range(start, end + 1):
                         doc_lines.add(i)
 
@@ -158,6 +158,77 @@ def _fix_fstrings(code: str) -> str:
     return fixed
 
 
+def _detect_print(code: str) -> list[str]:
+    try:
+        tree = ast.parse(code)
+    except SyntaxError:
+        return []
+    out: list[str] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "print":
+            out.append(f"print() call at line {node.lineno}")
+    return out
+
+
+def _detect_else(code: str) -> list[str]:
+    try:
+        tree = ast.parse(code)
+    except SyntaxError:
+        return []
+    out: list[str] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.If):
+            orelse = node.orelse
+            if orelse and not (len(orelse) == 1 and isinstance(orelse[0], ast.If)):
+                out.append(f"else block at line {node.lineno}")
+        elif isinstance(node, (ast.For, ast.AsyncFor, ast.While, ast.Try)):
+            if node.orelse:
+                out.append(f"else clause at line {node.lineno}")
+        elif isinstance(node, ast.IfExp):
+            out.append(f"conditional expression with else at line {node.lineno}")
+    return out
+
+
+def _detect_short_funcs(code: str, limit: int = 10) -> list[str]:
+    try:
+        tree = ast.parse(code)
+    except SyntaxError:
+        return []
+    lines = code.splitlines()
+    out: list[str] = []
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            end = node.end_lineno or node.lineno
+            n = sum(1 for ln in lines[node.lineno - 1 : end] if ln.strip())
+            if n > limit:
+                out.append(f"function '{node.name}' has {n} non-blank lines (> {limit})")
+    return out
+
+
+def _detect_pathlib(code: str) -> list[str]:
+    try:
+        tree = ast.parse(code)
+    except SyntaxError:
+        return []
+    out: list[str] = []
+    for node in ast.walk(tree):
+        if (
+            isinstance(node, ast.Attribute)
+            and isinstance(node.value, ast.Attribute)
+            and node.value.attr == "path"
+            and isinstance(node.value.value, ast.Name)
+            and node.value.value.id == "os"
+        ):
+            out.append(f"os.path use at line {node.lineno}")
+        elif isinstance(node, ast.ImportFrom) and node.module == "os" and any(a.name == "path" for a in node.names):
+            out.append(f"from os import path at line {node.lineno}")
+        elif isinstance(node, ast.ImportFrom) and node.module and node.module.split(".")[0:2] == ["os", "path"]:
+            out.append(f"from os.path import ... at line {node.lineno}")
+        elif isinstance(node, ast.Import) and any(a.name == "os.path" for a in node.names):
+            out.append(f"import os.path at line {node.lineno}")
+    return out
+
+
 @dataclass
 class Check:
     check_id: str
@@ -189,9 +260,21 @@ REGISTRY: tuple[Check, ...] = (
         detect=_detect_fstrings,
         fix=_fix_fstrings,
     ),
-    Check(check_id="no_print", channel=STRUCTURAL, mode=GATE, keywords=("print(",), note="detector pending"),
     Check(
-        check_id="no_else", channel=STRUCTURAL, mode=GATE, keywords=("else keyword", "no else"), note="detector pending"
+        check_id="no_print",
+        channel=STRUCTURAL,
+        mode=GATE,
+        keywords=("print(",),
+        implemented=True,
+        detect=_detect_print,
+    ),
+    Check(
+        check_id="no_else",
+        channel=STRUCTURAL,
+        mode=GATE,
+        keywords=("else keyword", "no else"),
+        implemented=True,
+        detect=_detect_else,
     ),
     Check(
         check_id="type_hints", channel=STRUCTURAL, mode=GATE, keywords=("type hint", "annotat"), note="detector pending"
@@ -208,14 +291,16 @@ REGISTRY: tuple[Check, ...] = (
         channel=STRUCTURAL,
         mode=GATE,
         keywords=("non-blank lines", "function length", "too long"),
-        note="detector pending",
+        implemented=True,
+        detect=_detect_short_funcs,
     ),
     Check(
         check_id="pathlib",
         channel=STRUCTURAL,
         mode=GATE,
         keywords=("pathlib", "os.path"),
-        note="detector pending (ruff PTH)",
+        implemented=True,
+        detect=_detect_pathlib,
     ),
     Check(
         check_id="single_block",

@@ -44,13 +44,13 @@ jobs:
         run: ruff check .
 
       - name: Run type checks
-        run: mypy src
+        run: mypy
 
       - name: Run repository tests
         run: pytest
 
       - name: Run MCP tests
-        run: python -m pytest -c /dev/null mcp/tests -q
+        run: python -m pytest -c /dev/null mcp/tests -q --cov=ai_rule_learning_mcp --cov-report=term-missing --cov-fail-under=73
 
       - name: Validate Python build importability
         run: python -m compileall src mcp/ai_rule_learning_mcp

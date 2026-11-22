@@ -2,35 +2,27 @@
 
 from __future__ import annotations
 
-import subprocess
 import sys
 import tempfile
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from ai_rule_learning_mcp.scheduler import (
-    _CRON_MARKER,
-    _cron_line,
-    _install_cron,
-    _install_launchagent,
-    _install_systemd,
-    _launchagent_path,
-    _read_crontab,
-    _service_path,
-    _status_cron,
-    _status_launchagent,
-    _status_systemd,
-    _timer_path,
-    _uninstall_cron,
-    _uninstall_launchagent,
-    _uninstall_systemd,
-    install,
-    is_installed,
-    status,
-    uninstall,
-)
+from ai_rule_learning_mcp.scheduler import _CRON_MARKER
+from ai_rule_learning_mcp.scheduler import _cron_line
+from ai_rule_learning_mcp.scheduler import _install_cron
+from ai_rule_learning_mcp.scheduler import _install_launchagent
+from ai_rule_learning_mcp.scheduler import _install_systemd
+from ai_rule_learning_mcp.scheduler import _status_cron
+from ai_rule_learning_mcp.scheduler import _status_launchagent
+from ai_rule_learning_mcp.scheduler import _status_systemd
+from ai_rule_learning_mcp.scheduler import _uninstall_cron
+from ai_rule_learning_mcp.scheduler import _uninstall_launchagent
+from ai_rule_learning_mcp.scheduler import _uninstall_systemd
+from ai_rule_learning_mcp.scheduler import install
+from ai_rule_learning_mcp.scheduler import is_installed
+from ai_rule_learning_mcp.scheduler import uninstall
 
 
 def _patch_home(tmp: Path):
@@ -45,9 +37,11 @@ class TestCronFallback:
         assert "0 2 * * *" in line
 
     def test_install_cron_adds_entry(self):
-        with patch("ai_rule_learning_mcp.scheduler._read_crontab", return_value=""), \
-             patch("ai_rule_learning_mcp.scheduler._write_crontab", return_value=True) as mock_write, \
-             patch("ai_rule_learning_mcp.scheduler._cli_path", return_value="/usr/bin/ai-rule-learning"):
+        with (
+            patch("ai_rule_learning_mcp.scheduler._read_crontab", return_value=""),
+            patch("ai_rule_learning_mcp.scheduler._write_crontab", return_value=True) as mock_write,
+            patch("ai_rule_learning_mcp.scheduler._cli_path", return_value="/usr/bin/ai-rule-learning"),
+        ):
             result = _install_cron()
         assert "cron" in result.lower()
         written = mock_write.call_args[0][0]
@@ -61,8 +55,10 @@ class TestCronFallback:
 
     def test_uninstall_cron_removes_entry(self):
         existing = f"# other job\n0 2 * * * x sync  {_CRON_MARKER}\n"
-        with patch("ai_rule_learning_mcp.scheduler._read_crontab", return_value=existing), \
-             patch("ai_rule_learning_mcp.scheduler._write_crontab", return_value=True) as mock_write:
+        with (
+            patch("ai_rule_learning_mcp.scheduler._read_crontab", return_value=existing),
+            patch("ai_rule_learning_mcp.scheduler._write_crontab", return_value=True) as mock_write,
+        ):
             removed = _uninstall_cron()
         assert removed is True
         written = mock_write.call_args[0][0]
@@ -74,8 +70,7 @@ class TestCronFallback:
             assert _uninstall_cron() is False
 
     def test_status_cron_installed(self):
-        with patch("ai_rule_learning_mcp.scheduler._read_crontab",
-                   return_value=f"0 2 * * * x  {_CRON_MARKER}"):
+        with patch("ai_rule_learning_mcp.scheduler._read_crontab", return_value=f"0 2 * * * x  {_CRON_MARKER}"):
             assert "✅" in _status_cron()
 
     def test_status_cron_not_installed(self):
@@ -88,9 +83,11 @@ class TestLaunchAgent:
         with tempfile.TemporaryDirectory() as d:
             tmp = Path(d)
             plist = tmp / "Library" / "LaunchAgents" / "com.ai-rule-learning.sync.plist"
-            with patch("ai_rule_learning_mcp.scheduler._launchagent_path", return_value=plist), \
-                 patch("ai_rule_learning_mcp.scheduler._cli_path", return_value="/usr/bin/ai-rule-learning"), \
-                 patch("subprocess.run"):
+            with (
+                patch("ai_rule_learning_mcp.scheduler._launchagent_path", return_value=plist),
+                patch("ai_rule_learning_mcp.scheduler._cli_path", return_value="/usr/bin/ai-rule-learning"),
+                patch("subprocess.run"),
+            ):
                 _install_launchagent()
             assert plist.exists()
             content = plist.read_text()
@@ -104,8 +101,7 @@ class TestLaunchAgent:
             plist = tmp / "Library" / "LaunchAgents" / "com.ai-rule-learning.sync.plist"
             plist.parent.mkdir(parents=True)
             plist.write_text("<plist/>")
-            with patch("ai_rule_learning_mcp.scheduler._launchagent_path", return_value=plist), \
-                 patch("subprocess.run"):
+            with patch("ai_rule_learning_mcp.scheduler._launchagent_path", return_value=plist), patch("subprocess.run"):
                 removed = _uninstall_launchagent()
             assert removed is True
             assert not plist.exists()
@@ -140,11 +136,13 @@ class TestSystemd:
             systemd_dir = tmp / ".config" / "systemd" / "user"
             svc = systemd_dir / "ai-rule-learning.service"
             tmr = systemd_dir / "ai-rule-learning.timer"
-            with patch("ai_rule_learning_mcp.scheduler._systemd_dir", return_value=systemd_dir), \
-                 patch("ai_rule_learning_mcp.scheduler._service_path", return_value=svc), \
-                 patch("ai_rule_learning_mcp.scheduler._timer_path", return_value=tmr), \
-                 patch("ai_rule_learning_mcp.scheduler._systemctl", return_value=True), \
-                 patch("ai_rule_learning_mcp.scheduler._cli_path", return_value="/usr/bin/ai-rule-learning"):
+            with (
+                patch("ai_rule_learning_mcp.scheduler._systemd_dir", return_value=systemd_dir),
+                patch("ai_rule_learning_mcp.scheduler._service_path", return_value=svc),
+                patch("ai_rule_learning_mcp.scheduler._timer_path", return_value=tmr),
+                patch("ai_rule_learning_mcp.scheduler._systemctl", return_value=True),
+                patch("ai_rule_learning_mcp.scheduler._cli_path", return_value="/usr/bin/ai-rule-learning"),
+            ):
                 _install_systemd()
             assert svc.exists()
             assert tmr.exists()
@@ -158,9 +156,11 @@ class TestSystemd:
             tmr = tmp / "ai-rule-learning.timer"
             svc.write_text("[Service]")
             tmr.write_text("[Timer]")
-            with patch("ai_rule_learning_mcp.scheduler._service_path", return_value=svc), \
-                 patch("ai_rule_learning_mcp.scheduler._timer_path", return_value=tmr), \
-                 patch("ai_rule_learning_mcp.scheduler._systemctl", return_value=True):
+            with (
+                patch("ai_rule_learning_mcp.scheduler._service_path", return_value=svc),
+                patch("ai_rule_learning_mcp.scheduler._timer_path", return_value=tmr),
+                patch("ai_rule_learning_mcp.scheduler._systemctl", return_value=True),
+            ):
                 removed = _uninstall_systemd()
             assert removed is True
             assert not svc.exists()
@@ -182,28 +182,36 @@ class TestSystemd:
 
 class TestPublicApi:
     def test_install_macos_uses_launchagent(self):
-        with patch("ai_rule_learning_mcp.scheduler._system", return_value="Darwin"), \
-             patch("ai_rule_learning_mcp.scheduler._install_launchagent", return_value="ok") as mock:
+        with (
+            patch("ai_rule_learning_mcp.scheduler._system", return_value="Darwin"),
+            patch("ai_rule_learning_mcp.scheduler._install_launchagent", return_value="ok") as mock,
+        ):
             install()
         mock.assert_called_once()
 
     def test_install_linux_systemd(self):
-        with patch("ai_rule_learning_mcp.scheduler._system", return_value="Linux"), \
-             patch("ai_rule_learning_mcp.scheduler.shutil.which", return_value="/bin/systemctl"), \
-             patch("ai_rule_learning_mcp.scheduler._install_systemd", return_value="ok") as mock:
+        with (
+            patch("ai_rule_learning_mcp.scheduler._system", return_value="Linux"),
+            patch("ai_rule_learning_mcp.scheduler.shutil.which", return_value="/bin/systemctl"),
+            patch("ai_rule_learning_mcp.scheduler._install_systemd", return_value="ok") as mock,
+        ):
             install()
         mock.assert_called_once()
 
     def test_install_linux_cron_fallback(self):
-        with patch("ai_rule_learning_mcp.scheduler._system", return_value="Linux"), \
-             patch("ai_rule_learning_mcp.scheduler.shutil.which", return_value=None), \
-             patch("ai_rule_learning_mcp.scheduler._install_cron", return_value="ok") as mock:
+        with (
+            patch("ai_rule_learning_mcp.scheduler._system", return_value="Linux"),
+            patch("ai_rule_learning_mcp.scheduler.shutil.which", return_value=None),
+            patch("ai_rule_learning_mcp.scheduler._install_cron", return_value="ok") as mock,
+        ):
             install()
         mock.assert_called_once()
 
     def test_uninstall_macos(self):
-        with patch("ai_rule_learning_mcp.scheduler._system", return_value="Darwin"), \
-             patch("ai_rule_learning_mcp.scheduler._uninstall_launchagent", return_value=True) as mock:
+        with (
+            patch("ai_rule_learning_mcp.scheduler._system", return_value="Darwin"),
+            patch("ai_rule_learning_mcp.scheduler._uninstall_launchagent", return_value=True) as mock,
+        ):
             result = uninstall()
         assert result is True
         mock.assert_called_once()

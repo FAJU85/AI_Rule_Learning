@@ -18,12 +18,10 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from .store import load_active_rules, scrub_pii
+from .store import load_active_rules
+from .store import scrub_pii
 
-_SYSTEM = (
-    "You are a coding assistant. Follow the user's established guardrail "
-    "preferences in every response."
-)
+_SYSTEM = "You are a coding assistant. Follow the user's established guardrail preferences in every response."
 
 
 def _directive(rule: dict) -> str:

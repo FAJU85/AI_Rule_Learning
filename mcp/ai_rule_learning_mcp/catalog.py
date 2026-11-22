@@ -30,9 +30,7 @@ CITATION_PATTERNS = [
 
 _PKG_DATA_DIR = Path(__file__).parent / "data"
 _DEFAULT_CATALOG_PATH = (
-    _PKG_DATA_DIR / "catalog_v1.json"
-    if (_PKG_DATA_DIR / "catalog_v1.json").exists()
-    else Path("data/catalog_v1.json")
+    _PKG_DATA_DIR / "catalog_v1.json" if (_PKG_DATA_DIR / "catalog_v1.json").exists() else Path("data/catalog_v1.json")
 )
 _DEFAULT_SCHEMA_PATH = (
     _PKG_DATA_DIR / "context_schema.json"
@@ -99,7 +97,9 @@ def detect_context(conversation: Any) -> dict[str, str]:
     detected_lang = "agnostic"
     if re.search(r"```python|\bpython\b|\bdef\s+\w+\b|\bimport\s+[a-z0-9_]+\b|\bpytest\b", text_lower):
         detected_lang = "python"
-    elif re.search(r"```typescript|```ts|\btypescript\b|\binterface\s+\w+\b|\btype\s+\w+\s*=|\bas\s+const\b", text_lower):
+    elif re.search(
+        r"```typescript|```ts|\btypescript\b|\binterface\s+\w+\b|\btype\s+\w+\s*=|\bas\s+const\b", text_lower
+    ):
         detected_lang = "typescript"
     elif re.search(r"```javascript|```js|\bjavascript\b|\bconst\s+\w+\s*=\s*require\(", text_lower):
         detected_lang = "javascript"
@@ -114,22 +114,35 @@ def detect_context(conversation: Any) -> dict[str, str]:
 
     # 2. Detect task_type
     detected_task = "code_generation"
-    if re.search(r"\bsecurity\b|\bvulnerability\b|\bcwe-\d+|\bowasp\b|\bsanitiz|\binjection\b|\bcsrf\b|\bxss\b|\bexploit\b", text_lower):
+    if re.search(
+        r"\bsecurity\b|\bvulnerability\b|\bcwe-\d+|\bowasp\b|\bsanitiz|\binjection\b|\bcsrf\b|\bxss\b|\bexploit\b",
+        text_lower,
+    ):
         detected_task = "security_audit"
-    elif re.search(r"\bdebug\b|\berror\b|\btraceback\b|\bexception\b|\bfailed\b|\bbug\b|\bcrash\b|\bwhy does this fail\b", text_lower):
+    elif re.search(
+        r"\bdebug\b|\berror\b|\btraceback\b|\bexception\b|\bfailed\b|\bbug\b|\bcrash\b|\bwhy does this fail\b",
+        text_lower,
+    ):
         detected_task = "debugging"
     elif re.search(r"\btest\b|\bpytest\b|\bunit test\b|\bmock\b|\bfixture\b|\bcoverage\b|\bassert\b", text_lower):
         detected_task = "testing"
     elif re.search(r"\brefactor\b|\bcleanup\b|\bmodernize\b|\brestructure\b|\bsimplify\b", text_lower):
         detected_task = "refactoring"
-    elif re.search(r"\barchitect\b|\barchitecture\b|\bsystem design\b|\bschema\b|\bmicroservice\b|\binfrastructure\b", text_lower):
+    elif re.search(
+        r"\barchitect\b|\barchitecture\b|\bsystem design\b|\bschema\b|\bmicroservice\b|\binfrastructure\b", text_lower
+    ):
         detected_task = "architecture"
 
     # 3. Detect recent_patterns
     detected_pattern = "none"
-    if re.search(r"\bactually\b|\bno,? that'?s wrong\b|\byou'?re wrong\b|\bincorrect\b|\bwrong approach\b|\bfix this\b", text_lower):
+    if re.search(
+        r"\bactually\b|\bno,? that'?s wrong\b|\byou'?re wrong\b|\bincorrect\b|\bwrong approach\b|\bfix this\b",
+        text_lower,
+    ):
         detected_pattern = "user_correction"
-    elif re.search(r"\bignore previous instructions\b|\bjailbreak\b|\boverride your rules\b|\bsystem prompt\b", text_lower):
+    elif re.search(
+        r"\bignore previous instructions\b|\bjailbreak\b|\boverride your rules\b|\bsystem prompt\b", text_lower
+    ):
         detected_pattern = "injection_attempt"
 
     # 4. Detect framework

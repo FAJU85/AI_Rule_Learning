@@ -41,7 +41,6 @@ def test_no_absolute_self_imports(module_path: Path) -> None:
                 if alias.name.split(".")[0] == PACKAGE_NAME:
                     offenders.append(f"line {node.lineno}: import {alias.name}")
 
-    assert not offenders, (
-        f"{module_path.name} uses absolute self-imports (use relative imports instead): "
-        + "; ".join(offenders)
+    assert not offenders, f"{module_path.name} uses absolute self-imports (use relative imports instead): " + "; ".join(
+        offenders
     )

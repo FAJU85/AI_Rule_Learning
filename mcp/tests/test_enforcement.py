@@ -23,11 +23,11 @@ def test_classify_fstrings_structural():
     assert c.check_id == "f_strings"
 
 
-def test_classify_pathlib_structural_but_pending():
+def test_classify_pathlib_structural_implemented():
     c = en.classify(_rule("Use pathlib.Path for file paths; never use os.path."))
     assert c.channel == en.STRUCTURAL
     assert c.check_id == "pathlib"
-    assert c.implemented is False
+    assert c.implemented is True
 
 
 def test_classify_soft_rule():
@@ -77,9 +77,10 @@ def test_enforce_fstrings_detects_format():
 
 def test_enforce_pending_channel():
     code = "def f(p):\n    return p\n"
-    res = en.enforce(_rule("Use pathlib.Path, never os.path."), code)
+    res = en.enforce(_rule("Annotate every parameter and the return type."), code)
     assert res.status == "pending"
     assert res.channel == en.STRUCTURAL
+    assert res.check_id == "type_hints"
 
 
 def test_enforce_soft_channel():
@@ -109,3 +110,42 @@ def test_enforcement_enabled_env(monkeypatch):
     assert en.enforcement_enabled() is False
     monkeypatch.setenv("ARL_ENFORCE", "1")
     assert en.enforcement_enabled() is True
+
+
+_NO_PRINT = _rule("Never call print(); return values instead.")
+_NO_ELSE = _rule("Never use the else keyword; use early returns.")
+_SHORT = _rule("Keep every function at most 10 non-blank lines.")
+_PATHLIB = _rule("Use pathlib.Path for paths, never os.path.")
+
+
+def test_enforce_no_print():
+    assert en.enforce(_NO_PRINT, "def f(x):\n    return x\n").status == "pass"
+    res = en.enforce(_NO_PRINT, "def f(x):\n    print(x)\n    return x\n")
+    assert res.status == "fail" and res.violations
+
+
+def test_enforce_no_else_flags_else_and_ternary_not_elif():
+    assert en.enforce(_NO_ELSE, "def f(x):\n    if x:\n        return 1\n    return 0\n").status == "pass"
+    assert (
+        en.enforce(
+            _NO_ELSE, "def f(x):\n    if x:\n        return 1\n    elif x == 2:\n        return 2\n    return 0\n"
+        ).status
+        == "pass"
+    )
+    assert (
+        en.enforce(_NO_ELSE, "def f(x):\n    if x:\n        return 1\n    else:\n        return 0\n").status == "fail"
+    )
+    assert en.enforce(_NO_ELSE, "def f(x):\n    return 1 if x else 0\n").status == "fail"
+
+
+def test_enforce_short_funcs():
+    assert en.enforce(_SHORT, "def f(x):\n    return x\n").status == "pass"
+    long_body = "def f(x):\n" + "".join(f"    y{i} = x + {i}\n" for i in range(12)) + "    return x\n"
+    res = en.enforce(_SHORT, long_body)
+    assert res.status == "fail" and res.violations
+
+
+def test_enforce_pathlib():
+    assert en.enforce(_PATHLIB, "from pathlib import Path\n\ndef f(p):\n    return Path(p).name\n").status == "pass"
+    res = en.enforce(_PATHLIB, "import os\n\ndef f(p):\n    return os.path.join(p, 'x')\n")
+    assert res.status == "fail" and res.violations

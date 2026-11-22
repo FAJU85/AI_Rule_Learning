@@ -2,21 +2,14 @@
 
 from __future__ import annotations
 
-import json
-from pathlib import Path
-from unittest.mock import patch
-
 import pytest
-
-from ai_rule_learning_mcp.store import (
-    _is_safe_rule,
-    _local_load,
-    _local_save,
-    is_already_processed,
-    load_active_rules,
-    mark_processed,
-    scrub_pii,
-)
+from ai_rule_learning_mcp.store import _is_safe_rule
+from ai_rule_learning_mcp.store import _local_load
+from ai_rule_learning_mcp.store import _local_save
+from ai_rule_learning_mcp.store import is_already_processed
+from ai_rule_learning_mcp.store import load_active_rules
+from ai_rule_learning_mcp.store import mark_processed
+from ai_rule_learning_mcp.store import scrub_pii
 
 
 @pytest.fixture(autouse=True)
