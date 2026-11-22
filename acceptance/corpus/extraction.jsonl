@@ -1,0 +1,20 @@
+{"id": "d01", "kind": "directive", "input": "Never include comments or docstrings in my code.", "expect": ["comment"]}
+{"id": "d02", "kind": "directive", "input": "You used print() again. Return the value instead of printing it.", "expect": ["return"]}
+{"id": "d03", "kind": "directive", "input": "I always want pathlib.Path for file paths.", "expect": ["pathlib"]}
+{"id": "d04", "kind": "directive", "input": "don't put the imports at the top, we lazy-import inside the function because of a circular dependency in utils", "expect": ["lazy"]}
+{"id": "d05", "kind": "directive", "input": "we use tabs not spaces in this codebase", "expect": ["tab"]}
+{"id": "d06", "kind": "directive", "input": "the imports should go at the bottom of the file", "expect": ["import"]}
+{"id": "d07", "kind": "directive", "input": "Annotate every function parameter and the return type.", "expect": ["annotat"]}
+{"id": "d08", "kind": "directive", "input": "use snake_case for all function and variable names", "expect": ["snake"]}
+{"id": "d09", "kind": "directive", "input": "stop raising bare Exception, raise ValueError for invalid input", "expect": ["valueerror"]}
+{"id": "d10", "kind": "directive", "input": "I prefer early returns over nested conditionals", "expect": ["return"]}
+{"id": "n01", "kind": "noise", "input": "thanks!", "expect": []}
+{"id": "n02", "kind": "noise", "input": "ok got it", "expect": []}
+{"id": "n03", "kind": "noise", "input": "ugh you did it again, why do you keep doing that", "expect": []}
+{"id": "n04", "kind": "noise", "input": "this is wrong", "expect": []}
+{"id": "n05", "kind": "noise", "input": "no that's not right", "expect": []}
+{"id": "n06", "kind": "noise", "input": "why are you doing that?", "expect": []}
+{"id": "n07", "kind": "noise", "input": "hmm, interesting", "expect": []}
+{"id": "n08", "kind": "noise", "input": "that's not what I meant at all", "expect": []}
+{"id": "m01", "kind": "multipart", "input": "stop using print, and also that function is way too long so split it up", "expect": ["print", "split"]}
+{"id": "m02", "kind": "multipart", "input": "two things: use type hints everywhere, and never use the else keyword", "expect": ["hint", "else"]}
